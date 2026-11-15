@@ -25,7 +25,7 @@ import path from "node:path";
 import { GO, checkGo } from "./go-collisions.mjs";
 import { RUST, checkRust } from "./rust-collisions.mjs";
 import { SCRIPT, checkScripts } from "./script-collisions.mjs";
-import { BRAND, BRAND_READ, GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, decisionsFor, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, signedBlocks, stayFor } from "./words.mjs";
+import { BRAND, BRAND_READ, SCOPES, GENERATED, HISTORY as HISTORY_DOCS, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, decisionsFor, movedPath, pathStayFor, proseSites, renamePhrases, renamedBare, signedBlocks, stayFor } from "./words.mjs";
 
 const TABLE = new URL("./identifiers.tsv", import.meta.url);
 const COLUMNS = ["repo", "identifier", "uses", "words", "to", "note", "where"];
@@ -173,15 +173,8 @@ function readDecisions(repo) {
 // as their rules, and scafld's own records.
 // Vendored copies are replaced by their sync, never edited in place.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
-// Where a consumer's runx words live, when the product around them has its
-// own vocabulary: Nitrosend's Flow builder has a node graph, its dogfood
-// audits have harnesses and a runner, Rails has a runner command, and
-// mcp-authoring-quality is its own model eval harness, in a format runx never
-// reads. Only these paths are renamed there; every other repo is renamed whole.
-const SCOPES = {
-  nitrosend: /^(?!skills\/nitrosend\/mcp-authoring-quality\/)((skills|connectors|\.runx)\/|\.agents\/skills\/support\/|(.*\/)?runx-[^/]*$)/,
-};
-// The repo being renamed's scope, set once from the command line.
+// The repo being renamed's scope (words.mjs's SCOPES), set once from the
+// command line. The brand rule reads past it, over the whole repo.
 let scope = /(?:)/;
 // A package's files are renamed like any other source, once the converter has
 // written them in the 0.12 shape: a name a step, a test or a module shares is
@@ -264,16 +257,16 @@ function keptSpans(pins, file, text) {
 // The files the tree holds now, tracked or not, minus what git ignores: the
 // converter runs first and writes files git doesn't know yet, and moves or
 // deletes some it does.
-function workingFiles(root) {
+function workingFiles(root, { whole = false } = {}) {
   const listed = execFileSync("git", ["-C", root, "ls-files", "--cached", "--others", "--exclude-standard"], {
     encoding: "utf8",
     maxBuffer: 1 << 28,
   });
-  return [...new Set(listed.split("\n").filter(Boolean))].filter((file) => scope.test(file) && existsSync(path.join(root, file)));
+  return [...new Set(listed.split("\n").filter(Boolean))].filter((file) => (whole || scope.test(file)) && existsSync(path.join(root, file)));
 }
 
-function workingSources(root) {
-  return workingFiles(root).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !LOCKFILE.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file) && !HISTORY_DOCS.test(file) && !GENERATED.test(file));
+function workingSources(root, { whole = false } = {}) {
+  return workingFiles(root, { whole }).filter((file) => SOURCE.test(file) && !file.includes("node_modules/") && !LOCKFILE.test(path.basename(file)) && !NOT_OURS.test(file) && !HISTORY.test(file) && !HISTORY_DOCS.test(file) && !GENERATED.test(file));
 }
 
 function readSource(root, file) {
@@ -494,9 +487,12 @@ function apply(repo, root, write, list, showStays) {
   const conflicts = [];
   const writes = [];
   const edited = new Map();
-  for (const file of workingSources(root)) {
+  // Every file of the repo is read for the brand; only those its scope holds
+  // for every other word.
+  for (const file of workingSources(root, { whole: true })) {
+    const inScope = scope.test(file);
     const source = readSource(root, file);
-    if (source?.signed) signed += 1;
+    if (source?.signed && inScope) signed += 1;
     if (source?.text === undefined) continue;
     const original = source.text;
     // A pinned literal keeps its bytes: no token inside one is renamed, and
@@ -520,7 +516,7 @@ function apply(repo, root, write, list, showStays) {
         return line.replace(TOKEN, (token, index) => {
           const at = start + index;
           if (inPin(at)) return token;
-          const to = renames.get(token);
+          const to = inScope ? renames.get(token) : undefined;
           if (to !== undefined) {
             count += 1;
             edits.push({ at, from: token, to });
@@ -531,6 +527,7 @@ function apply(repo, root, write, list, showStays) {
             edits.push({ at, from: token, to: BRAND_READ });
             return BRAND_READ;
           }
+          if (!inScope) return token;
           const site = `${file}:${number + 1}`;
           const shown = line.trim().slice(0, 140);
           if (bareWord(token) === undefined) {
@@ -578,7 +575,7 @@ function apply(repo, root, write, list, showStays) {
       .join("\n");
     // Retired phrases go after the names, outside any pin, so a pass over
     // its own output finds none.
-    const phrased = renamePhrases(file, renamed, keptSpans(pins, file, renamed));
+    const phrased = inScope ? renamePhrases(file, renamed, keptSpans(pins, file, renamed)) : { text: renamed, count: 0 };
     count += phrased.count;
     if (count === 0) continue;
     files += 1;

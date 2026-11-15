@@ -209,3 +209,21 @@ test("the guard fails on Runx where a person reads it, and passes it where it na
   );
 });
 
+
+test("a repo with its own vocabulary is read for every word inside its scope, and for the brand everywhere", (t) => {
+  const root = tree(t, {
+    "app/flows/graph-editor.md": "The Flow graph's runner is a Runx node.\n",
+    "skills/nitrosend/run.md": "Runx runs the graph of steps.\n",
+  });
+  const run = spawnSync(process.execPath, [GUARD, "nitrosend", root, "--list"], { encoding: "utf8" });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.stdout.trim().split("\n").map((line) => line.split("\t").slice(0, 2).join("\t")),
+    [
+      "app/flows/graph-editor.md:1:30\tbrand",
+      "skills/nitrosend/run.md:1:1\tbrand",
+      "skills/nitrosend/run.md:1\tgraph",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 1 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 2 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files",
+    ],
+  );
+});

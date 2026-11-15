@@ -21,7 +21,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { BRAND, GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
+import { BRAND, SCOPES, GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records, vendored copies and lockfiles.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -84,6 +84,10 @@ function main([repo, root, ...rest]) {
   }
   const list = rest.includes("--list");
   const names = decided(repo);
+  // A repo with a vocabulary of its own is read for every word only where
+  // its scope holds runx's words, and for the brand everywhere, as the rename
+  // renames it.
+  const scope = SCOPES[repo] ?? /(?:)/;
   const found = { runner: 0, harness: 0, graph: 0, closure: 0, turn: 0, brand: 0, key: 0, path: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
@@ -95,10 +99,11 @@ function main([repo, root, ...rest]) {
     // A prose-only word is stale where it's read as code or prose.
     const inProse = proseSites(file, text);
     const read = brandSites(file, text);
+    const inScope = scope.test(file);
     const lines = text.split("\n");
     const lineOf = (at) => text.slice(0, at).split("\n").length;
     const literals = (code) => stringLiterals(code, file).map(({ pieces }) => [pieces[0][0], pieces.at(-1)[1]]);
-    for (const removed of removedKeys(file, text, { fences: fencedBlocks, strings: literals })) {
+    for (const removed of inScope ? removedKeys(file, text, { fences: fencedBlocks, strings: literals }) : []) {
       const line = lineOf(removed.at);
       found.key += 1;
       byFile.set(file, (byFile.get(file) ?? 0) + 1);
@@ -116,7 +121,7 @@ function main([repo, root, ...rest]) {
           byFile.set(file, (byFile.get(file) ?? 0) + 1);
           if (list) process.stdout.write(`${file}:${index + 1}:${match.index + 1}\tbrand\t${token}\t${line.trim().slice(0, 160)}\n`);
         }
-        for (const [word, pattern] of Object.entries(RETIRED)) {
+        for (const [word, pattern] of Object.entries(inScope ? RETIRED : {})) {
           if (!pattern.test(token)) continue;
           if (PROSE_ONLY.has(word) && !inProse(start + match.index, token)) continue;
           if (names.get(token) === token) continue;
@@ -126,7 +131,7 @@ function main([repo, root, ...rest]) {
           if (list) process.stdout.write(`${file}:${index + 1}\t${word}\t${token}\t${line.trim().slice(0, 160)}\n`);
         }
       }
-      for (const [word, pattern] of [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT]]) {
+      for (const [word, pattern] of inScope ? [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT]] : []) {
         for (const match of line.matchAll(pattern)) {
           if (!unsigned(start + match.index)) continue;
           if (word === "turn" && AGENT_WHO_ACTS.test(line.slice(0, match.index + match[0].length))) continue;
@@ -137,7 +142,7 @@ function main([repo, root, ...rest]) {
       }
     });
   }
-  for (const stale of stalePaths(root, names)) {
+  for (const stale of stalePaths(root, names).filter((one) => scope.test(one.path))) {
     found.path += 1;
     if (list) process.stdout.write(`${stale.path}\tpath\t${stale.word}\t${stale.name}\n`);
   }

@@ -157,6 +157,17 @@ export function codeProse(text, file) {
   return spans;
 }
 
+// Where a consumer's runx words live, when the product around them has its
+// own vocabulary: Nitrosend's Flow builder has a node graph, its dogfood
+// audits have harnesses and a runner, Rails has a runner command, and
+// mcp-authoring-quality is its own model eval harness, in a format runx never
+// reads. Only these paths are renamed there, and read by the guard, for every
+// word but the brand, which runx is wherever it's written; every other repo is
+// read whole.
+export const SCOPES = {
+  nitrosend: /^(?!skills\/nitrosend\/mcp-authoring-quality\/)((skills|connectors|\.runx)\/|\.agents\/skills\/support\/|(.*\/)?runx-[^/]*$)/,
+};
+
 // The brand, capitalised as a word of its own: it's runx, lowercase, wherever
 // a person reads it, while a name such as `RunxPaths` is a token of its own.
 export const BRAND = "Runx";
