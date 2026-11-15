@@ -153,7 +153,8 @@ pub fn input_contract_schema_with_examples(
 
 /// The input schema a turn offers for a call: the input contract, where an
 /// input of a packet type may instead be the `runx.artifact.v1` a
-/// call of the turn returned for such a packet.
+/// call of the turn returned for such a packet. An input of that packet
+/// already takes one.
 pub fn call_input_schema(
     inputs: &BTreeMap<String, InputDefinition>,
 ) -> Result<JsonObject, crate::json::JsonValueError> {
@@ -161,7 +162,11 @@ pub fn call_input_schema(
     let reference = JsonValue::from_serialize(&crate::Artifact::json_schema())?;
     if let Some(JsonValue::Object(properties)) = schema.get_mut("properties") {
         for (name, input) in inputs {
-            if input.packet.is_none() {
+            if input
+                .packet
+                .as_ref()
+                .is_none_or(|packet| packet.as_str() == crate::ARTIFACT_SCHEMA)
+            {
                 continue;
             }
             if let Some(packet) = properties.remove(name) {

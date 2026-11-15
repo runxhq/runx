@@ -151,10 +151,25 @@ fn catalog_input(
             required: required.contains(name.as_str()),
             description,
             default,
-            packet: None,
+            packet: packet_of(property),
             schema,
         },
     ))
+}
+
+/// The packet a property's value is. A runx packet type states its own id as
+/// its `schema` field, the one value of a string enum, so a native input of
+/// that type takes that packet, as a manifest input names one with `packet`.
+fn packet_of(property: &serde_json::Value) -> Option<runx_contracts::PacketId> {
+    let ids = property
+        .get("properties")?
+        .get("schema")?
+        .get("enum")?
+        .as_array()?;
+    let [id] = ids.as_slice() else {
+        return None;
+    };
+    runx_contracts::PacketId::new(id.as_str()?)
 }
 
 /// The schema a property's value takes when present: an optional property's

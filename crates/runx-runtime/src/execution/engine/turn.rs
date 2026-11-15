@@ -2413,14 +2413,15 @@ where
             else {
                 continue;
             };
-            // An input explicitly taking the descriptor's own packet type
-            // receives the descriptor as its value. Other packet types use
-            // it as a reference to retained content below.
-            if step.inputs[&name]
-                .as_object()
-                .and_then(|value| value.get("schema"))
-                .and_then(JsonValue::as_str)
-                .is_some_and(|schema| crate::input_contract::takes_descriptor(input, schema))
+            // An input of the descriptor's own packet type receives the
+            // descriptor as its value. Other packet types use it as a
+            // reference to retained content below.
+            if let Some(packet) = &input.packet
+                && step.inputs[&name]
+                    .as_object()
+                    .and_then(|value| value.get("schema"))
+                    .and_then(JsonValue::as_str)
+                    == Some(packet.as_str())
             {
                 let value = step.inputs[&name].clone();
                 crate::input_contract::admit_input_value(declared_by, &name, input, &value)
