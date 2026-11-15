@@ -803,10 +803,17 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         },
     );
 
-    // Cost: the call fits what is left of the run's money limit. A run with
-    // no limit spends unbounded, as it always has, and records no check.
+    // Cost: the call fits what is left of the run's money limit. A call
+    // whose operation quotes a charge needs one (D33): a run that states
+    // none refuses it, saying how to state one. A charge with no quote can't
+    // be counted by a limit, so it waits on the person's approval of that
+    // exact call unless a use bound covers it (above).
     let spend = match (limit, charge) {
-        (None, _) => None,
+        (None, _) if done.is_some() => None,
+        (None, _) => match unlimited_charge(operation_spec) {
+            Some(detail) => return Err(reasons.refuse(AdmissionCheck::Cost, detail)),
+            None => None,
+        },
         _ if done.is_some() => {
             reasons.pass(
                 AdmissionCheck::Cost,
@@ -1289,8 +1296,8 @@ fn readiness(
     );
     let money_limit = authority.and_then(|authority| authority.max_spend_micro_usd);
     let mut usage_approval = usage_approval_required(spec, money_limit, &[]);
-    if let Some(limit) = money_limit {
-        match spend::charge(spec, None) {
+    match money_limit {
+        Some(limit) => match spend::charge(spec, None) {
             Ok(charge) if charge.usd_micro <= limit => reasons.pass(
                 AdmissionCheck::Cost,
                 "the quote fits; the exact amount is checked at admission",
@@ -1301,6 +1308,11 @@ fn readiness(
                 "the operation's quote exceeds the run's money limit",
             ),
             Err(detail) => reasons.push(AdmissionCheck::Cost, CheckOutcome::Fail, detail),
+        },
+        None => {
+            if let Some(detail) = unlimited_charge(spec) {
+                reasons.push(AdmissionCheck::Cost, CheckOutcome::Fail, detail);
+            }
         }
     }
     match capability::evidence(&CapabilityRequest {
@@ -1482,6 +1494,19 @@ fn usage_approval_required(
     limits: &[&AuthorityUseLimit],
 ) -> bool {
     operation.is_unpriced_metered() && money_limit.is_none() && limits.is_empty()
+}
+
+/// Why a call of `operation` is refused in a run that states no money
+/// limit: it quotes a charge, and only a stated limit can cover one (D33).
+fn unlimited_charge(operation: &ConnectorOperation) -> Option<String> {
+    let quote = operation
+        .cost
+        .as_ref()
+        .and_then(|cost| cost.usd_micro)
+        .filter(|quote| *quote > 0)?;
+    Some(format!(
+        "the call quotes {quote} micro-USD and the run states no money limit: state one with runx skill --max-spend <usd>, or max_spend_micro_usd in the run's authority"
+    ))
 }
 
 /// One narrowing between an instance's capability and a call: its terms, each

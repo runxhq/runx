@@ -392,7 +392,8 @@ fn a_metered_process_failure_stays_open_and_cannot_be_repeated_by_empty_resume()
     let started = command(&root, &home)?
         .arg("skill")
         .arg(root.join("skills/notes#lost"))
-        .args(["--inputs", "inputs.json", "--json"])
+        // A priced read is sent only under a stated limit.
+        .args(["--inputs", "inputs.json", "--max-spend", "1", "--json"])
         .output()?;
     assert_eq!(started.status.code(), Some(2));
     let pending: serde_json::Value = serde_json::from_slice(&started.stdout)?;

@@ -1570,28 +1570,48 @@ fn a_call_billed_on_success_gives_its_spend_back_when_refused() {
 }
 
 #[test]
-fn a_run_without_a_limit_spends_as_it_always_has() {
+fn a_priced_call_in_a_run_that_states_no_limit_is_refused_saying_how_to_state_one() {
     let fixture = Fixture::new(&["channel.post"]);
     price_advisories(&fixture, 5_000);
-    let (admission, outcome, _) = fixture
-        .run_under("advisories", &advisories("ADV-1"), None, None)
-        .unwrap();
-    let context = admission.context::<OperationAdmission>().unwrap();
+    let refused = fixture
+        .admit_as("advisories", &advisories("ADV-1"), None)
+        .expect_err("a declared charge needs a stated limit");
     assert!(
-        !context
-            .admitted
-            .admission
-            .reasons
-            .iter()
-            .any(|reason| reason.check == runx_contracts::AdmissionCheck::Cost),
-        "an unlimited run records no cost check"
+        matches!(refused, RuntimeEffectError::CostLimitExceeded { .. }),
+        "{refused}"
     );
-    assert!(context.admitted.spend.is_none());
-    // The packet still says what the call cost.
-    assert_eq!(
-        packet(&outcome)["cost"].as_object().unwrap()["quoted_usd_micro"],
-        JsonValue::Number(runx_contracts::JsonNumber::U64(5000))
-    );
+    let message = refused.to_string();
+    assert!(message.contains("5000 micro-USD"), "{message}");
+    assert!(message.contains("--max-spend"), "{message}");
+    assert!(message.contains("max_spend_micro_usd"), "{message}");
+    assert_eq!(fixture.provider.calls(), 0);
+
+    // Readiness says the same before anything runs.
+    let scope = crate::ConnectorScope::at(fixture.root.path()).unwrap();
+    let connector = scope.connector("fixture/advisories").unwrap();
+    let readiness =
+        admission::connector_readiness(&connector, &fixture.env, fixture.root.path()).unwrap();
+    assert!(readiness.iter().any(|item| {
+        item.reasons.iter().any(|reason| {
+            reason.check == AdmissionCheck::Cost
+                && reason.outcome == runx_contracts::CheckOutcome::Fail
+                && reason.detail.as_str().contains("--max-spend")
+        })
+    }));
+
+    // A stated limit covers it, and a zero quote declares no charge at all.
+    fixture
+        .run_under(
+            "advisories",
+            &advisories("ADV-1"),
+            None,
+            Some(&limited(5_000)),
+        )
+        .expect("the limit covers the quote");
+    let free = Fixture::new(&["channel.post"]);
+    price_advisories(&free, 0);
+    free.run_under("advisories", &advisories("ADV-1"), None, None)
+        .expect("a zero quote needs no limit");
 }
 
 #[test]
@@ -1602,6 +1622,8 @@ fn readback_pending_preserves_both_finality_and_charge_retry_safety() {
         Some("usd_micro: 5000, per: request, source: docs"),
     ] {
         let metered = declaration.is_some_and(|cost| cost.starts_with("usd_micro: 5000"));
+        // A priced call needs a stated limit to be sent at all.
+        let authority = metered.then(|| limited(u64::MAX));
         for answer in [Answer::Reject, Answer::TimeOut] {
             let fixture = Fixture::new(&["channel.post"]);
             if let Some(cost) = declaration {
@@ -1610,7 +1632,9 @@ fn readback_pending_preserves_both_finality_and_charge_retry_safety() {
             fixture.provider.answer(answer);
             let mut inputs = advisories("ADV-1");
             inputs.insert("confirms".to_owned(), JsonValue::Object(JsonObject::new()));
-            let admission = fixture.admit("advisories", &inputs).unwrap();
+            let admission = fixture
+                .admit_as("advisories", &inputs, authority.as_ref())
+                .unwrap();
             let mut host = Approver::new(None);
             let admission = match fixture.prepare("advisories", admission, &mut host).unwrap() {
                 EffectPreparationOutcome::Ready(admission) => Some(admission),
@@ -1639,7 +1663,10 @@ fn readback_pending_preserves_both_finality_and_charge_retry_safety() {
             assert_eq!(fixture.provider.calls(), 1);
             if metered && answer == Answer::TimeOut {
                 fixture.provider.answer(Answer::Succeed);
-                assert!(fixture.run("advisories", &inputs, None).is_err());
+                let resent = fixture
+                    .run_under("advisories", &inputs, None, authority.as_ref())
+                    .expect_err("an uncertain charge is never sent again unseen");
+                assert!(resent.contains("cannot be resent safely"), "{resent}");
                 assert_eq!(
                     fixture.provider.calls(),
                     1,

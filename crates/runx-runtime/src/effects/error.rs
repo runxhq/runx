@@ -27,8 +27,10 @@ pub enum RuntimeEffectError {
         idempotency_key: String,
         message: String,
     },
-    /// The call would spend more than is left of the run's money limit.
-    #[error("effect family {family} refused a call over the run's money limit: {message}")]
+    /// The run's money limit doesn't cover the call: it would spend more
+    /// than is left, its cost can't be counted, or it quotes a charge in a
+    /// run that states no limit.
+    #[error("effect family {family} refused a call for its cost: {message}")]
     CostLimitExceeded { family: String, message: String },
     #[error("effect family {family} failed during {operation}: {message}")]
     Failed {

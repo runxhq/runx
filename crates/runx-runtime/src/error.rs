@@ -258,9 +258,10 @@ pub enum RuntimeError {
     /// refusal of runx's.
     #[error("a person declined workflow step '{step_id}': {reason}")]
     Declined { step_id: String, reason: String },
-    /// A call would spend more than is left of the run's money limit;
-    /// nothing was sent.
-    #[error("workflow step '{step_id}' exceeds the run's money limit: {reason}")]
+    /// The run's money limit doesn't cover a call: it would spend more than
+    /// is left, its cost can't be counted, or it quotes a charge in a run
+    /// that states no limit. Nothing was sent.
+    #[error("workflow step '{step_id}' was refused for its cost: {reason}")]
     CostLimitExceeded { step_id: String, reason: String },
     /// A step or call would take the root run's receipt tree past its
     /// bound; nothing ran.

@@ -2,6 +2,9 @@ name: bounded-discovery
 setup:
   credentials:
   - exa
+  # A search quotes up to 14,000 micro-USD, sent only under a stated limit.
+  authority:
+    max_spend_micro_usd: 14000
 inputs:
   query: Example API documentation
   limit: 3

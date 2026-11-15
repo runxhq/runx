@@ -23,9 +23,12 @@ time-sensitive question, remembering that a publication date is not necessarily
 the event date. Do not add filters that exclude the contrary evidence you need.
 
 Limit queries and results to the caller's actual budget. Search may consume paid
-credits. The result includes reported cost when available; missing cost remains
-unknown. The result cap is not a monetary spending limit. This package adds no
-billing authority or automatic retry after an uncertain paid request.
+credits: each one quotes up to $0.014, so it's sent only in a run that states a
+money limit (`runx skill --max-spend`), and refused before anything is sent in
+one that doesn't. The result includes reported cost when available; missing
+cost remains unknown. The result cap is not a money limit. This
+package adds no billing authority or automatic retry after an uncertain paid
+request.
 
 ## Result and composition
 

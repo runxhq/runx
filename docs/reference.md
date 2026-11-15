@@ -455,8 +455,11 @@ turn calls spend from the same limit, and none can widen it. A call that
 proves nothing billable gives its reservation back. A payment in any other
 currency is refused under a limit, since it cannot be counted. Unknown provider
 prices are also refused under a money limit; missing price information is not
-zero. With no money limit, no dollar reservation is made, while scoped use
-limits, charge custody and applicable approval still hold. A run started with `--drive` is worked by the
+zero. A call whose operation quotes a charge needs a stated limit: in a run
+with none it's refused as `cost_limit_exceeded`, saying how to state one. A
+charge with no quote can't be counted by a limit, so with none it waits on the
+person's approval of that exact call, unless a use bound on its term covers
+it. Scoped use limits and charge custody hold either way. A run started with `--drive` is worked by the
 managed agent: `runx mcp --run` refuses it, and `--drive` cannot take
 over a run its host drives. The managed agent works every turn the run opens
 in the same drive, and the turns of calls a script runs at once are worked at
@@ -1123,9 +1126,9 @@ whole operation's declared request sequence. Metered paging needs separately
 accounted requests; a free reader may page. `usd_micro: 0` explicitly declares
 free. Omitting `usd_micro` from a cost declaration describes metered usage whose
 USD quote is unknown; omitting the declaration does not establish a free call.
-A strict money limit accepts neither unknown case. Without such a limit, declared
-unpriced metering uses bounded-use authority or asks once for native approval of
-the exact call. An empty use-limit object is not a bound.
+A strict money limit accepts neither unknown case. Without a limit, a quoted
+charge is refused, and declared unpriced metering uses bounded-use authority or
+asks once for native approval of the exact call. An empty use-limit object is not a bound.
 
 `runx skill inspect` shows the declaration. A call's packet carries
 `cost: {quoted_usd_micro?, settled_usd_micro?, payer}` when cost is declared;

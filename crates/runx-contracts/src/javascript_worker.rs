@@ -235,7 +235,7 @@ pub struct ScriptInputReference {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ScriptRejection {
-    /// Admission refused it: authority, `calls`, the spending limit, depth.
+    /// Admission refused it: authority, `calls`, the money limit, depth.
     Refused,
     /// It ran and failed.
     Failed,
