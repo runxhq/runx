@@ -157,15 +157,10 @@ fn survey(root: &Path) -> TestResult<serde_json::Value> {
     Ok(surveyed["result"].clone())
 }
 
-/// Survey lays out its checks from the record before anything is judged:
-/// the stopped run, the decline with the person's reason, the rule the
-/// repository doesn't hold and a success to sample, one check each beside
-/// its own. The same record gives the same set, by digest, and a rule is held
-/// once AGENTS.md holds its handle at HEAD.
-#[test]
-fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> TestResult {
-    let temp = tempdir()?;
-    let root = temp.path();
+/// The workspace's record, made by real runs: a success, a run a guard
+/// stopped, an ask declined with the person's reason, and a rule kept in
+/// memory through `runx/memory#remember`. Returns the first three runs.
+fn record(root: &Path) -> TestResult<[serde_json::Value; 3]> {
     brain(root)?;
     let greet = root.join("skills/greet");
     let hello = run(
@@ -196,6 +191,19 @@ fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> Tes
     let kept = answer(root, &keeping, serde_json::json!(true))?;
     assert_eq!(kept["outcome"], "completed", "{kept}");
 
+    Ok([hello, broken, asked])
+}
+
+/// Survey lays out its checks from the record before anything is judged:
+/// the stopped run, the decline with the person's reason, the rule the
+/// repository doesn't hold and a success to sample, one check each beside
+/// its own. The same record gives the same set, by digest, and a rule is held
+/// once AGENTS.md holds its handle at HEAD.
+#[test]
+fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let [hello, broken, asked] = record(root)?;
     let first = survey(root)?;
     let second = survey(root)?;
     assert_eq!(
@@ -203,7 +211,7 @@ fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> Tes
         "{first}\n{second}"
     );
     assert_eq!(first["subject"]["revision"], second["subject"]["revision"]);
-    assert_eq!(first["subject"]["head"], git(root, &["rev-parse", "HEAD"])?);
+    assert_eq!(first["head"], git(root, &["rev-parse", "HEAD"])?);
     assert_eq!(first["read_to_end"], true);
     assert_eq!(first["mark"]["open"], serde_json::json!([]));
 
@@ -261,5 +269,160 @@ fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> Tes
     let held = survey(root)?;
     assert_eq!(held["unheld"], serde_json::json!([]), "{held}");
     assert_ne!(held["subject"]["revision"], first["subject"]["revision"]);
+    Ok(())
+}
+
+/// `reflect#reflect` in the workspace at `root`, its turns worked by the
+/// scripted model at `endpoint`, as runx's managed agent drives them.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn reflect(root: &Path, endpoint: &str) -> TestResult<serde_json::Value> {
+    let mut environment = env(root);
+    environment.extend(runx_runtime::scripted_model::managed_agent_env(
+        endpoint,
+        "fixture-model",
+    ));
+    let ran = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        environment.clone(),
+    )
+    .run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: Some(serde_json::from_value(memory(
+                &["read"],
+                &["project:reflect", "runx/memory"],
+            ))?),
+            act: None,
+            skill_path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/reflect"),
+            receipt_dir: Some(root.join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: serde_json::from_value(
+                serde_json::json!({"reader": "nightly", "until": "2099-01-01T00:00:00Z"}),
+            )?,
+            env: environment,
+            cwd: root.to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(4)?,
+        },
+        Some("reflect"),
+        None,
+        None,
+    )?;
+    let output = serde_json::to_value(&ran.output)?;
+    assert_eq!(output["status"], "sealed", "{output}");
+    Ok(output)
+}
+
+/// The inputs a turn was given, from the context its request carries.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn turn_inputs(request: &serde_json::Value) -> serde_json::Value {
+    request["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|message| message["role"] == "user")
+        .filter_map(|message| message["content"].as_str())
+        .find_map(|text| {
+            let start = text.find("\n{")?;
+            serde_json::from_str::<serde_json::Value>(&text[start + 1..]).ok()
+        })
+        .map(|context| context["inputs"].clone())
+        .unwrap_or_default()
+}
+
+/// Read-only reflection on scripted answers: each resistance is diagnosed
+/// and each sampled success asked the purpose-only question, each a fresh
+/// turn. A diagnosis citing what the record doesn't hold is dropped. The
+/// window is decided by the one rule: what nothing has kept yet is not met,
+/// and the loop repeats exactly.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+#[test]
+fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestResult {
+    use runx_runtime::scripted_model::{ScriptedModel, tool_call};
+    let temp = tempdir()?;
+    let root = temp.path();
+    record(root)?;
+    let model = ScriptedModel::serve(|request| {
+        let inputs = turn_inputs(request);
+        let complete = |finding: serde_json::Value| {
+            tool_call(
+                "call-final",
+                "turn_complete",
+                &serde_json::json!({ "finding": finding }),
+            )
+        };
+        if let Some(resistance) = inputs.get("resistance") {
+            // The stopped run's diagnosis cites a receipt no record holds.
+            let evidence = if resistance["kind"] == "sealed_blocked" {
+                serde_json::json!([
+                    "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                ])
+            } else {
+                serde_json::json!([resistance["evidence"]])
+            };
+            return complete(serde_json::json!({
+                "summary": format!("The {} stopped the run.", resistance["kind"]),
+                "cause": "The record shows it.",
+                "evidence": evidence,
+            }));
+        }
+        let address = inputs["run"]["events"][0]["address"].clone();
+        complete(
+            serde_json::json!({"met": true, "summary": "It did what its purpose asks.", "evidence": [address]}),
+        )
+    })?;
+    let first = reflect(root, model.endpoint())?;
+    let second = reflect(root, model.endpoint())?;
+    model.finish()?;
+
+    let findings = first["result"]["findings"].as_array().ok_or("findings")?;
+    let finding = |criterion: &str| {
+        findings
+            .iter()
+            .find(|entry| entry["criterion"] == criterion)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let resistance = |kind: &str| {
+        first["context"]["step_outputs"]["survey"]["resistance"]
+            .as_array()
+            .and_then(|items| items.iter().position(|item| item["kind"] == kind))
+            .map(|index| format!("resisted_{}", index + 1))
+            .unwrap_or_default()
+    };
+    assert!(
+        finding(&resistance("sealed_blocked"))["dropped"]
+            .as_str()
+            .is_some_and(|why| why.contains("doesn't hold")),
+        "{first}"
+    );
+    assert!(
+        finding(&resistance("declined_ask"))["finding"].is_object(),
+        "{first}"
+    );
+    assert_eq!(finding("sampled_1")["finding"]["met"], true, "{first}");
+
+    let verdict = &first["result"]["verdict"];
+    assert_eq!(verdict["verdict"], "not_met", "{verdict}");
+    let answer = |id: &str| {
+        verdict["assessments"]
+            .as_array()
+            .and_then(|all| all.iter().find(|entry| entry["id"] == id).cloned())
+            .unwrap_or_default()
+    };
+    assert_eq!(answer("record_read")["verdict"], "met");
+    assert_eq!(answer("sampled_1")["verdict"], "met");
+    assert_eq!(answer("unheld_1")["verdict"], "not_met");
+    assert_eq!(answer(&resistance("declined_ask"))["verdict"], "not_met");
+    assert_eq!(verdict["evaluator"]["method"], "reflect", "{verdict}");
+    assert_eq!(first["result"]["decision"]["verdict"], "not_met", "{first}");
+
+    // The same record and the same answers give the same judgement.
+    assert_eq!(first["result"]["findings"], second["result"]["findings"]);
+    assert_eq!(
+        verdict["assessments"],
+        second["result"]["verdict"]["assessments"]
+    );
     Ok(())
 }

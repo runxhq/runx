@@ -9,7 +9,39 @@ catalog:
   visibility: internal
   category: ops
   tags: [reflection, memory, verdict]
+default_method: reflect
 methods:
+  reflect:
+    description: Read the record since this reader's mark, judge it against the checks survey lays out first, and decide the window by the one rule. Diagnosis and the purpose-only question are each a fresh turn; everything else is code.
+    inputs:
+      reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a schedule. Marks are per reader." }
+      until: { type: string, format: date-time, description: The window's end. }
+    result_from: [judge, decide, decision]
+    steps:
+      - id: survey
+        skill: .#survey
+        inputs: { reader: $input.reader, until: $input.until }
+      - id: judge
+        # One diagnosis per resistance and one purpose-only question per
+        # sampled success, each its own child run in a fresh context. A
+        # finding is kept only when what it cites is in the run's record.
+        script: { module: reflect.mjs, export: judge }
+        inputs: { survey: $steps.survey }
+        calls:
+          skills: [.#diagnose, .#challenge]
+          tools: [run.read, git.show]
+        max_calls: 200
+        effects: none
+        outputs:
+          findings: { type: array, items: { type: object }, description: "Each check's finding with its evidence, or why it was dropped." }
+      - id: decide
+        tool: { module: reflect.mjs, export: assessments }
+        inputs: { survey: $steps.survey, findings: $steps.judge.findings }
+        outputs:
+          verdict: { packet: runx.verdict.v1, description: "One assessment per check survey laid out, its subject survey's window. The runtime sets its evaluator." }
+      - id: decision
+        tool: verdict.decide
+        inputs: { verdict: $steps.decide.verdict, subject: $steps.survey.subject, criteria_ref: runx/reflect, criteria: $steps.survey.criteria }
   survey:
     description: Read the mark, the record since it, the workspace's standing memory and its revision, and lay out the checks before anything is judged. No model.
     inputs:
@@ -27,9 +59,47 @@ methods:
         effects: none
         outputs:
           criteria: { type: object, packet: runx.criteria.v1, description: "One check per item, and survey's own, that every run was read to its end. The same record gives the same set, by digest." }
-          subject: { type: object, description: "The window judged: its ref and revision, the digest of its runs and the workspace's HEAD." }
+          subject: { type: object, description: "The window judged, { ref, revision }: its revision the digest of the window's runs and the workspace's HEAD." }
+          head: { type: string, description: The workspace's HEAD commit the checks are bound to. }
           resistance: { type: array, items: { type: object }, description: "Every refused, declined and failed call, failed step, declined ask with its reason, unmet verdict, and run that sealed other than completed, each with its evidence." }
           sampled: { type: array, items: { type: object }, description: "The latest success of each skill in the window, for the purpose-only reader." }
           unheld: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md doesn't hold at HEAD." }
           mark: { type: object, description: "Where the mark moves once a verdict covers the window, and the runs still open there." }
           read_to_end: { type: boolean, description: "Every run in the window was read to its last event. False when the calls ran out first." }
+  diagnose:
+    description: Say why one recorded resistance happened, from its evidence alone. Read the run's record with run.read, and cite each sealed receipt or event address the diagnosis rests on, exactly as the record gives it; a diagnosis citing anything else is dropped.
+    inputs:
+      resistance: { type: object, description: "One item survey found: its kind, run, step, reason and evidence." }
+    steps:
+      - id: diagnose
+        agent: diagnose
+        requires: [fresh_context]
+        calls:
+          tools: [run.read]
+        inputs: $input
+        outputs:
+          finding:
+            type: object
+            required: [summary, cause, evidence]
+            properties:
+              summary: { type: string, description: "What went wrong, in one sentence." }
+              cause: { type: string, description: "Why, from the evidence." }
+              evidence: { type: array, items: { type: string }, description: "The receipts and event addresses it rests on." }
+  challenge:
+    description: Given only a skill's purpose and one of its successful runs, say whether the run did what the purpose asks. Judge from the purpose and the run alone; cite the receipts or event addresses that show it.
+    inputs:
+      purpose: { type: string, description: The skill's purpose, its manual's description. }
+      run: { type: object, description: "The run as its record holds it: its skill, method and events." }
+    steps:
+      - id: challenge
+        agent: challenge
+        requires: [fresh_context]
+        inputs: $input
+        outputs:
+          finding:
+            type: object
+            required: [met, summary, evidence]
+            properties:
+              met: { type: boolean, description: Whether the run did what the purpose asks. }
+              summary: { type: string, description: "What it did, against what the purpose asks." }
+              evidence: { type: array, items: { type: string }, description: "The receipts and event addresses that show it." }

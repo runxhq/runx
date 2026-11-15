@@ -44,3 +44,45 @@ It returns:
 
 A survey that runs out of calls before reading every run says so: its own check
 then can't be met, and the mark it returns moves only past what it read.
+
+## reflect
+
+`reflect` runs `survey`, then judges the window and decides it:
+
+- **`judge`** gives each resistance to `diagnose` and each sampled success to
+  `challenge`, each its own fresh turn. Code reads each run's record first and
+  keeps a finding only when it cites evidence and every ref it cites is a
+  sealed receipt or an event of that run. A finding that rests on anything else
+  is dropped, and the check says why.
+- **`decide`** answers every check with a `runx.verdict.v1` whose subject is
+  survey's window, and `verdict.decide` decides it by the one rule. A resistance
+  is met only once it's kept, as a fix with a case that fails on the old
+  revision and passes on the fix or as an observation with its sources, and a
+  rule only once `AGENTS.md` holds it: until then each is `not_met`, saying
+  what it lacks. A sampled run is met or not as its purpose-only reader found,
+  and unresolved when no finding was kept.
+
+## Agent task: diagnose
+
+You are given one thing that resisted in a recorded run: a refused, declined
+or failed call, a failed step, a declined approval with the person's reason,
+an unmet verdict, or a run that stopped. Say why it happened, from the record
+alone. Read the run with `run.read`; you change nothing.
+
+Return `finding`: `summary`, what went wrong in one sentence; `cause`, why,
+as the record shows it; and `evidence`, each sealed receipt id or event
+address (`runx:run:<stream>@<version>`) your cause rests on, exactly as the
+record gives them. Cite only what you read. If the record doesn't show why,
+say so in `cause` and cite what it does show.
+
+## Agent task: challenge
+
+You are given a skill's purpose, one sentence from its manual, and one of its
+runs that succeeded, as its record holds it: each step's output and each
+call's outcome. You are not given how the skill is built, and you don't need
+it. Judge whether the run did what the purpose asks: what a person relying on
+the skill for that purpose would have needed from it.
+
+Return `finding`: `met`, whether it did; `summary`, what it did against what
+the purpose asks; and `evidence`, each receipt id or event address from the
+run that shows it, exactly as given.

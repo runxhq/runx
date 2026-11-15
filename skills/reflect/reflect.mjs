@@ -269,15 +269,161 @@ export async function survey(ctx, { reader, until }) {
   const sampled = sampledOf(successes);
   const unheld = unheldOf(entries, instructions);
   const revision = (await tool("data.digest", { value: { head, runs: [...readRuns].sort(), open: [...open].sort() } })).digest_result.digest;
-  const subject = { ref: `runx/reflect/window/${reader}`, revision, head, runs: readRuns.length };
+  const subject = { ref: `runx/reflect/window/${reader}`, revision };
   const { criteria } = await tool("verdict.criteria", { criteria: checksOf({ resistance, unheld, sampled }) });
   return {
     criteria,
     subject,
+    head,
     resistance,
     sampled,
     unheld,
     mark: { version: mark.version, through, at_through: atThrough.sort(), open: [...new Set(open)].sort() },
     read_to_end,
+  };
+}
+
+/** The refs a run's record holds that a finding may cite: each sealed receipt, and each event's address. */
+export function refsOf(records) {
+  const refs = new Set();
+  for (const record of records) {
+    refs.add(`runx:run:${record.stream}@${record.version}`);
+    const event = record.event;
+    if (typeof event.receipt_id === "string") refs.add(event.receipt_id);
+    if (typeof event.outcome?.receipt_id === "string") refs.add(event.outcome.receipt_id);
+  }
+  return refs;
+}
+
+/**
+ * A finding a turn returned, kept only when it cites evidence, and every ref
+ * it cites is a sealed receipt or an event of the run it judged. Otherwise
+ * it's dropped, and says why: a diagnosis that rests on nothing the record
+ * holds is no diagnosis.
+ */
+export function kept(criterion, finding, refs) {
+  const evidence = Array.isArray(finding?.evidence) ? finding.evidence : [];
+  const unknown = evidence.filter((ref) => !refs.has(ref));
+  if (evidence.length === 0) return { criterion, dropped: "it cites no evidence" };
+  if (unknown.length > 0) return { criterion, dropped: `it cites what the record doesn't hold: ${unknown.join(", ")}` };
+  return { criterion, finding };
+}
+
+/** A skill's purpose: its manual's front-matter description, and nothing of its design. */
+export function purposeOf(manual) {
+  const front = /^---\n([\s\S]*?)\n---/.exec(manual ?? "");
+  const line = front?.[1].split("\n").find((entry) => entry.startsWith("description:"));
+  return line?.slice("description:".length).trim().replace(/^(["'])(.*)\1$/, "$2") || undefined;
+}
+
+/**
+ * Judge the window: one diagnosis per resistance and one purpose-only
+ * question per sampled success, each its own child run in a fresh context.
+ * Code reads each run's record first, so a finding is kept only when what it
+ * cites is in it. A sampled skill whose purpose can't be read is left
+ * unjudged, which its check reads as unresolved.
+ */
+export async function judge(ctx, { survey }) {
+  const findings = [];
+  const recordOf = async (run_id) => {
+    const records = [];
+    let after;
+    for (;;) {
+      const page = await ctx.read((await ctx.tool("run.read", { run_id, ...(after ? { after } : {}) })).run_read);
+      records.push(...page.events);
+      if (!page.more) return records;
+      after = page.cursor;
+    }
+  };
+  for (const [index, resistance] of survey.resistance.entries()) {
+    const refs = refsOf(await recordOf(resistance.run));
+    const { finding } = await ctx.skill(".#diagnose", { resistance });
+    findings.push(kept(`resisted_${index + 1}`, finding, refs));
+  }
+  for (const [index, sampled] of survey.sampled.entries()) {
+    const criterion = `sampled_${index + 1}`;
+    let purpose;
+    try {
+      const manual = await ctx.read((await ctx.tool("git.show", { revision: "HEAD", path: `skills/${sampled.skill}/SKILL.md` })).git_show);
+      purpose = purposeOf(manual.text);
+    } catch (rejection) {
+      if (rejection?.code !== "failed") throw rejection;
+    }
+    if (typeof purpose !== "string" || purpose.length === 0) {
+      findings.push({ criterion, dropped: `the purpose of ${sampled.skill} can't be read` });
+      continue;
+    }
+    const records = await recordOf(sampled.run);
+    // The run as its record holds it, and the skill's purpose: never its design.
+    const run = { run: sampled.run, skill: sampled.skill, method: sampled.method, events: records.map((record) => ({ address: `runx:run:${record.stream}@${record.version}`, ...record.event })) };
+    const { finding } = await ctx.skill(".#challenge", { purpose, run });
+    findings.push(kept(criterion, finding, refsOf(records)));
+  }
+  return { findings };
+}
+
+/**
+ * One assessment per check, from what survey found and the findings judge
+ * kept, as a runx.verdict.v1 whose subject is survey's window. A resistance
+ * is met only once it's kept, as a fix with its case or an observation, and a
+ * rule only once AGENTS.md holds it; before keep and promote, each is not_met,
+ * saying what it lacks. A sampled run is met or not as its purpose-only
+ * reader found, and unresolved when no finding was kept.
+ */
+export function assessments({ survey, findings }) {
+  const by = new Map(findings.map((entry) => [entry.criterion, entry]));
+  const where = (item) => `${item.stream}${item.step ? `#${item.step}` : ""}${item.index === undefined ? "" : `/${item.index}`}`;
+  const answers = [];
+  for (const criterion of survey.criteria.criteria) {
+    const { id } = criterion;
+    if (id === "record_read") {
+      answers.push(
+        survey.read_to_end
+          ? { id, verdict: "met", evidence: [] }
+          : { id, verdict: "not_met", evidence: [], failure: { expected: "every run in the window read to its last event", actual: "the calls ran out first", where: survey.subject.ref } },
+      );
+      continue;
+    }
+    const [kind, ordinal] = [id.slice(0, id.lastIndexOf("_")), Number(id.slice(id.lastIndexOf("_") + 1)) - 1];
+    const entry = by.get(id);
+    if (kind === "resisted") {
+      const item = survey.resistance[ordinal];
+      answers.push({
+        id,
+        verdict: "not_met",
+        evidence: [item.evidence],
+        failure: {
+          expected: "a fix with a case that fails on the old revision and passes on the fix, or an observation with its sources",
+          actual: entry?.finding ? `diagnosed, and nothing kept yet: ${entry.finding.summary ?? ""}`.trim() : `no diagnosis kept: ${entry?.dropped ?? "none was made"}`,
+          where: where(item),
+        },
+      });
+    } else if (kind === "unheld") {
+      const rule = survey.unheld[ordinal];
+      answers.push({ id, verdict: "not_met", evidence: [], failure: { expected: `AGENTS.md holds ${rule.handle}`, actual: "it isn't promoted", where: "AGENTS.md" } });
+    } else if (kind === "sampled") {
+      const run = survey.sampled[ordinal];
+      if (!entry?.finding) continue;
+      const { finding } = entry;
+      answers.push(
+        finding.met === true
+          ? { id, verdict: "met", evidence: finding.evidence }
+          : { id, verdict: "not_met", evidence: finding.evidence, failure: { expected: `what ${run.skill}'s purpose asks`, actual: finding.summary ?? "it did something else", where: `runx:run:${run.run}` } },
+      );
+    }
+  }
+  const verdict = answers.some((answer) => answer.verdict === "not_met")
+    ? "not_met"
+    : answers.length === survey.criteria.criteria.length && answers.every((answer) => answer.verdict === "met")
+      ? "met"
+      : "inconclusive";
+  return {
+    verdict: {
+      schema: "runx.verdict.v1",
+      verdict,
+      subject: survey.subject,
+      criteria_set: { ref: "runx/reflect", revision: survey.criteria.revision },
+      assessments: answers,
+    },
   };
 }
