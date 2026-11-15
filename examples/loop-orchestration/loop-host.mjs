@@ -33,19 +33,20 @@ function runCommand(command, args, options = {}) {
   return result;
 }
 
-function runTurn({ runx, receiptDir, loopId, turnIndex, maxTurns, objective, previousSummary, scenario, requestedTool }) {
+// One iteration of the loop is one governed run of the package's decide method.
+function runIteration({ runx, receiptDir, loopId, iteration, maxIterations, objective, previousSummary, scenario, requestedTool }) {
   const result = runCommand(runx, [
     "skill",
-    `${PACKAGE}#turn`,
+    `${PACKAGE}#decide`,
     "--receipt-dir",
     receiptDir,
     "--json",
     "--input",
     `loop_id=${loopId}`,
     "--input",
-    `turn_index=${turnIndex}`,
+    `iteration=${iteration}`,
     "--input",
-    `max_turns=${maxTurns}`,
+    `max_iterations=${maxIterations}`,
     "--input",
     `objective=${objective}`,
     "--input",
@@ -68,7 +69,7 @@ function runContextPreview({ runx, receiptDir }) {
       receiptDir,
       "--json",
       "--input",
-      "objective=Review whether the next turn may continue.",
+      "objective=Review whether the next iteration may continue.",
     ],
     { allowExitCodes: [2] },
   );
@@ -82,80 +83,77 @@ function resultFrom(envelope) {
   return envelope.result;
 }
 
-function printTurn(result) {
+function printIteration(result) {
   const payload = resultFrom(result);
   console.log(
     [
-      `turn ${payload.turn_index}`,
+      `iteration ${payload.iteration}`,
       `run=${result.run_id}`,
       `receipt=${result.receipt_id}`,
       `decision=${payload.decision}`,
       `reason=${payload.reason_code}`,
-      `next=${payload.next_turn_allowed ? "yes" : "no"}`,
+      `next=${payload.next_iteration_allowed ? "yes" : "no"}`,
     ].join(" | "),
   );
-  console.log(`  ${payload.next_turn_reason}`);
+  console.log(`  ${payload.next_iteration_reason}`);
   return payload;
 }
 
 function runSuccessLoop(runx, receiptDir) {
-  console.log("\n1) success path: bounded loop over governed turns");
-  let previousSummary = "No prior turn.";
-  for (let turnIndex = 1; turnIndex <= 3; turnIndex += 1) {
-    const result = runTurn({
+  console.log("\n1) success path: a bounded loop over governed runs");
+  let previousSummary = "No earlier iteration.";
+  for (let iteration = 1; iteration <= 3; iteration += 1) {
+    const result = runIteration({
       runx,
       receiptDir,
       loopId: "loop-demo-success",
-      turnIndex,
-      maxTurns: 3,
+      iteration,
+      maxIterations: 3,
       objective: "Draft, review, and ratify one tiny safe change.",
       previousSummary,
       scenario: "success",
       requestedTool: "fs.read",
     });
-    const payload = printTurn(result);
+    const payload = printIteration(result);
     previousSummary = payload.projection_update.latest_summary;
-    if (!payload.next_turn_allowed) return;
+    if (!payload.next_iteration_allowed) return;
   }
 }
 
 function runRefusal(runx, receiptDir) {
   console.log("\n2) refusal path: loop policy stops an undeclared tool");
-  const result = runTurn({
+  const result = runIteration({
     runx,
     receiptDir,
     loopId: "loop-demo-refusal",
-    turnIndex: 1,
-    maxTurns: 3,
+    iteration: 1,
+    maxIterations: 3,
     objective: "Try to mutate files without explicit authority.",
-    previousSummary: "No prior turn.",
+    previousSummary: "No earlier iteration.",
     scenario: "refusal",
     requestedTool: "fs.write",
   });
-  printTurn(result);
+  printIteration(result);
 }
 
+// A paused turn's request names its allowance, and its full view is the
+// artifact the request points to: what a host or an agent harness is given.
 function runContextGate(runx, receiptDir) {
   console.log("\n3) context gate: agent turn pauses with bounded advisory context");
   const preview = runContextPreview({ runx, receiptDir });
-  const request = preview.requests?.[0];
-  const invocation = request?.invocation;
-  const context = invocation?.envelope?.current_context || invocation?.current_context || [];
-  const allowedTools = invocation?.envelope?.allowed_tools || invocation?.allowed_tools || [];
-  console.log(`needs_agent run=${preview.run_id} request=${request?.id}`);
-  console.log(`  allowed_tools=${JSON.stringify(allowedTools)}`);
-  console.log(`  context_artifacts=${context.length}`);
+  const [request] = preview.requests ?? [];
+  if (preview.status !== "needs_agent" || request?.kind !== "turn") {
+    throw new Error(`expected a run waiting on one turn, got ${JSON.stringify(preview)}`);
+  }
+  const view = JSON.parse(readFileSync(request.artifact.path, "utf8"));
+  const context = view.invocation.envelope.current_context;
+  console.log(`needs_agent run=${preview.run_id} request=${request.id}`);
+  console.log(`  tools=${JSON.stringify(request.allowance.tools)}`);
+  console.log(`  context_entries=${context.length}`);
   for (const entry of context) {
-    const data = entry.data || {};
-    const name = data.name || entry.name || "context";
-    const ref = data.ref || entry.ref || entry.source_ref || entry.id || "context";
-    const digest = data.sha256 || entry.sha256 || entry.meta?.hash || "sha256:unknown";
-    const boundary =
-      data.security_boundary ||
-      entry.security_boundary ||
-      entry.boundary ||
-      "untrusted-agent-context";
-    console.log(`  - ${name} ref=${ref} digest=${digest} (${boundary})`);
+    console.log(
+      `  - ${entry.data.name} skill=${entry.data.skill} digest=${entry.origin.digest} trust=${entry.labels.trust} (${entry.data.security_boundary})`,
+    );
   }
 }
 

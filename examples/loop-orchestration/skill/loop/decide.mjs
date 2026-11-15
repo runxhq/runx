@@ -29,13 +29,13 @@ function stringInput(inputs, key, fallback = "") {
   return value;
 }
 
-function decide({ scenario, turnIndex, maxTurns, requestedTool }) {
-  if (turnIndex > maxTurns) {
+function decide({ scenario, iteration, maxIterations, requestedTool }) {
+  if (iteration > maxIterations) {
     return {
       decision: "refused",
-      reason: "turn_budget_exhausted",
-      nextTurnAllowed: false,
-      nextTurnReason: "max_turns has already been exhausted",
+      reason: "iteration_budget_exhausted",
+      nextIterationAllowed: false,
+      nextIterationReason: "max_iterations has already been exhausted",
     };
   }
 
@@ -43,8 +43,8 @@ function decide({ scenario, turnIndex, maxTurns, requestedTool }) {
     return {
       decision: "refused",
       reason: "tool_not_allowed",
-      nextTurnAllowed: false,
-      nextTurnReason: `${requestedTool} is not in allowed_tools`,
+      nextIterationAllowed: false,
+      nextIterationReason: `${requestedTool} is not in allowed_tools`,
     };
   }
 
@@ -52,87 +52,87 @@ function decide({ scenario, turnIndex, maxTurns, requestedTool }) {
     return {
       decision: "needs_human",
       reason: "side_effect_review_required",
-      nextTurnAllowed: false,
-      nextTurnReason: "human review is required before the next turn",
+      nextIterationAllowed: false,
+      nextIterationReason: "human review is required before the next iteration",
     };
   }
 
-  if (turnIndex >= Math.min(maxTurns, 2)) {
+  if (iteration >= Math.min(maxIterations, 2)) {
     return {
       decision: "done",
       reason: "fixture_objective_complete",
-      nextTurnAllowed: false,
-      nextTurnReason: "review accepted the bounded fixture result",
+      nextIterationAllowed: false,
+      nextIterationReason: "review accepted the bounded fixture result",
     };
   }
 
   return {
     decision: "continue",
-    reason: "bounded_next_turn_available",
-    nextTurnAllowed: true,
-    nextTurnReason: "one more governed turn is allowed by policy",
+    reason: "bounded_next_iteration_available",
+    nextIterationAllowed: true,
+    nextIterationReason: "one more governed run is allowed by policy",
   };
 }
 
-function buildTurn(inputs) {
+function buildDecision(inputs) {
   const loopId = stringInput(inputs, "loop_id", "loop-demo");
-  const turnIndex = integerInput(inputs, "turn_index", 1);
-  const maxTurns = integerInput(inputs, "max_turns", 3);
-  const objective = stringInput(inputs, "objective", "Demonstrate a governed loop turn.");
-  const previousSummary = stringInput(inputs, "previous_summary", "No prior turn.");
+  const iteration = integerInput(inputs, "iteration", 1);
+  const maxIterations = integerInput(inputs, "max_iterations", 3);
+  const objective = stringInput(inputs, "objective", "Demonstrate one governed iteration of a loop.");
+  const previousSummary = stringInput(inputs, "previous_summary", "No earlier iteration.");
   const requestedTool = stringInput(inputs, "requested_tool", "fs.read");
   const scenario = stringInput(inputs, "scenario", "success");
-  const outcome = decide({ scenario, turnIndex, maxTurns, requestedTool });
+  const outcome = decide({ scenario, iteration, maxIterations, requestedTool });
 
   if (!DECISIONS.includes(outcome.decision)) {
     throw new Error(`invalid fixture decision ${outcome.decision}`);
   }
 
   return {
-    schema: "runx.loop_turn.v1",
+    schema: "loop_orchestration.decision.v1",
     loop_id: loopId,
-    turn_id: `${loopId}:turn-${turnIndex}`,
-    turn_index: turnIndex,
-    max_turns: maxTurns,
+    iteration_id: `${loopId}:iteration-${iteration}`,
+    iteration,
+    max_iterations: maxIterations,
     objective,
     previous_summary: previousSummary,
     requested_tool: requestedTool,
     allowed_tools: [...ALLOWED_TOOLS],
     decision: outcome.decision,
     reason_code: outcome.reason,
-    next_turn_allowed: outcome.nextTurnAllowed,
-    next_turn_reason: outcome.nextTurnReason,
+    next_iteration_allowed: outcome.nextIterationAllowed,
+    next_iteration_reason: outcome.nextIterationReason,
     projection_update: {
       latest_summary:
         outcome.decision === "continue"
-          ? `Turn ${turnIndex} read context and proposed a bounded follow-up.`
-          : `Turn ${turnIndex} ended with ${outcome.decision}: ${outcome.reason}.`,
+          ? `Iteration ${iteration} read context and proposed a bounded follow-up.`
+          : `Iteration ${iteration} ended with ${outcome.decision}: ${outcome.reason}.`,
       consumed_authority: {
         tools: [requestedTool],
         mutations: 0,
         spend_minor: 0,
       },
     },
-    handoff: outcome.nextTurnAllowed
+    handoff: outcome.nextIterationAllowed
       ? {
           target: "loop-host",
-          next_turn_index: turnIndex + 1,
-          reason: outcome.nextTurnReason,
+          next_iteration: iteration + 1,
+          reason: outcome.nextIterationReason,
         }
       : null,
     receipt_notes: {
       loop_state_owner: "outer-loop-host",
-      runx_turn_owner: "runx",
+      run_owner: "runx",
       context_boundary: "advisory-untrusted",
     },
   };
 }
 
 try {
-  const output = buildTurn(readInputs());
+  const output = buildDecision(readInputs());
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`loop turn failed: ${message}\n`);
+  process.stderr.write(`loop decision failed: ${message}\n`);
   process.exit(1);
 }

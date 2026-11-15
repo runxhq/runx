@@ -13,14 +13,16 @@ sh examples/loop-orchestration/run.sh
 
 The script runs three demonstrations:
 
-- **success:** two governed turns complete a tiny build-review loop;
+- **success:** two governed runs complete a tiny build-review loop;
 - **refusal:** a requested tool is outside the loop policy, so the loop stops
-  before another turn is submitted;
-- **context gate:** an agent turn pauses with digest-bound skill context
-  and explicit `allowed_tools`, showing what a host or managed provider would
-  receive without requiring a model key.
+  before another run is submitted;
+- **context gate:** an agent turn pauses with digest-bound skill context and
+  the tools its allowance names, read from the turn's view that the paused
+  request points to: what a host or an agent harness would receive, without a
+  model key.
 
-The output prints each run id, receipt id, decision, and next-turn reason.
+The output prints each iteration's run id, receipt id, decision, and the
+reason for or against another iteration.
 
 ## Check The Tests
 

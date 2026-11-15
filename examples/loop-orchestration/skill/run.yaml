@@ -1,33 +1,33 @@
 version: "0.1.0"
 minimum_runx: 0.12.0
-default_method: turn
+default_method: decide
 
 catalog:
   visibility: public
 
 methods:
-  turn:
-    description: Decide one loop turn against the loop's policy, continuing, finishing, pausing for a person or refusing, and hand the outer loop its projection update and next-turn handoff.
+  decide:
+    description: Decide one iteration of the loop against the loop's policy, continuing, finishing, pausing for a person or refusing, and hand the outer loop its projection update and the next iteration's handoff.
     inputs:
       loop_id:
         type: string
         description: Stable id for the outer loop.
-      turn_index:
+      iteration:
         type: number
-        description: One-based turn number inside the loop.
-      max_turns:
+        description: One-based number of this iteration of the loop.
+      max_iterations:
         type: number
-        description: Maximum turns allowed by loop policy.
+        description: Most iterations the loop's policy allows.
       objective:
         type: string
-        description: Bounded objective for this turn.
+        description: Bounded objective for this iteration.
       previous_summary:
         type: string
-        description: Projection summary from previous sealed turns.
+        description: Projection summary from earlier sealed iterations.
         optional: true
       requested_tool:
         type: string
-        description: Tool the model or upstream planner wants to use this turn.
+        description: Tool the model or upstream planner wants to use this iteration.
         optional: true
       scenario:
         type: string
@@ -35,12 +35,12 @@ methods:
         description: "Fixture scenario: success, refusal, or pause."
         optional: true
     steps:
-      - id: turn
-        tool: {command: node, args: [loop/turn.mjs], timeout_seconds: 15}
+      - id: decide
+        tool: {command: node, args: [loop/decide.mjs], timeout_seconds: 15}
         inputs:
           loop_id: $input.loop_id
-          turn_index: $input.turn_index
-          max_turns: $input.max_turns
+          iteration: $input.iteration
+          max_iterations: $input.max_iterations
           objective: $input.objective
           previous_summary: $input.previous_summary
           requested_tool: $input.requested_tool
@@ -48,23 +48,23 @@ methods:
         outputs:
           schema: {type: string}
           loop_id: {type: string}
-          turn_id: {type: string}
-          turn_index: {type: number}
-          max_turns: {type: number}
+          iteration_id: {type: string}
+          iteration: {type: number}
+          max_iterations: {type: number}
           objective: {type: string}
           previous_summary: {type: string}
           requested_tool: {type: string}
           allowed_tools: {type: array}
           decision: {type: string}
           reason_code: {type: string}
-          next_turn_allowed: {type: boolean}
-          next_turn_reason: {type: string}
+          next_iteration_allowed: {type: boolean}
+          next_iteration_reason: {type: string}
           projection_update: {type: object}
-          handoff: {description: "Next-turn handoff, or null once the loop stops."}
+          handoff: {description: "The next iteration's handoff, or null once the loop stops."}
           receipt_notes: {type: object}
 
   context-gate:
-    description: Have an agent review the next turn's plan against the loop operator's advisory context, returning a decision, a summary, the tool it would use and the stop condition.
+    description: Have an agent review the next iteration's plan against the loop operator's advisory context, returning a decision, a summary, the tool it would use and the stop condition.
     inputs:
       objective:
         type: string

@@ -1,11 +1,11 @@
-name: loop-turn-refuses-disallowed-tool
-method: turn
+name: loop-iteration-refuses-disallowed-tool
+method: decide
 inputs:
   loop_id: loop-test-refusal
-  turn_index: 1
-  max_turns: 3
+  iteration: 1
+  max_iterations: 3
   objective: Attempt a write outside policy.
-  previous_summary: No prior turn.
+  previous_summary: No earlier iteration.
   requested_tool: fs.write
   scenario: refusal
 expect:

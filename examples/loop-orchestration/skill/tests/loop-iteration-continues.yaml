@@ -1,11 +1,11 @@
-name: loop-turn-continues
-method: turn
+name: loop-iteration-continues
+method: decide
 inputs:
   loop_id: loop-test-success
-  turn_index: 1
-  max_turns: 3
+  iteration: 1
+  max_iterations: 3
   objective: Draft the smallest safe patch.
-  previous_summary: No prior turn.
+  previous_summary: No earlier iteration.
   requested_tool: fs.read
   scenario: success
 expect:

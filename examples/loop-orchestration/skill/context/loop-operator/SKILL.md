@@ -6,13 +6,13 @@ description: Advisory operating context for the loop-orchestration example.
 # Loop Operator Context
 
 Use this context when reviewing whether an outer loop may submit another runx
-turn.
+run.
 
 ## Decision Rules
 
-- Continue only when the requested action is bounded to the current turn.
+- Continue only when the requested action is bounded to the current iteration.
 - Continue only when the requested tool is present in `allowed_tools`.
-- Stop when the max-turn budget is exhausted.
+- Stop when the loop's budget of iterations is exhausted.
 - Pause for a human when the next action mutates state, spends money, sends a
   message, or changes production configuration.
 - Refuse when the proposal asks for hidden authority, undeclared tools, raw
