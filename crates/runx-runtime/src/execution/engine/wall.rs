@@ -154,8 +154,9 @@ struct Wall<'a, A> {
     /// parses every connector manifest the project holds.
     scopes: BTreeMap<std::path::PathBuf, Arc<ConnectorScope>>,
     /// Whether each connector a process carries out a read for is verified
-    /// or trusted, by its implementation's digest.
-    vouched: BTreeMap<String, bool>,
+    /// or trusted, by the package carrying it, if any, and its
+    /// implementation's digest.
+    vouched: BTreeMap<(Option<std::path::PathBuf>, String), bool>,
     /// Only unconditional method edges are followed; cycles are visited once.
     visited: BTreeSet<(std::path::PathBuf, String)>,
 }
@@ -426,7 +427,8 @@ impl<A> Wall<'_, A> {
     }
 
     /// Whether `connector` is verified, at the `verified` tier or above, or
-    /// its implementation is one a person trusted. The project's own has no
+    /// its implementation is one a person trusted. A connector a package
+    /// carries is verified as that package is (D30), the project's own has no
     /// tier, and a home that fell back to the workspace holds no one's trust.
     fn vouched_for(
         &mut self,
@@ -434,31 +436,40 @@ impl<A> Wall<'_, A> {
         connector: &LoadedConnector,
     ) -> Result<bool, RuntimeError> {
         let digest = connector.connector_digest.as_str().to_owned();
-        if let Some(vouched) = self.vouched.get(&digest) {
+        let carrier = crate::identity::connector_carrier(connector).map_err(|reason| {
+            RuntimeError::effect_state("reading the package that carries a connector", reason)
+        })?;
+        let key = (carrier, digest);
+        if let Some(vouched) = self.vouched.get(&key) {
             return Ok(*vouched);
         }
+        let (carrier, digest) = &key;
         let env = self.env();
         let paths = RunxPaths::resolve(env, workflow_dir);
+        let identity = match carrier {
+            Some(root) => crate::load_validated_skill_package(root)
+                .map_err(|error| error.to_string())
+                .and_then(|carrier| crate::identity::skill_identity(&carrier, env)),
+            None => crate::identity::connector_identity(connector, env, &paths),
+        };
         // A signature its identity refuses verifies nothing.
-        let verified = crate::identity::connector_identity(connector, env, &paths)
-            .ok()
-            .is_some_and(|identity| {
-                let stated = match &identity {
-                    crate::identity::PackageIdentity::Signed(signed) => {
-                        Some(crate::registry::tiers::stated_tier(signed, env, &paths))
-                    }
-                    _ => None,
-                };
-                identity
-                    .tier(stated)
-                    .is_some_and(|tier| tier.meets(TrustTier::Verified))
-            });
+        let verified = identity.ok().is_some_and(|identity| {
+            let stated = match &identity {
+                crate::identity::PackageIdentity::Signed(signed) => {
+                    Some(crate::registry::tiers::stated_tier(signed, env, &paths))
+                }
+                _ => None,
+            };
+            identity
+                .tier(stated)
+                .is_some_and(|tier| tier.meets(TrustTier::Verified))
+        });
         let vouched = verified
             || (!paths.home_fell_back()
-                && crate::registry::trusted(&paths, &digest).map_err(|reason| {
+                && crate::registry::trusted(&paths, digest).map_err(|reason| {
                     RuntimeError::effect_state("reading a person's trust", reason)
                 })?);
-        self.vouched.insert(digest, vouched);
+        self.vouched.insert(key, vouched);
         Ok(vouched)
     }
 

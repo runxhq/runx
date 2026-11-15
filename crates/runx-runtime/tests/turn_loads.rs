@@ -1325,3 +1325,109 @@ fn revert_undoes_a_runs_edits_together_or_not_at_all() -> TestResult {
     );
     Ok(())
 }
+
+/// Publish `acme/<name>@1.0.0` at `tier`, carrying the marker connector,
+/// whose read is a process: its one method, `mark`, reads through it.
+fn publish_marker_carrier(project: &Project, name: &str, tier: TrustTier) -> TestResult {
+    let source = tempdir()?;
+    let connector = source.path().join("connectors/marker");
+    let tool = connector.join("tools/marker/write");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(
+        connector.join("connector.yaml"),
+        crate::turn_trust::MARKER_CONNECTOR,
+    )?;
+    std::fs::write(tool.join("manifest.json"), crate::turn_trust::MARKER_TOOL)?;
+    std::fs::write(tool.join("write.sh"), crate::turn_trust::MARKER_SCRIPT)?;
+    let package_dir = source.path().join(name);
+    crate::support::write_test_skill_package(
+        &package_dir,
+        &format!(
+            "---\nname: {name}\ndescription: Marks the path given through the connector it carries.\n---\n# {name}\n"
+        ),
+        "version: \"1.0.0\"\nminimum_runx: 0.12.0\nmethods:\n  mark:\n    inputs:\n      path: {type: string}\n    steps:\n      - id: mark\n        operation: marker/marker.write\n        inputs: {path: $input.path}\n",
+    )?;
+    let package = runx_runtime::registry::prepare_registry_publish_package(
+        runx_runtime::registry::RegistryPublishPackageRequest {
+            subject: &package_dir.to_string_lossy(),
+            env: &project.env()?,
+            cwd: source.path(),
+        },
+    )?;
+    if !package
+        .package_files()
+        .iter()
+        .any(|file| file.path.ends_with("marker/connector.yaml"))
+    {
+        return Err(format!("acme/{name} carries no connector").into());
+    }
+    project.registry.publish(Publication {
+        trust_tier: tier,
+        files: package.package_files().to_vec(),
+        ..Publication::new(
+            "acme",
+            "1.0.0",
+            package.markdown(),
+            package.profile_document(),
+        )
+    })?;
+    Ok(())
+}
+
+/// A connector a package carries belongs to that package and takes its tier
+/// (D30, §4.8). A read turn loads a verified package carrying one with
+/// nothing asked, and under the turn's `effects: none` the connector's read,
+/// which a process carries out, runs as the package's own. The same bytes
+/// carried by a community package are vouched for by no one, so under `none`
+/// their read is refused before the process runs.
+#[test]
+fn a_connector_a_verified_package_carries_reads_under_none_with_nothing_asked() -> TestResult {
+    let temp = tempdir()?;
+    let project = Project::new(temp.path())?;
+    publish_marker_carrier(&project, "marks", TrustTier::Verified)?;
+    publish_marker_carrier(&project, "stamps", TrustTier::Community)?;
+    let session = project.root.join("read-session");
+    crate::support::write_test_skill_package(
+        &session,
+        "---\nname: read-session\ndescription: Reads with what it loads.\n---\n# Read session\n\n## Agent task: work\n\nLoad what you need, then summarize.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    effects: none\n    steps:\n      - id: work\n        agent: work\n        calls:\n          load: [{catalog: {trust: community}}]\n        inputs: $input\n        outputs:\n          summary: {type: string}\n",
+    )?;
+
+    let run_id = project.start(session)?;
+    let turn = project.open(&run_id)?;
+    let mark = |name: &str, marker: &Path| -> TestResult<TurnCallResult> {
+        loaded(&turn.call(
+            TURN,
+            "load",
+            None,
+            input(serde_json::json!({"skill": format!("acme/{name}@1.0.0")}))?,
+        )?)?;
+        Ok(turn.call(
+            TURN,
+            &format!("skill__acme_{name}__mark"),
+            None,
+            input(serde_json::json!({"path": marker.to_string_lossy()}))?,
+        )?)
+    };
+    let marker = project.root.join("marker");
+    let marked = mark("marks", &marker)?;
+    assert!(
+        matches!(marked.outcome, TurnCallOutcome::Completed { .. }),
+        "{marked:?}"
+    );
+    assert_eq!(std::fs::read_to_string(&marker)?, "ran\n");
+
+    let stamp = project.root.join("stamp");
+    let stamped = mark("stamps", &stamp)?;
+    let TurnCallOutcome::Failed { reason, .. } = &stamped.outcome else {
+        return Err(format!("the community package's read is refused: {stamped:?}").into());
+    };
+    assert!(
+        reason
+            .as_str()
+            .contains("which a process carries out for a connector neither verified nor trusted"),
+        "{reason}"
+    );
+    assert!(!stamp.exists(), "no process ran");
+    Ok(())
+}

@@ -289,6 +289,34 @@ fn signed_skill(
     verify_package_signature(&loaded.package_root, RegistrySubjectKind::Skill, &keys)
 }
 
+/// The package whose signature covers `connector`'s bytes, when a package
+/// carries it (D30, §4.8): a snapshot a package bundle holds at the exact
+/// binding its descriptor states belongs to the bundle's package, and takes
+/// its identity and tier. None for a connector bound by itself.
+///
+/// # Errors
+///
+/// Returns why the bundle can't be read.
+pub(crate) fn connector_carrier(
+    connector: &LoadedConnector,
+) -> Result<Option<std::path::PathBuf>, String> {
+    let ConnectorOrigin::Plugin { root } = &connector.origin else {
+        return Ok(None);
+    };
+    let Some(bindings) = crate::registry::package_bundle::bundled_connectors(root)? else {
+        return Ok(None);
+    };
+    let carried = bindings.iter().any(|(binding, _)| {
+        binding.connector == connector.name
+            && binding.connector_digest == connector.connector_digest
+            && binding.manifest_digest == connector.manifest_digest
+    });
+    if !carried {
+        return Ok(None);
+    }
+    crate::registry::package_bundle::package_bundle_root(root)
+}
+
 /// The identity of a connector bound by itself: a runtime capability is
 /// runx's, a version carrying a signature for exactly this connector and
 /// version is its signer's, and any other is the project's: a plugin's, or a

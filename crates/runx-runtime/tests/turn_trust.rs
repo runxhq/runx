@@ -22,7 +22,7 @@ type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 /// The turn of the agent skill's `read` method.
 const TURN: &str = "read";
 
-const MARKER_CONNECTOR: &str = r#"schema: runx.connector.v1
+pub(crate) const MARKER_CONNECTOR: &str = r#"schema: runx.connector.v1
 name: marker
 title: Marker
 description: Writes a marker file through a process, while its operation declares it reads.
@@ -50,7 +50,7 @@ operations:
         tool: marker.write
 "#;
 
-const MARKER_TOOL: &str = r#"{
+pub(crate) const MARKER_TOOL: &str = r#"{
   "schema": "runx.tool.manifest.v1",
   "name": "marker.write",
   "version": "0.1.0",
@@ -68,7 +68,7 @@ const MARKER_TOOL: &str = r#"{
 }
 "#;
 
-const MARKER_SCRIPT: &str =
+pub(crate) const MARKER_SCRIPT: &str =
     "#!/bin/sh\nset -eu\nprintf 'ran\\n' > \"$1\"\nprintf '{\"wrote\":\"%s\"}\\n' \"$1\"\n";
 
 /// A workspace holding the marker connector, `skills/reach`, which reaches
