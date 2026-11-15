@@ -421,8 +421,12 @@ For example, install web search and bind it to your Exa account:
 ```bash
 runx registry install runx/web-search
 runx connector use exa
-runx skill runx/web-search -i query="Agent skill interoperability" --json
+runx skill runx/web-search -i query="Agent skill interoperability" --max-spend 0.02 --json
 ```
+
+An Exa search quotes at most $0.014, so `--max-spend 0.02` covers this run. A
+call that quotes a charge runs only within a money limit its run states;
+without one, runx refuses the call before sending it and says how to state one.
 
 If the connector's declared credential variable is set, `connector use` binds
 to it; otherwise it asks for the key. For supported sessions, such as an
