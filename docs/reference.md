@@ -590,6 +590,12 @@ one JSON object, and then enter the same selected-method defaulting and type
 validation as inline inputs. Runx does not echo a rejected document in its
 diagnostic.
 
+A `null` is a value where an input can hold one: a `json` input, or one whose
+schema admits null, receives it as given. Where the input can't hold null, a
+`null` gives it nothing, as an absent field does: an optional input is left
+out, its default applies, and a required one is missing. So a step with
+nothing to forward can hand on `null`.
+
 This is a control-document transport, not a high-volume execution profile. Put
 large immutable content behind the digest-bound artifact/page boundary and put
 durable histories behind data cursors rather than carrying either through workflow
@@ -1399,7 +1405,9 @@ under `fixtures/` is staged whole into each test's workspace, with
 Use `expect.output` to assert the method's public result. Object subsets allow
 additional fields; arrays must have the same length and order, and each object
 inside can be a subset. An empty array asserts there are no items. An explicit
-null requires the field to exist with that value.
+null requires the field to exist with that value. A field that must not be
+there at all is named beside the subset in `absent`, by JSON pointer:
+`absent: [/lead_qualification/contact_eligibility]`.
 Choose exactly one comparison, `exact` or `subset`; `exact: null` is a valid
 expectation of a null result.
 
