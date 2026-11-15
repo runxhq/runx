@@ -121,16 +121,21 @@ function convertField(doc, value, role, where) {
   if (schema !== undefined && !isMap(schema)) refuse(`${where}.schema is not a map`);
   const schemaType = schema ? read(schema, "type") : undefined;
 
+  // A type is a name or, for a field that may also be null, a list of them,
+  // as JSON Schema writes it, so types compare by value.
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   let type;
   if (fieldType === undefined) type = schemaType ?? (role === "input" ? "string" : undefined);
   else if (fieldType === "json") type = schemaType;
   else {
-    if (schemaType !== undefined && schemaType !== fieldType) refuse(`${where} says type ${fieldType} and its schema says ${schemaType}`);
+    if (schemaType !== undefined && !same(schemaType, fieldType)) refuse(`${where} says type ${JSON.stringify(fieldType)} and its schema says ${JSON.stringify(schemaType)}`);
     type = fieldType;
   }
   if (type !== undefined) {
-    const typePair = pairOf(value, "type");
-    out.items.push(typePair && plain(typePair.value) === type ? typePair : new Pair(new Scalar("type"), new Scalar(type)));
+    const own = pairOf(value, "type");
+    const schemas = schema && pairOf(schema, "type");
+    if (own && same(plain(own.value), type)) out.items.push(own);
+    else out.items.push(new Pair(new Scalar("type"), schemas && same(plain(schemas.value), type) ? schemas.value : flow(doc, type)));
   }
   for (const pair of value.items) {
     const key = keyOf(pair);

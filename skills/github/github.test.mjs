@@ -117,7 +117,7 @@ test("keeps what a reader needs, a body's first 600 characters, and leaves GitHu
 /** What GitHub returns of a page for `since`: the items updated at or after it, or a malformed answer as it is. */
 const since = (page, at) => (Array.isArray(page) ? page.filter(({ updated_at }) => updated_at >= at) : page);
 
-function context({ github, max_calls = 400, store = new Map(), moved = () => {} }) {
+function context({ github, max_calls = 400, store = new Map(), moved = () => {}, unstored = [] }) {
   const now = Date.parse("2026-11-15T21:00:00Z");
   const asked = new Map();
   const reject = (code, message) => Object.assign(new Error(message), { code, message });
@@ -130,7 +130,10 @@ function context({ github, max_calls = 400, store = new Map(), moved = () => {} 
       if (name === "data.digest")
         return { digest_result: { digest: `sha256:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}` } };
       if (name === "verdict.criteria") return { criteria: { schema: "runx.criteria.v1", revision: "sha256:criteria", criteria } };
-      if (name === "artifact.store") return { artifact: { digest: `sha256:fragment-${value.repository}-${value.items.length}` } };
+      if (name === "artifact.store") {
+        if (unstored.includes(value.repository)) throw reject("failed", "the artifact store refused the value");
+        return { artifact: { digest: `sha256:fragment-${value.repository}-${value.items.length}` } };
+      }
       throw new Error(`no tool ${name}`);
     },
     skill: async (_reference, inputs) => activity({ ...ctx, max_calls: 400 }, inputs),
@@ -224,6 +227,19 @@ test("follow keeps a position per reader, account and query, loses a concurrent 
   const resumed = await follow(context({ github: wire, store }), both);
   assert.equal(resumed.budget_exhausted, false);
   assert.deepEqual(resumed.coverage.map(({ complete, fragments }) => [complete, fragments.length]), [[true, 0], [true, 1]]);
+
+  // What was read and couldn't be stored never moves its position: it's
+  // that repository's failure, and the rest move.
+  const unstored = new Map();
+  const held = await follow(context({ github: wire, store: unstored, unstored: ["runxhq/a"] }), both);
+  assert.deepEqual(
+    held.coverage.map(({ repository, position, error }) => [repository, position, error?.message]),
+    [
+      ["runxhq/a", null, "the artifact store refused the value"],
+      ["runxhq/b", { updated_at: at, ids_at_mark: [1] }, undefined],
+    ],
+  );
+  assert.equal(unstored.size, 1);
 });
 
 test("the common reader selects the same exact typed operations without direction or scope", () => {

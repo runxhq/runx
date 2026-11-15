@@ -266,6 +266,10 @@ runners:
         outputs:
           result: { type: object }
           receipt: { type: object }
+          score:
+            schema:
+              type: [number, 'null']
+            description: A score, null when held.
         artifacts:
           named_emits: { result: result, receipt: receipt }
           packets: { receipt: hygiene/receipt.v1 }
@@ -293,6 +297,8 @@ harness:
   });
   const { status, out } = convert("--write", dir);
   assert.equal(status, 0, out);
+  // A type the schema gives as a list, a field that may be null, stays one.
+  assert.match(read(dir, "run.yaml"), /          score:\n            type: \[number, 'null'\]\n            description: A score, null when held\.\n/);
   assert.equal(
     read(dir, "tests/suppresses-hard-bounce.yaml"),
     `name: suppresses-hard-bounce

@@ -418,17 +418,19 @@ export async function follow(ctx, { repositories, reader, until, principal }) {
         budget = true;
         break;
       }
-      const stored_fragments =
-        entry.items.length === 0
-          ? []
-          : [(await tool("artifact.store", { value: { repository: position.repository, items: entry.items } })).artifact.digest];
-      const data = {
-        updated_at: entry.position.updated_at,
-        ids_at_mark: entry.position.ids_at_mark,
-        ...(checked === undefined ? {} : { checked_through: checked }),
-        fragments: stored_fragments,
-      };
       try {
+        // What was read is stored first, so a position never moves past
+        // results the reader can't reach.
+        const stored_fragments =
+          entry.items.length === 0
+            ? []
+            : [(await tool("artifact.store", { value: { repository: position.repository, items: entry.items } })).artifact.digest];
+        const data = {
+          updated_at: entry.position.updated_at,
+          ids_at_mark: entry.position.ids_at_mark,
+          ...(checked === undefined ? {} : { checked_through: checked }),
+          fragments: stored_fragments,
+        };
         const appended = await operation(
           "store/events.append",
           { stream: POSITIONS, key: keyOf(position.repository), expected_version: version, type: "position.moved", data },
@@ -441,8 +443,9 @@ export async function follow(ctx, { repositories, reader, until, principal }) {
         break;
       } catch (rejection) {
         // A key past the version this read it at lost to a concurrent move:
-        // read again from the winner's position. Anything else is this
-        // repository's failure, and its position stays where it was.
+        // read again from the winner's position. Anything else, a store that
+        // failed among them, is this repository's failure, and its position
+        // stays where it was.
         if (!room(1 + READ_CALLS)) {
           budget = true;
           break;
