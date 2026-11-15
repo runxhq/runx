@@ -406,13 +406,17 @@ export function renamedBare(token, after) {
 
 // Where each word keeps its old sense. A stay names its reason, the files it
 // holds in (all when it says none), the exact token when its case decides it,
-// and what must sit just before or just after the word on its line.
+// and what must sit just before or just after the word in its sentence: on
+// its line, and in Markdown from the line before it too, since a paragraph's
+// lines wrap one sentence.
 export const STAYS = [
   // runner names nothing of runx's own: the act engine, the test replay, the
   // kernel fixture evaluation and the operational policy's automations are
   // their own words (bare-words.tsv).
   { word: "runner", why: "GitHub's runner", file: /^\.github\// },
   { word: "runner", why: "GitHub's runner", before: /(GitHub(['’]s)?|[Hh]osted|self-hosted|Actions|CI) $/ },
+  { word: "runner", why: "GitHub's runner", before: /\bGitHub Actions\b[^.;]*\bits $/ },
+  { word: "runner", why: "a CI runner's environment", after: /^ environment\b/ },
   // A test runner: libtest's, Vitest's or node's. runx's own is its test replay.
   { word: "runner", why: "a test runner", before: /(?<!\bnative )\btest $/i },
   { word: "runner", why: "the retired flag a test proves is refused", file: /^crates\/runx-cli\/tests\/router\.rs$/, before: /--$/ },
@@ -452,10 +456,11 @@ export const STAYS = [
 ];
 
 /** The stay that keeps this occurrence, if one does. */
-export function stayFor(file, line, index, token) {
+export function stayFor(file, line, index, token, previous) {
   const word = bareWord(token);
   if (word === undefined) return undefined;
-  const before = line.slice(0, index);
+  const wrapped = file.endsWith(".md") && previous !== undefined && previous.trim() !== "";
+  const before = `${wrapped ? `${previous.trim()} ` : ""}${line.slice(0, index)}`;
   const after = line.slice(index + token.length);
   return STAYS.find((stay) => stay.word === word && (!stay.token || stay.token === token) && (!stay.file || stay.file.test(file)) && (!stay.before || stay.before.test(before)) && (!stay.after || stay.after.test(after)));
 }

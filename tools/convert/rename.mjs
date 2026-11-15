@@ -554,7 +554,7 @@ function apply(repo, root, write, list, showStays) {
             edits.push({ at, from: token, to: rows[0].becomes });
             return rows[0].becomes;
           }
-          const stay = stayFor(file, line, index, token);
+          const stay = stayFor(file, line, index, token, shownLines[number - 1]);
           if (stay) {
             stays.push(`${site}\t${stay.why}\t${shown}`);
             return token;

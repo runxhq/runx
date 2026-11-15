@@ -18,7 +18,7 @@ function tree(t, files) {
   return root;
 }
 
-test("the guard fails on runner as a method and harness as a test, and passes the stays, kept names and history", (t) => {
+test("the guard fails on runner as a method and harness as a test, and passes the stays, kept names and history, a stay reading a wrapped sentence", (t) => {
   const root = tree(t, {
     "crates/runx-runtime/src/skill.rs": "fn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n",
     "skills/demo/SKILL.md": "Run the harness before you publish.\n",
@@ -26,14 +26,16 @@ test("the guard fails on runner as a method and harness as a test, and passes th
     "scripts/ci.sh": "echo $RUNNER_OS\n",
     "docs/release/notes/0.10.md": "The harness ran every case.\n",
     "pnpm-lock.yaml": "packages:\n  '@vitest/runner@4.1.12':\n    resolution: {}\n",
+    "docs/action.md": "It runs on the GitHub Actions\nrunner, in the runner environment. GitHub Actions does CLI work on its\nrunner; a skill's\nrunner is its method.\n",
   });
   const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
     "crates/runx-runtime/src/skill.rs:1\trunner\trunner\tfn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n" +
+      "docs/action.md:4\trunner\trunner\trunner is its method.\n" +
       "skills/demo/SKILL.md:1\tharness\tharness\tRun the harness before you publish.\n" +
-      "stale: 1 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files\n",
+      "stale: 2 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
   );
 });
 

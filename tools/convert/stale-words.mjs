@@ -120,7 +120,7 @@ function main([repo, root, ...rest]) {
           if (!pattern.test(token)) continue;
           if (PROSE_ONLY.has(word) && !inProse(start + match.index, token)) continue;
           if (names.get(token) === token) continue;
-          if (bareWord(token) === word && stayFor(file, line, match.index, token)) continue;
+          if (bareWord(token) === word && stayFor(file, line, match.index, token, lines[index - 1])) continue;
           found[word] += 1;
           byFile.set(file, (byFile.get(file) ?? 0) + 1);
           if (list) process.stdout.write(`${file}:${index + 1}\t${word}\t${token}\t${line.trim().slice(0, 160)}\n`);
