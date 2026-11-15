@@ -6,6 +6,8 @@
 const SELF = "reflect";
 /** Reflection's own stream: one mark per reader, which only keep moves. */
 export const MARKS = "marks";
+/** Reflection's own stream of declined changes, one per change and its evidence. */
+export const DECLINES = "declines";
 /** The most runs one run.list call returns. */
 const LIST_LIMIT = 1000;
 /** How many skills' latest success the purpose-only reader is given. */
@@ -365,13 +367,14 @@ export async function judge(ctx, { survey }) {
 /**
  * One assessment per check, from what survey found and the findings judge
  * kept, as a runx.verdict.v1 whose subject is survey's window. A resistance
- * is met only once it's kept, as a fix with its case or an observation, and a
- * rule only once AGENTS.md holds it; before keep and promote, each is not_met,
- * saying what it lacks. A sampled run is met or not as its purpose-only
+ * is met once its fix and case are proven and applied, or, with keep, kept as
+ * an observation, and a rule once AGENTS.md holds it; until then each is
+ * not_met, saying what it lacks, a declined fix with the person's reason. A sampled run is met or not as its purpose-only
  * reader found, and unresolved when no finding was kept.
  */
-export function assessments({ survey, findings }) {
+export function assessments({ survey, findings, proposals = [] }) {
   const by = new Map(findings.map((entry) => [entry.criterion, entry]));
+  const proposed = new Map(proposals.map((entry) => [entry.criterion, entry]));
   const where = (item) => `${item.stream}${item.step ? `#${item.step}` : ""}${item.index === undefined ? "" : `/${item.index}`}`;
   const answers = [];
   for (const criterion of survey.criteria.criteria) {
@@ -388,13 +391,24 @@ export function assessments({ survey, findings }) {
     const entry = by.get(id);
     if (kind === "resisted") {
       const item = survey.resistance[ordinal];
+      const proposal = proposed.get(id);
+      if (proposal?.applied) {
+        answers.push({ id, verdict: "met", evidence: [item.evidence] });
+        continue;
+      }
       answers.push({
         id,
         verdict: "not_met",
         evidence: [item.evidence],
         failure: {
           expected: "a fix with a case that fails on the old revision and passes on the fix, or an observation with its sources",
-          actual: entry?.finding ? `diagnosed, and nothing kept yet: ${entry.finding.summary ?? ""}`.trim() : `no diagnosis kept: ${entry?.dropped ?? "none was made"}`,
+          actual: proposal?.declined !== undefined
+            ? `its fix was declined: ${proposal.declined ?? "no reason given"}`
+            : proposal?.dropped
+              ? `its fix was dropped: ${proposal.dropped}`
+              : entry?.finding
+                ? `diagnosed, and nothing kept yet: ${entry.finding.summary ?? ""}`.trim()
+                : `no diagnosis kept: ${entry?.dropped ?? "none was made"}`,
           where: where(item),
         },
       });
@@ -426,4 +440,118 @@ export function assessments({ survey, findings }) {
       assessments: answers,
     },
   };
+}
+
+/** Each test case a change writes: its path and the name its YAML gives it. */
+export function casesOf(writes) {
+  return writes
+    .filter((write) => /^tests\/[^/]+\.ya?ml$/.test(write.path))
+    .map((write) => ({ path: write.path, name: /^name:\s*(\S+)/m.exec(write.contents)?.[1] ?? write.path }));
+}
+
+/** A package's files with a change applied: its writes in place, its deletes gone. */
+export function applied(files, bundle) {
+  const byPath = new Map(files.map((file) => [file.path, file.contents]));
+  for (const path of bundle.deletes ?? []) byPath.delete(path);
+  for (const write of bundle.writes ?? []) byPath.set(write.path, write.contents);
+  return [...byPath].map(([path, contents]) => ({ path, contents })).sort((left, right) => (left.path < right.path ? -1 : 1));
+}
+
+/** How each named case came out in a validation: its status, or absent when it didn't run. */
+function outcomes(validation, names) {
+  const cases = validation?.test?.cases ?? [];
+  return Object.fromEntries(names.map((name) => [name, cases.find((entry) => entry.name === name)?.status ?? "absent"]));
+}
+
+/**
+ * Propose a fix for each kept diagnosis, through skill-build#draft, whose
+ * own turns write the fix and its case. Code keeps a proposal only when the
+ * draft adds a case, names each case it changes or removes, and two candidate
+ * tests prove the new case fails on the old revision and passes on the fix:
+ * the workspace's package with only the new case added, then the package
+ * with the whole change. Nothing is in the workspace until then. The change
+ * is applied by runx.skill.apply under effects: ask, so the person approves
+ * the exact files; a decline writes nothing, and its reason is kept, so a
+ * later run doesn't propose that change again unless its evidence changed.
+ */
+export async function propose(ctx, { survey, findings }) {
+  const proposals = [];
+  const digest = async (value) => (await ctx.tool("data.digest", { value })).digest_result.digest;
+  const packageFiles = async (target_dir) => {
+    const listed = await ctx.read((await ctx.tool("fs.list", { path: target_dir, depth: 4, max_entries: 256 })).file_list);
+    const paths = listed.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
+    const files = [];
+    for (let at = 0; at < paths.length; at += 16) {
+      const bundle = await ctx.read((await ctx.tool("fs.read_bundle", { paths: paths.slice(at, at + 16) })).file_read_bundle);
+      for (const file of bundle.files) files.push({ path: file.path.slice(target_dir.length + 1), contents: file.contents });
+    }
+    return files;
+  };
+  const validate = async (files) =>
+    (await ctx.tool("runx.skill.validate", { candidate_files: files, allow_execute_test: false })).skill_validation;
+
+  for (const entry of findings) {
+    if (!entry.criterion.startsWith("resisted_") || !entry.finding) continue;
+    const item = survey.resistance[Number(entry.criterion.slice("resisted_".length)) - 1];
+    const { criterion, finding } = entry;
+    const target_dir = `skills/${item.skill}`;
+    const key = (await digest({ target_dir, kind: item.kind, evidence: item.evidence, cause: finding.cause })).slice(7);
+    const declined = (await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation?.result;
+    if ((declined?.version ?? 0) > 0) {
+      proposals.push({ criterion, target_dir, declined: declined.last_event?.data?.reason ?? null, again: false });
+      continue;
+    }
+    const old = await packageFiles(target_dir);
+    const draft = await ctx.skill("runx/skill-build#draft", {
+      objective: `Fix ${item.skill}: ${finding.summary}`,
+      repo_root: ".",
+      target_dir,
+      receipt_id: item.evidence,
+      receipt_summary: `${item.kind} at ${item.stream}${item.step ? `#${item.step}` : ""}${item.reason ? `: ${item.reason}` : ""}`,
+      test_output: finding.cause,
+    });
+    const bundle = await ctx.read(draft.change_bundle);
+    if (!bundle || bundle.decision !== "write") {
+      proposals.push({ criterion, target_dir, dropped: "the draft changes nothing" });
+      continue;
+    }
+    const oldPaths = new Set(old.map((file) => file.path));
+    const cases = casesOf(bundle.writes);
+    const added = cases.filter((written) => !oldPaths.has(written.path));
+    const changed = cases.filter((written) => oldPaths.has(written.path)).map((written) => written.path);
+    const removed = (bundle.deletes ?? []).filter((path) => path.startsWith("tests/"));
+    if (added.length === 0) {
+      proposals.push({ criterion, target_dir, dropped: "it adds no case", changed, removed });
+      continue;
+    }
+    const names = added.map((written) => written.name);
+    const addedFiles = bundle.writes.filter((write) => added.some((written) => written.path === write.path));
+    const before = outcomes(await validate(applied(old, { writes: addedFiles })), names);
+    const afterValidation = await validate(applied(old, bundle));
+    const after = outcomes(afterValidation, names);
+    const proof = { before, after, passed: afterValidation?.test?.status ?? null };
+    if (!names.every((name) => before[name] === "failed")) {
+      proposals.push({ criterion, target_dir, dropped: "its new case doesn't fail on the old revision", proof, changed, removed });
+      continue;
+    }
+    if (afterValidation?.test?.status !== "passed" || !names.every((name) => after[name] === "passed")) {
+      proposals.push({ criterion, target_dir, dropped: "the fix doesn't pass its cases", proof, changed, removed });
+      continue;
+    }
+    try {
+      const result = await ctx.tool("runx.skill.apply", { target_dir, repo_root: ".", mode: "improve", change_bundle: bundle });
+      proposals.push({ criterion, target_dir, applied: await ctx.read(result.apply_result), cases: names, changed, removed, proof });
+    } catch (rejection) {
+      if (rejection?.code !== "declined") throw rejection;
+      // A declined call's message is the person's reason.
+      const reason = rejection.message ?? null;
+      await ctx.operation(
+        "store/events.append",
+        { stream: DECLINES, key, expected_version: 0, type: "proposal.declined", data: { target_dir, evidence: item.evidence, summary: finding.summary, reason } },
+        { idempotency_key: `decline:${key}` },
+      );
+      proposals.push({ criterion, target_dir, declined: reason, again: false, cases: names, changed, removed, proof });
+    }
+  }
+  return { proposals };
 }

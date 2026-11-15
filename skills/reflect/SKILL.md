@@ -54,12 +54,21 @@ then can't be met, and the mark it returns moves only past what it read.
   keeps a finding only when it cites evidence and every ref it cites is a
   sealed receipt or an event of that run. A finding that rests on anything else
   is dropped, and the check says why.
+- **`propose`** drafts a fix for each kept diagnosis through
+  `runx/skill-build#draft`, whose own turns write the fix and its case. Code
+  keeps the draft only when it adds a case, names each case it changes or
+  removes, and two candidate tests prove the new case: it fails on the
+  package as the workspace holds it, with only the new case added, and passes
+  on the whole change. Nothing is in the workspace until then. The change is
+  applied with `runx.skill.apply` under `effects: ask`, so the person approves
+  the exact files. A decline writes nothing and its reason is kept in
+  reflect's `declines` stream, keyed by the change's target and evidence, so
+  a later run doesn't propose that change again unless its evidence changed.
 - **`decide`** answers every check with a `runx.verdict.v1` whose subject is
   survey's window, and `verdict.decide` decides it by the one rule. A resistance
-  is met only once it's kept, as a fix with a case that fails on the old
-  revision and passes on the fix or as an observation with its sources, and a
-  rule only once `AGENTS.md` holds it: until then each is `not_met`, saying
-  what it lacks. A sampled run is met or not as its purpose-only reader found,
+  is met once its fix and case are proven and applied, and a rule once
+  `AGENTS.md` holds it: until then each is `not_met`, saying what it lacks, a
+  declined fix with the person's reason. A sampled run is met or not as its purpose-only reader found,
   and unresolved when no finding was kept.
 
 ## Agent task: diagnose

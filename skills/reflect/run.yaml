@@ -16,7 +16,7 @@ methods:
     inputs:
       reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a schedule. Marks are per reader." }
       until: { type: string, format: date-time, description: The window's end. }
-    result_from: [judge, decide, decision]
+    result_from: [judge, propose, decide, decision]
     steps:
       - id: survey
         skill: .#survey
@@ -34,9 +34,23 @@ methods:
         effects: none
         outputs:
           findings: { type: array, items: { type: object }, description: "Each check's finding with its evidence, or why it was dropped." }
+      - id: propose
+        # A fix with its case for each kept diagnosis, through
+        # skill-build#draft, proven to fail on the old revision and pass on
+        # the fix before the person is asked for the exact files.
+        script: { module: reflect.mjs, export: propose }
+        inputs: { survey: $steps.survey, findings: $steps.judge.findings }
+        calls:
+          skills: [runx/skill-build#draft]
+          tools: [data.digest, fs.list, fs.read_bundle, runx.skill.validate, runx.skill.apply]
+          operations: [store/key.inspect, store/events.append]
+        max_calls: 200
+        effects: ask
+        outputs:
+          proposals: { type: array, items: { type: object }, description: "Each fix with its case and the cases it changes or removes, its proof that the new case fails on the old revision and passes on the fix, and whether it was applied, declined with the person's reason, or dropped and why." }
       - id: decide
         tool: { module: reflect.mjs, export: assessments }
-        inputs: { survey: $steps.survey, findings: $steps.judge.findings }
+        inputs: { survey: $steps.survey, findings: $steps.judge.findings, proposals: $steps.propose.proposals }
         outputs:
           verdict: { packet: runx.verdict.v1, description: "One assessment per check survey laid out, its subject survey's window. The runtime sets its evaluator." }
       - id: decision

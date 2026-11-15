@@ -309,9 +309,7 @@ fn reflect(root: &Path, endpoint: &str) -> TestResult<serde_json::Value> {
         None,
         None,
     )?;
-    let output = serde_json::to_value(&ran.output)?;
-    assert_eq!(output["status"], "sealed", "{output}");
-    Ok(output)
+    Ok(serde_json::to_value(&ran.output)?)
 }
 
 /// The inputs a turn was given, from the context its request carries.
@@ -339,41 +337,13 @@ fn turn_inputs(request: &serde_json::Value) -> serde_json::Value {
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 #[test]
 fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestResult {
-    use runx_runtime::scripted_model::{ScriptedModel, tool_call};
     let temp = tempdir()?;
     let root = temp.path();
     record(root)?;
-    let model = ScriptedModel::serve(|request| {
-        let inputs = turn_inputs(request);
-        let complete = |finding: serde_json::Value| {
-            tool_call(
-                "call-final",
-                "turn_complete",
-                &serde_json::json!({ "finding": finding }),
-            )
-        };
-        if let Some(resistance) = inputs.get("resistance") {
-            // The stopped run's diagnosis cites a receipt no record holds.
-            let evidence = if resistance["kind"] == "sealed_blocked" {
-                serde_json::json!([
-                    "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-                ])
-            } else {
-                serde_json::json!([resistance["evidence"]])
-            };
-            return complete(serde_json::json!({
-                "summary": format!("The {} stopped the run.", resistance["kind"]),
-                "cause": "The record shows it.",
-                "evidence": evidence,
-            }));
-        }
-        let address = inputs["run"]["events"][0]["address"].clone();
-        complete(
-            serde_json::json!({"met": true, "summary": "It did what its purpose asks.", "evidence": [address]}),
-        )
-    })?;
+    let model = reflection_model(true)?;
     let first = reflect(root, model.endpoint())?;
     let second = reflect(root, model.endpoint())?;
+    assert_eq!(first["status"], "sealed", "{first}");
     model.finish()?;
 
     let findings = first["result"]["findings"].as_array().ok_or("findings")?;
@@ -424,5 +394,237 @@ fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestRe
         verdict["assessments"],
         second["result"]["verdict"]["assessments"]
     );
+    Ok(())
+}
+
+/// What skill-build's architect decides for one objective: a no_change for
+/// a decline, and for the stopped run an internal extension of the skill
+/// that keeps its name.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn architecture(objective: &str) -> serde_json::Value {
+    let effects = serde_json::json!([{"effect": "none", "authority_scopes": [], "approval": "none", "provider_boundary": false}]);
+    let native_reuse = serde_json::json!({"inspected_capabilities": ["runx.skill.inspect", "runx.skill.plan", "runx.skill.bind", "runx.skill.apply"], "selected_capabilities": [], "missing_capabilities": []});
+    let knowledge = serde_json::json!({"purpose": "Greet the team.", "evidence_required": ["The run's record."], "decision_logic": ["Fix only what the record shows."], "stop_conditions": ["Stop when the record shows nothing to fix."], "recovery": ["Resume with the record."]});
+    let proofs = serde_json::json!([{"name": "selects", "kind": "trigger_eval", "expected": "A greeting selects greet."}]);
+    if !objective.contains("sealed_blocked") {
+        return serde_json::json!({
+            "schema": "runx.skill.architecture_decision.v1", "choice": "no_change", "objective": objective,
+            "operator_value": "Keep a person's decline as theirs.", "knowledge_contract": knowledge,
+            "required_behaviors": [{"id": "keep", "outcome": "Leave the skill as it is.", "lane": "manual"}],
+            "native_reuse": native_reuse, "effects": effects, "skill_chain": {"context_skills": [], "routes": []},
+            "resource_budget": {"max_files": 0, "max_executable_lines": 0, "max_process_spawns": 0, "network_allowed": false},
+            "preservation_obligations": ["Keep every method."], "deletions": [], "proof_plan": proofs,
+        });
+    }
+    serde_json::json!({
+        "schema": "runx.skill.architecture_decision.v1", "choice": "extend_existing",
+        "identity": {"current_name": "greet", "proposed_name": "greet", "action": "keep", "visibility": "internal", "rationale": "The fix is greet's own."},
+        "objective": objective, "operator_value": "A greeting that runs to its end.", "knowledge_contract": knowledge,
+        "required_behaviors": [{"id": "insist", "outcome": "The broken method runs both its steps.", "lane": "manual"}],
+        "native_reuse": native_reuse, "effects": effects, "skill_chain": {"context_skills": [], "routes": []},
+        "resource_budget": {"max_files": 8, "max_executable_lines": 0, "max_process_spawns": 0, "network_allowed": false},
+        "preservation_obligations": ["Keep every method."], "deletions": [], "proof_plan": proofs,
+    })
+}
+
+/// The author's draft for the stopped run: the compare made to agree, and a
+/// case that expects both steps, which the old revision's guard stops.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn fixed_greet() -> serde_json::Value {
+    let fixed = GREET
+        .replacen(
+            "minimum_runx: 0.12.0\n",
+            "minimum_runx: 0.12.0\ncatalog:\n  visibility: internal\n",
+            1,
+        )
+        .replacen("{expected: a, actual: b}", "{expected: b, actual: b}", 1);
+    serde_json::json!({
+        "schema": "runx.skill.change_draft.v1", "decision": "write",
+        "summary": "Make broken's compare agree, so its guard lets insist run.",
+        "non_goals": ["Change no other method."],
+        "writes": [
+            {"path": "run.yaml", "contents": fixed},
+            {"path": "tests/broken-insists.yaml", "contents": "name: broken-insists\nmethod: broken\nexpect:\n  status: sealed\n  steps: [compare, insist]\n"},
+        ],
+        "deletes": [], "expected_outputs": [],
+    })
+}
+
+/// The scripted model a whole reflection runs on: each diagnosis cites its
+/// own evidence, each sampled run did what its purpose asks, and skill-build
+/// writes the fix and its case for the stopped run.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn reflection_model(
+    misdirect_the_stopped_run: bool,
+) -> TestResult<runx_runtime::scripted_model::ScriptedModel> {
+    use runx_runtime::scripted_model::{ScriptedModel, tool_call};
+    Ok(ScriptedModel::serve(move |request| {
+        let inputs = turn_inputs(request);
+        let offered = request["tools"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|tool| tool["function"]["name"] == "turn_complete")
+            .map(|tool| tool["function"]["parameters"]["properties"].clone())
+            .unwrap_or_default();
+        let complete =
+            |output: serde_json::Value| tool_call("call-final", "turn_complete", &output);
+        if offered.get("architecture_decision").is_some() {
+            let objective = inputs["objective"].as_str().unwrap_or_default();
+            return complete(serde_json::json!({"architecture_decision": architecture(objective)}));
+        }
+        if offered.get("change_draft").is_some() {
+            return complete(serde_json::json!({"change_draft": fixed_greet()}));
+        }
+        if let Some(resistance) = inputs.get("resistance") {
+            // Misdirected, the stopped run's diagnosis cites a receipt no
+            // record holds.
+            let evidence = if misdirect_the_stopped_run && resistance["kind"] == "sealed_blocked" {
+                serde_json::json!([
+                    "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                ])
+            } else {
+                serde_json::json!([resistance["evidence"]])
+            };
+            return complete(serde_json::json!({"finding": {
+                "summary": format!("The {} stopped the run.", resistance["kind"].as_str().unwrap_or_default()),
+                "cause": "The record shows it.",
+                "evidence": evidence,
+            }}));
+        }
+        let address = inputs["run"]["events"][0]["address"].clone();
+        complete(
+            serde_json::json!({"finding": {"met": true, "summary": "It did what its purpose asks.", "evidence": [address]}}),
+        )
+    })?)
+}
+
+/// Resume a paused reflection with `decision` for the change it waits on,
+/// its turns still worked by the scripted model at `endpoint`.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+fn decide_change(
+    root: &Path,
+    paused: &serde_json::Value,
+    endpoint: &str,
+    decision: serde_json::Value,
+) -> TestResult<serde_json::Value> {
+    let mut environment = env(root);
+    environment.extend(runx_runtime::scripted_model::managed_agent_env(
+        endpoint,
+        "fixture-model",
+    ));
+    let run_id = paused["run_id"]
+        .as_str()
+        .ok_or("a paused run's id")?
+        .to_owned();
+    let request = paused["requests"][0]["id"]
+        .as_str()
+        .ok_or("the change it waits on")?;
+    let answers = crate::support::bind_resume(
+        &environment,
+        root,
+        &run_id,
+        serde_json::json!({"approvals": {request: decision}}),
+    )?;
+    let sealed = LocalOrchestrator::with_effects_and_environment(
+        runx_runtime::RuntimeEffectRegistry::local()?,
+        environment.clone(),
+    )
+    .resume(&runx_runtime::ResumeRequest {
+        run_id,
+        answers,
+        receipt_dir: Some(root.join("receipts")),
+        env: environment,
+        cwd: root.to_path_buf(),
+        managed_agent: ManagedAgentPolicy::inline(4)?,
+        package_digest: None,
+        closure_digest: None,
+    })?;
+    Ok(serde_json::to_value(&sealed.output)?)
+}
+
+/// A fix is proposed with its case, proven before the person is asked: the
+/// new case fails on the old revision and passes on the fix. Approved, the
+/// exact files are written and the stopped run's check is met. Declined, with
+/// a reason, nothing is written, the reason is kept, and the next reflection
+/// doesn't propose that change again.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+#[test]
+fn reflection_proposes_a_proven_fix_and_remembers_a_decline() -> TestResult {
+    let model = reflection_model(false)?;
+    let endpoint = model.endpoint().to_owned();
+
+    let approved = tempdir()?;
+    let root = approved.path();
+    record(root)?;
+    let paused = reflect(root, &endpoint)?;
+    assert_eq!(paused["status"], "needs_approval", "{paused}");
+    let sealed = decide_change(root, &paused, &endpoint, serde_json::json!(true))?;
+    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    let proposals = sealed["result"]["proposals"]
+        .as_array()
+        .ok_or("proposals")?;
+    let fix = proposals
+        .iter()
+        .find(|entry| entry["applied"].is_object())
+        .ok_or("an applied fix")?;
+    assert_eq!(fix["proof"]["before"]["broken-insists"], "failed", "{fix}");
+    assert_eq!(fix["proof"]["after"]["broken-insists"], "passed", "{fix}");
+    assert!(
+        proposals
+            .iter()
+            .any(|entry| entry["dropped"] == "the draft changes nothing"),
+        "{sealed}"
+    );
+    assert!(
+        std::fs::read_to_string(root.join("skills/greet/run.yaml"))?
+            .contains("{expected: b, actual: b}")
+    );
+    assert!(root.join("skills/greet/tests/broken-insists.yaml").exists());
+    let met = sealed["result"]["verdict"]["assessments"]
+        .as_array()
+        .ok_or("assessments")?;
+    assert!(
+        met.iter()
+            .any(|answer| answer["id"] == fix["criterion"] && answer["verdict"] == "met"),
+        "{sealed}"
+    );
+
+    let declined = tempdir()?;
+    let root = declined.path();
+    record(root)?;
+    let paused = reflect(root, &endpoint)?;
+    let sealed = decide_change(
+        root,
+        &paused,
+        &endpoint,
+        serde_json::json!({"approved": false, "reason": "Fix the caller, not greet."}),
+    )?;
+    let proposals = sealed["result"]["proposals"]
+        .as_array()
+        .ok_or("proposals")?;
+    assert!(
+        proposals
+            .iter()
+            .any(|entry| entry["declined"] == "Fix the caller, not greet."),
+        "{sealed}"
+    );
+    assert!(
+        !std::fs::read_to_string(root.join("skills/greet/run.yaml"))?
+            .contains("{expected: b, actual: b}")
+    );
+    assert!(!root.join("skills/greet/tests").exists());
+    // The next reflection asks nothing: the decline stands for that evidence.
+    let again = reflect(root, &endpoint)?;
+    assert_eq!(again["status"], "sealed", "{again}");
+    assert!(
+        again["result"]["proposals"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|entry| entry["declined"] == "Fix the caller, not greet."),
+        "{again}"
+    );
+    model.finish()?;
     Ok(())
 }
