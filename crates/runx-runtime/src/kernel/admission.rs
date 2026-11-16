@@ -26,7 +26,7 @@ use runx_contracts::{
 };
 use runx_core::policy::{
     AttenuationRequest, ConnectorBoundsComparator, DerivationParent, ExecutionTermRequest,
-    FamilySubsetComparator, derive_execution_term, mint_attenuated,
+    FamilySubsetComparator, UncoveredBound, derive_execution_term, mint_attenuated,
 };
 use runx_parser::{ConnectorRequirement, OperationStepTarget};
 
@@ -115,10 +115,7 @@ pub(crate) struct Admitted {
     /// Who makes the call: the capability's principal for a direct call, the
     /// delegated actor under a run authority.
     pub actor_ref: Reference,
-    pub delegations: Vec<AuthorityTerm>,
-    /// What stated each delegation link: the operator's mandate for a host's
-    /// delegation, the run for its `packages`.
-    pub delegation_sources: Vec<Reference>,
+    pub delegations: Delegations,
     pub mandate_ref: Option<Reference>,
     /// The act's custody, kept for a mutation or a bounded call.
     pub custody: Option<EffectCustody>,
@@ -174,13 +171,12 @@ impl Admitted {
         let (term, derivation) = derive(
             &self.capability,
             &self.delegations,
-            &self.delegation_sources,
             &self.term_request,
             self.admission.intent_digest.as_str(),
             approvals,
             self.clock.now(),
         )
-        .map_err(|(_, message)| message)?;
+        .map_err(|refusal| refusal.to_string())?;
         for reason in &mut self.admission.reasons {
             if reason.check == AdmissionCheck::Approval && reason.outcome == CheckOutcome::Required
             {
@@ -306,8 +302,7 @@ pub(crate) struct Authorized {
     waits_for: Vec<ApprovalText>,
     capability: Capability,
     actor_ref: Reference,
-    delegations: Vec<AuthorityTerm>,
-    delegation_sources: Vec<Reference>,
+    delegations: Delegations,
     mandate_ref: Option<Reference>,
     intent: OperationIntent,
     intent_digest: Digest,
@@ -497,21 +492,44 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
         evaluation.chain,
     );
     let paths = delegated.paths();
-    let (delegations, delegation_sources) = paths
+    let probed = paths
         .iter()
-        .find(|(terms, sources)| {
+        .map(|path| {
             derive(
                 &capability,
-                terms,
-                sources,
+                path,
                 &probe,
                 PROBED_CALL,
                 Vec::new(),
                 evaluation.clock.now(),
             )
-            .is_ok()
+            .err()
         })
-        .or_else(|| paths.first())
+        .collect::<Vec<_>>();
+    // When the host's delegation refuses it under every term, each term says
+    // why, so the one the host meant says what it lacks.
+    if paths.len() > 1
+        && probed.iter().all(|refusal| {
+            refusal
+                .as_ref()
+                .is_some_and(|refusal| matches!(refusal.parent, DerivationParent::Delegation(_)))
+        })
+    {
+        let why = probed
+            .iter()
+            .flatten()
+            .map(|refusal| format!("{}: {}", refusal.by, refusal.why))
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(reasons.refuse(
+            AdmissionCheck::Delegation,
+            format!("no term covers this call: {why}"),
+        ));
+    }
+    let delegations = probed
+        .iter()
+        .position(Option::is_none)
+        .map_or_else(|| paths.first(), |index| paths.get(index))
         .cloned()
         .unwrap_or_default();
     if let Some(detail) = uncovered_package(evaluation.chain, &delegations) {
@@ -532,7 +550,7 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
     let mandate_ref = evaluation
         .run_authority
         .and_then(|authority| authority.mandate_ref.clone());
-    let parent_limits = use_limits(&capability, &delegations);
+    let parent_limits = use_limits(&capability, &delegations.terms);
     if usage_approval_required(operation_spec, evaluation.money_limit(), &parent_limits) {
         // A scoped use bound is standing authority for provider usage. Without
         // one, one exact native approval authorizes this unpriced call; no
@@ -599,19 +617,18 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
     let (term, derivation) = match derive(
         &capability,
         &delegations,
-        &delegation_sources,
         &term_request,
         intent_digest.as_str(),
         Vec::new(),
         evaluation.clock.now(),
     ) {
         Ok(derived) => derived,
-        Err((parent, detail)) => {
-            let check = match parent {
+        Err(refusal) => {
+            let check = match refusal.parent {
                 DerivationParent::Capability => AdmissionCheck::Capability,
                 DerivationParent::Delegation(_) => AdmissionCheck::Delegation,
             };
-            return Err(reasons.refuse(check, detail));
+            return Err(reasons.refuse(check, refusal.to_string()));
         }
     };
     Ok(Authorized {
@@ -626,7 +643,6 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
         capability,
         actor_ref,
         delegations,
-        delegation_sources,
         mandate_ref,
         intent,
         intent_digest,
@@ -652,7 +668,6 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         capability,
         actor_ref,
         delegations,
-        delegation_sources,
         mandate_ref,
         intent,
         intent_digest,
@@ -674,7 +689,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // bounded call takes the use of the attempt sequence it joins.
     let spends = matches!(charge, Ok(Some(_)));
     let custody = (crate::kernel::operation::kept_in_custody(operation_spec)
-        || !use_limits(&capability, &delegations).is_empty()
+        || !use_limits(&capability, &delegations.terms).is_empty()
         || spends)
         .then(|| {
             EffectCustody::for_act(
@@ -693,7 +708,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     // recover the sequence.
     let covers = |use_key: &str, attempted: &str| -> Result<Vec<UseCover>, UsageError> {
         let mut covers = Vec::new();
-        for parent in std::iter::once(&capability.term).chain(delegations.iter()) {
+        for parent in std::iter::once(&capability.term).chain(delegations.terms.iter()) {
             let Some(limit) = &parent.bounds.uses else {
                 continue;
             };
@@ -796,7 +811,7 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
     );
     reasons.pass(
         AdmissionCheck::Delegation,
-        if delegations.is_empty() {
+        if delegations.terms.is_empty() {
             "the principal acts directly"
         } else {
             "each delegation link was minted from its predecessor and covers the call"
@@ -935,7 +950,6 @@ pub(crate) fn admit(evaluation: &Evaluation<'_>) -> Result<Admitted, AdmitError>
         capability,
         actor_ref,
         delegations,
-        delegation_sources,
         mandate_ref,
         custody,
         pending,
@@ -1486,11 +1500,16 @@ fn readiness(
                     Ok(target) => {
                         let mut requested = capability.term.clone();
                         requested.bounds.targets = vec![target.into()];
-                        if !ConnectorBoundsComparator.bounds_subset(&requested, &capability.term) {
+                        for uncovered in
+                            ConnectorBoundsComparator.uncovered_bounds(&requested, &capability.term)
+                        {
                             reasons.push(
                                 AdmissionCheck::Capability,
                                 CheckOutcome::Fail,
-                                "the granted targets do not cover the operation's target",
+                                format!(
+                                    "the operation's target isn't covered by {}: {uncovered}",
+                                    capability.source
+                                ),
                             );
                         }
                     }
@@ -1603,9 +1622,23 @@ struct Link {
     terms: Vec<AuthorityTerm>,
     /// For each term, the term of the link before it that it narrows.
     parents: Vec<usize>,
+    /// Each term as a refusal names it to a person.
+    names: Vec<String>,
     /// The run for its `packages` or a plain narrowing, the operator's
     /// mandate for a delegation to another actor.
     source: Reference,
+}
+
+/// The delegation links a call is admitted under, from the instance's
+/// capability to the call: each link's term, what stated it, and its name.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Delegations {
+    pub terms: Vec<AuthorityTerm>,
+    /// What stated each link: the operator's mandate for a host's delegation
+    /// to another actor, the run for its `packages` or a plain narrowing.
+    pub sources: Vec<Reference>,
+    /// Each link's term as a refusal names it to a person.
+    pub names: Vec<String>,
 }
 
 /// The links between an instance's capability and a call: the run's
@@ -1622,23 +1655,24 @@ impl Delegated {
     /// Each term of the last link with the term of each link before it that
     /// it narrows: the chains a call may be admitted under, in the host's
     /// order. With no links, the one empty chain.
-    fn paths(&self) -> Vec<(Vec<AuthorityTerm>, Vec<Reference>)> {
+    fn paths(&self) -> Vec<Delegations> {
         let Some(last) = self.links.last() else {
-            return vec![(Vec::new(), Vec::new())];
+            return vec![Delegations::default()];
         };
         (0..last.terms.len())
             .map(|term| {
                 let mut index = term;
-                let mut terms = Vec::with_capacity(self.links.len());
-                let mut sources = Vec::with_capacity(self.links.len());
+                let mut path = Delegations::default();
                 for link in self.links.iter().rev() {
-                    terms.push(link.terms[index].clone());
-                    sources.push(link.source.clone());
+                    path.terms.push(link.terms[index].clone());
+                    path.sources.push(link.source.clone());
+                    path.names.push(link.names[index].clone());
                     index = link.parents[index];
                 }
-                terms.reverse();
-                sources.reverse();
-                (terms, sources)
+                path.terms.reverse();
+                path.sources.reverse();
+                path.names.reverse();
+                path
             })
             .collect()
     }
@@ -1652,8 +1686,8 @@ impl Delegated {
     fn uncovered(&self, chain: &[crate::identity::ChainLink]) -> Option<String> {
         let reasons = self
             .paths()
-            .into_iter()
-            .map(|(terms, _)| uncovered_package(chain, &terms))
+            .iter()
+            .map(|path| uncovered_package(chain, path))
             .collect::<Vec<_>>();
         if reasons.iter().any(Option::is_none) {
             return None;
@@ -1707,6 +1741,7 @@ fn delegated_terms(
         delegated.links.push(Link {
             terms: vec![term],
             parents: vec![0],
+            names: vec!["the run's packages".to_owned()],
             source: run.clone(),
         });
     }
@@ -1770,6 +1805,7 @@ fn delegated_terms(
     let mut link = Link {
         terms: Vec::new(),
         parents: Vec::new(),
+        names: Vec::new(),
         source,
     };
     for (index, term) in delegation.terms.iter().enumerate() {
@@ -1806,6 +1842,10 @@ fn delegated_terms(
         };
         link.terms.push(minted);
         link.parents.push(parent);
+        link.names.push(format!(
+            "term {index} of the run's delegation on {}",
+            delegation.connector
+        ));
     }
     delegated.links.push(link);
     delegated.stated = true;
@@ -2121,25 +2161,36 @@ fn store_stream(
 /// as why the call is refused.
 fn uncovered_package(
     chain: &[crate::identity::ChainLink],
-    delegations: &[AuthorityTerm],
+    delegations: &Delegations,
 ) -> Option<String> {
-    delegations.iter().find_map(|term| {
-        chain
-            .iter()
-            .find(|link| {
-                !term
+    delegations
+        .terms
+        .iter()
+        .zip(&delegations.names)
+        .find_map(|(term, name)| {
+            let mut outside = Vec::new();
+            for link in chain {
+                let package = link.package.to_string();
+                let covered = term
                     .bounds
                     .packages
                     .iter()
-                    .any(|pattern| pattern.covers(&link.package))
-            })
-            .map(|link| {
+                    .any(|pattern| pattern.covers(&link.package));
+                if !covered && !outside.contains(&package) {
+                    outside.push(package);
+                }
+            }
+            (!outside.is_empty()).then(|| {
+                let uncovered = UncoveredBound {
+                    bound: "packages",
+                    outside,
+                    covered: term.bounds.packages.iter().map(ToString::to_string).collect(),
+                };
                 format!(
-                    "{} is in this call's chain, and the run's authority doesn't cover it: every package a call is made from is covered by its packages",
-                    link.package
+                    "this call isn't covered by {name}: {uncovered}. Every package the call is made from must be covered"
                 )
             })
-    })
+        })
 }
 
 fn call_shape(
@@ -2312,15 +2363,32 @@ fn term_request(
     }
 }
 
+/// Why a link doesn't cover a call: which, named as a person reads it, and
+/// why.
+struct NotCovered {
+    parent: DerivationParent,
+    by: String,
+    why: String,
+}
+
+impl std::fmt::Display for NotCovered {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "this call isn't covered by {}: {}",
+            self.by, self.why
+        )
+    }
+}
+
 fn derive(
     capability: &Capability,
-    delegations: &[AuthorityTerm],
-    sources: &[Reference],
+    delegations: &Delegations,
     request: &AttenuationRequest,
     intent_digest: &str,
     approvals: Vec<AuthorityApproval>,
     at: String,
-) -> Result<(AuthorityTerm, AuthorityDerivation), (DerivationParent, String)> {
+) -> Result<(AuthorityTerm, AuthorityDerivation), NotCovered> {
     // Each approval is evidence for the term it admits.
     let approval_evidence = approvals
         .iter()
@@ -2334,7 +2402,7 @@ fn derive(
     let (term, proofs) = derive_execution_term(
         &ExecutionTermRequest {
             capability: &capability.term,
-            delegations,
+            delegations: &delegations.terms,
             intent: request,
             intent_digest,
             approvals,
@@ -2345,31 +2413,37 @@ fn derive(
     )
     .map_err(|error| {
         let parent = error.parent();
-        let detail = match parent {
-            DerivationParent::Capability => {
-                format!("{} does not cover this call: {error}", capability.source)
-            }
-            DerivationParent::Delegation(index) => {
-                format!("delegation link {index} does not cover this call: {error}")
-            }
+        let by = match parent {
+            DerivationParent::Capability => capability.source.clone(),
+            DerivationParent::Delegation(index) => delegations
+                .names
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| format!("delegation link {index}")),
         };
-        (parent, detail)
+        NotCovered {
+            parent,
+            by,
+            why: error.to_string(),
+        }
     })?;
     let mut evidence = vec![AuthorityEvidence {
         kind: AuthorityEvidenceKind::Capability,
         reference: capability.term.issued_by_ref.clone(),
         term: Some(capability.term.clone()),
     }];
-    if sources.len() != delegations.len() {
-        return Err((
-            DerivationParent::Delegation(0),
-            "a delegation link has no statement it was made under".to_owned(),
-        ));
+    if delegations.sources.len() != delegations.terms.len() {
+        return Err(NotCovered {
+            parent: DerivationParent::Delegation(0),
+            by: "a delegation link".to_owned(),
+            why: "it has no statement it was made under".to_owned(),
+        });
     }
     evidence.extend(
         delegations
+            .terms
             .iter()
-            .zip(sources)
+            .zip(&delegations.sources)
             .map(|(term, source)| AuthorityEvidence {
                 kind: AuthorityEvidenceKind::Delegation,
                 reference: source.clone(),

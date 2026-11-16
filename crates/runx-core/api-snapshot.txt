@@ -16,6 +16,7 @@ pub fn runx_core::kernel_eval::evaluate_kernel_document_str(source: &str) -> cor
 pub mod runx_core::policy
 pub enum runx_core::policy::AttenuationError
 pub runx_core::policy::AttenuationError::ChildNotSubset
+pub runx_core::policy::AttenuationError::ChildNotSubset::uncovered: alloc::vec::Vec<runx_core::policy::UncoveredBound>
 pub runx_core::policy::AttenuationError::Expired
 pub runx_core::policy::AttenuationError::ExpiryNotSubset
 pub runx_core::policy::AttenuationError::ResourceAddressMismatch
@@ -25,6 +26,7 @@ pub runx_core::policy::DerivationError::ActorMismatch
 pub runx_core::policy::DerivationError::ActorMismatch::parent: runx_core::policy::DerivationParent
 pub runx_core::policy::DerivationError::BoundsNotCovered
 pub runx_core::policy::DerivationError::BoundsNotCovered::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::BoundsNotCovered::uncovered: alloc::vec::Vec<runx_core::policy::UncoveredBound>
 pub runx_core::policy::DerivationError::Expired
 pub runx_core::policy::DerivationError::Expired::parent: runx_core::policy::DerivationParent
 pub runx_core::policy::DerivationError::ExpiryNotCovered
@@ -35,6 +37,7 @@ pub runx_core::policy::DerivationError::ResourceMismatch
 pub runx_core::policy::DerivationError::ResourceMismatch::parent: runx_core::policy::DerivationParent
 pub runx_core::policy::DerivationError::VerbsNotCovered
 pub runx_core::policy::DerivationError::VerbsNotCovered::parent: runx_core::policy::DerivationParent
+pub runx_core::policy::DerivationError::VerbsNotCovered::uncovered: runx_core::policy::UncoveredBound
 impl runx_core::policy::DerivationError
 pub fn runx_core::policy::DerivationError::parent(&self) -> runx_core::policy::DerivationParent
 pub enum runx_core::policy::DerivationParent
@@ -57,6 +60,7 @@ impl runx_core::policy::FamilySubsetComparator for runx_core::policy::ConnectorB
 pub fn runx_core::policy::ConnectorBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
 pub fn runx_core::policy::ConnectorBoundsComparator::comparison_algorithm(&self) -> &str
 pub fn runx_core::policy::ConnectorBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
+pub fn runx_core::policy::ConnectorBoundsComparator::uncovered_bounds(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> alloc::vec::Vec<runx_core::policy::UncoveredBound>
 pub struct runx_core::policy::ExecutionTermRequest<'a>
 pub runx_core::policy::ExecutionTermRequest::approvals: alloc::vec::Vec<runx_contracts::authority::AuthorityApproval>
 pub runx_core::policy::ExecutionTermRequest::capability: &'a runx_contracts::authority::AuthorityTerm
@@ -73,14 +77,22 @@ pub runx_core::policy::ToolAdmission::reason: &'static str
 impl runx_core::policy::ToolAdmission
 pub const fn runx_core::policy::ToolAdmission::allow() -> Self
 pub const fn runx_core::policy::ToolAdmission::deny(reason: &'static str) -> Self
+pub struct runx_core::policy::UncoveredBound
+pub runx_core::policy::UncoveredBound::bound: &'static str
+pub runx_core::policy::UncoveredBound::covered: alloc::vec::Vec<alloc::string::String>
+pub runx_core::policy::UncoveredBound::outside: alloc::vec::Vec<alloc::string::String>
+impl core::fmt::Display for runx_core::policy::UncoveredBound
+pub fn runx_core::policy::UncoveredBound::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub trait runx_core::policy::FamilySubsetComparator
 pub fn runx_core::policy::FamilySubsetComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
 pub fn runx_core::policy::FamilySubsetComparator::comparison_algorithm(&self) -> &str
 pub fn runx_core::policy::FamilySubsetComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
+pub fn runx_core::policy::FamilySubsetComparator::uncovered_bounds(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> alloc::vec::Vec<runx_core::policy::UncoveredBound>
 impl runx_core::policy::FamilySubsetComparator for runx_core::policy::ConnectorBoundsComparator
 pub fn runx_core::policy::ConnectorBoundsComparator::bounds_subset(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> bool
 pub fn runx_core::policy::ConnectorBoundsComparator::comparison_algorithm(&self) -> &str
 pub fn runx_core::policy::ConnectorBoundsComparator::narrow_bounds(&self, parent: &runx_contracts::authority::AuthorityTerm, requested: &runx_contracts::authority::AuthorityBounds) -> runx_contracts::authority::AuthorityBounds
+pub fn runx_core::policy::ConnectorBoundsComparator::uncovered_bounds(&self, child: &runx_contracts::authority::AuthorityTerm, parent: &runx_contracts::authority::AuthorityTerm) -> alloc::vec::Vec<runx_core::policy::UncoveredBound>
 pub fn runx_core::policy::admit_agent_tool(value: &str) -> runx_core::policy::ToolAdmission
 pub fn runx_core::policy::derive_execution_term(request: &runx_core::policy::ExecutionTermRequest<'_>, comparator: &dyn runx_core::policy::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, alloc::vec::Vec<runx_contracts::authority::AuthoritySubsetProof>), runx_core::policy::DerivationError>
 pub fn runx_core::policy::mint_attenuated(parent: &runx_contracts::authority::AuthorityTerm, request: &runx_core::policy::AttenuationRequest, comparator: &dyn runx_core::policy::FamilySubsetComparator, checked_at: runx_contracts::schema::IsoDateTime) -> core::result::Result<(runx_contracts::authority::AuthorityTerm, runx_contracts::authority::AuthoritySubsetProof), runx_core::policy::AttenuationError>

@@ -1196,7 +1196,7 @@ fn acting_for_another_principal_requires_a_bounded_delegation() {
         .admit_as("read", &read, Some(&authority))
         .expect("the bounded read is delegated");
     let context = admitted.context::<OperationAdmission>().unwrap();
-    assert_eq!(context.admitted.delegations.len(), 1);
+    assert_eq!(context.admitted.delegations.terms.len(), 1);
     assert_eq!(
         context
             .admitted
@@ -1414,7 +1414,13 @@ fn a_grant_that_lacks_the_scope_refuses_before_anything_is_sent() {
         .admit("post", &post("hi"))
         .expect_err("refused")
         .to_string();
-    assert!(error.contains("grant_chat does not cover"), "{error}");
+    // The refusal names the grant, the bound and what the grant lacks.
+    assert!(
+        error.contains(
+            "this call isn't covered by grant grant_chat: its scopes [channel.post.read] don't cover [channel.post]"
+        ),
+        "{error}"
+    );
 }
 
 #[test]

@@ -19,8 +19,8 @@ use thiserror::Error;
 
 use super::authority_algebra::{items_subset, same_reference_address};
 use super::authority_mint::{
-    AttenuationRequest, FamilySubsetComparator, authority_live, expiry_subset, inherited_expiry,
-    is_authority_subset, mint_attenuated,
+    AttenuationRequest, FamilySubsetComparator, UncoveredBound, authority_live, expiry_subset,
+    inherited_expiry, is_authority_subset, mint_attenuated, said,
 };
 use super::rfc3339::parse_rfc3339_moment;
 
@@ -50,22 +50,30 @@ pub enum DerivationParent {
     Delegation(usize),
 }
 
+/// Why a parent refused the intent, said of the parent, which
+/// [`DerivationError::parent`] names.
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum DerivationError {
-    #[error("{parent:?} or its requested call is expired")]
+    #[error("it, or the call, has expired")]
     Expired { parent: DerivationParent },
-    #[error("{parent:?} is not a delegation minted from the preceding authority")]
+    #[error("it isn't the delegation the authority before it mints")]
     InvalidDelegation { parent: DerivationParent },
-    #[error("{parent:?} belongs to a different actor than the call")]
+    #[error("it's for another actor than the call's")]
     ActorMismatch { parent: DerivationParent },
-    #[error("{parent:?} addresses a different resource than the intent")]
+    #[error("it addresses another resource than the call's")]
     ResourceMismatch { parent: DerivationParent },
-    #[error("{parent:?} does not grant the intent's verbs")]
-    VerbsNotCovered { parent: DerivationParent },
-    #[error("{parent:?} expires before the intent")]
+    #[error("{uncovered}")]
+    VerbsNotCovered {
+        parent: DerivationParent,
+        uncovered: UncoveredBound,
+    },
+    #[error("it expires before the call")]
     ExpiryNotCovered { parent: DerivationParent },
-    #[error("{parent:?} does not cover the intent's bounds")]
-    BoundsNotCovered { parent: DerivationParent },
+    #[error("{}", said(.uncovered))]
+    BoundsNotCovered {
+        parent: DerivationParent,
+        uncovered: Vec<UncoveredBound>,
+    },
 }
 
 impl DerivationError {
@@ -76,9 +84,9 @@ impl DerivationError {
             | Self::InvalidDelegation { parent }
             | Self::ActorMismatch { parent }
             | Self::ResourceMismatch { parent }
-            | Self::VerbsNotCovered { parent }
+            | Self::VerbsNotCovered { parent, .. }
             | Self::ExpiryNotCovered { parent }
-            | Self::BoundsNotCovered { parent } => *parent,
+            | Self::BoundsNotCovered { parent, .. } => *parent,
         }
     }
 }
@@ -170,7 +178,10 @@ pub fn derive_execution_term(
     let mut proofs = Vec::with_capacity(parents.len());
     for (parent, parent_term) in &parents {
         if !is_authority_subset(&term, parent_term, comparator) {
-            return Err(DerivationError::BoundsNotCovered { parent: *parent });
+            return Err(DerivationError::BoundsNotCovered {
+                parent: *parent,
+                uncovered: comparator.uncovered_bounds(&term, parent_term),
+            });
         }
         proofs.push(AuthoritySubsetProof {
             parent_authority_ref: parent_term.resource_ref.clone(),
@@ -213,7 +224,23 @@ fn precheck(
         return Err(DerivationError::ResourceMismatch { parent });
     }
     if !items_subset(&intent.verbs, &parent_term.verbs) {
-        return Err(DerivationError::VerbsNotCovered { parent });
+        return Err(DerivationError::VerbsNotCovered {
+            parent,
+            uncovered: UncoveredBound {
+                bound: "verbs",
+                outside: intent
+                    .verbs
+                    .iter()
+                    .filter(|verb| !parent_term.verbs.contains(verb))
+                    .map(|verb| verb.as_str().to_owned())
+                    .collect(),
+                covered: parent_term
+                    .verbs
+                    .iter()
+                    .map(|verb| verb.as_str().to_owned())
+                    .collect(),
+            },
+        });
     }
     let expires_at = inherited_expiry(intent.expires_at.as_ref(), parent_term.expires_at.as_ref());
     if !expiry_subset(expires_at.as_ref(), parent_term.expires_at.as_ref()) {
@@ -267,7 +294,9 @@ mod tests {
     };
 
     use super::{DerivationError, DerivationParent, ExecutionTermRequest, derive_execution_term};
-    use crate::policy::{AttenuationRequest, ConnectorBoundsComparator, mint_attenuated};
+    use crate::policy::{
+        AttenuationRequest, ConnectorBoundsComparator, UncoveredBound, mint_attenuated,
+    };
 
     const INSTANCE: &str = "runx:connector_instance:slack-acme";
 
@@ -429,8 +458,17 @@ mod tests {
         assert_eq!(
             error,
             DerivationError::BoundsNotCovered {
-                parent: DerivationParent::Delegation(0)
+                parent: DerivationParent::Delegation(0),
+                uncovered: vec![UncoveredBound {
+                    bound: "targets",
+                    outside: vec!["slack://acme/C2".to_owned()],
+                    covered: vec!["slack://acme/C1".to_owned()],
+                }],
             }
+        );
+        assert_eq!(
+            error.to_string(),
+            "its targets [slack://acme/C1] don't cover [slack://acme/C2]"
         );
     }
 

@@ -988,6 +988,7 @@ impl RuntimeEffect for OperationEffect {
             verb: verb.clone(),
             parent_term_id: admitted
                 .delegations
+                .terms
                 .last()
                 .map_or(&admitted.capability.term, |term| term)
                 .term_id

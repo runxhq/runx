@@ -765,7 +765,9 @@ fn a_runs_packages_bound_every_calls_chain() -> TestResult {
     let parent_only = bump("parent-only", Some(&packages(&["project:work"])))?;
     assert!(!parent_only.status.success(), "{}", printed(&parent_only));
     assert!(
-        printed(&parent_only).contains("acme/counter"),
+        printed(&parent_only).contains(
+            "this call isn't covered by the run's packages: its packages [project:work] don't cover [acme/counter]. Every package the call is made from must be covered"
+        ),
         "{}",
         printed(&parent_only)
     );
@@ -795,6 +797,13 @@ fn a_runs_packages_bound_every_calls_chain() -> TestResult {
         Some(&packages(&[])),
     )?;
     assert!(!none.status.success(), "{}", printed(&none));
+    assert!(
+        printed(&none).contains(
+            "this call isn't covered by the run's packages: it states no packages, and an absent bound covers nothing, so not [project:own]. Every package the call is made from must be covered"
+        ),
+        "{}",
+        printed(&none)
+    );
 
     // Readiness says the same, through the same function.
     json(
@@ -1191,6 +1200,14 @@ fn a_delegation_with_two_terms_admits_each_and_refuses_what_neither_covers() -> 
         Some(&memory),
     )?;
     assert!(!kept.status.success(), "{}", printed(&kept));
+    // Each term says what it lacks, so the one the host meant says so.
+    assert!(
+        printed(&kept).contains(
+            "no term covers this call: term 0 of the run's delegation on private: its verbs [read] don't cover [write]; term 1 of the run's delegation on private: its targets [project:notes/observed:*] don't cover [project:notes/said:personal]"
+        ),
+        "{}",
+        printed(&kept)
+    );
     let recalled = project.result("skills/notes#recall", &[("key", "tea")], Some(&memory))?;
     assert_eq!(recalled["events"], json!([]), "{recalled}");
 

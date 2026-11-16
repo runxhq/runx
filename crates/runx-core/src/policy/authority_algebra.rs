@@ -35,25 +35,11 @@ pub fn pattern_covers(parent: &str, child: &str) -> bool {
     }
 }
 
-/// Every child pattern is covered by some parent pattern. An empty parent
-/// covers nothing, so a bound is granted only when it is listed.
-#[must_use]
-pub fn patterns_subset<T: AsRef<str>>(child: &[T], parent: &[T]) -> bool {
-    child.iter().all(|child| {
-        parent
-            .iter()
-            .any(|parent| pattern_covers(parent.as_ref(), child.as_ref()))
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use proptest::prelude::Strategy;
 
-    use super::{
-        items_subset, optional_ref_bound_subset, parent_items_preserved, pattern_covers,
-        patterns_subset,
-    };
+    use super::{items_subset, optional_ref_bound_subset, parent_items_preserved, pattern_covers};
 
     #[test]
     fn patterns_cover_exact_prefix_and_wildcard() {
@@ -64,9 +50,6 @@ mod tests {
         assert!(!pattern_covers("slack/channel.*", "slack/*"));
         assert!(pattern_covers("slack://acme/C1", "slack://acme/C1"));
         assert!(!pattern_covers("slack://acme/C1", "slack://acme/C2"));
-        assert!(patterns_subset(&["a/x", "a/y"], &["a/*"]));
-        assert!(!patterns_subset(&["a/x"], &[] as &[&str]));
-        assert!(patterns_subset(&[] as &[&str], &[] as &[&str]));
     }
 
     #[test]

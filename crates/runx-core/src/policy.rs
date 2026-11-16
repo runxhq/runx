@@ -13,7 +13,7 @@ pub use authority_derive::{
 };
 pub use authority_mint::{
     AttenuationError, AttenuationRequest, ConnectorBoundsComparator, FamilySubsetComparator,
-    mint_attenuated,
+    UncoveredBound, mint_attenuated,
 };
 pub use interpreter::strict_process_tool_inline_code_denial;
 pub use rfc3339::parse_rfc3339_moment;

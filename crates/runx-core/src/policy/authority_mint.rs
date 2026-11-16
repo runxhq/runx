@@ -16,14 +16,13 @@
 use runx_contracts::schema::{IsoDateTime, NonEmptyString};
 use runx_contracts::{
     AuthorityBounds, AuthoritySubsetComparison, AuthoritySubsetProof, AuthoritySubsetRelation,
-    AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit, AuthorityVerb, PackagePattern,
-    Reference, sha256_hex,
+    AuthoritySubsetResult, AuthorityTerm, AuthorityUseLimit, AuthorityVerb, Reference, sha256_hex,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::authority_algebra::{
-    items_subset, optional_ref_bound_subset, parent_items_preserved, patterns_subset,
+    items_subset, optional_ref_bound_subset, parent_items_preserved, pattern_covers,
     same_reference_address,
 };
 use super::rfc3339::parse_rfc3339_moment;
@@ -62,9 +61,64 @@ pub trait FamilySubsetComparator {
         requested.clone()
     }
 
-    /// Decide whether the child term's family-specific bounds are a subset of
-    /// the parent's. Must be fail-closed: incomparable terms are not subsets.
-    fn bounds_subset(&self, child: &AuthorityTerm, parent: &AuthorityTerm) -> bool;
+    /// Each of the child term's family-specific bounds the parent's don't
+    /// cover, with the child's values outside them: none when the child's are
+    /// a subset. Must be fail-closed: an incomparable bound is uncovered.
+    fn uncovered_bounds(
+        &self,
+        child: &AuthorityTerm,
+        parent: &AuthorityTerm,
+    ) -> Vec<UncoveredBound>;
+
+    /// Whether the child term's family-specific bounds are a subset of the
+    /// parent's: when none of them is uncovered.
+    fn bounds_subset(&self, child: &AuthorityTerm, parent: &AuthorityTerm) -> bool {
+        self.uncovered_bounds(child, parent).is_empty()
+    }
+}
+
+/// What one of a child term's bounds holds that its parent's doesn't cover:
+/// the bound, as a term names it, the child's values outside the parent's,
+/// and the parent's own values, none when it states none, which covers
+/// nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UncoveredBound {
+    pub bound: &'static str,
+    pub outside: Vec<String>,
+    pub covered: Vec<String>,
+}
+
+impl std::fmt::Display for UncoveredBound {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let outside = self.outside.join(", ");
+        if self.covered.is_empty() {
+            write!(
+                formatter,
+                "it states no {}, and an absent bound covers nothing, so not [{outside}]",
+                self.bound
+            )
+        } else {
+            write!(
+                formatter,
+                "its {} [{}] don't cover [{outside}]",
+                self.bound,
+                self.covered.join(", ")
+            )
+        }
+    }
+}
+
+/// Each uncovered bound, one after another: why a child isn't within its
+/// parent.
+pub(super) fn said(uncovered: &[UncoveredBound]) -> String {
+    if uncovered.is_empty() {
+        return "it isn't within what it narrows".to_owned();
+    }
+    uncovered
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// The comparator for operations on a connector instance: operation and target
@@ -81,12 +135,16 @@ impl FamilySubsetComparator for ConnectorBoundsComparator {
         Self::ALGORITHM
     }
 
-    fn bounds_subset(&self, child: &AuthorityTerm, parent: &AuthorityTerm) -> bool {
-        bounds_subset(&child.bounds, &parent.bounds)
+    fn uncovered_bounds(
+        &self,
+        child: &AuthorityTerm,
+        parent: &AuthorityTerm,
+    ) -> Vec<UncoveredBound> {
+        uncovered(&child.bounds, &parent.bounds)
     }
 }
 
-fn bounds_subset(child: &AuthorityBounds, parent: &AuthorityBounds) -> bool {
+fn uncovered(child: &AuthorityBounds, parent: &AuthorityBounds) -> Vec<UncoveredBound> {
     // Exhaustively destructure the child so growing `AuthorityBounds` breaks
     // this function until the new field is compared: a forgotten field would
     // fail open on the trust boundary.
@@ -97,19 +155,89 @@ fn bounds_subset(child: &AuthorityBounds, parent: &AuthorityBounds) -> bool {
         uses,
         packages,
     } = child;
-    patterns_subset(operations, &parent.operations)
-        && items_subset(scopes, &parent.scopes)
-        && patterns_subset(targets, &parent.targets)
-        && uses_subset(uses.as_ref(), parent.uses.as_ref())
-        && packages_subset(packages, &parent.packages)
+    let named = |values: &[NonEmptyString]| {
+        values
+            .iter()
+            .map(|value| value.as_str().to_owned())
+            .collect::<Vec<_>>()
+    };
+    let patterns = |bound, child: &[NonEmptyString], parent: &[NonEmptyString]| {
+        outside(
+            bound,
+            child
+                .iter()
+                .filter(|child| {
+                    !parent
+                        .iter()
+                        .any(|parent| pattern_covers(parent.as_str(), child.as_str()))
+                })
+                .map(|child| child.as_str().to_owned())
+                .collect(),
+            named(parent),
+        )
+    };
+    [
+        patterns("operations", operations, &parent.operations),
+        outside(
+            "scopes",
+            scopes
+                .iter()
+                .filter(|scope| !parent.scopes.contains(scope))
+                .map(|scope| scope.as_str().to_owned())
+                .collect(),
+            named(&parent.scopes),
+        ),
+        patterns("targets", targets, &parent.targets),
+        (!uses_subset(uses.as_ref(), parent.uses.as_ref())).then(|| UncoveredBound {
+            bound: "uses",
+            outside: vec![use_limit(uses.as_ref())],
+            covered: vec![use_limit(parent.uses.as_ref())],
+        }),
+        outside(
+            "packages",
+            packages
+                .iter()
+                .filter(|child| !parent.packages.iter().any(|parent| parent.covers(child)))
+                .map(ToString::to_string)
+                .collect(),
+            parent.packages.iter().map(ToString::to_string).collect(),
+        ),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }
 
-/// Every package the child covers is one the parent covers. An empty parent
-/// covers nothing, as every bound does.
-fn packages_subset(child: &[PackagePattern], parent: &[PackagePattern]) -> bool {
-    child
-        .iter()
-        .all(|child| parent.iter().any(|parent| parent.covers(child)))
+/// The bound, when the child holds values outside the parent's.
+fn outside(
+    bound: &'static str,
+    outside: Vec<String>,
+    covered: Vec<String>,
+) -> Option<UncoveredBound> {
+    (!outside.is_empty()).then_some(UncoveredBound {
+        bound,
+        outside,
+        covered,
+    })
+}
+
+/// A use limit as a term states it.
+fn use_limit(limit: Option<&AuthorityUseLimit>) -> String {
+    let axes = limit
+        .into_iter()
+        .flat_map(|limit| {
+            [
+                limit.total.map(|total| format!("total {total}")),
+                limit.per_day.map(|per_day| format!("per_day {per_day}")),
+            ]
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+    if axes.is_empty() {
+        "no limit".to_owned()
+    } else {
+        axes.join(", ")
+    }
 }
 
 /// A use limit is no wider than its parent's on each axis the parent bounds.
@@ -163,9 +291,10 @@ pub enum AttenuationError {
     ExpiryNotSubset,
     /// The derived child term is not a verified subset of the parent under the
     /// family comparator. The catch-all: the minted term widened some dimension
-    /// (most commonly a family bound) the comparator denies.
-    #[error("derived child authority is not a subset of the parent authority")]
-    ChildNotSubset,
+    /// (most commonly a family bound) the comparator denies, which `uncovered`
+    /// names.
+    #[error("{}", said(.uncovered))]
+    ChildNotSubset { uncovered: Vec<UncoveredBound> },
 }
 
 /// Derive a narrowed child [`AuthorityTerm`] from `parent` per `request`, then
@@ -234,7 +363,9 @@ pub fn mint_attenuated(
     // Generic dimensions via the shared algebra; family bounds via the
     // comparator. No proof is emitted unless this holds.
     if !is_authority_subset(&child, parent, comparator) {
-        return Err(AttenuationError::ChildNotSubset);
+        return Err(AttenuationError::ChildNotSubset {
+            uncovered: comparator.uncovered_bounds(&child, parent),
+        });
     }
 
     let proof = AuthoritySubsetProof {
@@ -329,7 +460,7 @@ fn derive_term_id(
 mod tests {
     use super::{
         AttenuationError, AttenuationRequest, ConnectorBoundsComparator, FamilySubsetComparator,
-        is_authority_subset, mint_attenuated,
+        UncoveredBound, is_authority_subset, mint_attenuated,
     };
     use runx_contracts::schema::IsoDateTime;
     use runx_contracts::{
@@ -410,6 +541,17 @@ mod tests {
         mint_attenuated(parent, request, &ConnectorBoundsComparator, checked_at()).map(|_| ())
     }
 
+    /// The bounds a refused mint names as uncovered, none when it wasn't
+    /// refused for its bounds.
+    fn uncovered(result: Result<(), AttenuationError>) -> Vec<&'static str> {
+        match result {
+            Err(AttenuationError::ChildNotSubset { uncovered }) => {
+                uncovered.iter().map(|bound| bound.bound).collect()
+            }
+            _ => Vec::new(),
+        }
+    }
+
     #[test]
     fn valid_narrowing_yields_child_and_proof() -> Result<(), AttenuationError> {
         let parent = capability();
@@ -485,15 +627,18 @@ mod tests {
             &["acme/counter", "other/x"],
         ] {
             assert_eq!(
-                mint(&acme, &asking(wider)?),
-                Err(AttenuationError::ChildNotSubset),
+                uncovered(mint(&acme, &asking(wider)?)),
+                ["packages"],
                 "{wider:?}"
             );
         }
-        // A parent with no packages covers none.
+        // A parent with no packages covers none, and its refusal says so.
         assert_eq!(
-            mint(&capability(), &asking(&["acme/counter"])?),
-            Err(AttenuationError::ChildNotSubset)
+            mint(&capability(), &asking(&["acme/counter"])?).map_err(|error| error.to_string()),
+            Err(
+                "it states no packages, and an absent bound covers nothing, so not [acme/counter]"
+                    .to_owned()
+            )
         );
         Ok(())
     }
@@ -577,27 +722,18 @@ mod tests {
     fn widening_an_operation_or_target_errors_fail_closed() {
         let mut request = delegation();
         request.bounds.operations = vec!["github/*".into()];
-        assert_eq!(
-            mint(&capability(), &request),
-            Err(AttenuationError::ChildNotSubset)
-        );
+        assert_eq!(uncovered(mint(&capability(), &request)), ["operations"]);
 
         let mut request = delegation();
         request.bounds.targets = vec!["slack://other/C1".into()];
-        assert_eq!(
-            mint(&capability(), &request),
-            Err(AttenuationError::ChildNotSubset)
-        );
+        assert_eq!(uncovered(mint(&capability(), &request)), ["targets"]);
     }
 
     #[test]
     fn widening_a_scope_errors_fail_closed() {
         let mut request = delegation();
         request.bounds.scopes = vec!["admin".into()];
-        assert_eq!(
-            mint(&capability(), &request),
-            Err(AttenuationError::ChildNotSubset)
-        );
+        assert_eq!(uncovered(mint(&capability(), &request)), ["scopes"]);
     }
 
     #[test]
@@ -607,17 +743,11 @@ mod tests {
             total: Some(99),
             per_day: None,
         });
-        assert_eq!(
-            mint(&capability(), &request),
-            Err(AttenuationError::ChildNotSubset)
-        );
+        assert_eq!(uncovered(mint(&capability(), &request)), ["uses"]);
 
         let mut request = delegation();
         request.bounds.uses = None;
-        assert_eq!(
-            mint(&capability(), &request),
-            Err(AttenuationError::ChildNotSubset)
-        );
+        assert_eq!(uncovered(mint(&capability(), &request)), ["uses"]);
     }
 
     #[test]
@@ -696,8 +826,19 @@ mod tests {
             "test.exact-scopes.v1"
         }
 
-        fn bounds_subset(&self, child: &AuthorityTerm, parent: &AuthorityTerm) -> bool {
-            child.bounds.scopes == parent.bounds.scopes
+        fn uncovered_bounds(
+            &self,
+            child: &AuthorityTerm,
+            parent: &AuthorityTerm,
+        ) -> Vec<UncoveredBound> {
+            (child.bounds.scopes != parent.bounds.scopes)
+                .then(|| UncoveredBound {
+                    bound: "scopes",
+                    outside: Vec::new(),
+                    covered: Vec::new(),
+                })
+                .into_iter()
+                .collect()
         }
     }
 
@@ -714,9 +855,11 @@ mod tests {
 
         // A narrower scope list is not exact, so this family refuses it.
         assert_eq!(
-            mint_attenuated(&parent, &delegation(), &ExactScopesComparator, checked_at())
-                .map(|_| ()),
-            Err(AttenuationError::ChildNotSubset)
+            uncovered(
+                mint_attenuated(&parent, &delegation(), &ExactScopesComparator, checked_at())
+                    .map(|_| ())
+            ),
+            ["scopes"]
         );
         Ok(())
     }

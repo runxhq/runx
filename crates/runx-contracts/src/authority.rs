@@ -74,6 +74,25 @@ pub enum AuthorityVerb {
     Revoke,
 }
 
+impl AuthorityVerb {
+    /// The verb as a term writes it.
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Write => "write",
+            Self::Comment => "comment",
+            Self::Review => "review",
+            Self::Merge => "merge",
+            Self::Create => "create",
+            Self::Update => "update",
+            Self::Delete => "delete",
+            Self::Execute => "execute",
+            Self::Revoke => "revoke",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AuthorityBounds {
