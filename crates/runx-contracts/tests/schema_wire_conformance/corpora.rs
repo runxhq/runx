@@ -884,6 +884,18 @@ fn agent_context_envelope() -> Value {
     })
 }
 
+/// An act's envelope as its turn's agent reads it: its brief, with none of
+/// what runx keeps for itself.
+fn turn_view_envelope() -> Value {
+    json!({
+        "skill": "demo",
+        "instructions": "do the thing",
+        "inputs": {},
+        "current_context": [],
+        "historical_context": [],
+    })
+}
+
 fn turn_invocation() -> Value {
     json!({
         "id": "answer",
@@ -1001,9 +1013,14 @@ pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
 }
 
 pub(super) fn turn_status_corpus() -> Vec<(&'static str, Value)> {
-    // The status shows what the act allows only as its tools.
+    // The status shows what the act allows only as its tools, and its
+    // envelope as the turn's brief.
     let valid = json!({
-        "invocation": drop_field(turn_invocation(), "allowance"),
+        "invocation": set_field(
+            drop_field(turn_invocation(), "allowance"),
+            "envelope",
+            turn_view_envelope(),
+        ),
         "tools": [{
             "name": "data_digest",
             "description": "Digest a value.",

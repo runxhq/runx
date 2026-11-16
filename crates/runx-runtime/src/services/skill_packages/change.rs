@@ -393,7 +393,7 @@ fn commit_candidate(
     )?;
     // The repository root was bounded when the tool resolved it; the paths
     // here are the skill package's own, admitted by `admit_skill_change`.
-    apply_text_bundle_verified(
+    let (report, ()) = apply_text_bundle_verified(
         "runx.skill.apply",
         &target.repo_root,
         &admitted.bundle,
@@ -409,6 +409,7 @@ fn commit_candidate(
         },
     )?;
     let applied = PackageDigests::applied(target, env)?;
+    let changed = changed_writes(&report);
     Ok(SkillApplyResult {
         schema: SkillApplyResultSchema::V1,
         target_dir: target.relative.clone().into(),
@@ -417,13 +418,37 @@ fn commit_candidate(
         base_digest: change.base_digest.clone(),
         package_digest: applied.package,
         distribution_digest: applied.distribution,
+        // A write of what the file already held changed nothing.
         changed_paths: change
             .writes
             .iter()
+            .filter(|write| changed.contains(write.path.as_str()))
             .map(|write| write.path.clone())
             .collect(),
         deleted_paths: change.deletes.clone(),
         validation: Some(candidate.validation.clone()),
         residual_risks: Vec::new(),
     })
+}
+
+/// The files an applied bundle's report says it changed: each write whose
+/// content differs from what the file held, or that made the file.
+fn changed_writes(report: &runx_contracts::JsonObject) -> std::collections::BTreeSet<String> {
+    report
+        .get("writes")
+        .and_then(runx_contracts::JsonValue::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(runx_contracts::JsonValue::as_object)
+        .filter(|write| {
+            let digest = |field: &str| write.get(field).and_then(runx_contracts::JsonValue::as_str);
+            digest("before_digest") != digest("content_digest")
+        })
+        .filter_map(|write| {
+            write
+                .get("path")
+                .and_then(runx_contracts::JsonValue::as_str)
+                .map(str::to_owned)
+        })
+        .collect()
 }

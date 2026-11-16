@@ -178,7 +178,7 @@ methods:
       - id: author
         agent: skill-lab-author
         calls:
-          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read, call.read]
         outputs:
           change_draft: {type: object, packet: runx.skill.change_draft.v1}
         inputs:
@@ -195,6 +195,7 @@ methods:
           authoring_context: $steps.inspect.authoring_context
           mode: build
           change_draft: $steps.author.change_draft
+          script_call: $steps.read.call
       - id: apply
         tool: runx.skill.apply
         effects: ask

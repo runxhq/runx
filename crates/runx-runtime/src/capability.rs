@@ -301,14 +301,14 @@ fn validate_capability_fields(
 }
 
 fn invalid(id: &str, message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: if id.is_empty() {
+    RuntimeError::failed(
+        if id.is_empty() {
             "native-capability".to_owned()
         } else {
             id.to_owned()
         },
-        message: message.into(),
-    }
+        message.into(),
+    )
 }
 
 #[cfg(test)]

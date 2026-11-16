@@ -102,10 +102,7 @@ pub(crate) fn read_receipt_claim(
 }
 
 fn invalid(message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "receipt.read".to_owned(),
-        message: message.into(),
-    }
+    RuntimeError::failed("receipt.read".to_owned(), message.into())
 }
 
 #[cfg(test)]

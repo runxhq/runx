@@ -1,9 +1,10 @@
 //! The journal of every change a run makes to its workspace. Before a
-//! bundle's first rename, its before-images and the directories it creates
-//! are recorded in the run's kernel state; when it ends, how. A bundle a
-//! crash left begun is rolled back by the run's next driver, so a bundle is
-//! applied whole or not at all, and the before-images are what an undo
-//! restores.
+//! bundle's first rename, what each file held before and holds after, and
+//! the directories it creates, are recorded in the run's kernel state; when
+//! it ends, how. A bundle a crash left begun is rolled back by the run's next
+//! driver, so a bundle is applied whole or not at all. An undo reads the
+//! journal alone: what each change restores, what it is bound to, and the
+//! order the changes were made.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -11,7 +12,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use super::admission::PriorFile;
+use super::admission::{AdmittedBundle, PriorFile};
 use super::apply::{remove_created_directories, restore_file};
 use crate::RuntimeError;
 use crate::kernel::store::{Append, Blob, Expected, KernelStore, StreamEvent};
@@ -34,8 +35,8 @@ impl StreamEvent for BundleEvent {
     }
 }
 
-/// A bundle about to be applied: what each file it changes held before, and
-/// the directories it will create.
+/// A bundle about to be applied: what each file it changes held before and
+/// will hold after, and the directories it will create.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Begun {
@@ -57,6 +58,10 @@ struct JournaledFile {
     /// Its Unix mode, when it existed there.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     mode: Option<u32>,
+    /// The digest of what the bundle leaves it holding; none when the
+    /// bundle removes it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    after: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -103,11 +108,21 @@ impl Journal {
     /// that record.
     pub(super) fn begin(
         &self,
-        operation: &str,
-        root: &Path,
+        bundle: &AdmittedBundle,
         snapshots: &BTreeMap<String, PriorFile>,
         created: &[PathBuf],
     ) -> Result<u64, RuntimeError> {
+        let root = bundle.root.as_path();
+        let written = bundle
+            .writes
+            .iter()
+            .map(|write| {
+                (
+                    write.relative.as_str(),
+                    runx_contracts::sha256_prefixed(write.contents.as_bytes()),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
         let mut blobs = Vec::new();
         let mut files = Vec::with_capacity(snapshots.len());
         for (path, prior) in snapshots {
@@ -127,10 +142,11 @@ impl Journal {
                 path: path.clone(),
                 before,
                 mode,
+                after: written.get(path.as_str()).cloned(),
             });
         }
         let event = BundleEvent::Begun(Box::new(Begun {
-            operation: operation.to_owned(),
+            operation: bundle.operation.clone(),
             root: root.to_string_lossy().into_owned(),
             files,
             created: created
@@ -172,50 +188,94 @@ impl Journal {
     }
 }
 
-/// What one applied bundle of a run changed: its root, and each file's
-/// path under it with what it held before, none for a file it created.
-pub(crate) struct BundleImages {
+/// One change a run's tree applied, as its journal records it.
+pub(crate) struct AppliedChange {
+    /// The run that made it, which journals it.
+    pub(crate) run: String,
+    /// Its id in that run's journal.
+    pub(crate) bundle: u64,
+    /// Its place in the store's commit order: the order the changes were
+    /// made in.
+    pub(crate) sequence: u64,
     pub(crate) root: PathBuf,
-    pub(crate) files: Vec<(String, Option<Vec<u8>>)>,
+    pub(crate) files: Vec<ChangedFile>,
 }
 
-/// The before-images of bundle `bundle` of the run `run_id`, which must have
-/// been applied.
-pub(crate) fn applied_bundle(
+/// One file a change made: what it held before, by blob, none when it did
+/// not exist; and the digest of what the change left, none when it removed
+/// it.
+pub(crate) struct ChangedFile {
+    pub(crate) path: String,
+    pub(crate) before: Option<String>,
+    pub(crate) after: Option<String>,
+}
+
+/// Every change the run `run_id`, or a run below it, applied, in the order
+/// they were made. A run below its root journals under the root's key, the
+/// run id it inherits, so a tree's changes are its root's.
+pub(crate) fn applied_changes(
     store: &KernelStore,
     run_id: &str,
-    bundle: u64,
-) -> Result<BundleImages, RuntimeError> {
-    let events = store.read::<BundleEvent>(run_id).map_err(journal_error)?;
-    let applied = events.iter().any(|recorded| {
-        matches!(&recorded.event, BundleEvent::Ended(ended)
-            if ended.bundle == bundle && ended.outcome == Outcome::Applied)
-    });
-    let begun = events
-        .into_iter()
-        .find(|recorded| recorded.version == bundle)
-        .and_then(|recorded| match recorded.event {
-            BundleEvent::Begun(begun) => Some(begun),
-            BundleEvent::Ended(_) => None,
-        })
-        .filter(|_| applied)
-        .ok_or_else(|| {
-            journal_error(format!("run {run_id} journals no applied change {bundle}"))
-        })?;
-    let mut files = Vec::with_capacity(begun.files.len());
-    for file in begun.files {
-        let before = file
-            .before
-            .as_deref()
-            .map(|digest| store.blob(digest))
-            .transpose()
+) -> Result<Vec<AppliedChange>, RuntimeError> {
+    const PAGE: usize = 512;
+    let tree = crate::execution::run_record::root_run_id(run_id);
+    let mine = |key: &str| {
+        key == run_id
+            || key
+                .strip_prefix(run_id)
+                .is_some_and(|rest| rest.starts_with('/'))
+    };
+    let mut begun = BTreeMap::<(String, u64), (u64, Box<Begun>)>::new();
+    let mut applied = Vec::new();
+    let mut after = 0;
+    loop {
+        let page = store
+            .tree_after::<BundleEvent>(tree, after, PAGE)
             .map_err(journal_error)?;
-        files.push((file.path, before));
+        let Some(last) = page.last() else {
+            break;
+        };
+        after = last.sequence;
+        for event in page.into_iter().filter(|event| mine(&event.key)) {
+            match event.recorded.event {
+                BundleEvent::Begun(opened) => {
+                    begun.insert(
+                        (event.key, event.recorded.version),
+                        (event.sequence, opened),
+                    );
+                }
+                BundleEvent::Ended(ended) if ended.outcome == Outcome::Applied => {
+                    applied.push((event.key, ended.bundle));
+                }
+                BundleEvent::Ended(_) => {}
+            }
+        }
     }
-    Ok(BundleImages {
-        root: PathBuf::from(begun.root),
-        files,
-    })
+    let mut changes = applied
+        .into_iter()
+        .map(|(run, bundle)| {
+            let (sequence, opened) = begun.remove(&(run.clone(), bundle)).ok_or_else(|| {
+                journal_error(format!("run {run} journals an end to no change {bundle}"))
+            })?;
+            Ok(AppliedChange {
+                run,
+                bundle,
+                sequence,
+                root: PathBuf::from(opened.root),
+                files: opened
+                    .files
+                    .into_iter()
+                    .map(|file| ChangedFile {
+                        path: file.path,
+                        before: file.before,
+                        after: file.after,
+                    })
+                    .collect(),
+            })
+        })
+        .collect::<Result<Vec<_>, RuntimeError>>()?;
+    changes.sort_by_key(|change| change.sequence);
+    Ok(changes)
 }
 
 /// Roll back every bundle the run `run_id` or any run below it began and

@@ -19,8 +19,7 @@ inputs:
         minimum: 0
       customer:
         type: string
-  path: fixtures/invoice.txt
-  path_scope: skill
+  path: $package/fixtures/invoice.txt
   max_bytes: 5
 expect:
   status: failure

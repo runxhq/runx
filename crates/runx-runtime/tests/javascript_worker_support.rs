@@ -101,19 +101,15 @@ impl JavaScriptPackage {
             fs::create_dir_all(parent)?;
         }
         fs::write(archive_path, contents)?;
+        // The archive is the package's own file, named as one.
         inputs.insert(
             "archive_file".to_owned(),
-            JsonValue::String(archive.to_owned()),
-        );
-        inputs.insert(
-            "archive_base".to_owned(),
-            JsonValue::String("skill".to_owned()),
+            JsonValue::String(format!("$package/{archive}")),
         );
         let mut worker = javascript_worker();
         worker.paged_input = Some(ArtifactPageSource {
             source: ArtifactPageInput::Path {
                 path: "archive_file".to_owned(),
-                path_scope: Some("archive_base".to_owned()),
                 media_type: "application/javascript".to_owned(),
             },
             framing: ArtifactPageFraming::JsonArray,

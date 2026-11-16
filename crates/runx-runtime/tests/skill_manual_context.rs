@@ -36,7 +36,10 @@ impl SkillAdapter for UnusedAdapter {
     fn invoke(&self, _request: SkillInvocation) -> Result<InvocationOutput, RuntimeError> {
         Ok(InvocationOutput::runtime_failure(
             JsonValue::Null,
-            "agent context test unexpectedly invoked the adapter",
+            runx_runtime::Failure::new(
+                "runx",
+                "agent context test unexpectedly invoked the adapter",
+            ),
             0,
         ))
     }

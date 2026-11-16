@@ -1,7 +1,6 @@
 name: truncated-source-is-not-inventoried
 inputs:
-  path: fixtures/input/package-lock.json
-  path_scope: skill
+  path: $package/fixtures/input/package-lock.json
   max_bytes: 20
 expect:
   status: failure

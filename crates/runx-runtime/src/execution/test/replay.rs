@@ -708,7 +708,7 @@ fn seal_admission_failure(
 ) -> Result<TestReplayOutput, TestReplayError> {
     let output = InvocationOutput::runtime_failure(
         JsonValue::Object(error.public_failure_projection()),
-        error.to_string(),
+        error.failure(),
         0,
     );
     let projection = project_step_claim(JsonObject::new(), None);
@@ -816,8 +816,9 @@ where
                     InvocationOutput::runtime_failure(
                         JsonValue::Object(run.values()),
                         run.outcome
-                            .failure_message()
-                            .unwrap_or_else(|| "workflow test step failed".to_owned()),
+                            .failure(&run.skill)
+                            .unwrap_or_else(|| crate::Failure::new("runx", "the step failed"))
+                            .at_step(&run.step_id),
                         0,
                     )
                 }

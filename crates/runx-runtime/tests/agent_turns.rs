@@ -614,7 +614,7 @@ fn a_turn_answer_waits_until_its_calls_settle() -> TestResult {
     assert!(
         refused
             .to_string()
-            .contains("call 0 of its turn has not settled"),
+            .contains("each of its calls has settled, and call 0 has not"),
         "{refused}"
     );
 
@@ -1376,7 +1376,7 @@ fn a_script_starts_no_more_child_runs_than_its_turn_may() -> TestResult {
     let turn = opened(temp.path(), &started)?;
     let source = r#"export default async function (ctx) {
   const settled = await Promise.allSettled(
-    ["one", "two"].map((value) => ctx.skill("../digest-child", { value })),
+    ["one", "two"].map((value) => ctx.skill("digest-child", { value })),
   );
   return { settled: settled.map((each) => each.status), reason: settled[1].reason?.message ?? "" };
 }
@@ -1400,6 +1400,32 @@ fn a_script_starts_no_more_child_runs_than_its_turn_may() -> TestResult {
             .as_str()
             .is_some_and(|reason| reason.contains("at most 1 child runs")),
         "{output}"
+    );
+    // A script names a skill as any package in the workspace would: one
+    // that writes where it lies is told the name to call it by.
+    let by_path = r#"export default async function (ctx) {
+  try {
+    await ctx.skill("../digest-child", { value: "one" });
+    return { reason: "" };
+  } catch (rejection) {
+    return { reason: rejection.message };
+  }
+}
+"#;
+    let refused = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({ "source": by_path }))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &refused.outcome else {
+        return Err(format!("the script completes: {refused:?}").into());
+    };
+    assert!(
+        serde_json::to_value(output)?["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("so it calls ../digest-child as digest-child")),
+        "{output:?}"
     );
     Ok(())
 }
@@ -3456,7 +3482,7 @@ fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
   const digests = await Promise.all(
     inputs.values.map((value) => ctx.tool("data.digest", { value, encoding: "utf8_text" })),
   );
-  const child = await ctx.skill("../digest-child", { value: "child" });
+  const child = await ctx.skill("digest-child", { value: "child" });
   return { digested: digests.length, child: Object.keys(child).length > 0 };
 }
 "#;
@@ -3681,6 +3707,78 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
 /// The edits a turn's script made are undone by naming its script call: its
 /// id names each edit its script made, and the inverse restores what each
 /// file held before them.
+/// A skill call's child run edits as its own steps do, and naming the call
+/// undoes them: the inverse reads the run's journal, so the edits are undone
+/// in the order they were made, whatever order the calls are named in.
+#[test]
+fn a_skill_calls_child_edits_are_undone_in_the_order_they_were_made() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::write(root.join("kept.txt"), "before\n")?;
+    crate::support::write_test_skill_package(
+        &root.join("writer"),
+        "---\nname: writer\ndescription: Writes the kept file.\n---\n# Writer\n\nWrite it.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  run:\n    inputs:\n      kept: {type: string}\n    steps:\n      - id: write\n        tool: fs.write\n        inputs:\n          path: kept.txt\n          contents: \"after\\n\"\n          expected_digest: $input.kept\n",
+    )?;
+    let skill_dir = root.join("editor");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: editor\ndescription: Edits a file, has a child edit it, and undoes both.\n---\n# Editor\n\n## Agent task: answer\n\nEdit, then answer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [fs.write, fs.inverse]\n          skills: [../writer]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let mut authority = bounded(None, None);
+    authority.effects = Effects::Allow;
+    authority.reach = Reach::Workspace;
+    let started = start_bounded(root, skill_dir, authority)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let turn = opened(root, &started)?;
+    let first = turn.call(
+        TURN,
+        "fs_write",
+        Some("first"),
+        input(serde_json::json!({
+            "path": "kept.txt",
+            "contents": "middle\n",
+            "expected_digest": runx_contracts::sha256_prefixed(b"before\n"),
+        }))?,
+    )?;
+    assert!(completed(&first), "{first:?}");
+    let child = turn.call(
+        TURN,
+        "skill__writer",
+        Some("child"),
+        input(serde_json::json!({"kept": runx_contracts::sha256_prefixed(b"middle\n")}))?,
+    )?;
+    assert!(completed(&child), "{child:?}");
+    assert_eq!(std::fs::read_to_string(root.join("kept.txt"))?, "after\n");
+
+    let undo = turn.call(
+        TURN,
+        "fs_inverse",
+        None,
+        input(serde_json::json!({"run_id": run_id, "call_ids": ["child", "first"]}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &undo.outcome else {
+        return Err(format!("the inverse completes: {undo:?}").into());
+    };
+    let bundle = &serde_json::to_value(output)?["inverse_bundle"];
+    // What the file held before the first edit, bound to what the last left.
+    assert_eq!(bundle["writes"][0]["contents"], "before\n", "{bundle}");
+    assert_eq!(
+        bundle["writes"][0]["expected_digest"],
+        runx_contracts::sha256_prefixed(b"after\n").as_str(),
+        "{bundle}"
+    );
+    assert_eq!(
+        bundle["calls"],
+        serde_json::json!(["first", "child"]),
+        "{bundle}"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_turns_script_edits_are_undone_by_naming_its_call() -> TestResult {
     let temp = tempdir()?;

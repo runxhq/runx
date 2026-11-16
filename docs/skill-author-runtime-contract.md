@@ -81,14 +81,15 @@ tool:
   export: selectPage
   paged_input:
     path: archive_file
-    path_scope: archive_base
     media_type: application/json
     framing: json_array
     page_bytes: 524288
 ```
 
-The runtime removes the path and scope inputs before module invocation, admits
-the contained file to an immutable snapshot, and calls the export repeatedly.
+The input `path` names holds the file's path from the workspace root, or
+`$package/<path>` for a file the package carries. The runtime removes that
+input before module invocation, admits the contained file to an immutable
+snapshot, and calls the export repeatedly.
 The run's `reach` bounds the read, and native admission preserves the caller's
 bounds: agent-bound runs refuse secret files and runx state, including symlink
 aliases.
@@ -118,7 +119,7 @@ private artifact path. For example, after a GitHub `commits.compare` step:
 
 `artifact` names an input containing the opaque `ref` from `artifact.admit` or
 `artifact.open` in this logical run. Its media type and bytes are already bound,
-so don't also declare `path`, `path_scope` or `media_type`. The adapter looks up
+so don't also declare `path` or `media_type`. The adapter looks up
 that immutable snapshot and uses the same bounded page loop. It never opens a
 caller-supplied reference as a path. Unknown references and references from a
 different logical run or project refuse. `artifact.open` keeps its own operator,

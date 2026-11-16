@@ -582,6 +582,26 @@ impl KernelStore {
             .map_err(|source| self.database("listing a stream tree", source))
     }
 
+    /// The heads of the streams whose key begins with `prefix`, in key
+    /// order: what one call's streams hold, read without the rest of its
+    /// run's tree.
+    pub(crate) fn heads_from<E: StreamEvent>(
+        &self,
+        prefix: &str,
+    ) -> Result<Vec<Head>, KernelStoreError> {
+        let connection = self.lock();
+        let mut statement = connection
+            .prepare_cached(
+                "SELECT key, version, event_type, updated_at, sequence FROM kernel_keys
+                 WHERE stream = ?1 AND key >= ?2 AND substr(key, 1, length(?2)) = ?2 ORDER BY key",
+            )
+            .map_err(|source| self.database("preparing a stream listing", source))?;
+        statement
+            .query_map(params![E::KIND, prefix], head_row)
+            .and_then(Iterator::collect)
+            .map_err(|source| self.database("listing streams", source))
+    }
+
     /// The keys of `root`'s stream and the streams below it that hold an
     /// event of `event_type`, in key order.
     pub(crate) fn tree_keys_with<E: StreamEvent>(

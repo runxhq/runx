@@ -105,12 +105,6 @@ methods:
         default: .
         description: Workspace-relative or explicit absolute root containing the files.
         optional: true
-      path_scope:
-        type: string
-        default: workspace
-        description: Root ownership boundary used by the native filesystem reader.
-        enum: [workspace, skill]
-        optional: true
       max_bytes:
         type: integer
         default: 500000
@@ -150,7 +144,6 @@ methods:
           objective: $input.objective
           paths: $input.paths
           repo_root: $input.repo_root
-          path_scope: $input.path_scope
           max_bytes: $input.max_bytes
           domain: $input.domain
           deliverable: deep research brief

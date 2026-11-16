@@ -43,16 +43,9 @@ pub(super) fn build_step_output_projection(
     let artifacts = step.artifacts.as_ref().or(extra_artifacts);
     let mut claim =
         project_declared_output_claim(&step.id, &output.value, declared_outputs, artifacts)
-            .map_err(|error| RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: error.to_string(),
-            })?;
-    crate::packet_schemas::name_packet_ids(&mut claim, artifacts, packets_at).map_err(
-        |reason| RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason,
-        },
-    )?;
+            .map_err(|error| error.at_workflow_step(&step.id))?;
+    crate::packet_schemas::name_packet_ids(&mut claim, artifacts, packets_at)
+        .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?;
     name_verdicts(&mut claim, artifacts, evaluating, &step.id)?;
     Ok(project_step_claim(claim, artifacts))
 }
@@ -111,7 +104,7 @@ mod tests {
                 "provider_error".to_owned(),
                 JsonValue::String("credits depleted".to_owned()),
             )])),
-            "credits depleted",
+            crate::Failure::new("the provider", "credits depleted"),
             4,
         );
 
@@ -127,7 +120,7 @@ mod tests {
         assert!(projection.outputs.is_empty());
         assert_eq!(
             output.failure_message().as_deref(),
-            Some("credits depleted")
+            Some("credits depleted (the provider).")
         );
         Ok(())
     }
@@ -152,8 +145,8 @@ mod tests {
 
         assert!(matches!(
             error,
-            RuntimeError::StepFailed { reason, .. }
-                if reason.contains("declared run output \"result\" was not returned")
+            RuntimeError::Failed(failure)
+                if failure.reason.contains("declared run output \"result\" was not returned")
         ));
         Ok(())
     }

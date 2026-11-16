@@ -3003,13 +3003,13 @@ fn read_failure(context: &OperationAdmission, step_id: &str, reason: String) -> 
 }
 
 fn failed(context: &OperationAdmission, reason: String) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: format!(
+    RuntimeError::failed(
+        format!(
             "{}/{}",
             context.admitted.connector.manifest.name, context.admitted.operation
         ),
-        message: reason,
-    }
+        reason,
+    )
 }
 
 fn verification(uri: String, provider: &str, proof_kind: ProofKind) -> Reference {

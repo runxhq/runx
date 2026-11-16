@@ -80,14 +80,9 @@ pub struct ArtifactPageSource {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ArtifactPageInput {
-    /// A file, named by the input `path`, inside the directory the input
-    /// `path_scope` names.
-    Path {
-        path: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        path_scope: Option<String>,
-        media_type: String,
-    },
+    /// A file, named by the input `path`: from the workspace root, or, by
+    /// `$package/<path>`, a file of the skill's own package.
+    Path { path: String, media_type: String },
     /// A stored artifact, referenced by the input `artifact`.
     Artifact { artifact: String },
 }

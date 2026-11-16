@@ -171,8 +171,5 @@ fn number(value: u64) -> JsonValue {
 }
 
 fn invalid(message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: TOOL.to_owned(),
-        message: message.into(),
-    }
+    RuntimeError::failed(TOOL.to_owned(), message.into())
 }

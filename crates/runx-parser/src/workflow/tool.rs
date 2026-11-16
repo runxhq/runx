@@ -213,14 +213,7 @@ fn validate_paged_input(
     reject_unknown(
         &pages,
         field,
-        &[
-            "artifact",
-            "framing",
-            "media_type",
-            "page_bytes",
-            "path",
-            "path_scope",
-        ],
+        &["artifact", "framing", "media_type", "page_bytes", "path"],
     )?;
     let source = match (pages.get("path"), pages.get("artifact")) {
         (Some(named), None) => {
@@ -228,18 +221,8 @@ fn validate_paged_input(
                 &required_string(Some(named), &format!("{field}.path"))?,
                 &format!("{field}.path"),
             )?;
-            let path_scope =
-                optional_string(pages.get("path_scope"), &format!("{field}.path_scope"))?
-                    .map(|name| page_input_name(&name, &format!("{field}.path_scope")))
-                    .transpose()?;
-            if path_scope.as_deref() == Some(path.as_str()) {
-                return Err(validation_error(format!(
-                    "{field}.path and path_scope must name different inputs."
-                )));
-            }
             ArtifactPageInput::Path {
                 path,
-                path_scope,
                 media_type: required_string(
                     pages.get("media_type"),
                     &format!("{field}.media_type"),
@@ -247,9 +230,9 @@ fn validate_paged_input(
             }
         }
         (None, Some(artifact)) => {
-            if pages.contains_key("path_scope") || pages.contains_key("media_type") {
+            if pages.contains_key("media_type") {
                 return Err(validation_error(format!(
-                    "{field}.artifact uses the admitted snapshot's media type and cannot select a file scope."
+                    "{field}.artifact uses the admitted snapshot's media type."
                 )));
             }
             ArtifactPageInput::Artifact {

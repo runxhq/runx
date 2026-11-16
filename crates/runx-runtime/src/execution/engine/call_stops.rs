@@ -9,15 +9,24 @@
 //! A cancel of a skill call in flight reaches its child run, which heeds it
 //! by the same rule at every depth and starts no further step.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use crate::interrupt::Caller;
 
-/// The executing calls of a run and the child runs below it, by address.
+/// The executing calls of a run and the child runs below it, by address,
+/// and the skill calls each turn has admitted to start a child run.
 #[derive(Debug, Default)]
-pub(crate) struct CallStops(Mutex<BTreeMap<String, Executing>>);
+pub(crate) struct CallStops {
+    executing: Mutex<BTreeMap<String, Executing>>,
+    /// The skill calls this process admitted to start a child run, by the
+    /// turn they're its own or its scripts' calls of, as its step and
+    /// attempt. A turn's fanout counts them with the children its record
+    /// holds, so calls admitted at once, on any of its streams, can't pass
+    /// its bound together.
+    children: Mutex<BTreeMap<(String, u32), BTreeSet<String>>>,
+}
 
 #[derive(Debug)]
 struct Executing {
@@ -55,7 +64,49 @@ pub enum CallCancel {
 
 impl CallStops {
     fn executing(&self) -> MutexGuard<'_, BTreeMap<String, Executing>> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+        self.executing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Admit the skill call at `address` to start one of `turn`'s child
+    /// runs, within `limit`: none when the children the turn's record holds
+    /// as started, which `started` reads, and those admitted here, but for
+    /// this call, already reach it. The record is read, and the admission
+    /// taken, under one lock, so a call admitted at once on another stream
+    /// is counted by one or the other.
+    pub(crate) fn admit_child<E>(
+        &self,
+        turn: (String, u32),
+        address: &str,
+        limit: usize,
+        started: impl FnOnce() -> Result<BTreeSet<String>, E>,
+    ) -> Result<bool, E> {
+        let mut children = self.children.lock().unwrap_or_else(PoisonError::into_inner);
+        let started = started()?;
+        let admitted = children.entry(turn).or_default();
+        let counted = started
+            .union(admitted)
+            .filter(|child| child.as_str() != address)
+            .count();
+        if counted >= limit {
+            return Ok(false);
+        }
+        admitted.insert(address.to_owned());
+        Ok(true)
+    }
+
+    /// Give back what `admit_child` took for the call at `address`, once its
+    /// record says how it settled: a child it started is counted from there.
+    pub(crate) fn release_child(&self, turn: &(String, u32), address: &str) {
+        if let Some(admitted) = self
+            .children
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get_mut(turn)
+        {
+            admitted.remove(address);
+        }
     }
 
     /// Register the call at `address`, which does `work`, until its driver
@@ -178,6 +229,35 @@ impl Drop for CallStop {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A turn's fanout counts the children its record holds and those
+    /// admitted here at once, a call never against itself, and a call that
+    /// settles without a child gives back what it took.
+    #[test]
+    fn calls_admitted_at_once_cannot_pass_a_turns_fanout_together() {
+        let stops = CallStops::default();
+        let turn = ("answer".to_owned(), 1);
+        let none = || Ok::<_, ()>(BTreeSet::new());
+        assert_eq!(
+            stops.admit_child(turn.clone(), "answer/0/0", 1, none),
+            Ok(true)
+        );
+        assert_eq!(
+            stops.admit_child(turn.clone(), "answer/1/0", 1, none),
+            Ok(false)
+        );
+        assert_eq!(
+            stops.admit_child(turn.clone(), "answer/0/0", 1, none),
+            Ok(true)
+        );
+        let recorded = || Ok::<_, ()>(BTreeSet::from(["answer/0/0".to_owned()]));
+        stops.release_child(&turn, "answer/0/0");
+        assert_eq!(
+            stops.admit_child(turn.clone(), "answer/1/0", 1, recorded),
+            Ok(false)
+        );
+        assert_eq!(stops.admit_child(turn, "answer/1/0", 2, recorded), Ok(true));
+    }
 
     #[test]
     fn a_cancel_settles_by_where_the_call_stands() {

@@ -26,10 +26,7 @@ pub(crate) fn verify_declared_packets(
         &package_root,
         bindings.iter().map(|binding| &binding.packet),
     )
-    .map_err(|error| RuntimeError::SkillFailed {
-        skill_name: "agent".to_owned(),
-        message: format!("packet schema catalog failed: {error}"),
-    })?;
+    .map_err(|error| RuntimeError::failed("runx", format!("its packet schemas failed: {error}")))?;
     let mut checks = BTreeMap::new();
     for binding in bindings {
         let (output, check) = verify_packet_binding(binding, &schemas)?;
@@ -75,14 +72,12 @@ fn verify_packet_binding(
     ))
 }
 
+/// A packet output its packet's contract refuses: the contract decides.
 fn packet_error(binding: &PacketBinding, detail: impl std::fmt::Display) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "agent".to_owned(),
-        message: format!(
-            "packet output '{}' for '{}': {detail}",
-            binding.output, binding.packet
-        ),
-    }
+    RuntimeError::failed(
+        format!("the {} contract", binding.packet),
+        format!("output {}: {detail}", binding.output),
+    )
 }
 
 struct PacketBinding {
@@ -118,9 +113,11 @@ fn projected_binding(
         .as_object()
         .and_then(|object| object.get("data"))
         .cloned()
-        .ok_or_else(|| RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: format!("packet output '{output}' was not projected as a data envelope"),
+        .ok_or_else(|| {
+            RuntimeError::failed(
+                "runx",
+                format!("packet output {output} was not projected as a data envelope"),
+            )
         })?;
     Ok(PacketBinding {
         output: output.to_owned(),

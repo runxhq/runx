@@ -25,25 +25,13 @@ pub(super) fn invoke(
         .ok_or_else(|| page_error("missing page source"))?;
     reject_reserved_input(&request.inputs)?;
     let artifact = match &page_source.source {
-        ArtifactPageInput::Path {
-            path,
-            path_scope,
-            media_type,
-        } => {
+        ArtifactPageInput::Path { path, media_type } => {
             let requested_path = take_string_input(&mut request, path)?;
-            let path_scope = path_scope
-                .as_deref()
-                .map(|field| take_string_input(&mut request, field))
-                .transpose()?
-                .unwrap_or_else(|| "workspace".to_owned());
-            let root = resolve_scoped_root(
-                ".",
-                &path_scope,
-                &request.env,
-                &request.skill_directory,
-                request.reach,
-            )
-            .map_err(|error| page_error(error.to_string()))?;
+            let (root, requested_path) = crate::services::rooted(".", &requested_path);
+            let requested_path = requested_path.to_owned();
+            let root =
+                resolve_scoped_root(root, &request.env, &request.skill_directory, request.reach)
+                    .map_err(|error| page_error(error.to_string()))?;
             // A worker isn't a model, so where the source may be shared
             // doesn't bound it.
             artifacts
@@ -99,13 +87,16 @@ pub(super) fn invoke(
         let mut output = adapter.invoke_prepared(&prepared, &inputs)?;
         total_duration_ms = total_duration_ms.saturating_add(output.duration_ms());
         if output.status == InvocationStatus::Failure {
-            let failure = format!(
-                "artifact page {page_index} at byte {offset} failed: {}",
-                output
-                    .failure_message()
-                    .unwrap_or_else(|| "worker returned no failure detail".to_owned())
-            );
-            output.reject(failure);
+            let failed = output
+                .failure("the script")
+                .unwrap_or_else(|| crate::Failure::new("the worker", "it said nothing of why"));
+            output.reject(crate::Failure {
+                reason: format!(
+                    "artifact page {page_index} at byte {offset}: {}",
+                    failed.reason
+                ),
+                ..failed
+            });
             output.set_duration_ms(total_duration_ms);
             return Ok(output);
         }

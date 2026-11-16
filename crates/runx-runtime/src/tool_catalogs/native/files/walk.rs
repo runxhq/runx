@@ -41,7 +41,9 @@ pub(super) fn list(
     invocation: &NativeInvocation<'_, FileListInput>,
 ) -> Result<FileList, RuntimeError> {
     let inputs = invocation.inputs;
-    let root = super::root(LIST_TOOL, &inputs.repo_root, &inputs.path_scope, invocation)?;
+    let (repo_root, path) = crate::services::rooted(&inputs.repo_root, &inputs.path);
+    let named = super::Named::of(&inputs.repo_root, repo_root);
+    let root = super::root(LIST_TOOL, repo_root, invocation)?;
     let depth = bounded(LIST_TOOL, "depth", inputs.depth, MAX_DEPTH)?;
     let limit = bounded(
         LIST_TOOL,
@@ -49,7 +51,7 @@ pub(super) fn list(
         inputs.max_entries,
         MAX_LIST_ENTRIES,
     )?;
-    let start = walk_start(LIST_TOOL, &root, &inputs.path, invocation.reach)?;
+    let start = walk_start(LIST_TOOL, &root, path, invocation.reach)?;
     if !start.is_dir() {
         return Err(invalid_input(LIST_TOOL, "path must be a directory"));
     }
@@ -79,14 +81,18 @@ pub(super) fn list(
             .then(|| entry.metadata().ok().map(|metadata| metadata.len()))
             .flatten();
         entries.push(FileListEntry {
-            path: non_empty(LIST_TOOL, "path", relative(&root, entry.path()))?,
+            path: non_empty(
+                LIST_TOOL,
+                "path",
+                named.path(&relative(&root, entry.path())),
+            )?,
             kind,
             bytes,
         });
     }
     Ok(FileList {
-        repo_root: root_name(LIST_TOOL, &root)?,
-        path: non_empty(LIST_TOOL, "path", relative(&root, &start))?,
+        repo_root: root_name(LIST_TOOL, named.root)?,
+        path: non_empty(LIST_TOOL, "path", named.path(&relative(&root, &start)))?,
         entries: BoundedVec::new(entries)
             .ok_or_else(|| invalid_input(LIST_TOOL, "listing exceeded its entry bound"))?,
         truncated,
@@ -97,12 +103,9 @@ pub(super) fn search(
     invocation: &NativeInvocation<'_, FileSearchInput>,
 ) -> Result<FileSearch, RuntimeError> {
     let inputs = invocation.inputs;
-    let root = super::root(
-        SEARCH_TOOL,
-        &inputs.repo_root,
-        &inputs.path_scope,
-        invocation,
-    )?;
+    let (repo_root, path) = crate::services::rooted(&inputs.repo_root, &inputs.path);
+    let named = super::Named::of(&inputs.repo_root, repo_root);
+    let root = super::root(SEARCH_TOOL, repo_root, invocation)?;
     let limit = bounded(
         SEARCH_TOOL,
         "max_results",
@@ -128,7 +131,7 @@ pub(super) fn search(
                 .map_err(|error| invalid_input(SEARCH_TOOL, format!("glob is invalid: {error}")))
         })
         .transpose()?;
-    let start = walk_start(SEARCH_TOOL, &root, &inputs.path, invocation.reach)?;
+    let start = walk_start(SEARCH_TOOL, &root, path, invocation.reach)?;
     let mut matches = Vec::new();
     let mut files_searched = 0_u64;
     let mut truncated = false;
@@ -137,10 +140,16 @@ pub(super) fn search(
         if !entry.file_type().is_some_and(|kind| kind.is_file()) {
             continue;
         }
-        let path = relative(&root, entry.path());
-        if glob.as_ref().is_some_and(|glob| !glob.is_match(&path)) {
+        // A glob is matched under the root it searches, and a match is
+        // named as its caller names the root.
+        let under_root = relative(&root, entry.path());
+        if glob
+            .as_ref()
+            .is_some_and(|glob| !glob.is_match(&under_root))
+        {
             continue;
         }
+        let path = named.path(&under_root);
         let Some((text, digest)) = searchable_text(entry.path())? else {
             continue;
         };
@@ -169,7 +178,7 @@ pub(super) fn search(
         }
     }
     Ok(FileSearch {
-        repo_root: root_name(SEARCH_TOOL, &root)?,
+        repo_root: root_name(SEARCH_TOOL, named.root)?,
         matches: BoundedVec::new(matches)
             .ok_or_else(|| invalid_input(SEARCH_TOOL, "search exceeded its match bound"))?,
         files_searched,

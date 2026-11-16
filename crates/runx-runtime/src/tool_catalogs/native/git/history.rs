@@ -75,7 +75,7 @@ pub(super) fn log(invocation: &NativeInvocation<'_, GitLogInput>) -> Result<GitL
         commits.pop();
     }
     Ok(GitLog {
-        repo_root: root_name(LOG, &root)?,
+        repo_root: root_name(LOG, &invocation.inputs.repo_root)?,
         revision: non_empty(LOG, "revision", inputs.revision.clone())?,
         commits: BoundedVec::new(commits).ok_or_else(|| {
             invalid_input(
@@ -119,7 +119,7 @@ pub(super) fn show(
         let (text, truncated) = run(SHOW, &root, &["show", "--no-color", &object], invocation)?;
         let path = non_empty(SHOW, "path", path.clone())?;
         return Ok(GitShow {
-            repo_root: root_name(SHOW, &root)?,
+            repo_root: root_name(SHOW, &invocation.inputs.repo_root)?,
             revision: non_empty(SHOW, "revision", inputs.revision.clone())?,
             path: Some(path.clone()),
             text,
@@ -170,7 +170,7 @@ pub(super) fn show(
         run(SHOW, &root, &args, invocation)?
     };
     Ok(GitShow {
-        repo_root: root_name(SHOW, &root)?,
+        repo_root: root_name(SHOW, &invocation.inputs.repo_root)?,
         revision: non_empty(SHOW, "revision", inputs.revision.clone())?,
         path: None,
         text: format!("{header}{patch}"),
@@ -224,7 +224,7 @@ pub(super) fn diff(
         run(PATCH, &root, &args, invocation)?
     };
     Ok(GitPatch {
-        repo_root: root_name(PATCH, &root)?,
+        repo_root: root_name(PATCH, &invocation.inputs.repo_root)?,
         base: non_empty(PATCH, "base", inputs.base.clone())?,
         head: inputs
             .head

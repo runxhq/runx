@@ -202,14 +202,17 @@ impl<'a> PriorRunIndex<'a> {
                 step_id: from_step.to_owned(),
                 reason: "context source step has not run".to_owned(),
             })?;
-        let input =
-            NonEmptyString::new(input.to_owned()).ok_or_else(|| RuntimeError::StepFailed {
-                step_id: to_step.to_owned(),
-                reason: "context edge input must not be empty".to_owned(),
-            })?;
-        let output = NonEmptyString::new(output).ok_or_else(|| RuntimeError::StepFailed {
-            step_id: to_step.to_owned(),
-            reason: "context edge output must not be empty".to_owned(),
+        let input = NonEmptyString::new(input.to_owned()).ok_or_else(|| {
+            RuntimeError::step_failed(
+                to_step.to_owned(),
+                "context edge input must not be empty".to_owned(),
+            )
+        })?;
+        let output = NonEmptyString::new(output).ok_or_else(|| {
+            RuntimeError::step_failed(
+                to_step.to_owned(),
+                "context edge output must not be empty".to_owned(),
+            )
         })?;
         Ok(ProvenanceEntry {
             input,

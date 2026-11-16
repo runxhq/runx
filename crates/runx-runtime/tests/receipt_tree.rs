@@ -372,6 +372,7 @@ fn step_run(
         artifact_outputs: Default::default(),
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
+        usage: None,
         receipt,
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),

@@ -673,10 +673,17 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
         .find(|event| event["kind"] == "step" && event["step_id"] == "work")
         .ok_or_else(|| format!("the turn's step is recorded: {read}"))?;
     assert_eq!(step["model"], "fixture-model", "{step}");
-    // What the turn used of its model, as its answer stated it.
+    // What the turn used, as its step's record holds it: its model calls
+    // and tokens, its rounds, and each call its model made.
     assert_eq!(
         step["usage"],
-        json!({"model_calls": 2, "input_tokens": 3100, "output_tokens": 29}),
+        json!({
+            "model_calls": 2,
+            "input_tokens": 3100,
+            "output_tokens": 29,
+            "rounds": 2,
+            "calls": [{"tool": "load", "status": "success"}],
+        }),
         "{step}"
     );
     assert_eq!(
@@ -1478,7 +1485,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
             run_id: None,
             answers: None,
             inputs: BTreeMap::new(),
-            env,
+            env: env.clone(),
             cwd: temp.path().to_path_buf(),
             managed_agent: ManagedAgentPolicy::inline(3)?,
         },
@@ -1503,6 +1510,128 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
     assert_eq!(invoke.seal.reason, Some(reason));
     assert_eq!(workflow.seal.reason, Some(reason));
     assert_eq!(output["seal_reason"], reason.label(), "{output}");
+    // A turn that failed records what it used, as one that answers does.
+    let run_id = output["run_id"].as_str().ok_or("missing run_id")?;
+    let read = runx_runtime::run_record::read_run(&env, temp.path(), run_id, None)?;
+    let usage = read
+        .events
+        .iter()
+        .find_map(|record| match &record.event {
+            runx_contracts::RunEventFact::Step {
+                step_id,
+                succeeded: false,
+                usage,
+                ..
+            } if step_id.as_str() == "verify" => usage.clone(),
+            _ => None,
+        })
+        .ok_or("the failed turn's step records what it used")?;
+    assert!(usage.model_calls.get() >= 1, "{usage:?}");
+    Ok(())
+}
+
+/// A turn's script call is read whole with what its turn had seen before it
+/// in its labels: the script's source is its maker's, written from every
+/// result its turn was returned, so a local_only one keeps the read local.
+#[test]
+fn a_script_calls_read_keeps_the_labels_of_what_its_turn_saw_before_it()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
+    let skill_dir = temp.path().join("reader");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: reader\ndescription: Reads a kept note, then scripts.\n---\n# Reader\n\n## Agent task: work\n\nRead the note, script, and finish with a status.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  work:\n    steps:\n      - id: work\n        agent: work\n        calls:\n          tools: [artifact.admit, call.read]\n        outputs:\n          status: {type: string}\n",
+    )?;
+    let call = |id: &str, name: &str, arguments: serde_json::Value| json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id": id,"type":"function","function":{"name": name,"arguments": arguments.to_string()}}]}}]});
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let responses = [
+        call(
+            "call-admit",
+            "artifact_admit",
+            json!({"path": "kept.txt", "media_type": "text/plain", "labels": {"sharing": "local_only"}}),
+        ),
+        call(
+            "call-script",
+            "script",
+            json!({"source": "export default async function (ctx) {\n  try { await ctx.tool(\"data.digest\", { value: \"x\" }); } catch {}\n  return { made: 1 };\n}\n"}),
+        ),
+        call("call-read", "call_read", json!({"call": "work/1"})),
+        call("call-read-inner", "call_read", json!({"call": "work/1/0"})),
+        call("call-final", "turn_complete", json!({"status": "done"})),
+    ];
+    let server = std::thread::spawn(move || serve_responses(listener, responses));
+    let mut env = BTreeMap::from([
+        (
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").to_string_lossy().into_owned(),
+        ),
+        ("RUNX_AGENT_PROVIDER".to_owned(), "scripted".to_owned()),
+        (
+            "RUNX_AGENT_DIALECT".to_owned(),
+            "chat_completions".to_owned(),
+        ),
+        ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ("RUNX_AGENT_AUTH_MODE".to_owned(), "local_none".to_owned()),
+        ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
+    ]);
+    crate::support::insert_test_signing_env(&mut env);
+    let result = LocalOrchestrator::default().run_skill_with_binding(
+        &SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: skill_dir,
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: env.clone(),
+            cwd: temp.path().to_path_buf(),
+            managed_agent: ManagedAgentPolicy::inline(5)?,
+        },
+        None,
+        None,
+        None,
+    )?;
+    finish_server(server)?;
+    let output = serde_json::to_value(&result.output)?;
+    assert_eq!(output["outcome"], "completed", "{output}");
+    let run_id = output["run_id"].as_str().ok_or("missing run_id")?;
+    let read = runx_runtime::run_record::read_run(&env, temp.path(), run_id, None)?;
+    // The script call's read, and its refused inner call's, whose input the
+    // script wrote from what it was given.
+    let sharing = read
+        .events
+        .iter()
+        .filter_map(|record| match &record.event {
+            runx_contracts::RunEventFact::Call {
+                target: runx_contracts::CallTarget::Tool { tool },
+                outcome,
+                ..
+            } if tool.as_str() == "call.read" => match outcome.as_ref() {
+                runx_contracts::RunCallOutcome::Completed { outputs, .. } => {
+                    outputs.first().map(|part| part.artifact.labels.sharing)
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        sharing,
+        [
+            runx_contracts::ContextSharing::LocalOnly,
+            runx_contracts::ContextSharing::LocalOnly
+        ]
+    );
     Ok(())
 }
 

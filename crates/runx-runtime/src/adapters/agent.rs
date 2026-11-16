@@ -1,6 +1,6 @@
 //! The managed agent's telemetry and its sanitized failures.
 
-use runx_contracts::{JsonNumber, JsonObject, JsonValue, SealReason};
+use runx_contracts::{JsonObject, JsonValue, SealReason};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentExecutionTelemetry {
@@ -16,53 +16,30 @@ pub struct AgentExecutionTelemetry {
 }
 
 impl AgentExecutionTelemetry {
+    /// What the turn used, as its record states it whether the turn answers
+    /// or fails: none before its first model call.
     #[must_use]
-    pub fn public_projection(&self) -> JsonObject {
-        let mut projection = JsonObject::new();
-        if let Some(rounds) = self.rounds {
-            projection.insert(
-                "rounds".to_owned(),
-                JsonValue::Number(JsonNumber::U64(rounds)),
-            );
-        }
-        if let Some(model_calls) = self.model_calls {
-            projection.insert(
-                "model_calls".to_owned(),
-                JsonValue::Number(JsonNumber::U64(model_calls)),
-            );
-        }
-        for (key, tokens) in [
-            ("input_tokens", self.input_tokens),
-            ("output_tokens", self.output_tokens),
-        ] {
-            if let Some(tokens) = tokens {
-                projection.insert(key.to_owned(), JsonValue::Number(JsonNumber::U64(tokens)));
-            }
-        }
-        if let Some(tool_calls) = self.tool_calls {
-            projection.insert(
-                "tool_calls".to_owned(),
-                JsonValue::Number(JsonNumber::U64(tool_calls)),
-            );
-        }
-        if let Some(tools) = &self.tools {
-            projection.insert(
-                "tools".to_owned(),
-                JsonValue::Array(tools.iter().cloned().map(JsonValue::String).collect()),
-            );
-        }
-        if let Some(tool_executions) = &self.tool_executions {
-            projection.insert(
-                "tool_executions".to_owned(),
-                JsonValue::Array(
-                    tool_executions
-                        .iter()
-                        .map(tool_execution_trace)
-                        .collect::<Vec<_>>(),
-                ),
-            );
-        }
-        projection
+    pub fn usage(&self) -> Option<runx_contracts::TurnUsage> {
+        use runx_contracts::schema::NonEmptyString;
+        Some(runx_contracts::TurnUsage {
+            model_calls: self.model_calls.and_then(std::num::NonZeroU64::new)?,
+            input_tokens: self.input_tokens,
+            output_tokens: self.output_tokens,
+            rounds: self.rounds.and_then(std::num::NonZeroU64::new),
+            calls: self
+                .tool_executions
+                .iter()
+                .flatten()
+                .filter_map(|call| {
+                    Some(runx_contracts::TurnUsageCall {
+                        tool: NonEmptyString::new(call.tool.clone())?,
+                        status: NonEmptyString::new(call.status.clone())?,
+                        kind: call.resolution_kind.clone().and_then(NonEmptyString::new),
+                        rule: call.rule.clone().and_then(NonEmptyString::new),
+                    })
+                })
+                .collect(),
+        })
     }
 }
 
@@ -135,11 +112,12 @@ impl ManagedAgentError {
                 JsonValue::String(self.sanitized_message.clone()),
             ),
         ]);
-        if let Some(telemetry) = self.telemetry() {
-            projection.insert(
-                "telemetry".to_owned(),
-                JsonValue::Object(telemetry.public_projection()),
-            );
+        if let Some(usage) = self
+            .telemetry()
+            .and_then(AgentExecutionTelemetry::usage)
+            .and_then(|usage| JsonValue::from_serialize(&usage).ok())
+        {
+            projection.insert("usage".to_owned(), usage);
         }
         projection
     }
@@ -152,25 +130,3 @@ impl std::fmt::Display for ManagedAgentError {
 }
 
 impl std::error::Error for ManagedAgentError {}
-
-fn tool_execution_trace(trace: &AgentToolExecutionTrace) -> JsonValue {
-    let mut object = JsonObject::new();
-    object.insert("tool".to_owned(), JsonValue::String(trace.tool.clone()));
-    object.insert("status".to_owned(), JsonValue::String(trace.status.clone()));
-    if let Some(receipt_id) = &trace.receipt_id {
-        object.insert(
-            "receiptId".to_owned(),
-            JsonValue::String(receipt_id.clone()),
-        );
-    }
-    if let Some(resolution_kind) = &trace.resolution_kind {
-        object.insert(
-            "resolutionKind".to_owned(),
-            JsonValue::String(resolution_kind.clone()),
-        );
-    }
-    if let Some(rule) = &trace.rule {
-        object.insert("rule".to_owned(), JsonValue::String(rule.clone()));
-    }
-    JsonValue::Object(object)
-}

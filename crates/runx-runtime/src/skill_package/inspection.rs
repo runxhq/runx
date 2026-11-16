@@ -226,10 +226,10 @@ pub fn inspect_connector_readiness(
             cwd,
         )
         .map_err(|message| {
-            SkillInspectionError::Runtime(Box::new(RuntimeError::SkillFailed {
-                skill_name: "connectors".to_owned(),
+            SkillInspectionError::Runtime(Box::new(RuntimeError::failed(
+                "connectors".to_owned(),
                 message,
-            }))
+            )))
         })?;
         for operation in projected {
             if !readiness.contains(&operation) {

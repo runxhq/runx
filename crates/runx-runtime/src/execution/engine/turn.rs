@@ -459,7 +459,7 @@ where
             // still waits on its retry, and so does the call.
             Err(RuntimeError::Unsettled { .. }) => Ran::Unconfirmed,
             Err(error) if error.is_fatal_step_fault() => return Err(error),
-            Err(error) => Ran::Settled(CallOutcome::Failed(error.to_string())),
+            Err(error) => Ran::Settled(CallOutcome::Failed(Box::new(error.failure()))),
         })
     }
 
@@ -475,13 +475,12 @@ where
         let target = step.skill().ok_or_else(|| RuntimeError::StepMissingSkill {
             step_id: step.id.clone(),
         })?;
-        let method = target
-            .method
-            .as_deref()
-            .ok_or_else(|| RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: "a loaded skill's call names its method".to_owned(),
-            })?;
+        let method = target.method.as_deref().ok_or_else(|| {
+            RuntimeError::step_failed(
+                step.id.clone(),
+                "a loaded skill's call names its method".to_owned(),
+            )
+        })?;
         let changed = |reason: String| RuntimeError::AuthorityDenied {
             verb: runx_contracts::AuthorityVerb::Execute,
             step_id: step.id.clone(),
@@ -1208,6 +1207,38 @@ where
         self.call_address(index)
     }
 
+    /// Where what a call made with `input` is given may be shared: a call is
+    /// made from what its step was given and has read so far, as well as
+    /// from its own input, since a step may copy into a call anything it
+    /// holds. A result the step was withheld it never read.
+    fn given_of(&self, input: &JsonObject) -> Result<ArtifactLabels, RuntimeError> {
+        let recorded = self.recorded()?;
+        let read = recorded
+            .iter()
+            .filter(|call| !self.withholds(&call.outcome))
+            .filter_map(|call| match &call.outcome {
+                CallOutcome::Completed(run) => Some(run.labels),
+                CallOutcome::Read(artifact) => Some(artifact.labels),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        Ok(ArtifactLabels::derived_from(
+            read.iter().chain([
+                &self.scope.given,
+                &self
+                    .scope
+                    .runtime
+                    .local_artifacts
+                    .labels_of(&JsonValue::Object(input.clone())),
+            ]),
+        ))
+    }
+
+    /// The step whose calls these are: a turn's, or its script call's.
+    pub(super) fn step_id(&self) -> &str {
+        self.scope.step_id
+    }
+
     /// The step's calls as the run records them, in order.
     pub(super) fn recorded(&self) -> Result<&[RecordedCall], RuntimeError> {
         Ok(&self.step_record()?.calls)
@@ -1424,6 +1455,67 @@ where
                 || self.loads()?.iter().any(|load| !load.tools.is_empty())))
     }
 
+    /// The directory `skill`, a path from the turn's package, is at from the
+    /// workspace root: the name a script calls it by. None outside the
+    /// workspace.
+    pub(super) fn workspace_name(&self, skill: &str) -> Option<String> {
+        // A reference names its package, then perhaps a method.
+        let written = crate::execution::workflow::turn_skill_target(skill);
+        let name = self.package_name(&written.skill)?;
+        Some(match written.method {
+            Some(method) => format!("{name}#{method}"),
+            None => name,
+        })
+    }
+
+    /// The directory the package `package`, a path from the turn's package,
+    /// is at from the workspace root. None outside the workspace.
+    fn package_name(&self, package: &str) -> Option<String> {
+        let paths = crate::paths::RunxPaths::resolve(
+            &self.scope.runtime.options.env,
+            self.scope.workflow_dir,
+        );
+        let workspace = std::fs::canonicalize(paths.workspace()).ok()?;
+        let directory = std::fs::canonicalize(self.scope.workflow_dir.join(package)).ok()?;
+        let relative = directory.strip_prefix(&workspace).ok()?.to_string_lossy();
+        (!relative.is_empty()).then(|| relative.into_owned())
+    }
+
+    /// The allowance's reference a turn's script means by `skill`, the
+    /// directory from the workspace root of a skill the allowance names by a
+    /// path, method and all. The script's call keeps the name it wrote, so
+    /// its record is what the script makes again; it runs as the allowance
+    /// names it.
+    fn listed_as(&self, skill: &str) -> Option<String> {
+        if self.maker != Maker::Script || self.turn.is_none() || names_a_place(skill) {
+            return None;
+        }
+        let written = crate::execution::workflow::turn_skill_target(skill);
+        self.scope.allowance.named_skills().find_map(|listed| {
+            let named = crate::execution::workflow::turn_skill_target(listed.as_str());
+            (names_a_place(&named.skill)
+                && named.method == written.method
+                && self.package_name(&named.skill).as_deref() == Some(written.skill.as_str()))
+            .then(|| listed.as_str().to_owned())
+        })
+    }
+
+    /// The name a turn's script makes `target` by: its real name, and for a
+    /// skill the allowance names by a path, its directory from the
+    /// workspace root.
+    pub(super) fn scripted_name(&self, target: &CallTarget) -> Option<String> {
+        match target {
+            CallTarget::Skill { skill, method, .. } if names_a_place(skill.as_str()) => {
+                let name = self.workspace_name(skill.as_str())?;
+                Some(match method {
+                    Some(method) if !name.contains('#') => format!("{name}#{method}"),
+                    _ => name,
+                })
+            }
+            target => script_name(target),
+        }
+    }
+
     /// The call a script names by `target`, as the turn offers it: a skill's
     /// method a load bound, which a script names `<skill>#<method>`, is
     /// called as the load bound it.
@@ -1448,7 +1540,23 @@ where
         Ok(target)
     }
 
-    fn refusal(&self, target: &CallTarget) -> Result<Option<String>, RuntimeError> {
+    fn refusal(&self, index: u32, target: &CallTarget) -> Result<Option<String>, RuntimeError> {
+        // A turn's script means the same wherever it's kept, so it names a
+        // skill as any package in the workspace would: by its name, or by its
+        // directory from the workspace root.
+        if let (Maker::Script, Some(_), CallTarget::Skill { skill, .. }) =
+            (self.maker, &self.turn, target)
+            && names_a_place(skill.as_str())
+        {
+            return Ok(Some(match self.workspace_name(skill.as_str()) {
+                Some(name) => format!(
+                    "a turn's script names a skill as any package would, so it calls {skill} as {name}"
+                ),
+                None => format!(
+                    "a turn's script names a skill as any package would, and {skill} lies outside the workspace, so the turn calls it itself"
+                ),
+            }));
+        }
         let allowance = &self.scope.allowance;
         let allowed =
             match target {
@@ -1465,7 +1573,10 @@ where
                     skill,
                     method: None,
                     bound: None,
-                } => allowance.named_skills().any(|listed| listed == skill),
+                } => {
+                    allowance.named_skills().any(|listed| listed == skill)
+                        || self.listed_as(skill.as_str()).is_some()
+                }
                 CallTarget::Skill { .. } => self.loaded_offers(target)?,
                 CallTarget::Ask => allowance.asks,
                 CallTarget::Load => allowance.rules().next().is_some(),
@@ -1481,14 +1592,17 @@ where
             )));
         }
         if matches!(target, CallTarget::Skill { .. }) {
-            return self.child_refusal();
+            return self.child_refusal(index);
         }
         Ok(None)
     }
 
-    /// Why the run's delegation refuses the child run a skill call would
-    /// start: one level too deep, or one more than the turn may start.
-    fn child_refusal(&self) -> Result<Option<String>, RuntimeError> {
+    /// Why the run's delegation refuses the child run skill call `index`
+    /// would start: one level too deep, or one more than the turn may start.
+    /// One within the bound is admitted to start it there and then, so calls
+    /// admitted at once can't pass it together; it gives that back when it
+    /// settles without starting one (`child_settled`).
+    fn child_refusal(&self, index: u32) -> Result<Option<String>, RuntimeError> {
         let options = &self.scope.runtime.options;
         if let Some(reason) = super::child_depth_refusal(options) {
             return Ok(Some(reason));
@@ -1501,9 +1615,52 @@ where
             return Ok(None);
         };
         // The turn's skill calls are its own and its scripts' calls. One
-        // admitted and not yet started counts as started, so calls admitted
-        // together can't pass the bound before any child exists.
-        let turn_step = match (self.maker, &self.turn) {
+        // whose child the record holds, or which this process holds as
+        // admitted to start one, has started.
+        let (turn_step, attempt) = self.fanout_turn();
+        let started = || -> Result<std::collections::BTreeSet<String>, RuntimeError> {
+            let own = options.run.calls(&turn_step, attempt)?;
+            let mut calls = Vec::new();
+            for call in &own {
+                if call.target == CallTarget::Script {
+                    calls.extend(
+                        options
+                            .run
+                            .calls(&call_step_id(&turn_step, call.index), attempt)?
+                            .into_iter()
+                            .map(|made| (call_step_id(&turn_step, call.index), made)),
+                    );
+                }
+            }
+            calls.extend(own.into_iter().map(|call| (turn_step.clone(), call)));
+            let mut started = std::collections::BTreeSet::new();
+            for (step, call) in calls {
+                if !matches!(call.target, CallTarget::Skill { .. }) {
+                    continue;
+                }
+                let address = call_step_id(&step, call.index);
+                if matches!(call.outcome, CallOutcome::Child(_))
+                    || options.run.child(&address)?.load()?.is_some()
+                {
+                    started.insert(address);
+                }
+            }
+            Ok(started)
+        };
+        let admitted = options.call_stops.admit_child(
+            self.fanout_key(),
+            &call_step_id(self.scope.step_id, index),
+            usize::try_from(limit).unwrap_or(usize::MAX),
+            started,
+        )?;
+        Ok((!admitted)
+            .then(|| format!("the run's delegation lets a turn start at most {limit} child runs")))
+    }
+
+    /// The turn whose fanout this ledger's skill calls count against: its
+    /// step and attempt, a script's being its turn's.
+    fn fanout_turn(&self) -> (String, u32) {
+        let step = match (self.maker, &self.turn) {
             (Maker::Script, Some(_)) => self
                 .scope
                 .step_id
@@ -1511,38 +1668,32 @@ where
                 .map_or(self.scope.step_id, |(turn_step, _)| turn_step),
             _ => self.scope.step_id,
         };
-        let attempt = self.scope.attempt;
-        let own = options.run.calls(turn_step, attempt)?;
-        let mut calls = Vec::new();
-        for call in &own {
-            if call.target == CallTarget::Script {
-                calls.extend(
-                    options
-                        .run
-                        .calls(&call_step_id(turn_step, call.index), attempt)?
-                        .into_iter()
-                        .map(|made| (call_step_id(turn_step, call.index), made)),
-                );
-            }
+        (step.to_owned(), self.scope.attempt)
+    }
+
+    /// The turn whose fanout this ledger's skill calls count against, as the
+    /// run's registry of executing calls keys it: by its address from the
+    /// root, so a turn in a child run is a turn of its own.
+    fn fanout_key(&self) -> (String, u32) {
+        let (step, attempt) = self.fanout_turn();
+        (
+            format!("{}/{step}", self.scope.runtime.options.run.run_id()),
+            attempt,
+        )
+    }
+
+    /// Skill call `made` is recorded as `outcome`: what its fanout took is
+    /// given back once the record says how it settled, a child it started
+    /// counted from there, but while it waits on its approval or its child.
+    fn child_settled(&self, made: &Made, outcome: &CallOutcome) {
+        if matches!(made.target, CallTarget::Skill { .. })
+            && !matches!(outcome, CallOutcome::Pending(_) | CallOutcome::Child(_))
+        {
+            self.scope.runtime.options.call_stops.release_child(
+                &self.fanout_key(),
+                &call_step_id(self.scope.step_id, made.index),
+            );
         }
-        calls.extend(own.into_iter().map(|call| (turn_step.to_owned(), call)));
-        let mut started = 0_usize;
-        for (step, call) in calls {
-            if !matches!(call.target, CallTarget::Skill { .. }) {
-                continue;
-            }
-            if matches!(call.outcome, CallOutcome::Child(_))
-                || options
-                    .run
-                    .child(&call_step_id(&step, call.index))?
-                    .load()?
-                    .is_some()
-            {
-                started += 1;
-            }
-        }
-        Ok((started >= usize::try_from(limit).unwrap_or(usize::MAX))
-            .then(|| format!("the run's delegation lets a turn start at most {limit} child runs")))
     }
 
     /// Run the call `made` through `host`, which carries what the call
@@ -1770,11 +1921,11 @@ where
         made: Made,
     ) -> Result<Admission, RuntimeError> {
         self.admits(made.index)?;
-        let settled = |turn: &mut Self, made, outcome, answers: &[Answer]| {
+        let settled = |turn: &mut Self, made: Made, outcome: CallOutcome, answers: &[Answer]| {
             turn.settled(made, outcome, answers)
                 .map(|result| Admission::Settled(Box::new(result)))
         };
-        let call = match self.refusal(&made.target)?.map_or_else(
+        let call = match self.refusal(made.index, &made.target)?.map_or_else(
             || self.call_step(made.index, &made.target, &made.input, &made.context),
             Err,
         ) {
@@ -1823,7 +1974,12 @@ where
             // A call whose effect cannot even be described could not run.
             Err(error) => {
                 let answers = host.answers.clone();
-                return settled(self, made, CallOutcome::Failed(error.to_string()), &answers);
+                return settled(
+                    self,
+                    made,
+                    CallOutcome::Failed(Box::new(error.failure())),
+                    &answers,
+                );
             }
         };
         let mut made = Made {
@@ -1946,8 +2102,9 @@ where
         // or names no executing call. A call in a child run its caller's
         // host cancelled is cancelled too.
         let changed_nothing = stop.changed_nothing();
+        let runs_a_child = stop.caller().is_some();
         let cancelled = stop.release() || crate::interrupt::caller_cancelled();
-        let ran = if cancelled && changed_nothing {
+        let ran = if cancelled && self.changed_nothing(made.index, changed_nothing, runs_a_child)? {
             Ran::Cancelled
         } else {
             ran
@@ -1986,7 +2143,10 @@ where
             // in effect.
             (Ran::Unconfirmed, CallOutcome::Executing) => self.settled(
                 made,
-                CallOutcome::Failed("the read's answer never arrived".to_owned()),
+                CallOutcome::Failed(Box::new(crate::Failure::new(
+                    "runx",
+                    "the read's answer never arrived",
+                ))),
                 answers,
             ),
             (Ran::Unconfirmed, claim) => self.still(made, claim, newly),
@@ -2005,6 +2165,31 @@ where
             return self.settled(made, claim, &[]);
         }
         self.result(&made, &claim, &[])
+    }
+
+    /// Whether call `index`, its host having cancelled it, changed nothing,
+    /// so it settles `cancelled`: nothing it did in this drive began an
+    /// effect (`this_drive`), and, for a call that runs a child run or a
+    /// script, nothing under it claimed one in an earlier drive. One that
+    /// did settles as it ends, keeping its receipt and its record.
+    fn changed_nothing(
+        &self,
+        index: u32,
+        this_drive: bool,
+        runs_a_child: bool,
+    ) -> Result<bool, RuntimeError> {
+        if !this_drive {
+            return Ok(false);
+        }
+        if !runs_a_child {
+            return Ok(true);
+        }
+        Ok(!self
+            .scope
+            .runtime
+            .options
+            .run
+            .claimed_under(&call_step_id(self.scope.step_id, index))?)
     }
 
     /// Register call `index`, which runs as `step`, among the run's
@@ -2086,8 +2271,9 @@ where
             None => run()?,
         };
         let changed_nothing = stop.changed_nothing();
+        let runs_a_child = stop.caller().is_some();
         let cancelled = stop.release() || crate::interrupt::caller_cancelled();
-        let ran = if cancelled && changed_nothing {
+        let ran = if cancelled && self.changed_nothing(made.index, changed_nothing, runs_a_child)? {
             Ran::Cancelled
         } else {
             ran
@@ -2150,6 +2336,7 @@ where
     ) -> Result<TurnCallResult, RuntimeError> {
         let outcome_now = outcome.clone();
         let outputs = self.record(&made, outcome, answers)?;
+        self.child_settled(&made, &outcome_now);
         self.result(&made, &outcome_now, &outputs)
     }
 
@@ -2186,6 +2373,27 @@ where
         let outputs = match &outcome {
             CallOutcome::Completed(run) => self.output_artifacts(made, run, inline_bound)?,
             _ => Vec::new(),
+        };
+        // A call records where what it was given may be shared, whatever it
+        // came to, so a read of it later is labelled by all its maker saw.
+        let given = self.given_of(&made.input)?;
+        // A claim records whether its work may change the world, by the
+        // same rule its execution notes an effect by.
+        let effect = match &outcome {
+            CallOutcome::Claimed(_) => {
+                let call = self
+                    .call_step(made.index, &made.target, &made.input, &made.context)
+                    .map_err(|reason| RuntimeError::EngineInvariant {
+                        context: "recording a claim",
+                        message: reason,
+                    })?;
+                !super::only_reads(
+                    &call.step,
+                    self.scope.workflow_dir,
+                    &self.scope.runtime.options.env,
+                )
+            }
+            _ => false,
         };
         // A call that asked to reuse a result and ran its child to completion
         // makes that child its identity's newest source, known by the receipt
@@ -2231,6 +2439,8 @@ where
             reuse: made.reuse.as_ref(),
             reuse_identity: made.reuse_identity.as_deref(),
             durability: self.durability_of(made, &outcome),
+            effect,
+            given,
         })?;
         let (step_id, attempt) = (self.scope.step_id.to_owned(), self.scope.attempt);
         // Each event takes the next place among the step's call events.
@@ -2382,7 +2592,7 @@ where
                 reason: reason(why.clone()),
             },
             CallOutcome::Failed(why) => TurnCallOutcome::Failed {
-                reason: reason(why.clone()),
+                reason: reason(why.to_string()),
                 receipt_id: None,
             },
             CallOutcome::RetryDeclined => TurnCallOutcome::Failed {
@@ -2490,12 +2700,15 @@ where
                     .remove("act")
                     .map(|value| CallAct::parse(&value))
                     .transpose()?;
+                // A script's name for a skill runs as the allowance names it.
+                let listed = self.listed_as(skill.as_str());
+                let skill = listed.as_deref().unwrap_or(skill.as_str());
                 let target = match method {
                     Some(method) => SkillTarget {
-                        skill: skill.as_str().to_owned(),
+                        skill: skill.to_owned(),
                         method: Some(method.as_str().to_owned()),
                     },
-                    None => turn_skill_target(skill.as_str()),
+                    None => turn_skill_target(skill),
                 };
                 StepKind::Skill(target)
             }
@@ -2585,29 +2798,7 @@ where
             effects: self.scope.effects,
             reach: self.scope.reach,
         };
-        // A call is made from what its step was given and has read so far,
-        // as well as from its own input: a step may copy into a call anything
-        // it holds. A result the step was withheld it never read.
-        let recorded = self.recorded().map_err(|error| error.to_string())?;
-        let read = recorded
-            .iter()
-            .filter(|call| !self.withholds(&call.outcome))
-            .filter_map(|call| match &call.outcome {
-                CallOutcome::Completed(run) => Some(run.labels),
-                CallOutcome::Read(artifact) => Some(artifact.labels),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let given = ArtifactLabels::derived_from(
-            read.iter().chain([
-                &self.scope.given,
-                &self
-                    .scope
-                    .runtime
-                    .local_artifacts
-                    .labels_of(&JsonValue::Object(input.clone())),
-            ]),
-        );
+        let given = self.given_of(input).map_err(|error| error.to_string())?;
         let fed = self.admit_references(&mut step, target)?;
         let options = &self.scope.runtime.options;
         let created_at = match options
@@ -2884,9 +3075,14 @@ where
             &call.step,
             StepSkillLoadOptions::of_run(&self.scope.runtime.options),
         )?;
+        let CallTarget::Skill { skill, .. } = &target else {
+            return Err(describing("a child skill's call names a skill".to_owned()));
+        };
+        let reference = crate::execution::workflow::turn_skill_target(skill.as_str()).skill;
         // Its registry name, or its directory in the workspace, as a load
         // names it; a package a step reaches outside the workspace, which no
-        // load reaches, goes by its directory's own name.
+        // load reaches, goes by the name its step calls it by, or, called by
+        // a path, its directory's own name: never where runx keeps it.
         let package = match &loaded.registry {
             Some(registry) => registry.signed.name.clone(),
             None => {
@@ -2905,6 +3101,7 @@ where
                         .map(Path::to_path_buf)
                 }) {
                     Some(relative) => relative.to_string_lossy().into_owned(),
+                    None if !names_a_place(&reference) => reference.clone(),
                     None => directory
                         .file_name()
                         .map(|name| name.to_string_lossy().into_owned())
@@ -2913,9 +3110,6 @@ where
                         })?,
                 }
             }
-        };
-        let CallTarget::Skill { skill, .. } = &target else {
-            return Err(describing("a child skill's call names a skill".to_owned()));
         };
         let method = crate::execution::workflow::turn_skill_target(skill.as_str()).method;
         skill_descriptor(
@@ -3186,7 +3380,11 @@ where
         if self.ledger.offers_script()? {
             let scriptable = tools
                 .iter()
-                .filter_map(|tool| script_name(&tool.target).map(|name| (name, tool.name.as_str())))
+                .filter_map(|tool| {
+                    self.ledger
+                        .scripted_name(&tool.target)
+                        .map(|name| (name, tool.name.as_str()))
+                })
                 .collect::<Vec<_>>();
             tools.push(script_tool(&scriptable)?);
         }
@@ -3514,9 +3712,11 @@ fn load_schema() -> Result<JsonObject, RuntimeError> {
 
 /// The name a script makes `target` by, the call's real name: a catalog
 /// tool's, `<connector>/<operation>`, or `<skill>[#<method>]`. None for a call
-/// a script doesn't make.
+/// a script doesn't make, and for a skill named by where it lies, which
+/// would mean another package wherever the script is kept.
 fn script_name(target: &CallTarget) -> Option<String> {
     match target {
+        CallTarget::Skill { skill, .. } if names_a_place(skill.as_str()) => None,
         CallTarget::Tool { tool } => Some(tool.as_str().to_owned()),
         CallTarget::Operation {
             requirement,
@@ -3530,6 +3730,15 @@ fn script_name(target: &CallTarget) -> Option<String> {
         CallTarget::Skill { skill, .. } => Some(skill.as_str().to_owned()),
         _ => None,
     }
+}
+
+/// Whether a skill reference names its package by where it lies, a path,
+/// which means another package from anywhere else.
+fn names_a_place(skill: &str) -> bool {
+    matches!(skill, "." | "..")
+        || skill.starts_with("./")
+        || skill.starts_with("../")
+        || skill.starts_with('/')
 }
 
 /// The script call a turn offers: one module that makes the turn's calls by

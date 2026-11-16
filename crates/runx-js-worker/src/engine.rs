@@ -109,7 +109,7 @@ pub(crate) fn evaluate(
             &[input, execution_context],
             &mut context,
         )
-        .map_err(|error| engine_failure("calling JavaScript export", error))?;
+        .map_err(|error| thrown(&error, &mut context))?;
     let result = settle_result(result, &jobs, &mut context)?;
     let output = result
         .to_json(&mut context)
@@ -237,10 +237,7 @@ fn settle_result(
     ran.map_err(|error| engine_failure("settling JavaScript result", error))?;
     match promise.state() {
         PromiseState::Fulfilled(value) => Ok(value),
-        PromiseState::Rejected(error) => Err(engine_failure(
-            "settling JavaScript result",
-            JsError::from_opaque(error),
-        )),
+        PromiseState::Rejected(error) => Err(thrown(&JsError::from_opaque(error), context)),
         PromiseState::Pending => Err(EngineError::new(
             WorkerFailureCode::ExecutionFailed,
             "JavaScript export returned a promise that did not settle in the immediate job queue",
@@ -250,6 +247,25 @@ fn settle_result(
 
 fn virtual_path(path: &str) -> PathBuf {
     Path::new(VIRTUAL_ROOT).join(path)
+}
+
+/// What a module threw, or rejected its result with, as it said it: an
+/// error's own message, or the value thrown, with no frame of the worker's
+/// and no stack. The script's words are its failure's reason.
+fn thrown(error: &JsError, context: &mut Context) -> EngineError {
+    let message = match error.try_native(context) {
+        // A plain error says its message; any other kind is named with it.
+        Ok(native) if matches!(native.kind, boa_engine::error::JsNativeErrorKind::Error) => {
+            native.message().to_owned()
+        }
+        Ok(native) => native.to_string(),
+        Err(_) => error
+            .as_opaque()
+            .and_then(|value| value.to_string(context).ok())
+            .map(|text| text.to_std_string_escaped())
+            .unwrap_or_else(|| error.to_string()),
+    };
+    EngineError::new(WorkerFailureCode::ExecutionFailed, message)
 }
 
 fn engine_failure(context: impl AsRef<str>, error: impl std::fmt::Display) -> EngineError {

@@ -80,7 +80,11 @@ then can't be met, and the mark it returns moves only past what it read.
   saying what it lacks, a declined fix with the person's reason.
 - **`keep`** closes each rule `AGENTS.md` holds at `HEAD` through
   `runx/memory#disable`, its reason naming the commit, so the person confirms
-  the close at memory's own gate. A close the person declines is kept in the
+  the close at memory's own gate. A rule is held only where the file holds its
+  line as `promote` writes it: the person's words, date and handle. A rule
+  whose handle the file holds under other words is edited, not held: its
+  memory stays active, and the person is shown both what they said and what
+  the file says now. A close the person declines is kept in the
   `declines` stream by the rule's handle, so a later run doesn't ask again
   until the rule changes. Then it moves the mark past the window the verdict
   covers, at the version survey read, so a concurrent reflection's move wins

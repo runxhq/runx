@@ -1,7 +1,6 @@
 name: local-npm-default
 inputs:
-  path: fixtures/input/package-lock.json
-  path_scope: skill
+  path: $package/fixtures/input/package-lock.json
 expect:
   status: sealed
   steps:

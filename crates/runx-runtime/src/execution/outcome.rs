@@ -346,13 +346,15 @@ mod tests {
             model_calls: std::num::NonZeroU64::new(3).ok_or("three calls")?,
             input_tokens: Some(1_200),
             output_tokens: Some(40),
+            rounds: std::num::NonZeroU64::new(2),
+            calls: Vec::new(),
         };
         let stated =
             super::with_stated_usage(answer(serde_json::json!({"draft": "Hello."}))?, &usage)?;
         assert_eq!(super::stated_usage(&stated), Ok(Some(usage)));
         assert_eq!(
             serde_json::to_value(&stated)?["usage"],
-            serde_json::json!({"model_calls": 3, "input_tokens": 1200, "output_tokens": 40})
+            serde_json::json!({"model_calls": 3, "input_tokens": 1200, "output_tokens": 40, "rounds": 2})
         );
         let unreported = answer(serde_json::json!({"usage": {"model_calls": 2}}))?;
         assert!(super::stated_usage(&unreported).is_ok_and(|usage| {

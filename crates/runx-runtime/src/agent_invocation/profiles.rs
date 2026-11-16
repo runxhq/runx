@@ -88,13 +88,13 @@ fn project_instructions(request: &SkillInvocation) -> Result<Vec<ProfileFile>, R
                     RuntimeError::io(format!("resolving {}", path.display()), error)
                 })?;
                 if target.parent() != Some(directory) {
-                    return Err(RuntimeError::SkillFailed {
-                        skill_name: "agent".to_owned(),
-                        message: format!(
+                    return Err(RuntimeError::failed(
+                        "the context profile",
+                        format!(
                             "{} links outside its directory, so it is not read as the project's instructions",
                             path.display()
                         ),
-                    });
+                    ));
                 }
             }
             if !path.is_file() {
@@ -151,19 +151,19 @@ fn read_profile_file(request: &SkillInvocation, path: &Path) -> Result<ProfileFi
         .read_to_string(&mut content)
         .map_err(|error| RuntimeError::io("reading context profile", error))?;
     if content.len() > MAX_PROFILE_BYTES {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: "context profile exceeds 128 KiB".to_owned(),
-        });
+        return Err(RuntimeError::failed(
+            "the context profile",
+            "context profile exceeds 128 KiB".to_owned(),
+        ));
     }
     let sharing = match request.env.get("RUNX_PROFILE_SHARING").map(String::as_str) {
         None | Some("local_only") => runx_contracts::ContextSharing::LocalOnly,
         Some("configured_model") => runx_contracts::ContextSharing::ConfiguredModel,
         _ => {
-            return Err(RuntimeError::SkillFailed {
-                skill_name: "agent".to_owned(),
-                message: "invalid context profile sharing policy".to_owned(),
-            });
+            return Err(RuntimeError::failed(
+                "the context profile",
+                "invalid context profile sharing policy".to_owned(),
+            ));
         }
     };
     let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());

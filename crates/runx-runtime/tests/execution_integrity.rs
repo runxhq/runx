@@ -203,6 +203,17 @@ fn a_child_that_fails_after_its_work_seals_and_its_parent_keeps_every_receipt() 
         Some("failed"),
         "{output:?}"
     );
+    // The failure is said once, by what decided it, where it happened from
+    // the run down, and no layer it passed through adds its own words.
+    assert_eq!(
+        output
+            .get("error")
+            .and_then(JsonValue::as_object)
+            .and_then(|error| error.get("message"))
+            .and_then(JsonValue::as_str),
+        Some("child failed after work (the script, at invoke/fault)."),
+        "{output:?}"
+    );
 
     // The child run is sealed, as a run of it would be.
     let read = runx_runtime::run_record::read_run(&env(root), root, "nested-failure", None)?;

@@ -107,14 +107,99 @@ fn requested_skill_path<'a>(
 pub(super) fn bind_skill(
     invocation: &NativeInvocation<'_, BindInput>,
 ) -> Result<BindOutput, RuntimeError> {
+    let mut draft = invocation.inputs.change_draft.clone();
+    if let Some(call) = &invocation.inputs.script_call {
+        keep_script(
+            invocation,
+            &invocation.inputs.authoring_context,
+            call,
+            &mut draft,
+        )?;
+    }
     let bundle = crate::services::bind_skill_change(
         &invocation.inputs.authoring_context,
         invocation.inputs.mode,
-        invocation.inputs.change_draft.clone(),
+        draft,
     )?;
     Ok(BindOutput {
         change_bundle: bundle,
     })
+}
+
+const BIND_TOOL: &str = "runx.skill.bind";
+
+/// The module a package kept from a turn's script call runs: the call's
+/// source, named as the turn's script was.
+const KEPT_MODULE: &str = "script.mjs";
+
+/// Make `draft` keep the script call `call` read as its package's module:
+/// the call's source, byte for byte, which runx writes, not the author. A
+/// draft that writes the module with other bytes is refused; one that writes
+/// none gets it.
+fn keep_script(
+    invocation: &NativeInvocation<'_, BindInput>,
+    context: &runx_contracts::SkillAuthoringContext,
+    call: &runx_contracts::Artifact,
+    draft: &mut runx_contracts::SkillChangeDraft,
+) -> Result<(), RuntimeError> {
+    let refused = |message: String| RuntimeError::failed(BIND_TOOL, message);
+    let artifacts =
+        crate::paths::RunxPaths::resolve(invocation.env, invocation.skill_directory).artifacts();
+    let read: runx_contracts::CallRead = crate::services::read_json_artifact(&artifacts, call)
+        .map_err(&refused)?
+        .deserialize_into()
+        .map_err(|error| refused(format!("script_call is no call read: {error}")))?;
+    let target = context.target_dir.as_deref().ok_or_else(|| {
+        refused("a kept script needs a package: inspect its target_dir".to_owned())
+    })?;
+    keep_source(&read, target, draft).map_err(|failure| RuntimeError::Failed(Box::new(failure)))
+}
+
+/// Keep `read`'s source as the module of the package at `target` in
+/// `draft`, byte for byte.
+fn keep_source(
+    read: &runx_contracts::CallRead,
+    target: &str,
+    draft: &mut runx_contracts::SkillChangeDraft,
+) -> Result<(), crate::Failure> {
+    let refused = |reason: String| crate::Failure::new(BIND_TOOL, reason);
+    // Only a draft that writes a package keeps the module; one that finds
+    // no skill, or needs core, writes nothing.
+    if draft.decision != runx_contracts::SkillChangeDecision::Write {
+        return Ok(());
+    }
+    if read.call.target != runx_contracts::CallTarget::Script {
+        return Err(refused(format!(
+            "call {} is no script call, so it keeps no module",
+            read.call.address
+        )));
+    }
+    let source = read
+        .call
+        .input
+        .get("source")
+        .and_then(runx_contracts::JsonValue::as_str)
+        .ok_or_else(|| refused(format!("call {} holds no source", read.call.address)))?
+        .to_owned();
+    let path = format!("{target}/{KEPT_MODULE}");
+    match draft
+        .writes
+        .iter()
+        .find(|write| write.path.as_str() == path)
+    {
+        Some(write) if write.contents == source => {}
+        Some(_) => {
+            return Err(refused(format!(
+                "{path} is the script call's source, byte for byte, and the draft writes it otherwise"
+            ))
+            .next(format!("leave {KEPT_MODULE} out of the draft: runx writes it")));
+        }
+        None => draft.writes.push(runx_contracts::SkillFileWrite {
+            path: path.into(),
+            contents: source,
+        }),
+    }
+    Ok(())
 }
 
 fn resolve_skill_validation_target(
@@ -203,4 +288,69 @@ pub(super) fn apply_skill(
     Ok(ApplyOutput {
         apply_result: report,
     })
+}
+
+#[cfg(test)]
+mod kept_tests {
+    use super::keep_source;
+
+    fn read(source: &str) -> Result<runx_contracts::CallRead, serde_json::Error> {
+        serde_json::from_value(serde_json::json!({
+            "schema": "runx.call_read.v1",
+            "run_id": "run_1",
+            "attempt": 1,
+            "call": {
+                "address": "answer/0",
+                "target": {"kind": "script"},
+                "input": {"source": source},
+                "outcome": {"status": "cancelled"},
+            },
+        }))
+    }
+
+    fn draft(
+        writes: serde_json::Value,
+    ) -> Result<runx_contracts::SkillChangeDraft, serde_json::Error> {
+        serde_json::from_value(serde_json::json!({
+            "schema": "runx.skill.change_draft.v1",
+            "decision": "write",
+            "summary": "Keep the script.",
+            "writes": writes,
+            "deletes": [],
+        }))
+    }
+
+    /// The module of a kept script is runx's to write, the call's source
+    /// byte for byte: written for a draft that leaves it out, kept for one
+    /// that writes it as it is, and refused for one that writes it
+    /// otherwise.
+    #[test]
+    fn a_kept_scripts_module_is_its_source_byte_for_byte() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let source = "export default async function () { return {}; }\n";
+        let mut left_out = draft(serde_json::json!([]))?;
+        assert!(keep_source(&read(source)?, "kept", &mut left_out).is_ok());
+        assert_eq!(left_out.writes[0].path.as_str(), "kept/script.mjs");
+        assert_eq!(left_out.writes[0].contents, source);
+        let mut same = draft(serde_json::json!([{"path": "kept/script.mjs", "contents": source}]))?;
+        assert!(keep_source(&read(source)?, "kept", &mut same).is_ok());
+        assert_eq!(same.writes.len(), 1);
+        let mut other = draft(
+            serde_json::json!([{"path": "kept/script.mjs", "contents": "export default 1;\n"}]),
+        )?;
+        let refused = keep_source(&read(source)?, "kept", &mut other)
+            .err()
+            .map(|failure| failure.to_string())
+            .unwrap_or_default();
+        assert!(
+            refused.contains("byte for byte") && refused.contains("Next: leave script.mjs out"),
+            "{refused}"
+        );
+        // A save that writes no package keeps no module.
+        let mut no_skill = draft(serde_json::json!([]))?;
+        no_skill.decision = runx_contracts::SkillChangeDecision::NoSkill;
+        assert!(keep_source(&read(source)?, "kept", &mut no_skill).is_ok());
+        assert!(no_skill.writes.is_empty());
+        Ok(())
+    }
 }

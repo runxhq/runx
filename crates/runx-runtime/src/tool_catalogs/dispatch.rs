@@ -83,7 +83,10 @@ pub(crate) fn dispatch_tool(
 ) -> Result<InvocationOutput, RuntimeError> {
     let tool = request.tool.trim();
     if tool.is_empty() {
-        return Ok(failure("Tool reference must not be empty.", started));
+        return Ok(failure(
+            crate::Failure::new("runx", "the call names no tool"),
+            started,
+        ));
     }
     if tool.len() != request.tool.len() {
         request.tool = Cow::Owned(tool.to_owned());
@@ -171,17 +174,17 @@ fn invoke_native_tool(
             call: request.call,
         })
     else {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: request.tool.to_string(),
-            message: "registered native capability disappeared during dispatch".to_owned(),
-        });
+        return Err(RuntimeError::failed(
+            request.tool.to_string(),
+            "registered native capability disappeared during dispatch".to_owned(),
+        ));
     };
     let mut output = match invocation.result {
         Ok(payload) => success(payload, started),
         Err(error @ RuntimeError::ProviderEffectUnknown { .. })
         | Err(error @ RuntimeError::ProviderReadbackPending { .. })
         | Err(error @ RuntimeError::EffectState { .. }) => return Err(error),
-        Err(error) => failure(error.to_string(), started),
+        Err(error) => failure(error.failure(), started),
     };
     if let Some(ephemeral) = invocation.ephemeral {
         output.set_ephemeral(ephemeral);
@@ -210,10 +213,7 @@ pub(super) fn workspace_root(env: &BTreeMap<String, String>, fallback: &Path) ->
 }
 
 pub(super) fn catalog_error(skill_name: &str, error: ToolCatalogError) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: skill_name.to_owned(),
-        message: error.to_string(),
-    }
+    RuntimeError::failed(skill_name.to_owned(), error.to_string())
 }
 
 fn success(value: JsonValue, started: Instant) -> InvocationOutput {
@@ -225,13 +225,16 @@ fn success(value: JsonValue, started: Instant) -> InvocationOutput {
     )
 }
 
-pub(super) fn failure(message: impl Into<String>, started: Instant) -> InvocationOutput {
-    AdapterProjection::from_started(started).failure(message.into(), Observations::default())
+pub(super) fn failure(said: crate::Failure, started: Instant) -> InvocationOutput {
+    AdapterProjection::from_started(started).failure(said, Observations::default())
 }
 
 fn missing_imported_tool(tool: &str, started: Instant) -> InvocationOutput {
     failure(
-        format!("Imported tool '{tool}' was not found in configured tool catalogs."),
+        crate::Failure::new(
+            "runx",
+            format!("no configured tool catalog holds the imported tool {tool}"),
+        ),
         started,
     )
 }

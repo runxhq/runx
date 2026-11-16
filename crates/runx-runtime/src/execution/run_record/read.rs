@@ -115,6 +115,11 @@ pub fn read_run(
     })
 }
 
+/// What one page of a script's calls holds at most, as `call.read` writes
+/// them: a script's calls, however many, are read a page at a time, so no
+/// read is past what `artifact.open` opens.
+const CALL_READ_PAGE_BYTES: usize = 4 * 1024 * 1024;
+
 /// Call `index` of step `step_id` in run `run_id` of the workspace at `cwd`,
 /// read whole: as the step's latest attempt holding it last recorded it,
 /// with the request of the turn that made it and, for a turn's script call,
@@ -126,6 +131,7 @@ pub fn read_call(
     run_id: &str,
     step_id: &str,
     index: u32,
+    from: u32,
 ) -> Result<(CallRead, ArtifactLabels), RunRecordError> {
     let paths = RunxPaths::resolve(env, cwd);
     let store = KernelStore::for_project(&paths)?;
@@ -144,33 +150,10 @@ pub fn read_call(
         });
     }
     // The step's calls are on its attempts' streams, and a script call's
-    // under it; a call's latest event is how it stands.
-    let own = format!("{run_id}/{step_id}@");
-    let under = format!("{run_id}/{address}@");
-    let attempt_of = |key: &str, prefix: &str| {
-        key.strip_prefix(prefix)
-            .and_then(|attempt| attempt.parse::<u32>().ok())
-    };
-    let mut calls = BTreeMap::<(u32, u32), super::CallEvent>::new();
-    let mut made = BTreeMap::<(u32, u32), super::CallEvent>::new();
-    let mut after = 0;
-    loop {
-        let page = store.tree_after::<RunEvent>(run_id, after, PAGE)?;
-        let Some(last) = page.last() else {
-            break;
-        };
-        after = last.sequence;
-        for event in page {
-            let RunEvent::Call(call) = event.recorded.event else {
-                continue;
-            };
-            if attempt_of(&event.key, &own).is_some() {
-                calls.insert((call.attempt, call.index), *call);
-            } else if attempt_of(&event.key, &under).is_some() {
-                made.insert((call.attempt, call.index), *call);
-            }
-        }
-    }
+    // under it; a call's latest event is how it stands. Only those streams
+    // are read, whatever else the run holds.
+    let mut calls = calls_on(&store, &format!("{run_id}/{step_id}@"))?;
+    let made = calls_on(&store, &format!("{run_id}/{address}@"))?;
     let attempt = calls
         .keys()
         .filter(|(_, at)| *at == index)
@@ -187,6 +170,7 @@ pub fn read_call(
     let mut entry =
         |address: String, event: super::CallEvent| -> Result<CallReadEntry, RunRecordError> {
             labels.push(call_labels(&store, &event.outcome)?);
+            labels.extend(event.given);
             Ok(CallReadEntry {
                 address: address.into(),
                 input: store.blob_json(&event.input)?,
@@ -194,14 +178,92 @@ pub fn read_call(
                 outcome: call_outcome(&store, event.outcome)?,
             })
         };
-    let made = made
+    // A page of the calls under it, from `from`, within a bound however
+    // many its script made; `next` is where the rest are read from.
+    let mut page = Vec::new();
+    let mut bytes = 0_usize;
+    let mut next = None;
+    for ((_, position), event) in made
         .into_iter()
-        .filter(|((at, _), _)| *at == attempt)
-        .map(|((_, position), event)| entry(format!("{address}/{position}"), event))
-        .collect::<Result<Vec<_>, _>>()?;
+        .filter(|((at, position), _)| *at == attempt && *position >= from)
+    {
+        let made = entry(format!("{address}/{position}"), event)?;
+        let size = serde_json::to_vec(&made).map_or(usize::MAX, |encoded| encoded.len());
+        if !page.is_empty() && bytes.saturating_add(size) > CALL_READ_PAGE_BYTES {
+            next = Some(position);
+            break;
+        }
+        bytes = bytes.saturating_add(size);
+        page.push(made);
+    }
     let call = entry(address.clone(), call)?;
+    // Its input is what its maker wrote from all it had seen.
+    labels.extend(seen_before(&store, run_id, step_id, index, attempt)?);
+    Ok((
+        CallRead {
+            schema: CallReadSchema::V1,
+            run_id: run_id.into(),
+            attempt,
+            call,
+            turn,
+            calls: page,
+            next,
+        },
+        ArtifactLabels::derived_from(labels.iter()),
+    ))
+}
+
+/// The calls on the attempts' streams `prefix` names, `<run>/<step>@`, by
+/// attempt and index: each as its latest event has it. Only those streams
+/// are read, whatever else the run holds.
+fn calls_on(
+    store: &KernelStore,
+    prefix: &str,
+) -> Result<BTreeMap<(u32, u32), super::CallEvent>, RunRecordError> {
+    let mut calls = BTreeMap::new();
+    for head in store.heads_from::<RunEvent>(prefix)? {
+        if head
+            .key
+            .strip_prefix(prefix)
+            .and_then(|attempt| attempt.parse::<u32>().ok())
+            .is_none()
+        {
+            continue;
+        }
+        for recorded in store.read::<RunEvent>(&head.key)? {
+            if let RunEvent::Call(call) = recorded.event {
+                calls.insert((call.attempt, call.index), *call);
+            }
+        }
+    }
+    Ok(calls)
+}
+
+/// The labels of all call `index` of step `step_id`'s maker had seen when it
+/// made it: each result returned before it on its stream, what its turn was
+/// given, and, for a call a script made, all the script's own maker had seen
+/// when it made the script call, up to the turn.
+fn seen_before(
+    store: &KernelStore,
+    run_id: &str,
+    step_id: &str,
+    index: u32,
+    attempt: u32,
+) -> Result<Vec<ArtifactLabels>, RunRecordError> {
+    let calls = calls_on(store, &format!("{run_id}/{step_id}@"))?;
+    let mut labels = Vec::new();
+    for ((at, position), earlier) in &calls {
+        if *at == attempt && *position < index {
+            labels.push(call_labels(store, &earlier.outcome)?);
+        }
+    }
     // What the turn was given is labelled as its context entries are.
-    if let Some(ResolutionRequest::Turn { invocation, .. }) = &turn {
+    if let Some(turn) = calls
+        .get(&(attempt, index))
+        .and_then(|call| call.turn.as_ref())
+        && let ResolutionRequest::Turn { invocation, .. } =
+            store.blob_json::<ResolutionRequest>(&turn.request)?
+    {
         let envelope = &invocation.envelope;
         labels.extend(
             envelope
@@ -213,17 +275,21 @@ pub fn read_call(
                 }),
         );
     }
-    Ok((
-        CallRead {
-            schema: CallReadSchema::V1,
-            run_id: run_id.into(),
+    // A script's call: the script was given what its maker had seen.
+    if let Some((script_step, script_index)) = step_id
+        .rsplit_once('/')
+        .and_then(|(step, index)| Some((step, index.parse::<u32>().ok()?)))
+        .filter(|(step, _)| !step.is_empty())
+    {
+        labels.extend(seen_before(
+            store,
+            run_id,
+            script_step,
+            script_index,
             attempt,
-            call,
-            turn,
-            calls: made,
-        },
-        ArtifactLabels::derived_from(labels.iter()),
-    ))
+        )?);
+    }
+    Ok(labels)
 }
 
 /// Where what a recorded call returned may be shared: its record's labels
@@ -296,6 +362,15 @@ struct CallOutput {
     contract: JsonObject,
 }
 
+/// The part of a step's record a read reports beside its outcome: its
+/// output, and what its turn used, whether it answered or failed.
+#[derive(Deserialize)]
+struct StepOutput {
+    contract: JsonObject,
+    #[serde(default)]
+    usage: Option<runx_contracts::TurnUsage>,
+}
+
 /// The part of a receipt a read reports.
 #[derive(Deserialize)]
 struct ReceiptId {
@@ -328,9 +403,8 @@ fn project(
         }
         RunEvent::Step(event) => {
             let (outcome, receipt_id) = step_status(store, &event.record, &event.receipt)?;
-            let CallOutput { contract } = store.blob_json(&event.record)?;
-            let TurnStatements { model, usage, host } =
-                turn_statements(store, stream, &event.answers)?;
+            let StepOutput { contract, usage } = store.blob_json(&event.record)?;
+            let TurnStatements { model, host } = turn_statements(store, stream, &event.answers)?;
             RunEventFact::Step {
                 model,
                 usage,
@@ -468,8 +542,8 @@ fn call_outcome(
         CallOutcomeEvent::Declined { reason: why } => RunCallOutcome::Declined {
             reason: reason(why),
         },
-        CallOutcomeEvent::Failed { reason: why } => RunCallOutcome::Failed {
-            reason: reason(why),
+        CallOutcomeEvent::Failed { failure } => RunCallOutcome::Failed {
+            reason: reason(failure.to_string()),
         },
         CallOutcomeEvent::RetryDeclined => RunCallOutcome::Failed {
             reason: crate::execution::run_record::RETRY_DECLINED.into(),
@@ -523,12 +597,11 @@ fn invalid(run_id: &str, reason: String) -> RunRecordError {
 }
 
 /// What an agent step's turn stated in the answer it consumed: the model
-/// that answered, what its calls to it used, and the host that gave the
-/// answer.
+/// that answered, and the host that gave the answer. What it used is its
+/// step's record's, which holds it whether the turn answered or failed.
 #[derive(Default)]
 struct TurnStatements {
     model: Option<NonEmptyString>,
-    usage: Option<runx_contracts::TurnUsage>,
     host: Option<runx_contracts::TurnHost>,
 }
 
@@ -548,7 +621,6 @@ fn turn_statements(
         model: crate::execution::outcome::stated_model(&value)
             .map_err(refused)?
             .map(Into::into),
-        usage: crate::execution::outcome::stated_usage(&value).map_err(refused)?,
         host: crate::execution::outcome::stated_host(&value).map_err(refused)?,
     })
 }

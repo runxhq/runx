@@ -1,7 +1,6 @@
 {
   "about": "The archive query a prior step admitted: posts from the X archive export the package carries, at most ten.",
   "query": "posts",
-  "archive_file": "fixtures/data/archive-tweets.js",
-  "archive_base": "skill",
+  "archive_file": "$package/fixtures/data/archive-tweets.js",
   "max_items": 10
 }

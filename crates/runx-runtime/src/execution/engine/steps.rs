@@ -539,10 +539,10 @@ impl WorkflowExecution {
                     reconciliation = Some(crate::effects::Reconciliation::Retried);
                 }
                 Some(Some(false)) => {
-                    return Err(RuntimeError::StepFailed {
-                        step_id: context.plan.step_id.to_owned(),
-                        reason: crate::execution::run_record::RETRY_DECLINED.to_owned(),
-                    });
+                    return Err(RuntimeError::step_failed(
+                        context.plan.step_id.to_owned(),
+                        crate::execution::run_record::RETRY_DECLINED.to_owned(),
+                    ));
                 }
                 None if matches!(context.step.kind, StepKind::Operation(_)) => {
                     reconciliation = Some(crate::effects::Reconciliation::Evidence);
@@ -589,6 +589,7 @@ impl WorkflowExecution {
                         ),
                         &std::mem::take(&mut answering.answers),
                         super::claim_durability(context.step, workflow_dir, env),
+                        !reads,
                     )?;
                     if !reads {
                         crate::interrupt::note_effect();
@@ -771,12 +772,13 @@ impl WorkflowExecution {
             self.fail_step(runtime, plan.step_id, &run);
             host.log(format!("step {} failed", plan.step_id))?;
             self.record_lifecycle(host, LifecycleEvent::step_failed(plan.step_id))?;
-            // Every invocation kind owns an honest diagnostic variant. A
-            // failure message no longer depends on fabricated process fields.
-            let message = run
+            // What decided it, placed at the step once: a child run's
+            // failure is already placed below it.
+            let said = run
                 .outcome
-                .failure_message()
-                .unwrap_or_else(|| "step failed with no diagnostic output".to_owned());
+                .failure(&run.skill)
+                .unwrap_or_else(|| crate::Failure::new("runx", "the step failed"))
+                .at_step(plan.step_id);
             // The failed run is recorded even on terminal failure so the run
             // list agrees with the run record's step failure; a failed attempt
             // must never be silently absent from the execution record.
@@ -800,23 +802,19 @@ impl WorkflowExecution {
                     step_id: plan.step_id.to_owned(),
                     outcome,
                     reason,
-                    summary: message,
+                    failure: Box::new(said),
                     refusal,
                     declined,
                 });
             }
             // A failure that states its own record is returned with it.
             if let Some(record) = failure {
-                return Err(RuntimeError::StepFailedRecorded {
-                    step_id: plan.step_id.to_owned(),
-                    reason: message,
+                return Err(RuntimeError::FailedRecorded {
+                    failure: Box::new(said),
                     record,
                 });
             }
-            Err(RuntimeError::SkillFailed {
-                skill_name: plan.step_id.to_owned(),
-                message,
-            })
+            Err(RuntimeError::Failed(Box::new(said)))
         }
     }
 
@@ -973,7 +971,7 @@ impl WorkflowExecution {
         self,
         workflow: Workflow,
         receipt: runx_contracts::Receipt,
-        stop: String,
+        stop: crate::Failure,
     ) -> WorkflowRun {
         WorkflowRun {
             stop: Some(stop),
@@ -1081,9 +1079,11 @@ fn enforce_condition(step: &WorkflowStep, runs: &[StepRun]) -> Result<(), Runtim
         return Ok(());
     };
     let shown = operand_text(&when.value);
-    let holds = condition_met(when, runs).ok_or_else(|| RuntimeError::StepFailed {
-        step_id: step.id.clone(),
-        reason: format!("condition '{shown}' resolves to nothing"),
+    let holds = condition_met(when, runs).ok_or_else(|| {
+        RuntimeError::step_failed(
+            step.id.clone(),
+            format!("condition '{shown}' resolves to nothing"),
+        )
     })?;
     if holds {
         Ok(())

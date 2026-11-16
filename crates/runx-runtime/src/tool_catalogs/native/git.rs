@@ -67,7 +67,7 @@ fn current_branch(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitBran
     }
 
     Ok(GitBranch {
-        repo_root: root_name(CURRENT_BRANCH, &root)?,
+        repo_root: root_name(CURRENT_BRANCH, &invocation.inputs.repo_root)?,
         branch,
         detached,
     })
@@ -106,7 +106,7 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatus, Runt
         _ => (None, Vec::new()),
     };
     Ok(GitStatus {
-        repo_root: root_name(STATUS, &root)?,
+        repo_root: root_name(STATUS, &invocation.inputs.repo_root)?,
         clean: entries.is_empty(),
         entries,
         branch,
@@ -158,7 +158,7 @@ fn diff_name_only(
         .map(str::to_owned)
         .collect();
     Ok(GitDiff {
-        repo_root: root_name(DIFF_NAME_ONLY, &root)?,
+        repo_root: root_name(DIFF_NAME_ONLY, &invocation.inputs.repo_root)?,
         base: non_empty(DIFF_NAME_ONLY, "base", base.to_owned())?,
         files,
     })

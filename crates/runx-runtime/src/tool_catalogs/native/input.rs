@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use runx_contracts::schema::NonEmptyString;
 
 use crate::RuntimeError;
@@ -14,13 +12,12 @@ pub(crate) fn non_empty(
 }
 
 /// A resolved root as a native packet names it.
-pub(crate) fn root_name(tool: &str, root: &Path) -> Result<NonEmptyString, RuntimeError> {
-    non_empty(tool, "repo_root", root.to_string_lossy())
+/// The root a tool's result names: the one its caller named, never where it
+/// lies on disk.
+pub(crate) fn root_name(tool: &str, named: &str) -> Result<NonEmptyString, RuntimeError> {
+    non_empty(tool, "repo_root", named)
 }
 
 pub(crate) fn invalid_input(tool: &str, message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: tool.to_owned(),
-        message: message.into(),
-    }
+    RuntimeError::failed(tool.to_owned(), message.into())
 }

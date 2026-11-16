@@ -338,10 +338,7 @@ fn collect_skill_package_roots(
             // trees can instead contain separately authored workflow-stage manuals
             // that list/doctor must still discover with their own metadata.
             crate::registry::package_bundle::package_bundle_root(directory).map_err(|message| {
-                RuntimeError::SkillFailed {
-                    skill_name: directory.display().to_string(),
-                    message,
-                }
+                RuntimeError::failed(directory.display().to_string(), message)
             })?;
             return Ok(());
         }

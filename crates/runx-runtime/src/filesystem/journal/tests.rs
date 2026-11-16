@@ -52,7 +52,7 @@ fn a_bundle_a_crash_left_begun_is_rolled_back_by_the_next_driver() -> TestResult
     let admitted = admit_text_bundle("fs.apply_bundle", root, &bundle(), Reach::Workspace)?;
     let snapshots = snapshot_paths(&admitted)?;
     let created = missing_parent_directories(&admitted)?;
-    journal.begin(&admitted.operation, &admitted.root, &snapshots, &created)?;
+    journal.begin(&admitted, &snapshots, &created)?;
     apply_admitted_bundle(&admitted, &snapshots)?;
     assert!(!root.join("gone.md").exists());
 

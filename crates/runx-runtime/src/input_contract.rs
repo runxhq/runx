@@ -422,11 +422,7 @@ impl InputContractError {
 
 impl fmt::Display for InputContractError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "{} input contract failed at '{}': {}",
-            self.declared_by, self.path, self.message
-        )
+        self.clone().into_runtime_error().failure().fmt(formatter)
     }
 }
 

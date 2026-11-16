@@ -8,8 +8,7 @@ methods:
         skill: ../..#local-files
         inputs:
           objective: Decide where generic evidence admission belongs.
-          paths: [fixtures/local-architecture-evidence.txt]
-          path_scope: skill
+          paths: [$package/fixtures/local-architecture-evidence.txt]
       - id: digest
         tool: data.digest
         inputs:

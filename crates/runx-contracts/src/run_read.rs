@@ -500,9 +500,14 @@ pub struct CallRead {
     /// what it was given.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn: Option<ResolutionRequest>,
-    /// The calls under it: a script call's, at their positions.
+    /// The calls under it: a script call's, at their positions, a page at
+    /// a time.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub calls: Vec<CallReadEntry>,
+    /// The position its script's further calls are read from, passed as
+    /// `call.read`'s `after`; absent once the page holds the last.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<u32>,
 }
 
 /// One call as `call.read` gives it.

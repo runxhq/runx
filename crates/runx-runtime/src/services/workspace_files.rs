@@ -132,8 +132,8 @@ pub enum WorkspaceFileError {
     RootUnavailable(std::io::Error),
     #[error("workspace root is not a directory")]
     RootNotDirectory,
-    #[error("path_scope must be workspace or skill")]
-    InvalidPathScope,
+    #[error("a $package path names a file in its package, and {0} is outside it")]
+    OutsidePackage(String),
     #[error("workspace file {path} is unavailable: {source}")]
     Unavailable {
         path: PathBuf,
@@ -336,28 +336,67 @@ fn validate_relative_file_path(requested: &Path) -> Result<(), WorkspaceFileErro
     Ok(())
 }
 
-/// The directory a native tool works in: the skill's own directory, or the
-/// root `requested_root` names in the workspace. Within `reach: inputs` a run
-/// may name any directory, another repository by its absolute path included;
-/// within `reach: workspace` the root is the workspace or a directory inside
-/// it that is not itself protected.
+/// The base a path names its package's own files by: `$package`, or
+/// `$package/<path in it>`.
+pub(crate) const PACKAGE_BASE: &str = "$package";
+
+/// The path below its package that `path` names, when it names one by
+/// [`PACKAGE_BASE`]: empty for the package itself.
+pub(crate) fn package_path(path: &str) -> Option<&str> {
+    match path.strip_prefix(PACKAGE_BASE)? {
+        "" => Some(""),
+        rest => rest.strip_prefix('/'),
+    }
+}
+
+/// A root and a path below it, where the path may name its package's file
+/// by [`PACKAGE_BASE`]: such a path is read from the package, whatever root
+/// was named.
+pub(crate) fn rooted<'a>(root: &'a str, path: &'a str) -> (&'a str, &'a str) {
+    match package_path(path) {
+        Some("") => (PACKAGE_BASE, "."),
+        Some(rest) => (PACKAGE_BASE, rest),
+        None => (root, path),
+    }
+}
+
+/// The directory a native tool works in: the root `requested_root` names in
+/// the workspace, or, named by [`PACKAGE_BASE`], a directory of the skill's
+/// own package. Within `reach: inputs` a run may name any directory, another
+/// repository by its absolute path included; within `reach: workspace` the
+/// root is the workspace or a directory inside it that is not itself
+/// protected. A package's own files are its to read, whatever its reach.
 pub(crate) fn resolve_scoped_root(
     requested_root: &str,
-    path_scope: &str,
     env: &std::collections::BTreeMap<String, String>,
     skill_directory: &Path,
     reach: Reach,
 ) -> Result<PathBuf, WorkspaceFileError> {
-    if path_scope == "skill" {
-        let root =
+    if let Some(below) = package_path(requested_root) {
+        let package =
             std::fs::canonicalize(skill_directory).map_err(WorkspaceFileError::RootUnavailable)?;
-        return root
-            .is_dir()
-            .then_some(root)
-            .ok_or(WorkspaceFileError::RootNotDirectory);
-    }
-    if path_scope != "workspace" {
-        return Err(WorkspaceFileError::InvalidPathScope);
+        let root = std::fs::canonicalize(package.join(below))
+            .map_err(WorkspaceFileError::RootUnavailable)?;
+        if !root.starts_with(&package) {
+            return Err(WorkspaceFileError::OutsidePackage(
+                requested_root.to_owned(),
+            ));
+        }
+        if !root.is_dir() {
+            return Err(WorkspaceFileError::RootNotDirectory);
+        }
+        // A directory of the package is admitted as one of the workspace is,
+        // the package its bound: no secret and no runx state, whatever the
+        // run's reach.
+        admit_read(
+            Reach::Workspace,
+            ReadArgument::Root {
+                named: Path::new(below),
+                root: &root,
+                workspace: &package,
+            },
+        )?;
+        return Ok(root);
     }
     let workspace = crate::RunxPaths::resolve(env, skill_directory)
         .workspace()
@@ -451,13 +490,12 @@ mod tests {
         let within = Reach::Workspace;
 
         assert_eq!(
-            resolve_scoped_root("packages/app", "workspace", &env, workspace.path(), within)?,
+            resolve_scoped_root("packages/app", &env, workspace.path(), within)?,
             workspace.path().join("packages/app").canonicalize()?
         );
         assert!(matches!(
             resolve_scoped_root(
                 &elsewhere.path().to_string_lossy(),
-                "workspace",
                 &env,
                 workspace.path(),
                 within,
@@ -465,24 +503,49 @@ mod tests {
             Err(WorkspaceFileError::OutsideWorkspace(_))
         ));
         assert!(matches!(
-            resolve_scoped_root("..", "workspace", &env, workspace.path(), within),
+            resolve_scoped_root("..", &env, workspace.path(), within),
             Err(WorkspaceFileError::OutsideWorkspace(_))
         ));
         assert!(matches!(
-            resolve_scoped_root(".git", "workspace", &env, workspace.path(), within),
+            resolve_scoped_root(".git", &env, workspace.path(), within),
             Err(WorkspaceFileError::Secret(_))
         ));
         // A run with reach: inputs still names another repository by its absolute path.
         assert_eq!(
             resolve_scoped_root(
                 &elsewhere.path().to_string_lossy(),
-                "workspace",
                 &env,
                 workspace.path(),
                 Reach::Inputs,
             )?,
             elsewhere.path().canonicalize()?
         );
+        Ok(())
+    }
+
+    /// A package's own directory is admitted as a workspace's is: a root
+    /// under it named by `$package` is no secret and no runx state, whatever
+    /// the run's reach, and never outside the package.
+    #[test]
+    fn a_package_root_is_admitted_as_a_workspace_root_is() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let workspace = tempfile::tempdir()?;
+        let package = workspace.path().join("skills/demo");
+        std::fs::create_dir_all(package.join(".git"))?;
+        std::fs::create_dir_all(package.join("fixtures"))?;
+        let env = env(workspace.path());
+        assert_eq!(
+            resolve_scoped_root("$package/fixtures", &env, &package, Reach::Inputs)?,
+            package.join("fixtures").canonicalize()?
+        );
+        assert!(matches!(
+            resolve_scoped_root("$package/.git", &env, &package, Reach::Inputs),
+            Err(WorkspaceFileError::Secret(_))
+        ));
+        assert!(matches!(
+            resolve_scoped_root("$package/..", &env, &package, Reach::Inputs),
+            Err(WorkspaceFileError::OutsidePackage(_))
+        ));
         Ok(())
     }
 

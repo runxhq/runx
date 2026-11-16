@@ -11,7 +11,7 @@ pub(crate) fn resolve_repo_root_for(
     skill_directory: &Path,
     reach: runx_contracts::Reach,
 ) -> Result<PathBuf, RuntimeError> {
-    crate::services::resolve_scoped_root(requested, "workspace", env, skill_directory, reach)
+    crate::services::resolve_scoped_root(requested, env, skill_directory, reach)
         .map_err(|error| invalid_input(tool, error.to_string()))
 }
 

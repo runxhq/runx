@@ -13,7 +13,7 @@ mod effect;
 mod journal;
 
 pub(crate) use effect::text_bundle_effect;
-pub(crate) use journal::{Journal, applied_bundle, recover};
+pub(crate) use journal::{AppliedChange, Journal, applied_changes, recover};
 
 use admission::{admit_file_target, admit_text_bundle, missing_parent_directories, snapshot_paths};
 use apply::{apply_admitted_bundle, bundle_report, rollback_paths};
@@ -154,12 +154,7 @@ pub(crate) fn apply_text_bundle_verified<T>(
     let journaled = journal
         .map(|journal| {
             journal
-                .begin(
-                    &admitted.operation,
-                    &admitted.root,
-                    &snapshots,
-                    &created_directories,
-                )
+                .begin(&admitted, &snapshots, &created_directories)
                 .map(|bundle| (journal, bundle))
         })
         .transpose()?;
@@ -200,10 +195,7 @@ pub(crate) fn apply_text_bundle_verified<T>(
 }
 
 fn invalid_bundle(operation: &str, message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: operation.to_owned(),
-        message: message.into(),
-    }
+    RuntimeError::failed(operation.to_owned(), message.into())
 }
 
 #[cfg(test)]

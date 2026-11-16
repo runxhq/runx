@@ -43,6 +43,10 @@ pub(super) struct BindInput {
     pub(super) authoring_context: SkillAuthoringContext,
     pub(super) mode: SkillAuthoringMode,
     pub(super) change_draft: SkillChangeDraft,
+    /// For a package kept from a turn's script call: the call as
+    /// `call.read` gave it, whose source the package's module is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) script_call: Option<runx_contracts::Artifact>,
 }
 
 impl CapabilityInput for BindInput {}
@@ -99,6 +103,10 @@ pub(super) const BIND_FIELDS: &[CapabilityField] = &[
     field(
         "change_draft",
         "The author's decision, summary, writes and deletes.",
+    ),
+    field(
+        "script_call",
+        "For a package kept from a turn's script call, the call as call.read gave it: runx writes its source as the package's script.mjs, byte for byte, and refuses a draft that writes that file otherwise.",
     ),
 ];
 

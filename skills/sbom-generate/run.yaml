@@ -16,14 +16,6 @@ methods:
       path:
         type: string
         description: Workspace-relative lockfile path.
-      path_scope:
-        type: string
-        description: Workspace or owning-skill input root.
-        default: workspace
-        enum:
-          - workspace
-          - skill
-        optional: true
       max_bytes:
         type: number
         description: Complete admitted UTF-8 read budget; native resource ceilings apply.
@@ -57,7 +49,6 @@ methods:
         inputs:
           repo_root: $input.repo_root
           path: $input.path
-          path_scope: $input.path_scope
           max_bytes: $input.max_bytes
           lockfile_type: $input.lockfile_type
           scope: $input.scope
@@ -76,14 +67,6 @@ methods:
       path:
         type: string
         description: Workspace-relative lockfile path.
-      path_scope:
-        type: string
-        description: Workspace or owning-skill input root.
-        default: workspace
-        enum:
-          - workspace
-          - skill
-        optional: true
       max_bytes:
         type: number
         description: Complete admitted UTF-8 read budget; native resource ceilings apply.
@@ -115,7 +98,6 @@ methods:
         inputs:
           repo_root: $input.repo_root
           path: $input.path
-          path_scope: $input.path_scope
           media_type: text/plain
       - id: read
         tool: artifact.read

@@ -221,6 +221,9 @@ struct RecordedStep {
     /// The operation owner's read identity, when every pin could be recorded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     operation_read_identity: Option<String>,
+    /// What its turn used, for an agent step, whether it answered or failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    usage: Option<runx_contracts::TurnUsage>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -273,7 +276,19 @@ enum HoldEvent {
         request_id: String,
         request: String,
         digest: String,
+        /// Whether its work leaves something behind, a change or a charge,
+        /// as a free read doesn't: a cancel that finds only free reads
+        /// claimed changed nothing. A record that doesn't say is taken as one
+        /// that does.
+        #[serde(default = "claimed_effect")]
+        effect: bool,
     },
+}
+
+/// What a claim recorded before the claim said whether its work changes the
+/// world is taken as: one that may.
+fn claimed_effect() -> bool {
+    true
 }
 
 /// A call a step made: an agent during its turn, or a script. A later event
@@ -326,6 +341,11 @@ struct CallEvent {
     /// order, so what the turn waits on is read from its latest call alone.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     waiting: Vec<WaitingCallEvent>,
+    /// Where what its maker had seen when it made the call may be shared,
+    /// whatever the call came to: a read of the call is labelled by it. A
+    /// record that doesn't say is read as what its step read says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    given: Option<runx_contracts::ArtifactLabels>,
 }
 
 /// A call of a step that still waits, and on what, as its latest event left
@@ -360,6 +380,7 @@ impl WaitingCallEvent {
                 request_id,
                 request,
                 digest,
+                ..
             } => Some(Self::Request {
                 index,
                 request_id: request_id.clone(),
@@ -436,7 +457,7 @@ enum CallOutcomeEvent {
     /// A person declined its approval; nothing ran.
     Declined { reason: String },
     /// The call could not run.
-    Failed { reason: String },
+    Failed { failure: crate::Failure },
     /// A person answered the call's retry `{"retry": false}`: it failed,
     /// and its act stays as custody holds it.
     RetryDeclined,
@@ -452,6 +473,9 @@ enum CallOutcomeEvent {
         request_id: String,
         request: String,
         digest: String,
+        /// Whether its work leaves something behind, a change or a charge.
+        #[serde(default = "claimed_effect")]
+        effect: bool,
     },
     /// A safe read was claimed and has not settled: a crash that leaves it
     /// so reruns it with nobody asked (D33).
@@ -607,7 +631,7 @@ pub(crate) enum CallOutcome {
     Refused(String),
     /// A person declined its approval; nothing ran.
     Declined(String),
-    Failed(String),
+    Failed(Box<crate::Failure>),
     /// A person answered its retry `{"retry": false}`: it failed with
     /// [`RETRY_DECLINED`], its act left as custody holds it.
     RetryDeclined,
@@ -663,6 +687,11 @@ pub(crate) struct CallRecord<'a> {
     /// How durable its commit is: durable where it claims what reaches the
     /// world or answers the host, ordered otherwise.
     pub durability: Durability,
+    /// For a claimed call, whether its work may change the world.
+    pub effect: bool,
+    /// Where what its maker had seen when it made the call may be shared:
+    /// what its step was given and had read, and its input.
+    pub given: runx_contracts::ArtifactLabels,
 }
 
 /// How a run began.
@@ -994,6 +1023,53 @@ impl RunLog {
             .filter(|segment| segment.starts_with(|first: char| first.is_ascii_alphabetic()))
             .count();
         u32::try_from(depth).unwrap_or(u32::MAX)
+    }
+
+    /// Whether anything recorded under `step`, a call's step in this run,
+    /// claimed work that leaves something behind, in any drive: a step of
+    /// its child run, or a call its child run or its script made that did
+    /// not then settle `cancelled`. A free read leaves nothing and is never
+    /// claimed as such; a paid read does, its charge, so its receipt is kept.
+    pub(crate) fn claimed_under(&self, step: &str) -> Result<bool, RunRecordError> {
+        let address = format!("{}/{step}", self.0.run_id);
+        let under = |key: &str| {
+            key.strip_prefix(&address).is_some_and(|rest| {
+                rest.is_empty() || rest.starts_with('/') || rest.starts_with('@')
+            })
+        };
+        // Each call under it that was claimed, and whether it has since
+        // settled cancelled. Only the streams under its address are read.
+        let mut calls = BTreeMap::<(String, u32), bool>::new();
+        for head in self.0.store.heads_from::<RunEvent>(&address)? {
+            if !under(&head.key) {
+                continue;
+            }
+            for recorded in self.0.store.read::<RunEvent>(&head.key)? {
+                match &recorded.event {
+                    RunEvent::Suspended(suspended)
+                        if matches!(suspended.hold, HoldEvent::Claimed { effect: true, .. }) =>
+                    {
+                        return Ok(true);
+                    }
+                    RunEvent::Call(call) => {
+                        let key = (head.key.clone(), call.index);
+                        match call.outcome {
+                            CallOutcomeEvent::Claimed { effect: true, .. } => {
+                                calls.insert(key, false);
+                            }
+                            CallOutcomeEvent::Cancelled => {
+                                if let Some(cancelled) = calls.get_mut(&key) {
+                                    *cancelled = true;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(calls.values().any(|cancelled| !cancelled))
     }
 
     /// The id of the child run a nested skill step runs as.
@@ -1441,6 +1517,7 @@ impl RunLog {
             labels: step.labels,
             input_digest: step.input_digest.clone(),
             operation_read_identity: step.operation_read_identity.clone(),
+            usage: step.usage.clone(),
         })?;
         let receipt = Blob::json(&step.receipt)?;
         let nested = step
@@ -1556,6 +1633,7 @@ impl RunLog {
         retry: &ResolutionRequest,
         answers: &[Answer],
         durability: Durability,
+        effect: bool,
     ) -> Result<(), RunRecordError> {
         let (request_id, blob, digest) = request_blob(retry)?;
         let (answers, values) = answer_events(answers)?;
@@ -1567,6 +1645,7 @@ impl RunLog {
                     request_id,
                     request: blob.digest().to_owned(),
                     digest,
+                    effect,
                 },
                 answers,
             })),
@@ -1728,6 +1807,7 @@ impl RunLog {
                     labels: step.labels,
                     input_digest: step.input_digest.clone(),
                     operation_read_identity: step.operation_read_identity.clone(),
+                    usage: step.usage.clone(),
                 })?;
                 let receipt = Blob::json(&step.receipt)?;
                 let nested = step
@@ -1756,8 +1836,8 @@ impl RunLog {
             CallOutcome::Declined(reason) => CallOutcomeEvent::Declined {
                 reason: reason.clone(),
             },
-            CallOutcome::Failed(reason) => CallOutcomeEvent::Failed {
-                reason: reason.clone(),
+            CallOutcome::Failed(failure) => CallOutcomeEvent::Failed {
+                failure: failure.as_ref().clone(),
             },
             CallOutcome::RetryDeclined => CallOutcomeEvent::RetryDeclined,
             CallOutcome::Pending(pending) => {
@@ -1776,6 +1856,7 @@ impl RunLog {
                     request_id: retry.id.clone(),
                     request: request.digest().to_owned(),
                     digest: retry.digest.clone(),
+                    effect: call.effect,
                 };
                 blobs.push(request);
                 outcome
@@ -1834,6 +1915,7 @@ impl RunLog {
             reuse: call.reuse.cloned(),
             reuse_identity: call.reuse_identity.map(str::to_owned),
             waiting,
+            given: Some(call.given),
         };
         blobs.extend(values);
         // The answers a call used are the run's to know without reading its
@@ -2447,6 +2529,7 @@ impl RunRecord {
                         request_id,
                         request,
                         digest,
+                        ..
                     } => Hold::Claimed(PendingRequest {
                         id: request_id,
                         value: store.blob_json(&request)?,
@@ -2576,7 +2659,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
         }
         CallOutcomeEvent::Refused { reason } => CallOutcome::Refused(reason.clone()),
         CallOutcomeEvent::Declined { reason } => CallOutcome::Declined(reason.clone()),
-        CallOutcomeEvent::Failed { reason } => CallOutcome::Failed(reason.clone()),
+        CallOutcomeEvent::Failed { failure } => CallOutcome::Failed(Box::new(failure.clone())),
         CallOutcomeEvent::RetryDeclined => CallOutcome::RetryDeclined,
         CallOutcomeEvent::Pending {
             request_id,
@@ -2591,6 +2674,7 @@ fn call_outcome(store: &KernelStore, call: &CallEvent) -> Result<CallOutcome, Ru
             request_id,
             request,
             digest,
+            ..
         } => CallOutcome::Claimed(PendingRequest {
             id: request_id.clone(),
             value: store.blob_json(request)?,
@@ -2739,6 +2823,7 @@ fn step_run(
         artifact_outputs: record.artifact_outputs,
         ephemeral_contract: Default::default(),
         outcome: record.outcome,
+        usage: record.usage,
         receipt: store.blob_json(&event.receipt)?,
         nested_receipts,
         recorded_nested,
@@ -2862,6 +2947,7 @@ fn held(store: &KernelStore, run_id: &str) -> Result<Option<Held>, RunRecordErro
                 request_id,
                 request,
                 digest,
+                ..
             } => (request_id, request, digest, Vec::new()),
             HoldEvent::Child { run_id } => {
                 current = run_id;

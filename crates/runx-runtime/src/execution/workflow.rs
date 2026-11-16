@@ -306,9 +306,11 @@ fn run_workspace_id(
         other => other,
     }
     .map(|id| id.map_or(JsonValue::Null, JsonValue::String))
-    .map_err(|error| RuntimeError::StepFailed {
-        step_id: reader.id.clone(),
-        reason: format!("it reads $run.workspace_id, and {error}"),
+    .map_err(|error| {
+        RuntimeError::step_failed(
+            reader.id.clone(),
+            format!("it reads $run.workspace_id, and {error}"),
+        )
     })
 }
 
@@ -333,9 +335,11 @@ pub(crate) fn bind_principals<'a>(
         if principals.contains_key(connector.as_str()) {
             continue;
         }
-        let read = principal(connector).map_err(|reason| RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: format!("it reads $run.principals.{connector}, and {reason}"),
+        let read = principal(connector).map_err(|reason| {
+            RuntimeError::step_failed(
+                step.id.clone(),
+                format!("it reads $run.principals.{connector}, and {reason}"),
+            )
         })?;
         principals.insert(connector, read);
     }
@@ -459,10 +463,7 @@ fn place(
     binding: &Binding,
     value: Option<JsonValue>,
 ) -> Result<(), RuntimeError> {
-    let refused = |reason: String| RuntimeError::StepFailed {
-        step_id: step_id.to_owned(),
-        reason,
-    };
+    let refused = |reason: String| RuntimeError::step_failed(step_id.to_owned(), reason);
     if binding.at.is_empty() {
         *inputs = match value {
             Some(JsonValue::Object(object)) => object,
@@ -553,12 +554,14 @@ pub(crate) fn step_skill(
     env: &BTreeMap<String, String>,
 ) -> Result<LoadedStepSkill, RuntimeError> {
     let package = resolved.package;
-    let manifest = package.manifest().ok_or_else(|| RuntimeError::StepFailed {
-        step_id: step.id.clone(),
-        reason: format!(
-            "sub-skill {} does not declare a run.yaml method",
-            package.directory.display()
-        ),
+    let manifest = package.manifest().ok_or_else(|| {
+        RuntimeError::step_failed(
+            step.id.clone(),
+            format!(
+                "sub-skill {} does not declare a run.yaml method",
+                package.directory.display()
+            ),
+        )
     })?;
     let method = select_step_method(
         manifest,
@@ -689,12 +692,10 @@ pub(crate) fn load_step_skill_package(
         None => Arc::new(crate::load_validated_skill_package(&resolved.directory)?),
     };
     let registry = match resolved.registry_ref {
-        Some(reference) => Some(registry_provenance(reference, &package, options).map_err(
-            |reason| RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason,
-            },
-        )?),
+        Some(reference) => Some(
+            registry_provenance(reference, &package, options)
+                .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?,
+        ),
         None => None,
     };
     Ok(LoadedStepSkillPackage { package, registry })
@@ -783,25 +784,17 @@ fn resolve_step_skill_directory(
         if crate::registry::is_bundled_reference(skill) {
             let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
             let installed = crate::registry::materialize_bundled_skill(skill, &paths, None)
-                .map_err(|reason| RuntimeError::StepFailed {
-                    step_id: step.id.clone(),
-                    reason,
-                })?
-                .ok_or_else(|| RuntimeError::StepFailed {
-                    step_id: step.id.clone(),
-                    reason: format!(
+                .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?
+                .ok_or_else(|| RuntimeError::step_failed(step.id.clone(), format!(
                         "{skill} names a skill runx {} bundles, and it bundles none by that name; a published skill is named registry:<publisher>/<name>@<version>",
                         crate::RUNX_VERSION
-                    ),
-                })?;
-            let directory =
-                installed
-                    .destination
-                    .parent()
-                    .ok_or_else(|| RuntimeError::StepFailed {
-                        step_id: step.id.clone(),
-                        reason: "bundled skill has no package directory".to_owned(),
-                    })?;
+                    )))?;
+            let directory = installed.destination.parent().ok_or_else(|| {
+                RuntimeError::step_failed(
+                    step.id.clone(),
+                    "bundled skill has no package directory".to_owned(),
+                )
+            })?;
             return Ok(ResolvedStepSkillDirectory {
                 directory: directory.to_path_buf(),
                 registry_ref: None,
@@ -813,10 +806,7 @@ fn resolve_step_skill_directory(
             // whatever version the ref names (core-shape §6.5); a bundle's
             // descriptor owns its children.
             let in_bundle = crate::registry::package_bundle::package_bundle_root(workflow_dir)
-                .map_err(|reason| RuntimeError::StepFailed {
-                    step_id: step.id.clone(),
-                    reason,
-                })?
+                .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?
                 .is_some();
             if !in_bundle && let Some(directory) = own_registry_skill(skill, &paths, options.env)? {
                 return Ok(ResolvedStepSkillDirectory {
@@ -830,20 +820,16 @@ fn resolve_step_skill_directory(
                     registry_ref: Some(skill.to_owned()),
                 });
             }
-            return Err(RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: format!(
+            return Err(RuntimeError::step_failed(
+                step.id.clone(),
+                format!(
                     "nested skill '{skill}' is not installed in this project; `runx skill` fetches it before the run"
                 ),
-            });
+            ));
         }
         if let Some(directory) =
-            crate::registry::package_bundle::resolve_bundled_skill(workflow_dir, skill).map_err(
-                |reason| RuntimeError::StepFailed {
-                    step_id: step.id.clone(),
-                    reason,
-                },
-            )?
+            crate::registry::package_bundle::resolve_bundled_skill(workflow_dir, skill)
+                .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?
         {
             return Ok(ResolvedStepSkillDirectory {
                 directory,
@@ -855,10 +841,7 @@ fn resolve_step_skill_directory(
         // Only source packages may discover additional local or bundled skills.
         if !directory.exists()
             && crate::registry::package_bundle::package_bundle_root(workflow_dir)
-                .map_err(|reason| RuntimeError::StepFailed {
-                    step_id: step.id.clone(),
-                    reason,
-                })?
+                .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?
                 .is_none()
         {
             let paths = crate::RunxPaths::resolve(options.env, workflow_dir);
@@ -1004,13 +987,13 @@ pub(crate) fn materialize_ask_reason_with_index(
     };
     match prior_run_index.output(&step.id, "ask.reason", from, path)? {
         JsonValue::String(reason) if !reason.trim().is_empty() => Ok(Some(reason)),
-        _ => Err(RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: format!(
+        _ => Err(RuntimeError::step_failed(
+            step.id.clone(),
+            format!(
                 "ask.reason reads $steps.{from}.{}, which isn't text",
                 path.join(".")
             ),
-        }),
+        )),
     }
 }
 
@@ -1070,12 +1053,14 @@ pub(crate) fn materialize_step_context_entries_with_index(
         let value = prior_run_index.output(&step.id, "context.entries", from, path)?;
         let mut listed = value
             .deserialize_into::<Vec<runx_contracts::ContextEntry>>()
-            .map_err(|error| RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: format!(
-                    "context.entries reads {}, which isn't a list of context entries: {error}",
-                    source.reference()
-                ),
+            .map_err(|error| {
+                RuntimeError::step_failed(
+                    step.id.clone(),
+                    format!(
+                        "context.entries reads {}, which isn't a list of context entries: {error}",
+                        source.reference()
+                    ),
+                )
             })?;
         if prior_run_index.labels(from).is_local_only() {
             for entry in &mut listed {

@@ -445,8 +445,20 @@ pub(crate) fn prepare_skill_run_with_effects(
         } else {
             runx_contracts::SealReason::PreflightRefused
         };
+        let said = input_failure.as_ref().map_or_else(
+            || {
+                crate::Failure::new(
+                    "runx",
+                    context
+                        .blocked_reason
+                        .clone()
+                        .unwrap_or_else(|| "skill preparation was blocked".to_owned()),
+                )
+            },
+            RuntimeError::failure,
+        );
         Some(super::skill_front::seal_skill_preflight_refusal(
-            &request, &manifest, &method, failure, reason,
+            &request, &manifest, &method, failure, said, reason,
         )?)
     } else {
         None
@@ -642,15 +654,15 @@ pub(crate) fn verify_prepared_artifact_at_use(
     })?;
     let actual = sha256_prefixed(&content);
     if &actual != expected {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: "prepared-run".to_owned(),
-            message: format!(
+        return Err(RuntimeError::failed(
+            "prepared-run".to_owned(),
+            format!(
                 "prepared artifact drift at use boundary {}: expected {}, actual {}",
                 canonical.display(),
                 expected,
                 actual
             ),
-        });
+        ));
     }
     Ok(())
 }

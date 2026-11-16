@@ -139,10 +139,9 @@ fn tool_packets(artifacts: &runx_parser::OutputArtifacts) -> Vec<RunxListOutputP
 
 fn discover_skill_list_items(root: &Path) -> Result<Vec<RunxListItem>, RuntimeError> {
     let mut items = Vec::new();
-    for skill in crate::registry::bundled_skills().map_err(|message| RuntimeError::SkillFailed {
-        skill_name: "runx core".to_owned(),
-        message,
-    })? {
+    for skill in crate::registry::bundled_skills()
+        .map_err(|message| RuntimeError::failed("runx core".to_owned(), message))?
+    {
         let package = skill.validated_package()?;
         if let Some(manifest) = package.root_manifest() {
             let mut item = skill_profile_list_item(

@@ -20,9 +20,6 @@ pub(super) fn resolve_step_approval(
             | ApprovalError::NonBooleanPayload { .. }) => RuntimeError::ContinuationRejected {
                 reason: source.to_string(),
             },
-            source => RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: source.to_string(),
-            },
+            source => RuntimeError::step_failed(step.id.clone(), source.to_string()),
         })
 }

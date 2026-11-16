@@ -927,9 +927,10 @@ fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
         .to_owned();
     let saved = resume(&history, json!({"approvals": {gate: true}}))?;
     assert_eq!(saved["status"], "sealed", "{saved}");
-    // The module is the turn's source, byte for byte.
+    // The module is the turn's source, byte for byte, written by runx from
+    // the call, never by the author.
     assert_eq!(
-        fs::read_to_string(root.join("digest-list/digest-list.mjs"))?,
+        fs::read_to_string(root.join("digest-list/script.mjs"))?,
         TURN_SCRIPT
     );
 
@@ -951,9 +952,9 @@ fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
 
 const TURN_SCRIPT: &str = "export default async function (ctx, inputs) {\n  const digests = [];\n  for (const value of inputs.values) {\n    const result = await ctx.tool(\"data.digest\", { value, encoding: \"utf8_text\" });\n    digests.push((await ctx.read(result.digest_result)).digest);\n  }\n  return { digests };\n}\n";
 
-/// What skill-lab's author writes for the saved script: the script as the
-/// package's module, byte for byte, under contracts, a manual, a test and
-/// evals of its own.
+/// What skill-lab's author writes for the saved script: the contracts, a
+/// manual, a test and evals of its own around the module runx keeps, which it
+/// names and doesn't write.
 fn saved_package() -> Value {
     json!({
         "decision": "write",
@@ -961,7 +962,6 @@ fn saved_package() -> Value {
         "writes": [
             {"path": "digest-list/SKILL.md", "contents": SAVED_MANUAL},
             {"path": "digest-list/run.yaml", "contents": SAVED_MANIFEST},
-            {"path": "digest-list/digest-list.mjs", "contents": TURN_SCRIPT},
             {"path": "digest-list/tests/digest-list-ready.yaml", "contents": SAVED_TEST},
             {"path": "digest-list/eval_queries.json", "contents": SAVED_QUERIES},
             {"path": "digest-list/evals/evals.json", "contents": SAVED_EVALS},
@@ -1010,7 +1010,7 @@ methods:
         description: The values to digest, in the order their digests return.
     steps:
       - id: digest
-        script: {module: digest-list.mjs}
+        script: {module: script.mjs}
         inputs:
           values: $input.values
         calls:

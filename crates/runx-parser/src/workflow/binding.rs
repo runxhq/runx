@@ -369,6 +369,11 @@ fn reference(
     if !text.starts_with('$') || text.starts_with("$$") {
         return Ok(None);
     }
+    // A path its package names its own file by, `$package/<path>`: a
+    // literal the runtime resolves where the package is, never a read.
+    if text == "$package" || text.starts_with("$package/") {
+        return Ok(None);
+    }
     let mut segments = text.split('.');
     let head = segments.next().unwrap_or_default();
     let rest = segments.map(str::to_owned).collect::<Vec<_>>();

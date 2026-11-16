@@ -48,10 +48,10 @@ pub(crate) fn project_declared_output_claim(
                 if !field.is_required() {
                     continue;
                 }
-                return Err(RuntimeError::SkillFailed {
-                    skill_name: producer.to_owned(),
-                    message: format!("declared run output {name:?} was not returned"),
-                });
+                return Err(RuntimeError::failed(
+                    producer.to_owned(),
+                    format!("declared run output {name:?} was not returned"),
+                ));
             };
             claim.insert(name, value);
         }
@@ -179,9 +179,11 @@ pub(crate) fn output_contract_checks(
 ) -> Result<ContractChecks, RuntimeError> {
     let mut checks = ContractChecks::default();
     if let Some(output) = output {
-        let violation = |error| RuntimeError::SkillFailed {
-            skill_name: skill_name.to_owned(),
-            message: format!("method output contract violation at {error}"),
+        let violation = |error| {
+            RuntimeError::failed(
+                skill_name.to_owned(),
+                format!("method output contract violation at {error}"),
+            )
         };
         validate_output_value(Some(&result_fields(output.clone(), artifacts)), payload)
             .map_err(violation)?;
@@ -361,9 +363,9 @@ mod tests {
 
         assert!(matches!(
             error,
-            Err(RuntimeError::SkillFailed { skill_name, message })
-                if skill_name == "producer"
-                    && message.contains("declared run output \"result\" was not returned")
+            Err(RuntimeError::Failed(failure))
+                if failure.decided_by == "producer"
+                    && failure.reason.contains("declared run output \"result\" was not returned")
         ));
     }
 

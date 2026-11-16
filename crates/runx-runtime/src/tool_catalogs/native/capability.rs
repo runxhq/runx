@@ -38,12 +38,9 @@ pub(super) fn decode_typed_output<O: CapabilityOutput>(
     tool: &str,
     output: JsonValue,
 ) -> Result<O, RuntimeError> {
-    output
-        .deserialize_into::<O>()
-        .map_err(|source| RuntimeError::SkillFailed {
-            skill_name: tool.to_owned(),
-            message: format!("invalid typed output: {source}"),
-        })
+    output.deserialize_into::<O>().map_err(|source| {
+        RuntimeError::failed(tool.to_owned(), format!("invalid typed output: {source}"))
+    })
 }
 
 pub(super) struct RawNativeInvocation<'a> {
@@ -146,9 +143,11 @@ where
             .clone()
             .deserialize_into::<O>()
             .map(|_| ())
-            .map_err(|source| RuntimeError::SkillFailed {
-                skill_name: self.definition().id.to_owned(),
-                message: format!("invalid typed output: {source}"),
+            .map_err(|source| {
+                RuntimeError::failed(
+                    self.definition().id.to_owned(),
+                    format!("invalid typed output: {source}"),
+                )
             })
     }
 }

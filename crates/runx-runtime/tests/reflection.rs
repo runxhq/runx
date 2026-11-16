@@ -258,16 +258,42 @@ fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> Tes
         "{ids:?}"
     );
 
-    // Promoted by hand here: AGENTS.md holds the handle at HEAD, so the rule is held.
+    let rule = unheld.first().ok_or("one unheld rule")?;
+    let (said, date) = (
+        rule["text"].as_str().ok_or("its words")?,
+        rule["date"].as_str().ok_or("its date")?,
+    );
+
+    // Edited by hand: the file keeps the handle and changes the words, so
+    // the rule isn't held, its memory stays active, and the person sees both.
     std::fs::write(
         root.join("AGENTS.md"),
         format!(
-            "# AGENTS.md\n\nBe brief.\n\n## Rules\n\n- Every greeting names the team, never the whole world. (2026-11-16, {handle})\n"
+            "# AGENTS.md\n\nBe brief.\n\n## Rules\n\n- Every greeting names the whole world. ({date}, {handle})\n"
         ),
+    )?;
+    git(root, &["commit", "-qam", "an edited rule"])?;
+    let edited = survey(root)?;
+    assert_eq!(edited["held"], serde_json::json!([]), "{edited}");
+    assert_eq!(edited["unheld"], serde_json::json!([]), "{edited}");
+    assert_eq!(edited["edited"][0]["handle"], handle.as_str(), "{edited}");
+    assert_eq!(
+        edited["edited"][0]["wording"],
+        format!("- Every greeting names the whole world. ({date}, {handle})").as_str(),
+        "{edited}"
+    );
+
+    // Promoted by hand here: AGENTS.md holds the rule's line at HEAD, as
+    // promotion writes it, so the rule is held.
+    std::fs::write(
+        root.join("AGENTS.md"),
+        format!("# AGENTS.md\n\nBe brief.\n\n## Rules\n\n- {said} ({date}, {handle})\n"),
     )?;
     git(root, &["commit", "-qam", "the rule"])?;
     let held = survey(root)?;
     assert_eq!(held["unheld"], serde_json::json!([]), "{held}");
+    assert_eq!(held["edited"], serde_json::json!([]), "{held}");
+    assert_eq!(held["held"][0]["handle"], handle.as_str(), "{held}");
     assert_ne!(held["subject"]["revision"], first["subject"]["revision"]);
     Ok(())
 }

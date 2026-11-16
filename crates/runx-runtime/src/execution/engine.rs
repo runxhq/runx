@@ -492,13 +492,13 @@ impl RuntimeOptions {
         if current.as_deref().ok() == Some(admitted.package.package_digest.as_str()) {
             return Ok(());
         }
-        Err(RuntimeError::SkillFailed {
-            skill_name: step_id.to_owned(),
-            message: format!(
+        Err(RuntimeError::failed(
+            step_id.to_owned(),
+            format!(
                 "skill package {} changed since the run admitted it, and a process step runs the package's files as they are",
                 directory.display()
             ),
-        })
+        ))
     }
 
     /// The chain a step of the package at `directory` calls from: this run's,
@@ -538,10 +538,7 @@ impl RuntimeOptions {
 
 /// A package whose identity is refused, as the step that would run it.
 pub(crate) fn identity_refused(directory: &Path, reason: &str) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: directory.display().to_string(),
-        message: reason.to_owned(),
-    }
+    RuntimeError::failed(directory.display().to_string(), reason.to_owned())
 }
 
 impl RuntimeOptions {
@@ -627,20 +624,37 @@ impl StepOutcome {
         self.status == InvocationStatus::Success
     }
 
+    /// Why it failed, as what decided it said: its own failure, or what a
+    /// process said, decided by `process`, the skill it ran.
     #[must_use]
-    pub fn failure_message(&self) -> Option<String> {
+    pub fn failure(&self, process: &str) -> Option<crate::Failure> {
         if self.succeeded() {
             return None;
         }
-        match &self.diagnostics {
-            InvocationDiagnostics::Runtime { failure, .. } => failure.clone(),
+        Some(match &self.diagnostics {
+            InvocationDiagnostics::Runtime { failure, .. } => {
+                failure.clone().unwrap_or_else(|| {
+                    crate::Failure::new(process, "it failed and said nothing of why")
+                })
+            }
             InvocationDiagnostics::Process { stderr, .. } if !stderr.trim().is_empty() => {
-                Some(stderr.clone())
+                crate::Failure::new(process, stderr.trim())
             }
-            InvocationDiagnostics::Process { exit_code, .. } => {
-                Some(format!("process failed with exit code {exit_code:?}"))
-            }
-        }
+            InvocationDiagnostics::Process { exit_code, .. } => crate::Failure::new(
+                process,
+                match exit_code {
+                    Some(code) => format!("its process exited {code} and said nothing of why"),
+                    None => "its process failed and said nothing of why".to_owned(),
+                },
+            ),
+        })
+    }
+
+    /// Why it failed, said once.
+    #[must_use]
+    pub fn failure_message(&self) -> Option<String> {
+        self.failure("its process")
+            .map(|failure| failure.to_string())
     }
 }
 
@@ -671,6 +685,9 @@ pub struct StepRun {
     /// Bounded execution diagnostics and verification metadata. The adapter's
     /// raw value is consumed during projection and receipt sealing.
     pub outcome: StepOutcome,
+    /// What its turn used, for an agent step: the same record whether the
+    /// turn answered or failed.
+    pub usage: Option<runx_contracts::TurnUsage>,
     pub receipt: Receipt,
     /// The flattened receipt subtree below this step, ordered descendants
     /// before their parent roots for durable persistence. The step receipt
@@ -762,8 +779,8 @@ pub struct WorkflowRun {
     pub steps: Vec<StepRun>,
     pub receipt: Receipt,
     /// Why a governed stop (a denial, a block, a pending resolution) stopped
-    /// the workflow, as its error states it. None when the workflow ran out.
-    pub stop: Option<String>,
+    /// the workflow, as what decided it said. None when the workflow ran out.
+    pub stop: Option<crate::Failure>,
     /// Why a guard or an authority refused the run, in its own steps or a
     /// child run's, when one did: the refusal's public projection, which its
     /// caller reads beside the receipt and which no receipt holds.
@@ -820,16 +837,10 @@ pub(crate) fn workflow_terminal_result(run: &WorkflowRun) -> Result<JsonValue, R
 /// The workflow step a sealable fault belongs to: its own step id, or the step
 /// a failed step run names.
 pub(crate) fn failed_step_id(workflow: &Workflow, error: &RuntimeError) -> Option<String> {
-    error.workflow_step_id().map(str::to_owned).or_else(|| {
-        let RuntimeError::SkillFailed { skill_name, .. } = error else {
-            return None;
-        };
-        workflow
-            .steps
-            .iter()
-            .any(|step| step.id == *skill_name)
-            .then(|| skill_name.clone())
-    })
+    error
+        .workflow_step_id()
+        .filter(|step_id| workflow.steps.iter().any(|step| step.id == *step_id))
+        .map(str::to_owned)
 }
 
 /// A run sealed where it stopped short of completion.
@@ -1115,7 +1126,7 @@ where
                     host,
                     LifecycleEvent::workflow_stopped(&workflow.name, &step_id, &receipt),
                 )?;
-                Ok(execution.finish_stopped(workflow, receipt, error.to_string()))
+                Ok(execution.finish_stopped(workflow, receipt, error.failure()))
             }
             Err(error) => Err(error),
         }
@@ -1217,7 +1228,7 @@ where
             return Err(error);
         };
         let projection = error.public_failure_projection();
-        let why = error.to_string();
+        let why = error.failure();
         // A step a child run's refusal closed carries that refusal up.
         let carried = match &error {
             RuntimeError::StepClosed { refusal, .. } => refusal.as_deref().cloned(),
@@ -1424,29 +1435,29 @@ pub(crate) fn workflow_run_result(run: &WorkflowRun) -> Result<JsonValue, Runtim
         }
         let outputs = step.values();
         if outputs.is_empty() {
-            return Err(RuntimeError::StepFailed {
-                step_id: step_id.clone(),
-                reason: "workflow result producer emitted no declared outputs".to_owned(),
-            });
+            return Err(RuntimeError::step_failed(
+                step_id.clone(),
+                "workflow result producer emitted no declared outputs".to_owned(),
+            ));
         }
         contributing_steps += 1;
         for (name, value) in outputs {
             if result.insert(name.clone(), value).is_some() {
-                return Err(RuntimeError::StepFailed {
-                    step_id: step_id.clone(),
-                    reason: format!(
+                return Err(RuntimeError::step_failed(
+                    step_id.clone(),
+                    format!(
                         "workflow result output {name:?} is emitted by more than one successful result producer"
                     ),
-                });
+                ));
             }
         }
     }
 
     if run.progress.state == WorkflowState::Succeeded && contributing_steps == 0 {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: run.workflow.name.clone(),
-            message: "workflow succeeded without running a declared result producer".to_owned(),
-        });
+        return Err(RuntimeError::failed(
+            run.workflow.name.clone(),
+            "workflow succeeded without running a declared result producer".to_owned(),
+        ));
     }
 
     match &run.workflow.outputs {
@@ -1464,10 +1475,7 @@ fn declared_method_result(
     outputs: &JsonObject,
     produced: JsonObject,
 ) -> Result<JsonValue, RuntimeError> {
-    let failure = |message: String| RuntimeError::SkillFailed {
-        skill_name: run.workflow.name.clone(),
-        message,
-    };
+    let failure = |message: String| RuntimeError::failed(run.workflow.name.clone(), message);
     let fields = runx_contracts::parse_output_contract(outputs)
         .map_err(|error| failure(format!("the method's outputs are invalid: {error}")))?;
     let result = produced
@@ -1591,6 +1599,14 @@ pub(crate) fn workflow_run_trace(run: &WorkflowRun) -> JsonValue {
             "receipt_id".to_owned(),
             JsonValue::String(step.receipt.id.to_string()),
         );
+        // What a turn used, as its record holds it, answered or failed.
+        if let Some(usage) = step
+            .usage
+            .as_ref()
+            .and_then(|usage| JsonValue::from_serialize(usage).ok())
+        {
+            summary.insert("usage".to_owned(), usage);
+        }
         step_summaries.push(JsonValue::Object(summary));
     }
     trace.insert("steps".to_owned(), JsonValue::Array(step_summaries));
@@ -1610,29 +1626,26 @@ pub(crate) fn workflow_run_skill_output(
     Ok(output)
 }
 
-/// Why a workflow did not succeed: the first step that failed, and its error.
-pub(crate) fn workflow_failure(run: &WorkflowRun) -> String {
+/// Why a workflow did not succeed: the failure of the first step that
+/// failed, placed at that step, said by what decided it.
+pub(crate) fn workflow_failure(run: &WorkflowRun) -> crate::Failure {
     let failed = run.progress.steps.iter().find_map(|step| {
         (step.state == runx_core::state_machine::WorkflowStepState::Failed)
-            .then_some((step.step_id.as_str(), step.error.as_deref()))
+            .then_some(step.step_id.as_str())
     });
     match failed {
-        Some((step_id, Some(error))) => {
-            format!(
-                "workflow {} did not succeed: step {step_id}: {error}",
-                run.workflow.name
-            )
-        }
-        Some((step_id, None)) => {
-            format!(
-                "workflow {} did not succeed: step {step_id} failed",
-                run.workflow.name
-            )
-        }
-        None => match &run.stop {
-            Some(stop) => format!("workflow {} stopped: {stop}", run.workflow.name),
-            None => format!("workflow {} did not succeed", run.workflow.name),
-        },
+        Some(step_id) => run
+            .steps
+            .iter()
+            .rev()
+            .find(|step| step.step_id == step_id && !step.outcome.succeeded())
+            .and_then(|step| step.outcome.failure(&step.skill))
+            .unwrap_or_else(|| crate::Failure::new("runx", "the step failed"))
+            .at_step(step_id),
+        None => run
+            .stop
+            .clone()
+            .unwrap_or_else(|| crate::Failure::new("runx", "the run did not succeed")),
     }
 }
 
@@ -1875,16 +1888,20 @@ mod tests {
     fn a_governed_stop_states_why_it_stopped() -> Result<(), Box<dyn std::error::Error>> {
         let mut run = test_workflow_run(Vec::new(), Vec::new(), WorkflowState::Failed)?;
         assert_eq!(
-            super::workflow_failure(&run),
-            "workflow test-workflow did not succeed"
+            super::workflow_failure(&run).to_string(),
+            "the run did not succeed (runx)."
         );
         run.stop = Some(
-            "authority Create denied workflow step 'provision': a mutation needs an idempotency_key"
-                .to_owned(),
+            crate::RuntimeError::AuthorityDenied {
+                verb: runx_contracts::AuthorityVerb::Create,
+                step_id: "provision".to_owned(),
+                reason: "a mutation needs an idempotency_key".to_owned(),
+            }
+            .failure(),
         );
         assert_eq!(
-            super::workflow_failure(&run),
-            "workflow test-workflow stopped: authority Create denied workflow step 'provision': a mutation needs an idempotency_key"
+            super::workflow_failure(&run).to_string(),
+            "Create denied: a mutation needs an idempotency_key (the run's authority, at provision)."
         );
         Ok(())
     }
@@ -2153,6 +2170,7 @@ mod tests {
             artifact_outputs: Default::default(),
             ephemeral_contract: EphemeralValue::default(),
             outcome: output.into(),
+            usage: None,
             nested_receipts: Vec::new(),
             recorded_nested: Vec::new(),
             refusal: None,

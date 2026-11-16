@@ -148,14 +148,6 @@ methods:
       path:
         type: string
         description: Workspace-relative text document to admit through native artifact storage.
-      path_scope:
-        type: string
-        default: workspace
-        description: 'Trusted input root: workspace or the owning skill package.'
-        enum:
-        - workspace
-        - skill
-        optional: true
       max_bytes:
         type: number
         default: 1000000
@@ -172,7 +164,6 @@ methods:
         repo_root: $input.repo_root
         path: $input.path
         media_type: text/plain
-        path_scope: $input.path_scope
     - id: read
       tool: artifact.read
       inputs:

@@ -357,13 +357,14 @@ pub const RESERVED_ANSWER_FIELDS: [&str; 7] = [
     "unsupported_requirement",
 ];
 
-/// What a turn's answer cost in calls to its model, as the driver that asked
-/// the model counted them: every call, a reply it asked for again included.
+/// What a turn used, as the driver that asked its model counted it: every
+/// call to the model, a reply it asked for again included, and, where its
+/// driver counts them, its rounds and each call the model made, with how
+/// its driver took it. A turn records the same whether it answers or fails.
 /// The token counts are the sums the provider reported, both or neither: a
 /// call that reported none leaves both out, because a sum missing a call
-/// would read as the whole. runx's managed agent counts the pass that
-/// answered.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+/// would read as the whole. runx's own driver counts the pass that answered.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(try_from = "UncheckedTurnUsage", deny_unknown_fields)]
 pub struct TurnUsage {
     pub model_calls: std::num::NonZeroU64,
@@ -371,6 +372,28 @@ pub struct TurnUsage {
     pub input_tokens: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<u64>,
+    /// The rounds its driver took: each reply of the model's it acted on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rounds: Option<std::num::NonZeroU64>,
+    /// Each call the model made, in order, as its driver took it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub calls: Vec<TurnUsageCall>,
+}
+
+/// One call a turn's model made, as its driver took it: the tool it named,
+/// how it ended, and, for an answer its driver refused, the rule it broke.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnUsageCall {
+    pub tool: NonEmptyString,
+    pub status: NonEmptyString,
+    /// What its driver made of it, where it says: an answer whose output
+    /// broke its contract, for one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<NonEmptyString>,
+    /// The rule an answer its driver refused broke, in its schema's frame.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rule: Option<NonEmptyString>,
 }
 
 #[derive(Deserialize)]
@@ -381,6 +404,10 @@ struct UncheckedTurnUsage {
     input_tokens: Option<u64>,
     #[serde(default)]
     output_tokens: Option<u64>,
+    #[serde(default)]
+    rounds: Option<std::num::NonZeroU64>,
+    #[serde(default)]
+    calls: Vec<TurnUsageCall>,
 }
 
 impl TryFrom<UncheckedTurnUsage> for TurnUsage {
@@ -394,6 +421,8 @@ impl TryFrom<UncheckedTurnUsage> for TurnUsage {
             model_calls: unchecked.model_calls,
             input_tokens: unchecked.input_tokens,
             output_tokens: unchecked.output_tokens,
+            rounds: unchecked.rounds,
+            calls: unchecked.calls,
         })
     }
 }
@@ -816,60 +845,73 @@ impl From<&TurnInvocation> for TurnView {
     }
 }
 
-/// An act's envelope as its turn's agent reads it: whole, except that each
-/// context entry is a line of an index, its data read by `turn_read`. The
-/// act's instructions and inputs stay whole, as the act itself; each input
-/// also reads by its ref.
+/// An act's envelope as its turn's agent reads it: its brief. It holds the
+/// act's job and what it was given, and none of what runx keeps for itself:
+/// no digest, no run id, no path on disk, no governance text. Each context
+/// entry is a line of an index, its data read by `turn_read`; the act's
+/// instructions and inputs stay whole, as the act itself, and each input
+/// also reads by its ref. The answer is offered as one schema it can read
+/// cold.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TurnViewEnvelope {
-    pub run_id: NonEmptyString,
+    /// The skill whose step the turn is.
+    pub skill: NonEmptyString,
+    /// The step the turn is, which its calls' addresses begin with.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub step_id: Option<NonEmptyString>,
-    pub skill: NonEmptyString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act: Option<crate::CallAct>,
-    pub instructions_digest: NonEmptyString,
     pub instructions: NonEmptyString,
     pub inputs: JsonObject,
-    pub requirements: crate::AgentExecutionRequirements,
     pub current_context: Vec<TurnContextLine>,
     pub historical_context: Vec<TurnContextLine>,
-    pub provenance: Vec<crate::ProvenanceEntry>,
+    /// The project's files a turn reads with its job: its conventions, its
+    /// instructions, and the memory an older envelope recorded.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<crate::AgentContextProfiles>,
+    pub context: Option<TurnProfiles>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub voice_profile: Option<crate::ProfileFile>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_location: Option<crate::ExecutionLocation>,
+    pub voice_profile: Option<TurnFile>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<BTreeMap<String, crate::OutputField>>,
+    /// The answer as one self-contained schema.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<JsonValue>,
-    pub trust_boundary: NonEmptyString,
+}
+
+/// The project's files a turn reads, as its agent reads them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnProfiles {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory: Option<TurnFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub conventions: Option<TurnFile>,
+    /// Each `AGENTS.md` and `CLAUDE.md` from the repository root down to the
+    /// workspace, in that order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub instructions: Vec<TurnFile>,
+}
+
+/// One file a turn reads: where it is in the repository, and what it says.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnFile {
+    pub path: NonEmptyString,
+    pub content: String,
+}
+
+impl From<&crate::ProfileFile> for TurnFile {
+    fn from(file: &crate::ProfileFile) -> Self {
+        Self {
+            path: file.path.clone(),
+            content: file.content.clone(),
+        }
+    }
 }
 
 impl From<&AgentContextEnvelope> for TurnViewEnvelope {
     fn from(envelope: &AgentContextEnvelope) -> Self {
-        let AgentContextEnvelope {
-            run_id,
-            step_id,
-            skill,
-            act,
-            instructions_digest,
-            instructions,
-            inputs,
-            requirements,
-            current_context,
-            historical_context,
-            provenance,
-            context,
-            voice_profile,
-            execution_location,
-            output,
-            output_schema,
-            trust_boundary,
-        } = envelope;
         let lines = |entries: &[crate::ContextEntry], at: fn(usize) -> TurnLocator| {
             entries
                 .iter()
@@ -878,23 +920,21 @@ impl From<&AgentContextEnvelope> for TurnViewEnvelope {
                 .collect()
         };
         Self {
-            run_id: run_id.clone(),
-            step_id: step_id.clone(),
-            skill: skill.clone(),
-            act: act.clone(),
-            instructions_digest: instructions_digest.clone(),
-            instructions: instructions.clone(),
-            inputs: inputs.clone(),
-            requirements: requirements.clone(),
-            current_context: lines(current_context, TurnLocator::Current),
-            historical_context: lines(historical_context, TurnLocator::Historical),
-            provenance: provenance.clone(),
-            context: context.clone(),
-            voice_profile: voice_profile.clone(),
-            execution_location: execution_location.clone(),
-            output: output.clone(),
-            output_schema: output_schema.clone(),
-            trust_boundary: trust_boundary.clone(),
+            skill: envelope.skill.clone(),
+            step_id: envelope.step_id.clone(),
+            act: envelope.act.clone(),
+            instructions: envelope.instructions.clone(),
+            inputs: envelope.inputs.clone(),
+            current_context: lines(&envelope.current_context, TurnLocator::Current),
+            historical_context: lines(&envelope.historical_context, TurnLocator::Historical),
+            context: envelope.context.as_ref().map(|profiles| TurnProfiles {
+                memory: profiles.memory.as_ref().map(TurnFile::from),
+                conventions: profiles.conventions.as_ref().map(TurnFile::from),
+                instructions: profiles.instructions.iter().map(TurnFile::from).collect(),
+            }),
+            voice_profile: envelope.voice_profile.as_ref().map(TurnFile::from),
+            output: envelope.output.clone(),
+            output_schema: envelope.output_schema.clone(),
         }
     }
 }

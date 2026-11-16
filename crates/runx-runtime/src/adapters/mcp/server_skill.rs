@@ -137,10 +137,7 @@ fn load_mcp_server_tool(
 }
 
 fn mcp_method_error(skill_name: &str, error: impl std::fmt::Display) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: skill_name.to_owned(),
-        message: error.to_string(),
-    }
+    RuntimeError::failed(skill_name.to_owned(), error.to_string())
 }
 
 /// A skill tool takes the method's inputs, under its constraints across

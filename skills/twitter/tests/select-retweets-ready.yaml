@@ -3,8 +3,7 @@ method: select
 inputs:
   objective: Delete all reposts of the BetaList account.
   principal: account:@example
-  archive_base: skill
-  archive_file: fixtures/data/archive-tweets.js
+  archive_file: $package/fixtures/data/archive-tweets.js
   predicate:
     is_retweet: true
     rt_of: BetaList

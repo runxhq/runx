@@ -360,8 +360,10 @@ export type CallReadContract = {
   /** The step's attempt that made it: its latest holding the index. */
   readonly attempt: number;
   readonly call: CallReadEntryContract;
-  /** The calls under it: a script call's, at their positions. */
+  /** The calls under it: a script call's, at their positions, a page at a time. */
   readonly calls?: readonly CallReadEntryContract[];
+  /** The position its script's further calls are read from, passed as `call.read`'s `after`; absent once the page holds the last. */
+  readonly next?: number;
   readonly run_id: string;
   readonly schema: CallReadSchemaContract;
   /** The request of the turn that made it, which holds the turn's task and what it was given. */
@@ -3774,6 +3776,12 @@ export type TurnContextLineContract = {
   readonly type: string;
 };
 
+/** One file a turn reads: where it is in the repository, and what it says. */
+export type TurnFileContract = {
+  readonly content: string;
+  readonly path: string;
+};
+
 /** The host that answered a turn, as its answer records it. One run's turns can each be answered by a different host over its life, so the host is recorded per answer, never per run. */
 export type TurnHostContract = {
   readonly kind: "managed_agent";
@@ -3812,6 +3820,14 @@ export type TurnLoadContract = {
   readonly tools: readonly TurnToolContract[];
 };
 
+/** The project's files a turn reads, as its agent reads them. */
+export type TurnProfilesContract = {
+  readonly conventions?: TurnFileContract;
+  /** Each `AGENTS.md` and `CLAUDE.md` from the repository root down to the workspace, in that order. */
+  readonly instructions?: readonly TurnFileContract[];
+  readonly memory?: TurnFileContract;
+};
+
 /** One page of what a turn's locator names, as text: a string as it is, any other value as pretty JSON. Offsets count characters. */
 export type TurnReadPageContract = {
   readonly locator: string;
@@ -3844,11 +3860,25 @@ export type TurnToolContract = {
   readonly target: CallTargetContract;
 };
 
-/** What a turn's answer cost in calls to its model, as the driver that asked the model counted them: every call, a reply it asked for again included. The token counts are the sums the provider reported, both or neither: a call that reported none leaves both out, because a sum missing a call would read as the whole. runx's managed agent counts the pass that answered. */
+/** What a turn used, as the driver that asked its model counted it: every call to the model, a reply it asked for again included, and, where its driver counts them, its rounds and each call the model made, with how its driver took it. A turn records the same whether it answers or fails. The token counts are the sums the provider reported, both or neither: a call that reported none leaves both out, because a sum missing a call would read as the whole. runx's own driver counts the pass that answered. */
 export type TurnUsageContract = {
+  /** Each call the model made, in order, as its driver took it. */
+  readonly calls?: readonly TurnUsageCallContract[];
   readonly input_tokens?: number;
   readonly model_calls: number;
   readonly output_tokens?: number;
+  /** The rounds its driver took: each reply of the model's it acted on. */
+  readonly rounds?: number;
+};
+
+/** One call a turn's model made, as its driver took it: the tool it named, how it ended, and, for an answer its driver refused, the rule it broke. */
+export type TurnUsageCallContract = {
+  /** What its driver made of it, where it says: an answer whose output broke its contract, for one. */
+  readonly kind?: string;
+  /** The rule an answer its driver refused broke, in its schema's frame. */
+  readonly rule?: string;
+  readonly status: string;
+  readonly tool: string;
 };
 
 /** A turn as its agent reads it. What the act allows it shows once, as the status's tools, by the names a call takes: the act's declared allowance names a catalog tool as the catalog does (`fs.read`), which is not the name a call takes (`fs_read`). */
@@ -3862,29 +3892,27 @@ export type TurnViewContract = {
   readonly task: string;
 };
 
-/** An act's envelope as its turn's agent reads it: whole, except that each context entry is a line of an index, its data read by `turn_read`. The act's instructions and inputs stay whole, as the act itself; each input also reads by its ref. */
+/** An act's envelope as its turn's agent reads it: its brief. It holds the act's job and what it was given, and none of what runx keeps for itself: no digest, no run id, no path on disk, no governance text. Each context entry is a line of an index, its data read by `turn_read`; the act's instructions and inputs stay whole, as the act itself, and each input also reads by its ref. The answer is offered as one schema it can read cold. */
 export type TurnViewEnvelopeContract = {
   readonly act?: CallActContract;
-  readonly context?: AgentContextProfilesContract;
+  /** The project's files a turn reads with its job: its conventions, its instructions, and the memory an older envelope recorded. */
+  readonly context?: TurnProfilesContract;
   readonly current_context: readonly TurnContextLineContract[];
-  readonly execution_location?: ExecutionLocationContract;
   readonly historical_context: readonly TurnContextLineContract[];
   readonly inputs: {
     readonly [key: string]: unknown;
   };
   readonly instructions: string;
-  readonly instructions_digest: string;
   readonly output?: {
     readonly [key: string]: OutputFieldContract;
   };
+  /** The answer as one self-contained schema. */
   readonly output_schema?: unknown;
-  readonly provenance: readonly ProvenanceEntryContract[];
-  readonly requirements: AgentExecutionRequirementsContract;
-  readonly run_id: string;
+  /** The skill whose step the turn is. */
   readonly skill: string;
+  /** The step the turn is, which its calls' addresses begin with. */
   readonly step_id?: string;
-  readonly trust_boundary: string;
-  readonly voice_profile?: ProfileFileContract;
+  readonly voice_profile?: TurnFileContract;
 };
 
 /** A run the listing found and couldn't read, such as one another runx version recorded: listed by its id, so one record never hides the rest. */

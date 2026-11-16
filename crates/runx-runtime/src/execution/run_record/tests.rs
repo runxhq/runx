@@ -88,6 +88,7 @@ fn step(run_id: &str, step_id: &str) -> StepRun {
         artifact_outputs: Default::default(),
         ephemeral_contract: Default::default(),
         outcome: output.into(),
+        usage: None,
         admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
         receipt,
         nested_receipts: Vec::new(),
@@ -604,6 +605,8 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             reuse: None,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
+            effect: true,
+            given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })
         .unwrap();
     }
@@ -645,6 +648,8 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
+        effect: true,
+        given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
     let calls = log.calls("answer", 1).unwrap();
@@ -677,6 +682,8 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
+        effect: true,
+        given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
     assert!(matches!(
@@ -739,6 +746,8 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             reuse: None,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
+            effect: true,
+            given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })
         .unwrap();
     log.record_call(&CallRecord {
@@ -763,6 +772,8 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
+        effect: true,
+        given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
 
@@ -895,6 +906,46 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
     );
 }
 
+/// What a cancel reads of a call's earlier drives: a claim under the call
+/// that may change the world counts, a read's doesn't, whichever drive made
+/// it, and nothing outside the call's address does.
+#[test]
+fn a_calls_claims_are_read_from_its_whole_history() {
+    let (_root, store) = store();
+    let log = RunLog::open(Arc::clone(&store), "run_claims").unwrap();
+    start(&log, &JsonObject::new());
+    let claim = |child: &RunLog, effect: bool| {
+        let retry = crate::execution::engine::unsettled_retry(
+            child.address("send/retry"),
+            "step send",
+            runx_contracts::RetryResend::Safe,
+        );
+        child
+            .record_claim(
+                "send",
+                1,
+                &retry,
+                &[],
+                crate::kernel::store::Durability::Durable,
+                effect,
+            )
+            .unwrap();
+    };
+    let read = log.child("answer/0").unwrap();
+    start(&read, &JsonObject::new());
+    claim(&read, false);
+    assert!(
+        !log.claimed_under("answer/0").unwrap(),
+        "a read changes nothing"
+    );
+    let wrote = log.child("answer/1").unwrap();
+    start(&wrote, &JsonObject::new());
+    claim(&wrote, true);
+    assert!(log.claimed_under("answer/1").unwrap());
+    assert!(!log.claimed_under("answer/0").unwrap());
+    assert!(!log.claimed_under("answer/2").unwrap());
+}
+
 #[test]
 fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
     let (_root, store) = store();
@@ -911,6 +962,7 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
         &retry,
         &[],
         crate::kernel::store::Durability::Durable,
+        true,
     )
     .unwrap();
 
@@ -1246,6 +1298,8 @@ fn a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn() {
                 reuse: None,
                 reuse_identity: None,
                 durability: crate::kernel::store::Durability::Ordered,
+                effect: true,
+                given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
             })
             .unwrap();
         };
@@ -1311,6 +1365,8 @@ fn turn_of_calls(store: &Arc<KernelStore>, run_id: &str, calls: u32) -> (RunLog,
                 reuse: None,
                 reuse_identity: None,
                 durability: crate::kernel::store::Durability::Ordered,
+                effect: true,
+                given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
             })
             .unwrap();
     };
@@ -1466,6 +1522,8 @@ fn a_calls_reuse_decision_is_recorded_once_and_read_back() {
             reuse,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
+            effect: true,
+            given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })
         .unwrap();
     }
@@ -1513,7 +1571,7 @@ fn a_run_syncs_only_where_it_reaches_the_world_or_answers_its_host() {
             "step send",
             runx_contracts::RetryResend::Safe,
         );
-        log.record_claim("send", 1, &retry, &[], Durability::Durable)
+        log.record_claim("send", 1, &retry, &[], Durability::Durable, true)
             .unwrap();
         let claimed = since();
         log.record_sealed(&read.receipt, None).unwrap();
@@ -1587,6 +1645,8 @@ fn a_calls_packet_is_written_once_its_artifact_which_the_record_names_and_replay
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
+        effect: true,
+        given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
 

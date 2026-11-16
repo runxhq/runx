@@ -417,12 +417,22 @@ fn an_authored_package_states_its_catalog_keeps_its_name_and_its_new_turns_read_
     let bundle = change_bundle(
         &package_snapshot(&target)?.digest,
         SkillChangeDecision::Write,
-        &[("skills/demo/SKILL.md", &corrected)],
+        &[
+            ("skills/demo/SKILL.md", &corrected),
+            ("skills/demo/run.yaml", UNRECALLED_MANIFEST),
+        ],
         &[],
     );
+    let applied = apply(older.path(), SkillAuthoringMode::Improve, &bundle)?;
+    assert_eq!(applied.verdict, SkillApplyVerdict::ValidatedAndApplied);
+    // A write of the bytes a file already held changed nothing.
     assert_eq!(
-        apply(older.path(), SkillAuthoringMode::Improve, &bundle)?.verdict,
-        SkillApplyVerdict::ValidatedAndApplied
+        applied
+            .changed_paths
+            .iter()
+            .map(|path| path.as_str())
+            .collect::<Vec<_>>(),
+        ["skills/demo/SKILL.md"]
     );
     Ok(())
 }

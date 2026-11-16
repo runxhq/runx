@@ -57,18 +57,20 @@ impl From<crate::execution::run_record::RunRecordError> for SkillRunError {
     }
 }
 
+/// Why a skill run could not go on, said once: what decided it says why,
+/// and the run or receipt it left is named after.
 #[derive(Debug, Error)]
 pub enum SkillRunError {
-    #[error("skill run failed: {0}")]
+    #[error("{0}")]
     Invalid(String),
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
-    #[error("{source} (run {run_id})")]
+    #[error("{source} Its run is {run_id}.")]
     Execution {
         run_id: String,
         source: Box<SkillRunError>,
     },
-    #[error("{source}; refusal receipt: {receipt_id}")]
+    #[error("{source} Its refusal's receipt is {receipt_id}.")]
     PreflightRefused {
         source: Box<RuntimeError>,
         receipt_id: String,
@@ -703,6 +705,7 @@ pub(super) fn seal_skill_preflight_refusal(
     manifest: &SkillMethodManifest,
     method: &SkillMethodDefinition,
     failure: JsonObject,
+    said: crate::Failure,
     reason: runx_contracts::SealReason,
 ) -> Result<String, SkillRunError> {
     let workspace =
@@ -713,12 +716,7 @@ pub(super) fn seal_skill_preflight_refusal(
         Some(run_id) => crate::execution::run_record::validate_run_id(run_id)?.to_owned(),
         None => crate::execution::run_record::mint_run_id(&manifest.skill)?,
     };
-    let message = failure
-        .get("message")
-        .and_then(JsonValue::as_str)
-        .unwrap_or("skill preparation was refused")
-        .to_owned();
-    let output = InvocationOutput::runtime_failure(JsonValue::Object(failure), message.clone(), 0);
+    let output = InvocationOutput::runtime_failure(JsonValue::Object(failure), said, 0);
     let receipt = seal_refusal(
         RunScope {
             run_id: &run_id,
@@ -781,6 +779,7 @@ fn prepare_skill_execution(
                 manifest,
                 method,
                 failure,
+                source.failure(),
                 runx_contracts::SealReason::InputContractInvalid,
             )?;
             return Err(SkillRunError::PreflightRefused {

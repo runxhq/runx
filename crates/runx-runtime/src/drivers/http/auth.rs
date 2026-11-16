@@ -112,10 +112,7 @@ pub(crate) fn credential_body(
 }
 
 fn invalid(message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "http".to_owned(),
-        message: message.into(),
-    }
+    RuntimeError::failed("http".to_owned(), message.into())
 }
 
 /// OAuth 1.0a user-context material: a consumer and an access token.

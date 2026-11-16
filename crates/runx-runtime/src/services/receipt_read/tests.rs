@@ -85,6 +85,7 @@ fn fixture(poison_record: bool) -> TestResult<Fixture> {
             "ephemeral-only-sentinel".to_owned(),
         )),
         outcome: output.into(),
+        usage: None,
         receipt: receipt.clone(),
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),

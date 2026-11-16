@@ -1,7 +1,6 @@
 name: local-cargo-default
 inputs:
-  path: fixtures/input/Cargo.lock
-  path_scope: skill
+  path: $package/fixtures/input/Cargo.lock
 expect:
   status: sealed
   step_outputs:

@@ -15,7 +15,6 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[serde(deny_unknown_fields)]
 pub(super) struct FileReadInput {
     pub(super) repo_root: String,
-    pub(super) path_scope: String,
     pub(super) path: String,
     pub(super) start_line: u64,
     pub(super) line_count: u64,
@@ -26,10 +25,6 @@ impl CapabilityInput for FileReadInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
             ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
-            (
-                "path_scope".to_owned(),
-                JsonValue::String("workspace".to_owned()),
-            ),
             (
                 "start_line".to_owned(),
                 JsonValue::Number(JsonNumber::U64(1)),
@@ -50,7 +45,6 @@ impl CapabilityInput for FileReadInput {
 #[serde(deny_unknown_fields)]
 pub(super) struct FileReadBundleInput {
     pub(super) repo_root: String,
-    pub(super) path_scope: String,
     pub(super) paths: Vec<String>,
     pub(super) max_bytes: u64,
     pub(super) on_missing: String,
@@ -60,10 +54,6 @@ impl CapabilityInput for FileReadBundleInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
             ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
-            (
-                "path_scope".to_owned(),
-                JsonValue::String("workspace".to_owned()),
-            ),
             (
                 "max_bytes".to_owned(),
                 JsonValue::Number(JsonNumber::U64(8 * 1024 * 1024)),
@@ -149,7 +139,6 @@ impl CapabilityInput for FileEditInput {
 #[serde(deny_unknown_fields)]
 pub(super) struct FileListInput {
     pub(super) repo_root: String,
-    pub(super) path_scope: String,
     pub(super) path: String,
     pub(super) depth: u64,
     pub(super) max_entries: u64,
@@ -159,10 +148,6 @@ impl CapabilityInput for FileListInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
             ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
-            (
-                "path_scope".to_owned(),
-                JsonValue::String("workspace".to_owned()),
-            ),
             ("path".to_owned(), JsonValue::String(".".to_owned())),
             ("depth".to_owned(), JsonValue::Number(JsonNumber::U64(2))),
             (
@@ -177,7 +162,6 @@ impl CapabilityInput for FileListInput {
 #[serde(deny_unknown_fields)]
 pub(super) struct FileSearchInput {
     pub(super) repo_root: String,
-    pub(super) path_scope: String,
     pub(super) path: String,
     pub(super) pattern: String,
     pub(super) regex: bool,
@@ -192,10 +176,6 @@ impl CapabilityInput for FileSearchInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
             ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
-            (
-                "path_scope".to_owned(),
-                JsonValue::String("workspace".to_owned()),
-            ),
             ("path".to_owned(), JsonValue::String(".".to_owned())),
             ("regex".to_owned(), JsonValue::Bool(false)),
             ("case_sensitive".to_owned(), JsonValue::Bool(true)),
@@ -213,7 +193,6 @@ impl CapabilityInput for FileSearchInput {
 
 const LIST_FIELDS: &[CapabilityField] = &[
     root_field(),
-    path_scope_field(),
     CapabilityField {
         name: "path",
         description: "Directory to list, relative to the resolved trusted root.",
@@ -230,7 +209,6 @@ const LIST_FIELDS: &[CapabilityField] = &[
 
 const SEARCH_FIELDS: &[CapabilityField] = &[
     root_field(),
-    path_scope_field(),
     CapabilityField {
         name: "path",
         description: "Directory to search under, or one file to search, relative to the resolved trusted root.",
@@ -263,7 +241,6 @@ const SEARCH_FIELDS: &[CapabilityField] = &[
 
 const READ_FIELDS: &[CapabilityField] = &[
     root_field(),
-    path_scope_field(),
     CapabilityField {
         name: "path",
         description: "UTF-8 file path relative to the resolved trusted root.",
@@ -284,7 +261,6 @@ const READ_FIELDS: &[CapabilityField] = &[
 
 const READ_BUNDLE_FIELDS: &[CapabilityField] = &[
     root_field(),
-    path_scope_field(),
     CapabilityField {
         name: "paths",
         description: "Up to sixteen distinct relative UTF-8 file paths.",
@@ -346,14 +322,7 @@ const APPLY_FIELDS: &[CapabilityField] = &[
 const fn root_field() -> CapabilityField {
     CapabilityField {
         name: "repo_root",
-        description: "Workspace-relative project root; the runtime owns the workspace boundary.",
-    }
-}
-
-const fn path_scope_field() -> CapabilityField {
-    CapabilityField {
-        name: "path_scope",
-        description: "Trusted root selection: workspace or the owning skill package.",
+        description: "Workspace-relative project root, or $package for the skill's own package; the runtime owns the workspace boundary. A path beginning $package/ names a file of the skill's own package.",
     }
 }
 

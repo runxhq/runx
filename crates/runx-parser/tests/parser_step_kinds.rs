@@ -83,8 +83,8 @@ fn environment_rejects_duplicates_invalid_names_and_runtime_owned_names() {
 #[test]
 fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
     let method = method_with(
-        "    inputs:\n      archive_file: {type: string}\n      archive_base: {type: string}\n",
-        "      - id: run\n        tool:\n          module: domain.mjs\n          paged_input:\n            path: archive_file\n            path_scope: archive_base\n            media_type: application/javascript\n            framing: json_array\n            page_bytes: 524288\n",
+        "    inputs:\n      archive_file: {type: string}\n",
+        "      - id: run\n        tool:\n          module: domain.mjs\n          paged_input:\n            path: archive_file\n            media_type: application/javascript\n            framing: json_array\n            page_bytes: 524288\n",
     )?;
     let StepKind::Tool(ToolTarget::Worker(worker)) = &only_step(&method).kind else {
         return Err("expected a worker tool".to_owned());
@@ -94,7 +94,6 @@ fn a_worker_parses_runtime_owned_pages() -> Result<(), String> {
         pages.source,
         runx_parser::ArtifactPageInput::Path {
             path: "archive_file".to_owned(),
-            path_scope: Some("archive_base".to_owned()),
             media_type: "application/javascript".to_owned(),
         }
     );
@@ -132,7 +131,6 @@ fn a_worker_rejects_ambiguous_or_reserved_page_inputs() {
         "path: archive, path_scope: archive, media_type: application/json, framing: json_array",
         "path: archive, media_type: application/json, framing: json_array, page_bytes: 4194305",
         "artifact: snapshot, path: archive, media_type: application/json, framing: json_array",
-        "artifact: snapshot, path_scope: scope, framing: json_array",
         "artifact: snapshot, media_type: application/json, framing: json_array",
         "artifact: runx_page, framing: json_array",
         "artifact: nested.snapshot, framing: json_array",

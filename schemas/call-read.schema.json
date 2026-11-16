@@ -13,12 +13,17 @@
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallReadEntry"
     },
     "calls": {
-      "description": "The calls under it: a script call's, at their positions.",
+      "description": "The calls under it: a script call's, at their positions, a page at a time.",
       "items": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallReadEntry"
       },
       "minItems": 1,
       "type": "array"
+    },
+    "next": {
+      "description": "The position its script's further calls are read from, passed as `call.read`'s `after`; absent once the page holds the last.",
+      "minimum": 0,
+      "type": "integer"
     },
     "run_id": {
       "minLength": 1,

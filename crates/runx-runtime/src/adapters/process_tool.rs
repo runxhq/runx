@@ -71,7 +71,7 @@ impl ProcessToolAdapter {
             // it, observed where it ran.
             Err(error @ ProcessSupervisorError::Supervise { .. }) => {
                 return Ok(AdapterProjection::from_started(started).failure(
-                    error.to_string(),
+                    crate::Failure::new("its process", error.to_string()),
                     Observations {
                         boundary: Some(process.boundary),
                         credentials: credential_delivery

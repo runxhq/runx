@@ -425,7 +425,7 @@ fn project_worker_outcome(
             AdapterProjection::from_duration_ms(elapsed_ms(started)).runtime_output(
                 InvocationStatus::Failure,
                 JsonValue::Null,
-                Some(message),
+                Some(crate::Failure::new("the script", message)),
                 worker_observations(outcome.execution_boundary),
             ),
         ),

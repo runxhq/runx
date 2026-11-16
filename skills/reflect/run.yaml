@@ -90,7 +90,7 @@ methods:
           operations: [store/key.inspect, store/events.append]
         max_calls: 200
         outputs:
-          kept: { type: object, description: "closed, each rule AGENTS.md holds, closed at memory's gate with its reason naming the commit that holds it, or declined with the person's reason; and the mark." }
+          kept: { type: object, description: "closed, each rule AGENTS.md holds, closed at memory's gate with its reason naming the commit that holds it, or declined with the person's reason; edited, each rule whose handle AGENTS.md holds under other words, its memory left active, with what the person said and what the file says; and the mark." }
   survey:
     description: Read the mark, the record since it, the workspace's standing memory and its revision, and lay out the checks before anything is judged. No model.
     inputs:
@@ -112,8 +112,9 @@ methods:
           head: { type: string, description: The workspace's HEAD commit the checks are bound to. }
           resistance: { type: array, items: { type: object }, description: "Every refused, declined and failed call, failed step, declined ask with its reason, unmet verdict, and run that sealed other than completed, each with its evidence." }
           sampled: { type: array, items: { type: object }, description: "The latest success of each skill whose manual the repository holds at HEAD, with its purpose, the manual's description, for the purpose-only reader." }
-          unheld: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md doesn't hold at HEAD." }
-          held: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md holds at HEAD, which keep closes." }
+          unheld: { type: array, items: { type: object }, description: "Each standing said:workspace entry AGENTS.md doesn't hold at HEAD, by its words or its handle." }
+          held: { type: array, items: { type: object }, description: "Each standing said:workspace entry AGENTS.md holds at HEAD as promotion writes it, its words, date and handle, which keep closes." }
+          edited: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md holds at HEAD under other words, with the line that holds it: its memory stays active." }
           mark: { type: object, description: "Where the mark moves once a verdict covers the window, and the runs still open there." }
           read_to_end: { type: boolean, description: "Every run in the window was read to its last event. False when the calls ran out first." }
   diagnose:

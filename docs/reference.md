@@ -126,12 +126,22 @@ rest, each with its digest and media type), and a refused or failed call's
 reason, so a host reads every call's outcome from the run alone. A load's
 event names the package it bound, `{ skill, package_digest }`, whether it
 completed or waits on the person's trust, and an agent step's event names the
-model its turn stated. A skill reads the same through the `run.read` tool,
+model its turn stated and what the turn used, the same whether it answered or
+failed: its model calls and tokens and, where its driver counts them, its
+rounds and each call the model made, with the rule an answer it refused broke.
+A run's trace, which `--diagnostics` prints, shows each step with that same
+record. A refusal or failure is said once, by what decided it: `{reason}
+({decided_by}, at {at}). Next: {next}`, where `at` is the address from the
+run down, as in `draft/0/bind`, and `Next` says what to do when there is
+something. Every surface says it so: the CLI, MCP, a run's seal, `run.read`,
+and a turn call's result. A skill reads the same through the `run.read` tool,
 which without a `run_id` reads the run making the call, and one call whole
 through `call.read`, by its address, `<step>/<index>`: its whole input, how it
 ended, the turn that made it, and, for a script call, each call its script
-made, written as a `runx.call_read.v1` artifact labelled with everything it
-holds and read in pages with `artifact.open` and `artifact.read`. The read's
+made, a page at a time, written as a `runx.call_read.v1` artifact labelled
+with everything it holds, its turn's earlier results among them, and read in
+pages with `artifact.open` and `artifact.read`; a read whose script made more
+names `next`, passed back as `after`. The read's
 `cursor`, passed back as `--after`, returns only what followed. A sealed run is
 terminal; inspect its receipt with `runx verify <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both
@@ -260,9 +270,17 @@ with `#method` offers that method under the skill's name; a ref without one
 offers its default method and each other method only a connection can work. The tools are fixed and, but for `call_cancel`, take a turn's address: `turn_list` shows
 everything the run waits on, each open turn as a line, `turn_status` reads a
 turn, `turn_read` reads what a locator of it names, `turn_call` makes a call in
-it and `turn_complete` ends it. `turn_status` gives the act's instructions and
-inputs whole and its context as an index: each entry's locator, type, summary,
-scope and size, never its data. `turn_read {turn, locator, offset?, limit?}`
+it and `turn_complete` ends it. `turn_status` gives the act's brief: its
+instructions and inputs whole, its context as an index, each entry's locator,
+type, summary, scope and size, never its data, the project's files it reads
+with its job (its conventions and each `AGENTS.md` and `CLAUDE.md` from the
+repository root down to the workspace), and its answer as one schema it can
+read cold. The brief holds nothing runx keeps for itself: no digest, run id,
+path on disk or governance text. A field of the answer that can hold one value
+only is runx's to state, so it isn't offered, and runx states it before it
+checks the answer. When runx drives a turn with `--drive`, it is the turn's
+host, and its model reads the same brief, the project's instructions included,
+within each file's sharing. `turn_read {turn, locator, offset?, limit?}`
 reads an entry by its locator (`current:<n>`, `historical:<n>`), an input of
 the act as `input:<name>`, or a call of the turn as `call:<index>`: a string
 as it is, anything else as JSON, a page of at most 32,000 characters with the
@@ -306,8 +324,11 @@ matches each by its position, so a crash or a wait never makes it twice. The
 script call waits on what its calls wait on, settles with what the script
 returns, and seals one receipt, whatever it ends as, naming each call it made
 that completed. `turn_status` lists the turn's own calls, and a run's history
-every call. `fs.inverse` names a call by its `call_id` to undo every edit made
-under it: its own, the calls its script made, or its child run's.
+every call. A script calls a skill by its name, never by a path, so a script
+kept elsewhere calls the same skill; a skill the allowance names by a path is
+the turn's to call itself. `fs.inverse` names a call by its `call_id` to undo
+every change made under it, in the order the run's journal holds them: its
+own, the edit calls its script made, or its child run's steps' and calls'.
 Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
 A host pins its own `call_id` on a call, unique within the turn: a call made

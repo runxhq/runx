@@ -181,8 +181,8 @@ impl fmt::Debug for InvocationOutput {
 pub enum InvocationDiagnostics {
     Runtime {
         duration_ms: u64,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        failure: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        failure: Option<crate::Failure>,
     },
     Process {
         duration_ms: u64,
@@ -207,13 +207,13 @@ impl InvocationOutput {
     }
 
     #[must_use]
-    pub fn runtime_failure(value: JsonValue, message: impl Into<String>, duration_ms: u64) -> Self {
+    pub fn runtime_failure(value: JsonValue, failure: crate::Failure, duration_ms: u64) -> Self {
         Self {
             status: InvocationStatus::Failure,
             value,
             diagnostics: InvocationDiagnostics::Runtime {
                 duration_ms,
-                failure: Some(message.into()),
+                failure: Some(failure),
             },
             observations: Observations::default(),
             ephemeral: EphemeralValue::default(),
@@ -307,22 +307,41 @@ impl InvocationOutput {
         }
     }
 
+    /// Why it failed, as what decided it said: its own failure, or what a
+    /// process said, decided by `process`, the skill it ran.
     #[must_use]
-    pub fn failure_message(&self) -> Option<String> {
+    pub fn failure(&self, process: &str) -> Option<crate::Failure> {
         if self.succeeded() {
             return None;
         }
         match &self.diagnostics {
-            InvocationDiagnostics::Runtime { failure, .. } => failure.clone(),
-            InvocationDiagnostics::Process { stderr, .. } if !stderr.trim().is_empty() => {
-                Some(stderr.clone())
+            InvocationDiagnostics::Runtime { failure, .. } => {
+                Some(failure.clone().unwrap_or_else(|| {
+                    crate::Failure::new(process, "it failed and said nothing of why")
+                }))
             }
-            InvocationDiagnostics::Process { .. } => match &self.value {
-                JsonValue::String(value) if !value.trim().is_empty() => Some(value.clone()),
-                JsonValue::Null => Some("process failed without diagnostic output".to_owned()),
-                value => serde_json::to_string(value).ok(),
-            },
+            InvocationDiagnostics::Process { stderr, .. } if !stderr.trim().is_empty() => {
+                Some(crate::Failure::new(process, stderr.trim()))
+            }
+            InvocationDiagnostics::Process { exit_code, .. } => Some(crate::Failure::new(
+                process,
+                match &self.value {
+                    JsonValue::String(value) if !value.trim().is_empty() => value.clone(),
+                    JsonValue::Null => match exit_code {
+                        Some(code) => format!("its process exited {code} and said nothing of why"),
+                        None => "its process failed and said nothing of why".to_owned(),
+                    },
+                    value => serde_json::to_string(value).unwrap_or_default(),
+                },
+            )),
         }
+    }
+
+    /// Why it failed, said once.
+    #[must_use]
+    pub fn failure_message(&self) -> Option<String> {
+        self.failure("its process")
+            .map(|failure| failure.to_string())
     }
 
     #[must_use]
@@ -333,13 +352,13 @@ impl InvocationOutput {
         }
     }
 
-    pub fn reject(&mut self, message: impl Into<String>) {
+    pub fn reject(&mut self, failure: crate::Failure) {
         self.status = InvocationStatus::Failure;
         self.value = JsonValue::Null;
         self.ephemeral = EphemeralValue::default();
         self.diagnostics = InvocationDiagnostics::Runtime {
             duration_ms: self.duration_ms(),
-            failure: Some(message.into()),
+            failure: Some(failure),
         };
     }
 

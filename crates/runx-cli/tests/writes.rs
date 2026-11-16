@@ -603,10 +603,12 @@ fn kept(root: &Path, authority: &str, stream: &str) -> TestResult<Vec<Value>> {
 
 /// Whether a read turn's call of the keeper was refused at its `step`,
 /// for `reason`, and so never ran past it.
+/// Whether the run was refused at its step `step`, as the refusal says
+/// where: its address ends at that step.
 fn refused_at(called: &Value, step: &str, reason: &str) -> bool {
     called["status"] != "completed"
         && called["reason"].as_str().is_some_and(|stopped| {
-            stopped.contains(&format!("workflow step '{step}'")) && stopped.contains(reason)
+            stopped.contains(&format!("/{step}).")) && stopped.contains(reason)
         })
 }
 
@@ -656,10 +658,7 @@ fn a_read_turn_without_its_hosts_term_keeps_nothing() -> TestResult {
     // A term that only reads the person's words: the read runs, the write
     // is refused by the term, and the wall never stood in its way.
     let called = keeper_call(&root, &reading, "keep", words)?;
-    assert!(
-        refused_at(&called, "append", "authority Write denied"),
-        "{called}"
-    );
+    assert!(refused_at(&called, "append", "Write denied"), "{called}");
     assert!(!called.to_string().contains("effects are none"), "{called}");
     assert_eq!(kept(&root, &reading, "said:personal")?, Vec::<Value>::new());
     std::fs::remove_dir_all(&root)?;

@@ -45,7 +45,9 @@ const MAX_FILE_BUNDLE_BYTES: u64 = FS_BUNDLE_MAX_BYTES;
 
 fn read(invocation: &NativeInvocation<'_, FileReadInput>) -> Result<FileRead, RuntimeError> {
     let inputs = invocation.inputs;
-    let root = root(READ_TOOL, &inputs.repo_root, &inputs.path_scope, invocation)?;
+    let (repo_root, path) = crate::services::rooted(&inputs.repo_root, &inputs.path);
+    let named = Named::of(&inputs.repo_root, repo_root);
+    let root = root(READ_TOOL, repo_root, invocation)?;
     if inputs.start_line == 0 {
         return Err(invalid_input(READ_TOOL, "start_line counts from 1"));
     }
@@ -55,7 +57,8 @@ fn read(invocation: &NativeInvocation<'_, FileReadInput>) -> Result<FileRead, Ru
     read_one(
         READ_TOOL,
         &root,
-        &inputs.path,
+        &named,
+        path,
         LineRange {
             start_line: inputs.start_line,
             line_count: inputs.line_count,
@@ -114,20 +117,23 @@ fn select_lines(text: &str, range: LineRange, max_bytes: usize) -> (String, bool
 fn read_bundle(
     invocation: &NativeInvocation<'_, FileReadBundleInput>,
 ) -> Result<FileReadBundle, RuntimeError> {
-    let root = root(
-        READ_BUNDLE_TOOL,
-        &invocation.inputs.repo_root,
-        &invocation.inputs.path_scope,
-        invocation,
-    )?;
-    let paths = bundle_paths(&invocation.inputs.paths)?;
+    let (repo_root, paths) = bundle_root(&invocation.inputs.repo_root, &invocation.inputs.paths)?;
+    let named = Named::of(&invocation.inputs.repo_root, repo_root);
+    let root = root(READ_BUNDLE_TOOL, repo_root, invocation)?;
+    let paths = bundle_paths(&paths)?;
     let max_bytes = max_bytes(READ_BUNDLE_TOOL, invocation.inputs.max_bytes)?;
     let report_missing = report_missing(&invocation.inputs.on_missing)?;
-    let (files, missing, total_bytes) =
-        read_bundle_files(&root, paths, max_bytes, report_missing, invocation.reach)?;
+    let (files, missing, total_bytes) = read_bundle_files(
+        &root,
+        &named,
+        paths,
+        max_bytes,
+        report_missing,
+        invocation.reach,
+    )?;
     let over = || invalid_input(READ_BUNDLE_TOOL, "bundle exceeded its bounds");
     Ok(FileReadBundle {
-        repo_root: root_name(READ_BUNDLE_TOOL, &root)?,
+        repo_root: root_name(READ_BUNDLE_TOOL, named.root)?,
         file_count: BoundedU64::new(files.len() as u64).ok_or_else(over)?,
         total_bytes: BoundedU64::new(total_bytes).ok_or_else(over)?,
         files: BoundedVec::new(files).ok_or_else(over)?,
@@ -158,6 +164,7 @@ fn report_missing(value: &str) -> Result<bool, RuntimeError> {
 
 fn read_bundle_files(
     root: &Path,
+    named: &Named<'_>,
     paths: &[String],
     max_bytes: usize,
     report_missing: bool,
@@ -177,6 +184,7 @@ fn read_bundle_files(
         let file = match read_one(
             READ_BUNDLE_TOOL,
             root,
+            named,
             path,
             LineRange::WHOLE,
             max_bytes,
@@ -185,7 +193,7 @@ fn read_bundle_files(
             Ok(file) => file,
             Err(_) if report_missing => {
                 missing.push(MissingFile {
-                    path: non_empty(READ_BUNDLE_TOOL, "path", path.as_str())?,
+                    path: non_empty(READ_BUNDLE_TOOL, "path", named.path(path))?,
                     reason: non_empty(
                         READ_BUNDLE_TOOL,
                         "reason",
@@ -217,6 +225,7 @@ fn read_bundle_files(
 fn read_one(
     tool: &str,
     root: &Path,
+    named: &Named<'_>,
     requested: &str,
     range: LineRange,
     max_bytes: usize,
@@ -238,8 +247,8 @@ fn read_one(
     }
     let (contents, truncated, total_lines) = select_lines(&file.contents, range, max_bytes);
     Ok(FileRead {
-        path: non_empty(tool, "path", file.relative_path)?,
-        repo_root: root_name(tool, root)?,
+        path: non_empty(tool, "path", named.path(&file.relative_path))?,
+        repo_root: root_name(tool, named.root)?,
         contents,
         bytes: file.bytes,
         truncated,
@@ -270,7 +279,7 @@ fn write(invocation: &NativeInvocation<'_, FileWriteInput>) -> Result<FileWrite,
     let write = first_write(WRITE_TOOL, &report)?;
     Ok(FileWrite {
         path: write.path,
-        repo_root: root_name(WRITE_TOOL, &root)?,
+        repo_root: root_name(WRITE_TOOL, &invocation.inputs.repo_root)?,
         bytes_written: write.bytes_written,
         content_digest: write.content_digest,
         before_digest: write.before_digest,
@@ -383,6 +392,10 @@ fn edited(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<Edited, Ru
     let file = read_one(
         EDIT_TOOL,
         &root,
+        &Named {
+            root: &inputs.repo_root,
+            package: false,
+        },
         &inputs.path,
         LineRange::WHOLE,
         MAX_FILE_READ_BYTES,
@@ -461,7 +474,7 @@ fn edit(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<FileEdit, Ru
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
     Ok(FileEdit {
-        repo_root: root_name(EDIT_TOOL, &edited.root)?,
+        repo_root: root_name(EDIT_TOOL, &invocation.inputs.repo_root)?,
         replacements: NonZeroU64::new(edited.replacements)
             .ok_or_else(|| invalid_input(EDIT_TOOL, "the edits replaced nothing"))?,
         content_digest: Digest::of(edited.contents.as_bytes()),
@@ -561,15 +574,67 @@ fn files_effect(
     )
 }
 
+/// How a read names what it read: by the root its caller named, and each
+/// path as the caller named it, a package's file by `$package/`.
+pub(super) struct Named<'a> {
+    pub(super) root: &'a str,
+    pub(super) package: bool,
+}
+
+impl<'a> Named<'a> {
+    /// How a read under `effective`, the root `named` resolved to, names
+    /// what it read.
+    pub(super) fn of(named: &'a str, effective: &str) -> Self {
+        Self {
+            root: named,
+            package: effective == crate::services::PACKAGE_BASE && named != effective,
+        }
+    }
+
+    pub(super) fn path(&self, relative: &str) -> String {
+        if self.package && relative == "." {
+            crate::services::PACKAGE_BASE.to_owned()
+        } else if self.package {
+            format!("{}/{relative}", crate::services::PACKAGE_BASE)
+        } else {
+            relative.to_owned()
+        }
+    }
+}
+
+/// A bundle's root and its paths below it: one root for the whole bundle,
+/// its package's when every path names one of its files by `$package/`.
+fn bundle_root<'a>(
+    repo_root: &'a str,
+    paths: &'a [String],
+) -> Result<(&'a str, Vec<String>), RuntimeError> {
+    let below = paths
+        .iter()
+        .map(|path| crate::services::package_path(path))
+        .collect::<Vec<_>>();
+    match (
+        below.iter().all(Option::is_some),
+        below.iter().any(Option::is_some),
+    ) {
+        (true, true) => Ok((
+            crate::services::PACKAGE_BASE,
+            below.into_iter().flatten().map(str::to_owned).collect(),
+        )),
+        (_, false) => Ok((repo_root, paths.to_vec())),
+        (false, true) => Err(invalid_input(
+            READ_BUNDLE_TOOL,
+            "a bundle reads from one root: every path names a file of the package by $package/, or none does",
+        )),
+    }
+}
+
 pub(super) fn root<I: ?Sized>(
     tool: &str,
     repo_root: &str,
-    path_scope: &str,
     invocation: &NativeInvocation<'_, I>,
 ) -> Result<std::path::PathBuf, RuntimeError> {
     crate::services::resolve_scoped_root(
         repo_root,
-        path_scope,
         invocation.env,
         invocation.skill_directory,
         invocation.reach,

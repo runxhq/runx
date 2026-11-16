@@ -4,9 +4,8 @@ inputs:
   objective: Unfollow accounts that do not follow back.
   principal: account:@example
   target: users
-  archive_base: skill
-  following_file: fixtures/data/archive-following.js
-  followers_file: fixtures/data/archive-follower.js
+  following_file: $package/fixtures/data/archive-following.js
+  followers_file: $package/fixtures/data/archive-follower.js
   predicate:
     non_mutual: true
 expect:

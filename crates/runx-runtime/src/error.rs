@@ -2,6 +2,7 @@ use runx_contracts::{AuthorityVerb, JsonObject, JsonValue};
 use thiserror::Error;
 
 use crate::credentials::CredentialDeliveryError;
+use crate::failure::Failure;
 
 #[derive(Debug, Error)]
 #[error(
@@ -177,52 +178,50 @@ impl Contradiction {
     }
 }
 
-#[derive(Debug, Error)]
+/// What stops a run, a step or a call. Each says itself as one `Failure`
+/// (`failure`), which its `Display` renders, so every surface says it once.
+#[derive(Debug)]
 pub enum RuntimeError {
-    #[error("runtime I/O failed while {context}: {source}")]
     Io {
         context: String,
-        #[source]
         source: std::io::Error,
     },
-    #[error("workflow parse failed: {0}")]
-    ParseWorkflow(#[from] runx_parser::ParseError),
-    #[error("workflow validation failed: {0}")]
-    ValidateWorkflow(#[from] runx_parser::ValidationError),
-    #[error("skill package validation failed: {0}")]
-    SkillPackage(#[from] runx_parser::SkillPackageError),
-    #[error("workspace environment failed: {0}")]
-    WorkspaceEnvironment(#[from] crate::WorkspaceEnvError),
-    #[error("JSON serialization failed while {context}: {source}")]
+    ParseWorkflow(runx_parser::ParseError),
+    ValidateWorkflow(runx_parser::ValidationError),
+    SkillPackage(runx_parser::SkillPackageError),
+    WorkspaceEnvironment(crate::WorkspaceEnvError),
     Json {
         context: String,
-        #[source]
         source: serde_json::Error,
     },
-    #[error("workflow step '{step_id}' is missing")]
-    StepMissing { step_id: String },
-    #[error("workflow step '{step_id}' has no skill target")]
-    StepMissingSkill { step_id: String },
-    #[error("workflow step '{step_id}' failed: {reason}")]
-    StepFailed { step_id: String, reason: String },
-    /// A step whose failure states its own record, such as an operation
-    /// whose provider answered with what contradicts the call. Its run
-    /// returns that record, as the call returned it.
-    #[error("workflow step '{step_id}' failed: {reason}")]
-    StepFailedRecorded {
+    StepMissing {
         step_id: String,
-        reason: String,
+    },
+    StepMissingSkill {
+        step_id: String,
+    },
+    /// What a tool, an operation, a skill or runx decided, said once.
+    Failed(Box<Failure>),
+    /// A failure that states its own record, such as an operation whose
+    /// provider answered with what contradicts the call. Its run returns
+    /// that record, as the call returned it.
+    FailedRecorded {
+        failure: Box<Failure>,
         record: JsonObject,
     },
-    #[error("workflow step '{step_id}' uses unsupported run type '{run_type}'")]
-    UnsupportedRunStep { step_id: String, run_type: String },
-    #[error("workflow step '{step_id}' is blocked: {reason}")]
-    WorkflowBlocked { step_id: String, reason: String },
+    UnsupportedRunStep {
+        step_id: String,
+        run_type: String,
+    },
+    WorkflowBlocked {
+        step_id: String,
+        reason: String,
+    },
     /// Its caller's host cancelled the call that ran this child run, which
     /// stops where it stands, at `step_id`, and seals killed.
-    #[error("its caller cancelled the call that ran it, at step '{step_id}'")]
-    Cancelled { step_id: String },
-    #[error("workflow step '{step_id}' is waiting for host resolution: {reason}")]
+    Cancelled {
+        step_id: String,
+    },
     ResolutionPending {
         step_id: String,
         reason: String,
@@ -235,13 +234,13 @@ pub enum RuntimeError {
     /// A step sealed a governed outcome other than `completed`: a turn
     /// that declined, deferred, blocked, or was superseded. The workflow stops
     /// there with that outcome; it is an outcome, not a fault.
-    #[error("workflow step '{step_id}' ended {}: {summary}", outcome.label())]
     StepClosed {
         step_id: String,
         outcome: runx_contracts::RunOutcome,
         /// The step receipt's own seal reason, which the workflow seal keeps.
         reason: Option<runx_contracts::SealReason>,
-        summary: String,
+        /// What ended it, as its child run said.
+        failure: Box<Failure>,
         /// Why a guard or an authority refused the child run the step ran,
         /// when one did, which its run returns to its caller.
         refusal: Option<Box<runx_contracts::JsonObject>>,
@@ -249,9 +248,7 @@ pub enum RuntimeError {
         /// they did.
         declined: Option<String>,
     },
-    #[error(transparent)]
     ContextEdgeUnresolved(Box<ContextEdgeUnresolvedError>),
-    #[error("authority {verb:?} denied workflow step '{step_id}': {reason}")]
     AuthorityDenied {
         verb: AuthorityVerb,
         step_id: String,
@@ -259,32 +256,33 @@ pub enum RuntimeError {
     },
     /// A person declined the approval the step waited on: their no, not a
     /// refusal of runx's.
-    #[error("a person declined workflow step '{step_id}': {reason}")]
-    Declined { step_id: String, reason: String },
+    Declined {
+        step_id: String,
+        reason: String,
+    },
     /// The run's money limit doesn't cover a call: it would spend more than
     /// is left, its cost can't be counted, or it quotes a charge in a run
     /// that states no limit. Nothing was sent.
-    #[error("workflow step '{step_id}' was refused for its cost: {reason}")]
-    CostLimitExceeded { step_id: String, reason: String },
+    CostLimitExceeded {
+        step_id: String,
+        reason: String,
+    },
     /// A step or call would take the root run's receipt tree past its
     /// bound; nothing ran.
-    #[error("workflow step '{step_id}' is refused: {}", receipt_budget_reason(*bound))]
-    ReceiptBudgetExceeded { step_id: String, bound: usize },
-    #[error("workflow step '{step_id}' failed planning: {reason}")]
-    WorkflowPlanningFailed { step_id: String, reason: String },
+    ReceiptBudgetExceeded {
+        step_id: String,
+        bound: usize,
+    },
+    WorkflowPlanningFailed {
+        step_id: String,
+        reason: String,
+    },
     #[cfg(feature = "agent")]
-    #[error(
-        "managed agent resolution '{request_id}' failed in workflow step '{step_id}': {source}"
-    )]
     ManagedAgentResolution {
         step_id: String,
         request_id: String,
-        #[source]
         source: Box<crate::adapters::agent::ManagedAgentError>,
     },
-    #[error(
-        "provider mutation was applied but independent readback is unavailable at workflow step '{step_id}': {reason}"
-    )]
     ProviderReadbackPending {
         step_id: String,
         reason: String,
@@ -294,54 +292,50 @@ pub enum RuntimeError {
     },
     /// The driver was asked to stop, so `step_id` was not admitted; the run
     /// stays where it is, and its next driver continues it.
-    #[error("run {run_id} stopped before {step_id}; runx resume continues it")]
-    Stopped { run_id: String, step_id: String },
-    #[error(transparent)]
-    RunRecord(#[from] crate::execution::run_record::RunRecordError),
-    #[error("unsupported adapter '{adapter_type}'")]
-    UnsupportedAdapter { adapter_type: String },
-    #[error("runtime engine failed while {context}: {source}")]
+    Stopped {
+        run_id: String,
+        step_id: String,
+    },
+    RunRecord(crate::execution::run_record::RunRecordError),
+    UnsupportedAdapter {
+        adapter_type: String,
+    },
     EngineFailure {
         context: &'static str,
-        #[source]
         source: Box<RuntimeError>,
     },
-    #[error("runtime engine invariant failed while {context}: {message}")]
     EngineInvariant {
         context: &'static str,
         message: String,
     },
-    #[error("this adapter does not run a {kind} executable")]
-    UnsupportedExecutable { kind: String },
-    #[error("method selection '{method}' is not supported by the native runtime yet")]
-    UnsupportedMethodSelection { method: String },
-    #[error("process invocation is invalid: {message}")]
-    InvalidProcessInvocation { message: String },
-    #[error(
-        "required environment variable(s) are unavailable: {}",
-        .names.join(", ")
-    )]
-    MissingEnvironment { names: Vec<String> },
-    #[error(
-        "environment variable(s) {} hold a connector credential, which a skill's declared environment never carries",
-        .names.join(", ")
-    )]
-    CredentialEnvironment { names: Vec<String> },
-    #[error("deterministic JavaScript worker failed: {message}")]
-    JavaScriptWorker { message: String },
-    #[error("credential delivery failed: {0}")]
-    CredentialDelivery(#[from] CredentialDeliveryError),
-    #[error("effect state failed while {context}: {message}")]
-    EffectState { context: String, message: String },
+    UnsupportedExecutable {
+        kind: String,
+    },
+    UnsupportedMethodSelection {
+        method: String,
+    },
+    InvalidProcessInvocation {
+        message: String,
+    },
+    MissingEnvironment {
+        names: Vec<String>,
+    },
+    CredentialEnvironment {
+        names: Vec<String>,
+    },
+    JavaScriptWorker {
+        message: String,
+    },
+    CredentialDelivery(CredentialDeliveryError),
+    EffectState {
+        context: String,
+        message: String,
+    },
     /// A claimed step taken further with nobody asked found nothing that
     /// settles its act: it waits on its retry as it did.
-    #[error(
-        "step {step_id} has not settled, and nothing custody holds of its act settles it, so it waits on its retry"
-    )]
-    Unsettled { step_id: String },
-    #[error(
-        "provider effect outcome is unknown for plan {plan_digest} with idempotency key {idempotency_key}: {reason}"
-    )]
+    Unsettled {
+        step_id: String,
+    },
     ProviderEffectUnknown {
         plan_digest: String,
         idempotency_key: String,
@@ -349,9 +343,6 @@ pub enum RuntimeError {
     },
     /// The provider answered and applied nothing: a definite, non-retryable
     /// refusal of the request, unlike an unknown outcome.
-    #[error(
-        "provider rejected the effect for plan {plan_digest} with idempotency key {idempotency_key} ({provider_code}, HTTP {http_status}): {reason}"
-    )]
     ProviderEffectRejected {
         plan_digest: String,
         idempotency_key: String,
@@ -367,26 +358,23 @@ pub enum RuntimeError {
     /// contradicts what the call expected: a definite outcome, whatever the
     /// provider applied. It names each field, what was expected and what it
     /// actually is, for a person to clean up, and offers no retry.
-    #[error(
-        "provider answer contradicts the call for plan {plan_digest} with idempotency key {idempotency_key}: {contradiction}"
-    )]
     ProviderEffectContradicted {
         plan_digest: String,
         idempotency_key: String,
         contradiction: Contradiction,
     },
-    #[error("skill '{skill_name}' failed: {message}")]
-    SkillFailed { skill_name: String, message: String },
     /// An authored skill change runx refused, at its bind or its apply: the
     /// step that refused it says which.
-    #[error("the skill change is refused: {message}")]
-    SkillChangeRefused { message: String },
+    SkillChangeRefused {
+        message: String,
+    },
     #[cfg(feature = "agent")]
-    #[error("model provider failed: {detail}")]
-    ModelProvider { detail: String },
-    #[error("continuation rejected: {reason}")]
-    ContinuationRejected { reason: String },
-    #[error("{declared_by} input contract failed at '{path}': {message}")]
+    ModelProvider {
+        detail: String,
+    },
+    ContinuationRejected {
+        reason: String,
+    },
     InputContract {
         step_id: Option<String>,
         declared_by: &'static str,
@@ -395,8 +383,53 @@ pub enum RuntimeError {
         message: String,
         accepted_schema: Box<runx_contracts::JsonValue>,
     },
-    #[error("receipt validation failed: {message}")]
-    ReceiptInvalid { message: String },
+    ReceiptInvalid {
+        message: String,
+    },
+}
+
+impl std::fmt::Display for RuntimeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.failure().fmt(formatter)
+    }
+}
+
+impl std::error::Error for RuntimeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io { source, .. } => Some(source),
+            Self::Json { source, .. } => Some(source),
+            Self::ParseWorkflow(source) => Some(source),
+            Self::ValidateWorkflow(source) => Some(source),
+            Self::SkillPackage(source) => Some(source),
+            Self::WorkspaceEnvironment(source) => Some(source),
+            Self::RunRecord(source) => Some(source),
+            Self::CredentialDelivery(source) => Some(source),
+            Self::EngineFailure { source, .. } => Some(source.as_ref()),
+            #[cfg(feature = "agent")]
+            Self::ManagedAgentResolution { source, .. } => Some(source.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+macro_rules! runtime_error_from {
+    ($($source:ty => $variant:ident),* $(,)?) => {
+        $(impl From<$source> for RuntimeError {
+            fn from(source: $source) -> Self {
+                Self::$variant(source)
+            }
+        })*
+    };
+}
+
+runtime_error_from! {
+    runx_parser::ParseError => ParseWorkflow,
+    runx_parser::ValidationError => ValidateWorkflow,
+    runx_parser::SkillPackageError => SkillPackage,
+    crate::WorkspaceEnvError => WorkspaceEnvironment,
+    crate::execution::run_record::RunRecordError => RunRecord,
+    CredentialDeliveryError => CredentialDelivery,
 }
 
 /// Why a step or call is refused at the run's receipt budget: it names the
@@ -406,6 +439,198 @@ pub(crate) fn receipt_budget_reason(bound: usize) -> String {
 }
 
 impl RuntimeError {
+    /// What `decided_by`, a tool, an operation, a skill or one of runx's
+    /// layers by the name its reader knows, decided, for `reason`.
+    pub(crate) fn failed(decided_by: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::Failed(Box::new(Failure::new(decided_by, reason)))
+    }
+
+    /// What runx decided of step `step_id`, for `reason`.
+    pub(crate) fn step_failed(step_id: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self::Failed(Box::new(
+            Failure::new("runx", reason).at_step(&step_id.into()),
+        ))
+    }
+
+    /// The failure as one sentence's parts: why, who decided, where, and
+    /// what to do next. Every surface renders this, and nothing else.
+    #[must_use]
+    pub fn failure(&self) -> Failure {
+        let runx = |reason: String| Failure::new("runx", reason);
+        let package = |reason: String| Failure::new("the skill's package", reason);
+        let provider = |reason: String| Failure::new("the provider", reason);
+        match self {
+            Self::Failed(failure) | Self::FailedRecorded { failure, .. } => failure.as_ref().clone(),
+            Self::StepClosed { failure, step_id, .. } => failure.as_ref().clone().at_step(step_id),
+            Self::Io { context, source } => runx(format!("I/O failed while {context}: {source}")),
+            Self::Json { context, source } => {
+                runx(format!("JSON failed while {context}: {source}"))
+            }
+            Self::ParseWorkflow(error) => package(format!("its workflow does not parse: {error}")),
+            Self::ValidateWorkflow(error) => package(format!("its workflow is invalid: {error}")),
+            Self::SkillPackage(error) => package(format!("it is invalid: {error}")),
+            Self::WorkspaceEnvironment(error) => {
+                runx(format!("the workspace's environment failed: {error}"))
+            }
+            Self::StepMissing { step_id } => runx(format!("the workflow has no step {step_id}")),
+            Self::StepMissingSkill { step_id } => {
+                package("the step names no skill".to_owned()).at_step(step_id)
+            }
+            Self::UnsupportedRunStep { step_id, run_type } => {
+                runx(format!("it runs no {run_type} step")).at_step(step_id)
+            }
+            Self::WorkflowBlocked { step_id, reason } => {
+                runx(format!("blocked: {reason}")).at_step(step_id)
+            }
+            Self::Cancelled { step_id } => {
+                Failure::new("its caller", "it cancelled the call that ran this run")
+                    .at_step(step_id)
+            }
+            Self::ResolutionPending {
+                step_id, reason, ..
+            } => runx(format!("it waits on its host: {reason}")).at_step(step_id),
+            Self::ContextEdgeUnresolved(error) => {
+                runx(error.to_string()).at_step(&error.to_step)
+            }
+            Self::AuthorityDenied {
+                verb,
+                step_id,
+                reason,
+            } => Failure::new("the run's authority", format!("{verb:?} denied: {reason}"))
+                .at_step(step_id),
+            Self::Declined { step_id, reason } => {
+                Failure::new("a person", format!("declined: {reason}")).at_step(step_id)
+            }
+            Self::CostLimitExceeded { step_id, reason } => {
+                Failure::new("the run's cost limit", reason.clone()).at_step(step_id)
+            }
+            Self::ReceiptBudgetExceeded { step_id, bound } => {
+                Failure::new("the run's receipt budget", receipt_budget_reason(*bound))
+                    .at_step(step_id)
+            }
+            Self::WorkflowPlanningFailed { step_id, reason } => {
+                runx(format!("planning failed: {reason}")).at_step(step_id)
+            }
+            #[cfg(feature = "agent")]
+            Self::ManagedAgentResolution {
+                step_id, source, ..
+            } => {
+                let failure = Failure::new("runx's agent", source.to_string()).at_step(step_id);
+                match source.reason() {
+                    runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted => failure.next(
+                        "give it a narrower task, or more rounds with --drive-rounds",
+                    ),
+                    _ => failure,
+                }
+            }
+            Self::ProviderReadbackPending {
+                step_id, reason, ..
+            } => provider(format!(
+                "the change was applied, and reading it back is unavailable: {reason}"
+            ))
+            .at_step(step_id),
+            Self::Stopped { run_id, step_id } => {
+                runx(format!("run {run_id} stopped before {step_id}"))
+                    .next(format!("runx resume {run_id} continues it"))
+            }
+            Self::RunRecord(error) => Failure::new("the run's record", error.to_string()),
+            Self::UnsupportedAdapter { adapter_type } => {
+                runx(format!("it runs no {adapter_type} adapter"))
+            }
+            Self::EngineFailure { context, source } => {
+                let failure = source.failure();
+                Failure {
+                    reason: format!("while {context}, {}", failure.reason),
+                    ..failure
+                }
+            }
+            Self::EngineInvariant { context, message } => {
+                runx(format!("an invariant failed while {context}: {message}"))
+            }
+            Self::UnsupportedExecutable { kind } => {
+                runx(format!("this adapter runs no {kind} executable"))
+            }
+            Self::UnsupportedMethodSelection { method } => {
+                runx(format!("it runs no method selection {method} yet"))
+            }
+            Self::InvalidProcessInvocation { message } => {
+                runx(format!("the process invocation is invalid: {message}"))
+            }
+            Self::MissingEnvironment { names } => Failure::new(
+                "the skill's environment",
+                format!("it needs {}, which is unset", names.join(", ")),
+            )
+            .next(format!("set {} and run it again", names.join(", "))),
+            Self::CredentialEnvironment { names } => runx(format!(
+                "{} hold a connector credential, which a skill's declared environment never carries",
+                names.join(", ")
+            )),
+            Self::JavaScriptWorker { message } => Failure::new("the worker", message.clone()),
+            Self::CredentialDelivery(error) => {
+                Failure::new("the credential's delivery", error.to_string())
+            }
+            Self::EffectState { context, message } => {
+                runx(format!("effect state failed while {context}: {message}"))
+            }
+            Self::Unsettled { step_id } => runx(
+                "it has not settled, and nothing custody holds of its act settles it, so it waits on its retry"
+                    .to_owned(),
+            )
+            .at_step(step_id),
+            Self::ProviderEffectUnknown {
+                plan_digest,
+                idempotency_key,
+                reason,
+            } => provider(format!(
+                "the effect's outcome is unknown for plan {plan_digest} with idempotency key {idempotency_key}: {reason}"
+            )),
+            Self::ProviderEffectRejected {
+                plan_digest,
+                idempotency_key,
+                provider_code,
+                http_status,
+                reason,
+                ..
+            } => provider(format!(
+                "it rejected the effect for plan {plan_digest} with idempotency key {idempotency_key} ({provider_code}, HTTP {http_status}): {reason}"
+            )),
+            Self::ProviderEffectContradicted {
+                plan_digest,
+                idempotency_key,
+                contradiction,
+            } => provider(format!(
+                "its answer contradicts the call for plan {plan_digest} with idempotency key {idempotency_key}: {contradiction}"
+            )),
+            Self::SkillChangeRefused { message } => {
+                runx(format!("the skill change is refused: {message}"))
+            }
+            #[cfg(feature = "agent")]
+            Self::ModelProvider { detail } => Failure::new("the model provider", detail.clone()),
+            Self::ContinuationRejected { reason } => runx(reason.clone()),
+            Self::InputContract {
+                step_id,
+                declared_by,
+                input,
+                path,
+                message,
+                ..
+            } => {
+                let failure = Failure::new(
+                    format!("the {declared_by}'s input contract"),
+                    format!("input {input} at {path}: {message}"),
+                )
+                .next(format!("pass {input} as the contract's schema accepts it"));
+                match step_id {
+                    Some(step_id) => failure.at_step(step_id),
+                    None => failure,
+                }
+            }
+            Self::ReceiptInvalid { message } => {
+                runx(format!("the receipt is invalid: {message}"))
+            }
+        }
+    }
+
     pub(crate) fn io(context: impl Into<String>, source: std::io::Error) -> Self {
         Self::Io {
             context: context.into(),
@@ -471,8 +696,8 @@ impl RuntimeError {
             | Self::WorkspaceEnvironment(_)
             | Self::Json { .. }
             | Self::StepMissingSkill { .. }
-            | Self::StepFailed { .. }
-            | Self::StepFailedRecorded { .. }
+            | Self::Failed(_)
+            | Self::FailedRecorded { .. }
             | Self::UnsupportedRunStep { .. }
             | Self::WorkflowBlocked { .. }
             | Self::Cancelled { .. }
@@ -493,7 +718,6 @@ impl RuntimeError {
             | Self::CredentialDelivery(_)
             | Self::ProviderEffectRejected { .. }
             | Self::ProviderEffectContradicted { .. }
-            | Self::SkillFailed { .. }
             | Self::SkillChangeRefused { .. } => false,
             Self::InputContract { .. } => false,
             #[cfg(feature = "agent")]
@@ -586,7 +810,7 @@ impl RuntimeError {
                     projection.insert("mismatches".to_owned(), conflict.record());
                 }
             }
-            Self::StepFailedRecorded { record, .. } => {
+            Self::FailedRecorded { record, .. } => {
                 projection = record.clone();
             }
             Self::ProviderEffectContradicted { contradiction, .. } => {
@@ -681,10 +905,9 @@ impl RuntimeError {
     /// prose or nested capability names.
     pub(crate) fn workflow_step_id(&self) -> Option<&str> {
         match self {
+            Self::Failed(failure) | Self::FailedRecorded { failure, .. } => failure.step(),
             Self::StepMissing { step_id }
             | Self::StepMissingSkill { step_id }
-            | Self::StepFailed { step_id, .. }
-            | Self::StepFailedRecorded { step_id, .. }
             | Self::UnsupportedRunStep { step_id, .. }
             | Self::WorkflowBlocked { step_id, .. }
             | Self::Cancelled { step_id }
@@ -789,45 +1012,29 @@ impl RuntimeError {
                 accepted_schema,
             },
             error if error.is_fatal_step_fault() => error,
-            // Already a failed step: scoped again, never wrapped in itself.
-            Self::StepFailed { reason, .. } => Self::StepFailed {
-                step_id: step_id.to_owned(),
-                reason,
-            },
-            Self::StepFailedRecorded { reason, record, .. } => Self::StepFailedRecorded {
-                step_id: step_id.to_owned(),
-                reason,
+            // Already a failure: placed at the step once, never wrapped.
+            Self::Failed(failure) => Self::Failed(Box::new(failure.at_step(step_id))),
+            Self::FailedRecorded { failure, record } => Self::FailedRecorded {
+                failure: Box::new(failure.at_step(step_id)),
                 record,
             },
-            error => Self::StepFailed {
-                step_id: step_id.to_owned(),
-                reason: error.to_string(),
-            },
+            error => Self::Failed(Box::new(error.failure().at_step(step_id))),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::RuntimeError;
+    use super::{Failure, RuntimeError};
 
     /// A failed step names its step once, however many layers scope it.
     #[test]
     fn a_step_error_scoped_again_is_never_wrapped_in_itself() {
-        let failed = RuntimeError::StepFailed {
-            step_id: "answer".to_owned(),
-            reason: "the turn requires fresh_context".to_owned(),
-        };
+        let failed = RuntimeError::failed("data.digest", "the turn requires fresh_context");
         let scoped = failed.at_workflow_step("answer").at_workflow_step("answer");
-        let message = scoped.to_string();
         assert_eq!(
-            message.matches("workflow step 'answer'").count(),
-            1,
-            "{message}"
-        );
-        assert!(
-            message.ends_with(": the turn requires fresh_context"),
-            "{message}"
+            scoped.to_string(),
+            "the turn requires fresh_context (data.digest, at answer)."
         );
     }
 
@@ -839,9 +1046,11 @@ mod tests {
             "code".to_owned(),
             runx_contracts::JsonValue::String("provider_contradicted".to_owned()),
         )]);
-        let failed = RuntimeError::StepFailedRecorded {
-            step_id: "send".to_owned(),
-            reason: "the provider's answer contradicts the call".to_owned(),
+        let failed = RuntimeError::FailedRecorded {
+            failure: Box::new(Failure::new(
+                "the provider",
+                "the provider's answer contradicts the call",
+            )),
             record: record.clone(),
         };
         let scoped = failed.at_workflow_step("outer");

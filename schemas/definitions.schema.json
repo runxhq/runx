@@ -9632,6 +9632,25 @@
       "title": "TurnContextLine",
       "type": "object"
     },
+    "TurnFile": {
+      "additionalProperties": false,
+      "description": "One file a turn reads: where it is in the repository, and what it says.",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ],
+      "title": "TurnFile",
+      "type": "object"
+    },
     "TurnHost": {
       "anyOf": [
         {
@@ -9681,6 +9700,28 @@
       "description": "The host that answered a turn, as its answer records it. One run's turns can each be answered by a different host over its life, so the host is recorded per answer, never per run.",
       "title": "TurnHost"
     },
+    "TurnProfiles": {
+      "additionalProperties": false,
+      "description": "The project's files a turn reads, as its agent reads them.",
+      "properties": {
+        "conventions": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnFile"
+        },
+        "instructions": {
+          "description": "Each `AGENTS.md` and `CLAUDE.md` from the repository root down to the workspace, in that order.",
+          "items": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnFile"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "memory": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnFile"
+        }
+      },
+      "title": "TurnProfiles",
+      "type": "object"
+    },
     "TurnRequirement": {
       "description": "What a turn can need from the agent harness that works it.",
       "enum": [
@@ -9723,8 +9764,16 @@
     },
     "TurnUsage": {
       "additionalProperties": false,
-      "description": "What a turn's answer cost in calls to its model, as the driver that asked the model counted them: every call, a reply it asked for again included. The token counts are the sums the provider reported, both or neither: a call that reported none leaves both out, because a sum missing a call would read as the whole. runx's managed agent counts the pass that answered.",
+      "description": "What a turn used, as the driver that asked its model counted it: every call to the model, a reply it asked for again included, and, where its driver counts them, its rounds and each call the model made, with how its driver took it. A turn records the same whether it answers or fails. The token counts are the sums the provider reported, both or neither: a call that reported none leaves both out, because a sum missing a call would read as the whole. runx's own driver counts the pass that answered.",
       "properties": {
+        "calls": {
+          "description": "Each call the model made, in order, as its driver took it.",
+          "items": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnUsageCall"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
         "input_tokens": {
           "minimum": 0,
           "type": "integer"
@@ -9736,12 +9785,47 @@
         "output_tokens": {
           "minimum": 0,
           "type": "integer"
+        },
+        "rounds": {
+          "description": "The rounds its driver took: each reply of the model's it acted on.",
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "required": [
         "model_calls"
       ],
       "title": "TurnUsage",
+      "type": "object"
+    },
+    "TurnUsageCall": {
+      "additionalProperties": false,
+      "description": "One call a turn's model made, as its driver took it: the tool it named, how it ended, and, for an answer its driver refused, the rule it broke.",
+      "properties": {
+        "kind": {
+          "description": "What its driver made of it, where it says: an answer whose output broke its contract, for one.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "rule": {
+          "description": "The rule an answer its driver refused broke, in its schema's frame.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tool": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "status"
+      ],
+      "title": "TurnUsageCall",
       "type": "object"
     },
     "TurnView": {
@@ -9787,22 +9871,20 @@
     },
     "TurnViewEnvelope": {
       "additionalProperties": false,
-      "description": "An act's envelope as its turn's agent reads it: whole, except that each context entry is a line of an index, its data read by `turn_read`. The act's instructions and inputs stay whole, as the act itself; each input also reads by its ref.",
+      "description": "An act's envelope as its turn's agent reads it: its brief. It holds the act's job and what it was given, and none of what runx keeps for itself: no digest, no run id, no path on disk, no governance text. Each context entry is a line of an index, its data read by `turn_read`; the act's instructions and inputs stay whole, as the act itself, and each input also reads by its ref. The answer is offered as one schema it can read cold.",
       "properties": {
         "act": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallAct"
         },
         "context": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/AgentContextProfiles"
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnProfiles",
+          "description": "The project's files a turn reads with its job: its conventions, its instructions, and the memory an older envelope recorded."
         },
         "current_context": {
           "items": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnContextLine"
           },
           "type": "array"
-        },
-        "execution_location": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ExecutionLocation"
         },
         "historical_context": {
           "items": {
@@ -9818,57 +9900,35 @@
           "minLength": 1,
           "type": "string"
         },
-        "instructions_digest": {
-          "minLength": 1,
-          "type": "string"
-        },
         "output": {
           "additionalProperties": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/OutputField"
           },
           "type": "object"
         },
-        "output_schema": {},
-        "provenance": {
-          "items": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProvenanceEntry"
-          },
-          "type": "array"
-        },
-        "requirements": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/AgentExecutionRequirements"
-        },
-        "run_id": {
-          "minLength": 1,
-          "type": "string"
+        "output_schema": {
+          "description": "The answer as one self-contained schema."
         },
         "skill": {
+          "description": "The skill whose step the turn is.",
           "minLength": 1,
           "type": "string"
         },
         "step_id": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "trust_boundary": {
+          "description": "The step the turn is, which its calls' addresses begin with.",
           "minLength": 1,
           "type": "string"
         },
         "voice_profile": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ProfileFile"
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnFile"
         }
       },
       "required": [
-        "run_id",
         "skill",
-        "instructions_digest",
         "instructions",
         "inputs",
-        "requirements",
         "current_context",
-        "historical_context",
-        "provenance",
-        "trust_boundary"
+        "historical_context"
       ],
       "title": "TurnViewEnvelope",
       "type": "object"

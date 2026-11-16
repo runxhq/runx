@@ -171,12 +171,6 @@ methods:
         default: .
         description: Workspace-relative or explicit absolute root containing the files.
         optional: true
-      path_scope:
-        type: string
-        default: workspace
-        description: Root ownership boundary used by the native filesystem reader.
-        enum: [workspace, skill]
-        optional: true
       max_bytes:
         type: integer
         default: 500000
@@ -192,14 +186,12 @@ methods:
       - objective: Identify the strongest architecture decision in the local design notes.
         paths: [docs/architecture.md, docs/constraints.md]
         repo_root: .
-        path_scope: workspace
     result_from: [analyze]
     steps:
       - id: read-local
         tool: fs.read_bundle
         inputs:
           repo_root: $input.repo_root
-          path_scope: $input.path_scope
           paths: $input.paths
           max_bytes: $input.max_bytes
           on_missing: error

@@ -595,7 +595,7 @@ where
     Err(AgentLoopFailure::new(
         AgentLoopFailureReason::RoundBudgetExhausted,
         format!(
-            "Managed agent exceeded {} tool-call rounds without finalizing.",
+            "its agent made {} rounds of calls and never answered",
             config.max_rounds
         ),
         telemetry(
@@ -676,6 +676,14 @@ mod tests {
 
     use super::*;
     use runx_contracts::{JsonObject, JsonValue, OutputField};
+
+    /// What a pass's record states it used, as its receipt holds it.
+    fn usage_record(telemetry: &AgentExecutionTelemetry) -> JsonObject {
+        match JsonValue::from_serialize(&telemetry.usage()) {
+            Ok(JsonValue::Object(usage)) => usage,
+            _ => JsonObject::new(),
+        }
+    }
 
     #[test]
     fn exact_output_contract_error_identifies_nested_field() -> Result<(), String> {
@@ -1220,7 +1228,7 @@ mod tests {
                 .ok_or("the refused answer left no trace")?;
             assert_eq!(refused.rule.as_deref(), Some("/properties/draft/type"));
             let projection =
-                serde_json::to_string(&end.telemetry.public_projection()).unwrap_or_default();
+                serde_json::to_string(&usage_record(&end.telemetry)).unwrap_or_default();
             assert!(projection.contains("/properties/draft/type"));
             assert!(!projection.contains("rejected-payload"));
         }
@@ -1470,7 +1478,7 @@ mod tests {
             error.reason(),
             AgentLoopFailureReason::EmptyTurnBudgetExhausted
         );
-        let projection = error.telemetry().public_projection();
+        let projection = usage_record(error.telemetry());
         assert_eq!(
             projection.get("model_calls"),
             Some(&JsonValue::Number(4_u64.into()))
@@ -1512,7 +1520,7 @@ mod tests {
         assert_eq!(end.telemetry.model_calls, Some(3));
         assert_eq!(end.telemetry.input_tokens, None);
         assert_eq!(end.telemetry.output_tokens, None);
-        let projection = end.telemetry.public_projection();
+        let projection = usage_record(&end.telemetry);
         assert!(
             !projection.contains_key("input_tokens") && !projection.contains_key("output_tokens")
         );
@@ -1537,10 +1545,10 @@ mod tests {
             _input: &JsonValue,
         ) -> Result<ToolOutcome, RuntimeError> {
             self.calls.set(self.calls.get() + 1);
-            Err(RuntimeError::SkillFailed {
-                skill_name: "managed-tool".to_owned(),
-                message: "executor down".to_owned(),
-            })
+            Err(RuntimeError::failed(
+                "managed-tool".to_owned(),
+                "executor down".to_owned(),
+            ))
         }
     }
 
@@ -1596,10 +1604,10 @@ mod tests {
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
             ) -> Result<ModelReply, RuntimeError> {
-                Err(RuntimeError::SkillFailed {
-                    skill_name: "provider".to_owned(),
-                    message: "secret prompt and raw provider body".to_owned(),
-                })
+                Err(RuntimeError::failed(
+                    "provider".to_owned(),
+                    "secret prompt and raw provider body".to_owned(),
+                ))
             }
         }
         let config = AgentLoopConfig {
@@ -1742,7 +1750,7 @@ mod tests {
         let Err(error) = result else {
             return Err("an unoffered model tool did not fail closed".into());
         };
-        let projection = JsonValue::Object(error.telemetry().public_projection());
+        let projection = JsonValue::Object(usage_record(error.telemetry()));
         let serialized = serde_json::to_string(&projection).unwrap_or_default();
 
         assert!(!serialized.contains(SENSITIVE_MARKER));

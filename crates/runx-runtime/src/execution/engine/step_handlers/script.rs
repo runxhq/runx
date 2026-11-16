@@ -168,7 +168,14 @@ where
                 .map_err(|source| RuntimeError::json("reading a script's output", source))?,
             0,
         ),
-        Err(message) => InvocationOutput::runtime_failure(JsonValue::Null, message, 0),
+        // A script that ends on a call's failure passes that failure on,
+        // said where its call made it; any other end is the script's own.
+        Err(message) => InvocationOutput::runtime_failure(
+            JsonValue::Null,
+            passed_on(recorded, ledger.step_id(), &message)
+                .unwrap_or_else(|| crate::Failure::new("the script", message)),
+            0,
+        ),
     };
     let projection = match turn_script {
         Some(_) if output.succeeded() => {
@@ -242,14 +249,12 @@ where
     // What a `ctx.now()` past the record reads, and what a wait is due by:
     // the run's clock, as each pass or settlement reaches the script.
     let now = || {
-        runtime
-            .options
-            .clock
-            .now_millis()
-            .ok_or_else(|| RuntimeError::StepFailed {
-                step_id: step_id.to_owned(),
-                reason: "the run's clock reads no time for ctx.now()".to_owned(),
-            })
+        runtime.options.clock.now_millis().ok_or_else(|| {
+            RuntimeError::step_failed(
+                step_id.to_owned(),
+                "the run's clock reads no time for ctx.now()".to_owned(),
+            )
+        })
     };
     // An input past the inline bound reaches the script by reference, an
     // array's item by item. It's given before any recorded call goes
@@ -846,7 +851,7 @@ where
             )
         }
         CallOutcome::Completed(run) => rejected(ScriptRejection::Failed, output_error(run)),
-        CallOutcome::Failed(reason) => rejected(ScriptRejection::Failed, reason.clone()),
+        CallOutcome::Failed(failure) => rejected(ScriptRejection::Failed, failure.to_string()),
         // A person left it failed: the script catches it by its code.
         CallOutcome::RetryDeclined => ScriptCallOutcome::Rejected {
             reason: ScriptRejection::Failed,
@@ -1060,4 +1065,28 @@ where
         ),
         ScriptCallTarget::Now { .. } => return Ok(None),
     }))
+}
+
+/// The failure of the call a script ended on, when its message is that
+/// call's and no other's: placed at the call, below the script's own step.
+/// Two calls that failed alike leave it the script's own, never guessed.
+fn passed_on(
+    recorded: &[crate::execution::run_record::RecordedCall],
+    step_id: &str,
+    message: &str,
+) -> Option<crate::Failure> {
+    let mut matching = recorded.iter().filter_map(|call| {
+        let failure = match &call.outcome {
+            CallOutcome::Failed(failure) => failure.as_ref().clone(),
+            CallOutcome::Completed(run) if !run.outcome.succeeded() => super::run_failure(run),
+            _ => return None,
+        };
+        (failure.to_string() == message).then(|| {
+            failure.at_step(&crate::execution::run_record::call_step_id(
+                step_id, call.index,
+            ))
+        })
+    });
+    let only = matching.next()?;
+    matching.next().is_none().then_some(only)
 }

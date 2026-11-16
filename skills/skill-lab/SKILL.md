@@ -539,8 +539,13 @@ For `save`, `script_call` is the call read whole, as an artifact: open it with
 `artifact.open` and read its pages with `artifact.read`. It holds the script's
 `source` and `inputs`, how the call ended and what it returned, each call the
 script made, at its position, with its target, input and outcome, and the turn
-it was made in. A turn's script makes its calls by their real names, as a
-package's script does, so the module is the source byte for byte. Declare the
+it was made in. A script that made many calls is read a page of calls at a
+time: when the read names `next`, `call.read` with `after` set to it reads the
+rest. A turn's script makes its calls by their real names, a skill's by its
+name or its directory from the workspace root, as a package's script does, so
+its source is the saved package's module as it is. runx writes that module,
+`script.mjs`, from the call byte for byte: name it `module: script.mjs` in
+`run.yaml` and leave the file out of the draft. Declare the
 step's `calls` from what the script needs, never from what it reached: a
 refused call the script caught is no dependency. State its inputs and outputs
 as contracts, not as types read off one sample. Write a test that runs the

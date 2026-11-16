@@ -98,7 +98,7 @@ fn run(
     ) {
         Ok(inputs) => inputs,
         Err(error) => {
-            return Ok(failure(error.to_string(), started));
+            return Ok(failure(error.into_runtime_error().failure(), started));
         }
     };
     let invocation = SkillInvocation {

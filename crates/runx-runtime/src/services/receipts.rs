@@ -121,8 +121,5 @@ impl ReceiptServices {
 }
 
 fn receipt_store_error(message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "receipt store".to_owned(),
-        message: message.into(),
-    }
+    RuntimeError::failed("receipt store".to_owned(), message.into())
 }

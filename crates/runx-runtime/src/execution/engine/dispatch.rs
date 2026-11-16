@@ -46,12 +46,8 @@ where
     let child_act = match request.step.skill() {
         Some(_) => materialize_step_act_with_index(request.step, prior_run_index)?
             .map(|act| {
-                runx_contracts::CallAct::parse(&runx_contracts::JsonValue::Object(act)).map_err(
-                    |reason| RuntimeError::StepFailed {
-                        step_id: request.step.id.clone(),
-                        reason,
-                    },
-                )
+                runx_contracts::CallAct::parse(&runx_contracts::JsonValue::Object(act))
+                    .map_err(|reason| RuntimeError::step_failed(request.step.id.clone(), reason))
             })
             .transpose()?,
         None => None,

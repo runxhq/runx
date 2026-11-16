@@ -336,8 +336,8 @@ confirmed.
 
 - `read`: `query` (required), `params` (`user_id`, `q`, `pagination_token`),
   `max_items`.
-- `read-archive`: `query` and relative `archive_file` (required),
-  `archive_base` (`workspace` default, or `skill` for packaged fixtures), and
+- `read-archive`: `query` and `archive_file` (required), from the workspace
+  root or as `$package/<path>` for a file this package carries, and
   `max_items`.
 - `plan`: `objective` (required), `principal` (required), `evidence_json`,
   `operator_policy`, `brand_context`, `operator_context`.
@@ -346,7 +346,7 @@ confirmed.
   `followers_file` (users), `predicate` (required: posts take `rt_of`,
   `is_retweet`, `text_prefix`, `text_contains`, `max_likes`, `max_reposts`,
   `before_year`, `after_year`; users take `non_mutual` or `user_ids`),
-  `archive_base`, `max_acts`.
+  `max_acts`.
 - `execute`: `plan_digest` (required), optional `plan_json` on the first call
   and `max_acts` (1–50). Native
   digest verification precedes saving the plan or provider effects. Version,

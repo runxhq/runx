@@ -71,13 +71,13 @@ fn invoke_effect_tool(
 ) -> Result<super::super::EffectToolOutput, crate::RuntimeError> {
     let tool = request.tool;
     let output = effect.invoke_tool(request).unwrap_or_else(|| {
-        Err(crate::RuntimeError::SkillFailed {
-            skill_name: tool.to_owned(),
-            message: format!(
+        Err(crate::RuntimeError::failed(
+            tool.to_owned(),
+            format!(
                 "effect family {} declares tool {tool} but does not implement it",
                 effect.family()
             ),
-        })
+        ))
     })?;
     capability.validate_output(&output)?;
     effect.partition_tool_output(request, output)

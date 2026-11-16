@@ -2,8 +2,7 @@ name: research-brief-drafts-from-native-local-evidence
 method: local-files
 inputs:
   objective: Decide where generic evidence admission belongs.
-  paths: [fixtures/local-architecture-evidence.txt]
-  path_scope: skill
+  paths: [$package/fixtures/local-architecture-evidence.txt]
   audience: operators
   channel: brief
 host:

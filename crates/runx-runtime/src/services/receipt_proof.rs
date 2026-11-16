@@ -135,10 +135,7 @@ fn valid_receipt_id(value: &str) -> bool {
 }
 
 fn invalid(message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: TOOL.to_owned(),
-        message: message.into(),
-    }
+    RuntimeError::failed(TOOL.to_owned(), message.into())
 }
 
 #[cfg(test)]

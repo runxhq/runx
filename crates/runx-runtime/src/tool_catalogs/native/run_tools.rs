@@ -157,6 +157,8 @@ struct CallReadInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     run_id: Option<String>,
     call: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after: Option<u32>,
 }
 
 impl CapabilityInput for CallReadInput {}
@@ -169,6 +171,10 @@ const CALL_FIELDS: &[CapabilityField] = &[
     field(
         "call",
         "The call's address in its run, <step>/<index>, as run.read's events name it.",
+    ),
+    field(
+        "after",
+        "For a script call, the position its calls are read from: the next an earlier read gave.",
     ),
 ];
 
@@ -191,13 +197,14 @@ static CALL: TypedNativeCapability<CallReadInput, runx_contracts::Artifact> =
 
 pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&LIST, &READ, &CALL];
 
+/// What a reader does with a call address `call.read` can't read.
+const ADDRESS_NEXT: &str =
+    "pass call as <step>/<index>, the address run.read's events give each call";
+
 fn call(
     invocation: &NativeInvocation<'_, CallReadInput>,
 ) -> Result<runx_contracts::Artifact, RuntimeError> {
-    let failed = |message: String| RuntimeError::SkillFailed {
-        skill_name: "call.read".to_owned(),
-        message,
-    };
+    let failed = |message: String| RuntimeError::failed("call.read".to_owned(), message);
     let run_id = match (&invocation.inputs.run_id, invocation.call) {
         (Some(run_id), _) => run_id.as_str(),
         (None, Some(call)) => crate::execution::run_record::root_run_id(&call.run_id),
@@ -212,15 +219,26 @@ fn call(
         .rsplit_once('/')
         .and_then(|(step, index)| Some((step, index.parse::<u32>().ok()?)))
         .filter(|(step, _)| !step.is_empty())
-        .ok_or_else(|| failed(format!("call {address} is no <step>/<index>")))?;
+        .ok_or_else(|| {
+            RuntimeError::Failed(Box::new(
+                crate::Failure::new("call.read", format!("call {address} is no <step>/<index>"))
+                    .next(ADDRESS_NEXT),
+            ))
+        })?;
     let (read, labels) = read_call(
         invocation.env,
         invocation.skill_directory,
         run_id,
         step_id,
         index,
+        invocation.inputs.after.unwrap_or(0),
     )
-    .map_err(|error| failed(error.to_string()))?;
+    .map_err(|error| match error {
+        crate::execution::run_record::RunRecordError::UnknownCall { .. } => RuntimeError::Failed(
+            Box::new(crate::Failure::new("call.read", error.to_string()).next(ADDRESS_NEXT)),
+        ),
+        error => failed(error.to_string()),
+    })?;
     let value = JsonValue::from_serialize(&read)
         .map_err(|error| failed(format!("writing the call: {error}")))?;
     // Kept under the run reading it, when it's one, or the run it reads.
@@ -231,7 +249,11 @@ fn call(
         &artifacts,
         holder,
         "calls",
-        &format!("{run_id}-{step_id}-{index}").replace('/', "_"),
+        &match invocation.inputs.after {
+            Some(after) if after > 0 => format!("{run_id}-{step_id}-{index}-from-{after}"),
+            _ => format!("{run_id}-{step_id}-{index}"),
+        }
+        .replace('/', "_"),
         &value,
         labels,
     )
@@ -239,10 +261,7 @@ fn call(
 }
 
 fn read(invocation: &NativeInvocation<'_, RunReadInput>) -> Result<RunReadOutput, RuntimeError> {
-    let failed = |message: String| RuntimeError::SkillFailed {
-        skill_name: "run.read".to_owned(),
-        message,
-    };
+    let failed = |message: String| RuntimeError::failed("run.read".to_owned(), message);
     let run_id = match (&invocation.inputs.run_id, invocation.call) {
         (Some(run_id), _) => run_id.as_str(),
         (None, Some(call)) => crate::execution::run_record::root_run_id(&call.run_id),
@@ -265,15 +284,12 @@ fn read(invocation: &NativeInvocation<'_, RunReadInput>) -> Result<RunReadOutput
 fn list(invocation: &NativeInvocation<'_, RunListInput>) -> Result<RunListOutput, RuntimeError> {
     let inputs = invocation.inputs;
     if !(1..=MAX_LIMIT).contains(&inputs.limit) {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: "run.list".to_owned(),
-            message: format!("limit must be between 1 and {MAX_LIMIT}"),
-        });
+        return Err(RuntimeError::failed(
+            "run.list".to_owned(),
+            format!("limit must be between 1 and {MAX_LIMIT}"),
+        ));
     }
-    let failed = |message: String| RuntimeError::SkillFailed {
-        skill_name: "run.list".to_owned(),
-        message,
-    };
+    let failed = |message: String| RuntimeError::failed("run.list".to_owned(), message);
     let since = match (&inputs.since, &inputs.period) {
         (Some(since), _) => Some(since.clone()),
         (None, Some(period)) => {

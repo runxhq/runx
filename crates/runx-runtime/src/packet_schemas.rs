@@ -61,16 +61,16 @@ pub(crate) fn agent_output_contract_schema(
             .values()
             .chain(wrapped_binding.iter().map(|(_, packet)| packet)),
     )
-    .map_err(agent_packet_contract_error)?;
+    .map_err(|error| RuntimeError::failed("runx", format!("its packet schemas failed: {error}")))?;
 
     for (name, packet) in named_bindings {
         if !output.contains_key(&name) {
-            return Err(RuntimeError::SkillFailed {
-                skill_name: "agent".to_owned(),
-                message: format!(
+            return Err(RuntimeError::failed(
+                "runx",
+                format!(
                     "packet output '{name}' for '{packet}' is not declared by the agent output contract"
                 ),
-            });
+            ));
         }
         replace_output_property_schema(&mut root, &name, produced(&catalog, &packet)?)?;
     }
@@ -104,10 +104,10 @@ fn merge_wrapped_packet_schema(
             .keys()
             .find(|name| !packet_properties.contains_key(*name))
     {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: format!("wrapped packet schema does not declare agent output field '{name}'"),
-        });
+        return Err(RuntimeError::failed(
+            "runx",
+            format!("wrapped packet schema does not declare agent output field '{name}'"),
+        ));
     }
     if let Some(JsonValue::Array(required)) = packet.get("required") {
         for field in required {
@@ -115,12 +115,10 @@ fn merge_wrapped_packet_schema(
                 return Err(agent_packet_shape_error());
             };
             if !properties.contains_key(name) {
-                return Err(RuntimeError::SkillFailed {
-                    skill_name: "agent".to_owned(),
-                    message: format!(
-                        "wrapped packet requires undeclared agent output field '{name}'"
-                    ),
-                });
+                return Err(RuntimeError::failed(
+                    "runx",
+                    format!("wrapped packet requires undeclared agent output field '{name}'"),
+                ));
             }
         }
     }
@@ -159,10 +157,10 @@ fn intersect_output_schema(
 }
 
 fn agent_packet_shape_error() -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "agent".to_owned(),
-        message: "wrapped packet schema is not a mergeable object contract".to_owned(),
-    }
+    RuntimeError::failed(
+        "runx",
+        "wrapped packet schema is not a mergeable object contract".to_owned(),
+    )
 }
 
 /// The field a packet's schema carries its id in, when it carries one.
@@ -284,17 +282,16 @@ fn packet_schema(
 ) -> Result<runx_contracts::JsonObject, RuntimeError> {
     catalog
         .get(packet)
-        .ok_or_else(|| RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: catalog.not_found(packet),
-        })?
+        .ok_or_else(|| RuntimeError::failed("runx", catalog.not_found(packet)))?
         .schema
         .value
         .as_object()
         .cloned()
-        .ok_or_else(|| RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: format!("declared packet schema '{packet}' must be an object"),
+        .ok_or_else(|| {
+            RuntimeError::failed(
+                "runx",
+                format!("declared packet schema '{packet}' must be an object"),
+            )
         })
 }
 
@@ -304,29 +301,22 @@ fn replace_output_property_schema(
     schema: runx_contracts::JsonObject,
 ) -> Result<(), RuntimeError> {
     let runx_contracts::JsonValue::Object(root) = root else {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: "agent output schema has no properties object".to_owned(),
-        });
+        return Err(RuntimeError::failed(
+            "runx",
+            "agent output schema has no properties object".to_owned(),
+        ));
     };
     let Some(runx_contracts::JsonValue::Object(properties)) = root.get_mut("properties") else {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: "agent output schema has no properties object".to_owned(),
-        });
+        return Err(RuntimeError::failed(
+            "runx",
+            "agent output schema has no properties object".to_owned(),
+        ));
     };
     let declared = properties
         .remove(name)
         .ok_or_else(agent_packet_shape_error)?;
     properties.insert(name.to_owned(), intersect_output_schema(declared, schema));
     Ok(())
-}
-
-fn agent_packet_contract_error(error: impl std::fmt::Display) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "agent".to_owned(),
-        message: format!("agent packet output contract failed: {error}"),
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -395,6 +385,13 @@ impl PublishedSchemaRetriever {
             })
             .collect();
         Ok(SHARED.get_or_init(|| Self { documents }))
+    }
+}
+
+impl PublishedSchemaRetriever {
+    /// The published schema whose `$id` is `id`.
+    pub(crate) fn document(&self, id: &str) -> Option<&serde_json::Value> {
+        self.documents.get(id)
     }
 }
 

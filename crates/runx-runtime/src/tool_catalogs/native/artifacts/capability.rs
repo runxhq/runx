@@ -13,7 +13,6 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[serde(deny_unknown_fields)]
 pub(super) struct ArtifactAdmitInput {
     pub(super) repo_root: String,
-    pub(super) path_scope: String,
     pub(super) path: String,
     pub(super) media_type: String,
     pub(super) labels: ArtifactLabels,
@@ -30,10 +29,6 @@ impl CapabilityInput for ArtifactAdmitInput {
                 )])),
             ),
             ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
-            (
-                "path_scope".to_owned(),
-                JsonValue::String("workspace".to_owned()),
-            ),
             (
                 "media_type".to_owned(),
                 JsonValue::String("application/octet-stream".to_owned()),
@@ -74,15 +69,11 @@ impl CapabilityOutput for ArtifactPage {}
 const ADMIT_FIELDS: &[CapabilityField] = &[
     CapabilityField {
         name: "repo_root",
-        description: "Workspace-relative root containing the immutable source file.",
-    },
-    CapabilityField {
-        name: "path_scope",
-        description: "Trusted root selection: workspace or the owning skill package.",
+        description: "Workspace-relative root containing the immutable source file, or $package for the skill's own package.",
     },
     CapabilityField {
         name: "path",
-        description: "Contained relative source path; it is never returned in the artifact reference.",
+        description: "Contained relative source path, or $package/<path> for a file of the skill's own package; it is never returned in the artifact reference.",
     },
     CapabilityField {
         name: "media_type",

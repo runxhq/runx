@@ -75,7 +75,6 @@ impl TwitterFixture {
                 paged_input: Some(ArtifactPageSource {
                     source: ArtifactPageInput::Path {
                         path: "archive_file".to_owned(),
-                        path_scope: Some("archive_base".to_owned()),
                         media_type: "application/javascript".to_owned(),
                     },
                     framing: ArtifactPageFraming::JsonArray,
@@ -133,10 +132,6 @@ fn selection_inputs() -> JsonObject {
         (
             "archive_file".to_owned(),
             JsonValue::String("archive/tweets.js".to_owned()),
-        ),
-        (
-            "archive_base".to_owned(),
-            JsonValue::String("workspace".to_owned()),
         ),
         (
             "objective".to_owned(),

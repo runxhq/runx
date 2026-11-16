@@ -1,7 +1,6 @@
 name: cargo-direct-needs-metadata
 inputs:
-  path: fixtures/input/Cargo.lock
-  path_scope: skill
+  path: $package/fixtures/input/Cargo.lock
   scope: direct-production
 expect:
   status: failure

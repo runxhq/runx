@@ -103,10 +103,10 @@ impl SkillAdapter for CaseAdapter {
             && matches!(request.executable, Executable::Process(_))
         {
             self.reached.store(true, Ordering::SeqCst);
-            return Err(RuntimeError::SkillFailed {
-                skill_name: "package-test".to_owned(),
-                message: PROCESS_REFUSED.to_owned(),
-            });
+            return Err(RuntimeError::failed(
+                "package-test".to_owned(),
+                PROCESS_REFUSED.to_owned(),
+            ));
         }
         ExecutableAdapter.invoke(request)
     }
@@ -395,14 +395,12 @@ impl PackageTestEnvironment {
             if !path.starts_with("fixtures/") {
                 continue;
             }
-            let contents =
-                loaded
-                    .package
-                    .file_bytes(path)
-                    .ok_or_else(|| RuntimeError::SkillFailed {
-                        skill_name: "package-test".to_owned(),
-                        message: format!("validated test fixture {path:?} is unavailable"),
-                    })?;
+            let contents = loaded.package.file_bytes(path).ok_or_else(|| {
+                RuntimeError::failed(
+                    "package-test".to_owned(),
+                    format!("validated test fixture {path:?} is unavailable"),
+                )
+            })?;
             self.stage_file(path, contents, is_declared_test_executable(path))?;
         }
         Ok(())
@@ -416,9 +414,11 @@ impl PackageTestEnvironment {
         loaded: &crate::LoadedSkillPackage,
         operator: &RunxPaths,
     ) -> Result<(), SkillRunError> {
-        let failed = |message: String| RuntimeError::SkillFailed {
-            skill_name: "package-test".to_owned(),
-            message: format!("staging an installed connector failed: {message}"),
+        let failed = |message: String| {
+            RuntimeError::failed(
+                "package-test".to_owned(),
+                format!("staging an installed connector failed: {message}"),
+            )
         };
         let staged = RunxPaths::resolve(&self.env, &self.workspace).added_connectors();
         for connector in bound_installed_connectors(loaded, operator)? {
@@ -442,10 +442,10 @@ impl PackageTestEnvironment {
         operator_env: &BTreeMap<String, String>,
     ) -> Result<(), SkillRunError> {
         stage_installed_registry_skills(loaded, operator_env, &self.env).map_err(|message| {
-            RuntimeError::SkillFailed {
-                skill_name: "package-test".to_owned(),
-                message: format!("staging an installed registry skill failed: {message}"),
-            }
+            RuntimeError::failed(
+                "package-test".to_owned(),
+                format!("staging an installed registry skill failed: {message}"),
+            )
             .into()
         })
     }
@@ -711,10 +711,10 @@ expect:
         );
         assert!(is_authority_denial(&denial));
         let unrelated =
-            crate::execution::test::TestReplayError::Runtime(crate::RuntimeError::SkillFailed {
-                skill_name: "provider-read".to_owned(),
-                message: "unexpected adapter defect".to_owned(),
-            });
+            crate::execution::test::TestReplayError::Runtime(crate::RuntimeError::failed(
+                "provider-read".to_owned(),
+                "unexpected adapter defect".to_owned(),
+            ));
         assert!(!is_authority_denial(&unrelated));
     }
 

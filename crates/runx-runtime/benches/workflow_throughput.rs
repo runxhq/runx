@@ -350,6 +350,7 @@ fn synthetic_step_runs(signature: &RuntimeReceiptSignatureConfig, count: usize) 
                 artifact_outputs: Default::default(),
                 ephemeral_contract: EphemeralValue::default(),
                 outcome: output.into(),
+                usage: None,
                 admission_witness: StepAdmissionWitness::local_runtime(
                     &step_id,
                     receipt.id.as_str(),

@@ -81,22 +81,15 @@ fn admitted_artifact_pages_match_path_results_at_two_scales_and_reuse_one_worker
                 root,
                 ArtifactPageInput::Path {
                     path: "source_path".to_owned(),
-                    path_scope: Some("source_scope".to_owned()),
                     media_type: "application/json".to_owned(),
                 },
                 page_bytes,
             );
             by_path.reach = runx_contracts::Reach::Workspace;
-            by_path.inputs = JsonObject::from([
-                (
-                    "source_path".to_owned(),
-                    JsonValue::String("records.json".to_owned()),
-                ),
-                (
-                    "source_scope".to_owned(),
-                    JsonValue::String("skill".to_owned()),
-                ),
-            ]);
+            by_path.inputs = JsonObject::from([(
+                "source_path".to_owned(),
+                JsonValue::String("$package/records.json".to_owned()),
+            )]);
             let mut by_artifact = page_invocation(
                 root,
                 ArtifactPageInput::Artifact {

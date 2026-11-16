@@ -14,6 +14,7 @@ mod adapter_pipeline;
 mod agent_config;
 mod agent_contract;
 mod agent_invocation;
+mod answer_schema;
 pub mod approval;
 mod bytes;
 mod capability;
@@ -29,6 +30,7 @@ pub mod error;
 pub mod execution;
 mod execution_environment;
 pub mod export;
+pub mod failure;
 mod filesystem;
 pub mod host;
 mod hosted_api;
@@ -150,6 +152,7 @@ pub use engine::{
     RUNX_RUN_ID_ENV, RunClock, Runtime, RuntimeOptions, StepOutcome, StepRun, WorkflowRun,
 };
 pub use error::RuntimeError;
+pub use failure::Failure;
 pub use host::{Host, NoopHost};
 pub use hosted_api::{
     AuthenticatedHostedApiEnvironment, DEFAULT_HOSTED_API_BASE_URL, HOSTED_API_BASE_URL_ENV,

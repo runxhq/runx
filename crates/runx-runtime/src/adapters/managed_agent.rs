@@ -176,18 +176,14 @@ impl ManagedAgent {
     }
 }
 
-/// What the pass that answered used of its model, as its loop counted it.
+/// What the pass that answered used, as its loop counted it: the same
+/// record a pass that fails leaves.
 fn turn_usage(
     telemetry: &super::agent::AgentExecutionTelemetry,
 ) -> Result<runx_contracts::TurnUsage, String> {
-    Ok(runx_contracts::TurnUsage {
-        model_calls: telemetry
-            .model_calls
-            .and_then(std::num::NonZeroU64::new)
-            .ok_or("an answered pass counts the model call that answered it")?,
-        input_tokens: telemetry.input_tokens,
-        output_tokens: telemetry.output_tokens,
-    })
+    telemetry
+        .usage()
+        .ok_or_else(|| "an answered pass counts the model call that answered it".to_owned())
 }
 
 /// What runx's managed agent meets of a turn's requirements: it starts each
@@ -484,11 +480,13 @@ fn shares_context(config: &ManagedAgentConfig, envelope: &AgentContextEnvelope) 
             || envelope
                 .voice_profile
                 .iter()
-                .chain(
-                    envelope.context.iter().flat_map(|profiles| {
-                        profiles.memory.iter().chain(profiles.conventions.iter())
-                    }),
-                )
+                .chain(envelope.context.iter().flat_map(|profiles| {
+                    profiles
+                        .memory
+                        .iter()
+                        .chain(profiles.conventions.iter())
+                        .chain(profiles.instructions.iter())
+                }))
                 .any(|profile| local_only(&profile.sharing)))
 }
 
@@ -631,34 +629,27 @@ fn pretty(value: &impl Serialize) -> Result<String, ManagedAgentError> {
     })
 }
 
+/// What a managed agent's model is given of its turn, its brief: the turn's
+/// view, with its instructions given apart, as the system's, and its answer
+/// as the tool that ends it. runx drives the turn, so it is the turn's host,
+/// and the project's instructions are given as a host's agent reads them.
 #[derive(Serialize)]
 struct AgentPromptContext<'a> {
     task: &'a runx_contracts::schema::NonEmptyString,
-    run_id: &'a runx_contracts::schema::NonEmptyString,
-    step_id: &'a Option<runx_contracts::schema::NonEmptyString>,
     skill: &'a runx_contracts::schema::NonEmptyString,
-    act: &'a Option<runx_contracts::CallAct>,
-    instructions_digest: &'a runx_contracts::schema::NonEmptyString,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    step_id: Option<&'a runx_contracts::schema::NonEmptyString>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    act: Option<&'a runx_contracts::CallAct>,
     inputs: &'a JsonObject,
-    requirements: &'a runx_contracts::AgentExecutionRequirements,
     current_context: &'a [runx_contracts::TurnContextLine],
     historical_context: &'a [runx_contracts::TurnContextLine],
-    provenance: &'a [runx_contracts::ProvenanceEntry],
-    profiles: Option<PromptProfiles<'a>>,
-    voice_profile: &'a Option<runx_contracts::ProfileFile>,
-    execution_location: &'a Option<runx_contracts::ExecutionLocation>,
-    output: &'a Option<BTreeMap<String, OutputField>>,
-    trust_boundary: &'a runx_contracts::schema::NonEmptyString,
-}
-
-/// The profiles a managed agent's provider receives: the project's
-/// conventions, and the memory an envelope recorded before memory became its
-/// host's carried, read as it was. The project's instructions are its host's,
-/// read by a host's agent with its turn, and never sent to a provider.
-#[derive(Serialize)]
-struct PromptProfiles<'a> {
-    memory: &'a Option<runx_contracts::ProfileFile>,
-    conventions: &'a Option<runx_contracts::ProfileFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profiles: Option<&'a runx_contracts::TurnProfiles>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    voice_profile: Option<&'a runx_contracts::TurnFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output: Option<&'a BTreeMap<String, OutputField>>,
 }
 
 impl<'a> AgentPromptContext<'a> {
@@ -668,24 +659,15 @@ impl<'a> AgentPromptContext<'a> {
     ) -> Self {
         Self {
             task,
-            run_id: &envelope.run_id,
-            step_id: &envelope.step_id,
             skill: &envelope.skill,
-            act: &envelope.act,
-            instructions_digest: &envelope.instructions_digest,
+            step_id: envelope.step_id.as_ref(),
+            act: envelope.act.as_ref(),
             inputs: &envelope.inputs,
-            requirements: &envelope.requirements,
             current_context: &envelope.current_context,
             historical_context: &envelope.historical_context,
-            provenance: &envelope.provenance,
-            profiles: envelope.context.as_ref().map(|profiles| PromptProfiles {
-                memory: &profiles.memory,
-                conventions: &profiles.conventions,
-            }),
-            voice_profile: &envelope.voice_profile,
-            execution_location: &envelope.execution_location,
-            output: &envelope.output,
-            trust_boundary: &envelope.trust_boundary,
+            profiles: envelope.context.as_ref(),
+            voice_profile: envelope.voice_profile.as_ref(),
+            output: envelope.output.as_ref(),
         }
     }
 }
@@ -759,7 +741,7 @@ mod tests {
             conventions: Some(profile_file("CONVENTIONS.md", "Prefer typed boundaries.")),
             instructions: vec![profile_file(
                 "AGENTS.md",
-                "Never send the project's own instructions.",
+                "Quote prices from the current list.",
             )],
         });
         envelope.voice_profile = Some(profile_file("VOICE.md", "Write with direct clarity."));
@@ -795,14 +777,26 @@ mod tests {
         assert!(prompt.contains(TURN_READ_TOOL));
         assert!(prompt.contains("Remember the product constraint."));
         assert!(prompt.contains("Prefer typed boundaries."));
-        assert!(
-            !prompt.contains("Never send the project's own instructions."),
-            "the project's instructions are its host's, never a provider's"
+        // runx drives the turn, so it is its host: its model reads the
+        // project's instructions, once.
+        assert_eq!(
+            prompt
+                .matches("Quote prices from the current list.")
+                .count(),
+            1,
+            "{prompt}"
         );
         assert!(prompt.contains("Write with direct clarity."));
-        assert!(prompt.contains("research.packet"));
-        assert!(prompt.contains("rx_receipt"));
-        assert!(prompt.contains("/workspace/skills/review"));
+        // Nothing runx keeps for itself: no receipt or artifact id, no
+        // digest, no path on disk, no governance text.
+        for kept in [
+            "rx_receipt",
+            "sha256:",
+            "/workspace/skills/review",
+            "trust_boundary",
+        ] {
+            assert!(!prompt.contains(kept), "{kept} in {prompt}");
+        }
         assert!(instructions.contains(TURN_COMPLETE_TOOL));
         assert!(!prompt.contains("Calls already made"));
         Ok(())

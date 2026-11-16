@@ -450,9 +450,11 @@ fn unchanged(
                         declared,
                         None,
                     )
-                    .map_err(|reason| crate::RuntimeError::StepFailed {
-                        step_id: call_step_id(&run.step_id, call.index),
-                        reason,
+                    .map_err(|reason| {
+                        crate::RuntimeError::step_failed(
+                            call_step_id(&run.step_id, call.index),
+                            reason,
+                        )
                     })?;
                     storage_read_unchanged(&made(StepKind::Operation(target), inputs), ran, today)?
                 }
@@ -590,10 +592,7 @@ fn storage_read_unchanged(
         .options
         .effects
         .read_unchanged(today.request(step), identity, then)
-        .map_err(|error| crate::RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: error.to_string(),
-        })
+        .map_err(|error| crate::RuntimeError::step_failed(step.id.clone(), error.to_string()))
 }
 
 /// What a source read that a run reusing it would read again: each read
@@ -652,7 +651,11 @@ fn file_read_allowed(
             .get(name)
             .and_then(runx_contracts::JsonValue::as_str)
     };
-    if text("path_scope").unwrap_or("workspace") != "skill" {
+    // A package's own file is its to read; any other is read within reach.
+    let package = ["repo_root", "path"]
+        .iter()
+        .any(|name| text(name).and_then(crate::services::package_path).is_some());
+    if !package {
         let named = Path::new(text("repo_root").unwrap_or("."));
         let workspace = crate::RunxPaths::resolve(env, skill_directory)
             .workspace()
@@ -800,9 +803,11 @@ pub(crate) fn reads(
                         declared,
                         None,
                     )
-                    .map_err(|message| crate::RuntimeError::StepFailed {
-                        step_id: call_step_id(&run.step_id, call.index),
-                        reason: message,
+                    .map_err(|message| {
+                        crate::RuntimeError::step_failed(
+                            call_step_id(&run.step_id, call.index),
+                            message,
+                        )
                     })?;
                     reads.operations.push(runx_parser::WorkflowStep {
                         id: call_step_id(&run.step_id, call.index),

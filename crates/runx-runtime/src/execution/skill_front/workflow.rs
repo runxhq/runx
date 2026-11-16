@@ -1015,15 +1015,27 @@ fn holds(path: &str, held: &str) -> bool {
                 .is_some_and(|rest| rest.starts_with('/')))
 }
 
-/// The call that starts the run holding the turn at `turn`, as the step at
-/// whose position it is and its index: none for a turn of the root run.
+/// The turn's own call that leads to the run holding the turn at `turn`, as
+/// the turn it was made in and its index there: none for a turn of the root
+/// run. A run path is its steps from the root, each followed by the index of
+/// the call that ran the next run, and a script's call by its own index
+/// after its script's; so the call that leads there is the last step's
+/// first index, whichever of a turn's calls or its script's started the run.
 pub(super) fn leading_call(turn: &str) -> Option<(String, u32)> {
-    let path = run_path(turn);
-    let (parent, index) = path.rsplit_once('/')?;
-    let index = index.parse().ok()?;
-    Some(match parent.rsplit_once('/') {
-        Some((above, step)) => (format!("{above}#{step}"), index),
-        None => (parent.to_owned(), index),
+    let segments = run_path(turn)
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    let step = segments
+        .iter()
+        .rposition(|segment| segment.starts_with(|first: char| first.is_ascii_alphabetic()))?;
+    let index = segments.get(step + 1)?.parse().ok()?;
+    Some(match step {
+        0 => (segments[0].to_owned(), index),
+        _ => (
+            format!("{}#{}", segments[..step].join("/"), segments[step]),
+            index,
+        ),
     })
 }
 
@@ -1254,6 +1266,25 @@ mod tests {
 
     use super::*;
 
+    /// The turn's own call that leads to a child run's turn: the last step's
+    /// first index, whether the turn or its script made the call.
+    #[test]
+    fn a_childs_turn_is_led_to_by_its_turns_own_call() {
+        assert_eq!(super::leading_call("answer"), None);
+        assert_eq!(
+            super::leading_call("answer/0#child"),
+            Some(("answer".to_owned(), 0))
+        );
+        assert_eq!(
+            super::leading_call("answer/0/2#child"),
+            Some(("answer".to_owned(), 0))
+        );
+        assert_eq!(
+            super::leading_call("answer/0/draft/1/2#bind"),
+            Some(("answer/0#draft".to_owned(), 1))
+        );
+    }
+
     #[test]
     fn a_managed_run_takes_approvals_but_no_other_hosts_agent_work() -> Result<(), SkillRunError> {
         let acting = RunHost::acting(TurnAct {
@@ -1297,14 +1328,9 @@ mod tests {
             "authoring",
             "minimum_runx: 0.12.0\nmethods:\n  run:\n    steps:\n      - id: apply\n        skill: ./apply\n",
         )?;
-        let owned = RuntimeError::SkillFailed {
-            skill_name: "apply".to_owned(),
-            message: "candidate test failed".to_owned(),
-        };
-        let nested = RuntimeError::SkillFailed {
-            skill_name: "runx.skill.apply".to_owned(),
-            message: "candidate test failed".to_owned(),
-        };
+        let owned = RuntimeError::failed("runx.skill.apply", "candidate test failed")
+            .at_workflow_step("apply");
+        let nested = RuntimeError::failed("runx.skill.apply", "candidate test failed");
 
         assert_eq!(
             crate::execution::engine::failed_step_id(&workflow, &owned).as_deref(),

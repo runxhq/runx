@@ -98,7 +98,21 @@ function later(left, right) {
   return left.created_at > right.created_at || (left.created_at === right.created_at && left.run_id > right.run_id);
 }
 
-/** Each standing said:workspace rule, split by whether the instruction file holds its handle. */
+/**
+ * The line that holds a rule in the instruction file: the person's exact
+ * words, then their date and handle. Promotion writes this one form, and a
+ * rule is held only where the file holds it as it is.
+ */
+export function ruleLine(rule) {
+  return `- ${rule.text} (${rule.date}, ${rule.handle})`;
+}
+
+/**
+ * Each standing said:workspace rule, split by what the instruction file
+ * holds of it: its line as promotion writes it (held), its handle under other
+ * words (edited, which keeps its memory active and shows the person both), or
+ * nothing (unheld).
+ */
 export function rulesOf(indexEntries, instructions) {
   const rules = [];
   for (const entry of indexEntries ?? []) {
@@ -109,9 +123,19 @@ export function rulesOf(indexEntries, instructions) {
   const sorted = rules
     .sort((left, right) => (left.handle < right.handle ? -1 : left.handle > right.handle ? 1 : 0))
     .map(({ handle, text, summary, date, purpose }) => ({ handle, text, summary, date, purpose }));
+  const lines = instructions.split("\n").map((line) => line.trimEnd());
+  // Held where the file holds the rule's line whole: its own lines, each as
+  // a line of the file, never as part of a longer one.
+  const held = (rule) => {
+    const wanted = ruleLine(rule).split("\n");
+    return lines.some((_, at) => wanted.every((line, offset) => lines[at + offset] === line));
+  };
   return {
-    unheld: sorted.filter((rule) => !instructions.includes(rule.handle)),
-    held: sorted.filter((rule) => instructions.includes(rule.handle)),
+    unheld: sorted.filter((rule) => !held(rule) && !instructions.includes(rule.handle)),
+    held: sorted.filter(held),
+    edited: sorted
+      .filter((rule) => !held(rule) && instructions.includes(rule.handle))
+      .map((rule) => ({ ...rule, wording: lines.find((line) => line.includes(rule.handle))?.trim() ?? "" })),
   };
 }
 
@@ -285,7 +309,7 @@ export async function survey(ctx, { reader, until }) {
     }
     if (purpose) sampled.push({ ...candidate, purpose });
   }
-  const { unheld, held } = rulesOf(entries, instructions);
+  const { unheld, held, edited } = rulesOf(entries, instructions);
   const revision = (await tool("data.digest", { value: { head, runs: [...readRuns].sort(), open: [...open].sort() } })).digest_result.digest;
   const subject = { ref: `runx/reflect/window/${reader}`, revision };
   const { criteria } = await tool("verdict.criteria", { criteria: checksOf({ resistance, unheld, sampled }) });
@@ -297,6 +321,7 @@ export async function survey(ctx, { reader, until }) {
     sampled,
     unheld,
     held,
+    edited,
     mark: { version: mark.version, through, at_through: atThrough.sort(), open: [...new Set(open)].sort() },
     read_to_end,
   };
@@ -615,7 +640,7 @@ const INSTRUCTIONS_BOUND = 128 * 1024;
  * later survey reads it held at HEAD.
  */
 export function withRules(current, rules) {
-  const lines = rules.map((rule) => `- ${rule.text} (${rule.date}, ${rule.handle})`);
+  const lines = rules.map(ruleLine);
   if (lines.length === 0) return current;
   const text = current.endsWith("\n") || current === "" ? current : `${current}\n`;
   const at = text.split("\n").findIndex((line) => line.trim() === RULES_HEADING);
@@ -733,5 +758,8 @@ export async function keep(ctx, { reader, survey }) {
     if (rejection?.code !== "failed" && rejection?.code !== "refused") throw rejection;
     mark = { moved: false, reason: rejection.message ?? null };
   }
-  return { kept: { closed, mark } };
+  // A rule whose handle the file holds under other words stays active, and
+  // the person sees both: the rule as they said it, and what the file says.
+  const edited = (survey.edited ?? []).map(({ handle, text, wording }) => ({ handle, said: text, file_says: wording }));
+  return { kept: { closed, edited, mark } };
 }

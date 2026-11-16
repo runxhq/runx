@@ -1797,3 +1797,4 @@ frantic	unreadBinaryHolds	2	hold	unreadBinaryHolds	Frantic review abstention or 
 runx-action	runner	5	runner	?	a bare word: code or prose, read in place	.github/workflows/smoke.yml README.md
 runx-action	$RUNNER_TEMP	4	runner	$RUNNER_TEMP	another runner: stays	.github/workflows/smoke.yml
 oss	a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record	1	hold	a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record	English, or a skill's own word: stays	crates/runx-runtime/tests/agent_turns.rs
+oss	a_constraint_beside_a_reference_holds_with_its_target	1	hold	a_constraint_beside_a_reference_holds_with_its_target	English, or a skill's own word: stays	crates/runx-runtime/src/answer_schema.rs

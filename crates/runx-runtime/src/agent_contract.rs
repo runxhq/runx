@@ -29,10 +29,10 @@ pub(crate) fn agent_contract_checks_with_artifacts(
     skill_directory: &Path,
 ) -> Result<ContractChecks, RuntimeError> {
     let ResolutionRequest::Turn { invocation, .. } = request else {
-        return Err(RuntimeError::SkillFailed {
-            skill_name: "agent".to_owned(),
-            message: "agent result verification requires a turn request".to_owned(),
-        });
+        return Err(RuntimeError::failed(
+            "runx",
+            "agent result verification requires a turn request".to_owned(),
+        ));
     };
     let contract_payload = agent_output_contract_payload(payload);
     let open_output = BTreeMap::new();
@@ -50,6 +50,26 @@ pub(crate) fn agent_contract_checks_with_artifacts(
         .as_ref()
         .map(|profile| profile.digest.as_ref().to_owned());
     Ok(checks)
+}
+
+/// State in `payload`, a turn's answer, each field its contract allows one
+/// value of, which its model was never offered, where it's absent.
+pub(crate) fn fill_answer(
+    request: &ResolutionRequest,
+    payload: &mut JsonValue,
+    artifacts: Option<&OutputArtifacts>,
+    skill_directory: &Path,
+) -> Result<(), RuntimeError> {
+    let ResolutionRequest::Turn { invocation, .. } = request else {
+        return Ok(());
+    };
+    let Some(output) = invocation.envelope.output.as_ref() else {
+        return Ok(());
+    };
+    let full =
+        crate::packet_schemas::agent_output_contract_schema(output, artifacts, skill_directory)?;
+    crate::answer_schema::fill(payload, &full);
+    Ok(())
 }
 
 pub(crate) fn agent_output_contract_payload(payload: &JsonValue) -> JsonValue {

@@ -43,8 +43,8 @@ use super::{
 };
 use crate::RuntimeError;
 use crate::adapter::{
-    BorrowedSkillAdapter, EphemeralValue, Executable, InvocationOutput, SkillAdapter,
-    SkillInvocation,
+    BorrowedSkillAdapter, EphemeralValue, Executable, InvocationDiagnostics, InvocationOutput,
+    SkillAdapter, SkillInvocation,
 };
 use crate::agent_contract::agent_contract_checks_with_artifacts;
 use crate::agent_invocation::turn_resolution_request;
@@ -197,9 +197,14 @@ struct RegularSkillSeal<'a, A> {
 }
 
 pub(super) fn output_error(run: &StepRun) -> String {
+    run_failure(run).to_string()
+}
+
+/// Why a step's run failed, as what decided it said it.
+pub(super) fn run_failure(run: &StepRun) -> crate::Failure {
     run.outcome
-        .failure_message()
-        .unwrap_or_else(|| "step failed without diagnostics".to_owned())
+        .failure(&run.skill)
+        .unwrap_or_else(|| crate::Failure::new("runx", "the step failed and said nothing of why"))
 }
 
 // Function rationale: step execution is one linear admit/run/seal sequence; splitting
@@ -450,7 +455,10 @@ where
             )
         }
         Bought::Refused { code, reason } => (
-            projection.failure(format!("{code}: {reason}"), observations),
+            projection.failure(
+                crate::Failure::new("the provider", format!("{code}: {reason}")),
+                observations,
+            ),
             None,
         ),
     };
@@ -532,6 +540,14 @@ where
     let result = super::workflow_terminal_result(&run)?;
     let ephemeral_result = workflow_run_ephemeral_result(&run);
     let mut output = workflow_run_skill_output(&result, &run)?;
+    // Its child's failure is said where the child said it, below this step.
+    if let InvocationDiagnostics::Runtime {
+        failure: Some(failure),
+        ..
+    } = &mut output.diagnostics
+    {
+        *failure = failure.clone().within(&request.step.id);
+    }
     // The child run named the verdicts it returns as its own steps did.
     let mut projection = build_step_output_projection(
         request.step,
@@ -1056,6 +1072,7 @@ where
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
         outcome: output.into(),
+        usage: None,
         receipt,
         nested_receipts: receipt_lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
@@ -1159,10 +1176,10 @@ where
         StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
         StepKind::Tool(ToolTarget::Process(process)) => Executable::Process(process.clone()),
         _ => {
-            return Err(RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: "not a worker or process tool step".to_owned(),
-            });
+            return Err(RuntimeError::step_failed(
+                step.id.clone(),
+                "not a worker or process tool step".to_owned(),
+            ));
         }
     };
     let environment = step_environment(&executable);
@@ -1263,6 +1280,10 @@ fn seal_turn_step<A>(
             .iter(),
     );
     let outcome = agent_answer_outcome_value(step, &response.payload)?;
+    // What its turn used, as the answer states it: the step's record holds
+    // it as a failed turn's does.
+    let usage = crate::execution::outcome::stated_usage(&response.payload)
+        .map_err(|reason| RuntimeError::ContinuationRejected { reason })?;
     // The turn's receipt names each call the agent made, in order.
     let lineage = StepReceiptLineage::of_turn(&calls);
     // The answer was verified against its output contract whatever ending it
@@ -1314,6 +1335,7 @@ fn seal_turn_step<A>(
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
+        usage,
         receipt,
         nested_receipts: lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
@@ -1381,10 +1403,10 @@ pub(crate) fn ask_turn(
         reads_local_only,
     } = ask;
     let StepKind::Agent(agent) = &step.kind else {
-        return Err(RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: "not an agent step".to_owned(),
-        });
+        return Err(RuntimeError::step_failed(
+            step.id.clone(),
+            "not an agent step".to_owned(),
+        ));
     };
     let executable = Executable::Agent(agent.clone());
     let environment = step_environment(&executable);
@@ -1425,10 +1447,7 @@ pub(crate) fn ask_turn(
         // or an earlier step's output made from one. An input isn't dropped,
         // since the act would then ask something else: the step is refused.
         if given.is_local_only() {
-            return Err(RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: "what it is given is labelled local_only, and its host can't say its model runs on this machine".to_owned(),
-            });
+            return Err(RuntimeError::step_failed(step.id.clone(), "what it is given is labelled local_only, and its host can't say its model runs on this machine".to_owned()));
         }
         let shareable = |entry: &ContextEntry| {
             entry.labels.sharing != runx_contracts::ContextSharing::LocalOnly
@@ -1478,10 +1497,10 @@ where
         script: _,
     } = request;
     let StepKind::Agent(agent) = &step.kind else {
-        return Err(RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: "not an agent step".to_owned(),
-        });
+        return Err(RuntimeError::step_failed(
+            step.id.clone(),
+            "not an agent step".to_owned(),
+        ));
     };
     // The act's context skills are dated by the run's admission, so the act
     // a step asks again when the run is driven again is the one it waits on.
@@ -1535,7 +1554,7 @@ where
         &request,
     )?;
     host.drive_turn(&mut turn)?;
-    let Some(response) = host.resolve(request.clone())? else {
+    let Some(mut response) = host.resolve(request.clone())? else {
         return Err(RuntimeError::ResolutionPending {
             step_id: step.id.clone(),
             reason: format!("turn {request_id} requires resolution"),
@@ -1543,11 +1562,19 @@ where
             child: None,
         });
     };
+    // runx states each field its model was never offered, as it can hold
+    // only one value, before the answer is checked.
+    crate::agent_contract::fill_answer(
+        &request,
+        &mut response.payload,
+        step.artifacts.as_ref(),
+        workflow_dir,
+    )?;
     // A turn ends only once each of its calls has settled.
     if let Some(index) = turn.ledger().unsettled()? {
         return Err(RuntimeError::ContinuationRejected {
             reason: format!(
-                "agent answer {request_id} was refused: call {index} of its turn has not settled"
+                "turn {request_id} ends only once each of its calls has settled, and call {index} has not; answer it once call {index} settles"
             ),
         });
     }
@@ -1565,8 +1592,11 @@ where
                 workflow_dir,
             )
             .map_err(|error| match error {
-                RuntimeError::SkillFailed { message, .. } => RuntimeError::ContinuationRejected {
-                    reason: format!("agent answer {request_id} was refused: {message}"),
+                RuntimeError::Failed(failure) => RuntimeError::ContinuationRejected {
+                    reason: format!(
+                        "the answer to {request_id} breaks its output contract: {}",
+                        failure.reason
+                    ),
                 },
                 error => error,
             })?
@@ -1622,12 +1652,9 @@ where
         reused: _,
         script: _,
     } = request;
-    let tool = step
-        .catalog_tool()
-        .ok_or_else(|| RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: "tool step missing tool name".to_owned(),
-        })?;
+    let tool = step.catalog_tool().ok_or_else(|| {
+        RuntimeError::step_failed(step.id.clone(), "tool step missing tool name".to_owned())
+    })?;
     let call = crate::tool_catalogs::ToolCall::new(
         runtime.options.run.run_id(),
         &step.id,
@@ -1642,10 +1669,7 @@ where
         workflow_dir,
         &runtime.options.effects,
     )
-    .map_err(|error| RuntimeError::StepFailed {
-        step_id: step.id.clone(),
-        reason: format!("tool {tool} could not be resolved: {error}"),
-    })?;
+    .map_err(|error| error.at_workflow_step(&step.id))?;
     // A core tool that reads the workspace shares its lock, and one that
     // changes it holds it alone, a file change for its digest check and its
     // write. A tool runx runs as a process holds it alone for as long as it
@@ -1721,12 +1745,12 @@ pub(crate) fn read_now(
     step: &WorkflowStep,
     reach: runx_contracts::Reach,
 ) -> Result<JsonObject, RuntimeError> {
-    let tool = step
-        .catalog_tool()
-        .ok_or_else(|| RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: "only a tool step reads through a tool".to_owned(),
-        })?;
+    let tool = step.catalog_tool().ok_or_else(|| {
+        RuntimeError::step_failed(
+            step.id.clone(),
+            "only a tool step reads through a tool".to_owned(),
+        )
+    })?;
     let lock = crate::tool_catalogs::native::workspace_lock_mode(tool)
         .map(|mode| options.workspace_lock(workflow_dir, mode))
         .transpose()?;
@@ -1757,12 +1781,12 @@ pub(crate) fn read_now(
     )?;
     drop(lock);
     if !output.succeeded() {
-        return Err(RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: output
+        return Err(RuntimeError::step_failed(
+            step.id.clone(),
+            output
                 .failure_message()
                 .unwrap_or_else(|| format!("{tool} failed")),
-        });
+        ));
     }
     // A read names no verdict, so none is named here.
     let no_verdict = || {
@@ -1900,6 +1924,7 @@ where
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::from_value(JsonValue::Object(ephemeral_contract)),
         outcome: output.into(),
+        usage: None,
         receipt,
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
@@ -1993,16 +2018,20 @@ where
         authority,
         ..
     } = request;
-    let authority = authority.ok_or_else(|| RuntimeError::StepFailed {
-        step_id: step.id.clone(),
-        reason: "an operation step runs only after the kernel admits it".to_owned(),
+    let authority = authority.ok_or_else(|| {
+        RuntimeError::step_failed(
+            step.id.clone(),
+            "an operation step runs only after the kernel admits it".to_owned(),
+        )
     })?;
     let context = authority
         .admission()
         .context::<crate::kernel::operation::OperationAdmission>()
-        .ok_or_else(|| RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: "the step's admission is not an operation admission".to_owned(),
+        .ok_or_else(|| {
+            RuntimeError::step_failed(
+                step.id.clone(),
+                "the step's admission is not an operation admission".to_owned(),
+            )
         })?;
     // A call a process carries out takes the workspace's lock: alone for a
     // write, which can change anything and states no precondition, and
@@ -2083,7 +2112,7 @@ where
             observations.failure = Some(record.clone());
             failure = Some(record);
             crate::adapter_pipeline::AdapterProjection::from_started(started)
-                .failure(error.to_string(), observations)
+                .failure(error.failure(), observations)
         }
     };
     let artifacts = crate::kernel::operation::packet_artifacts();
@@ -2140,11 +2169,15 @@ fn agent_task_output(
     Ok(if succeeded {
         InvocationOutput::runtime_success(response.payload, 0)
     } else {
-        let message = match reason {
-            Some(reason) => format!("turn ended {}: {reason}", outcome.label()),
-            None => format!("turn ended {}", outcome.label()),
+        let said = match reason {
+            Some(reason) => format!("the turn ended {}: {reason}", outcome.label()),
+            None => format!("the turn ended {}", outcome.label()),
         };
-        InvocationOutput::runtime_failure(response.payload, message, 0)
+        InvocationOutput::runtime_failure(
+            response.payload,
+            crate::Failure::new("its agent", said),
+            0,
+        )
     })
 }
 
@@ -2165,35 +2198,17 @@ fn agent_answer_outcome_value(
     step: &WorkflowStep,
     answer: &JsonValue,
 ) -> Result<RunOutcome, RuntimeError> {
-    let outcome =
-        agent_answer_outcome_or_completed(answer).map_err(|error| RuntimeError::StepFailed {
-            step_id: step.id.clone(),
-            reason: format!("{error}"),
-        })?;
+    let outcome = agent_answer_outcome_or_completed(answer)
+        .map_err(|error| RuntimeError::step_failed(step.id.clone(), format!("{error}")))?;
     if let StepKind::Agent(task) = &step.kind {
         crate::execution::outcome::check_turn_requirements(&task.requires, answer, outcome)
-            .map_err(|reason| RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason,
-            })?;
-        crate::execution::outcome::stated_model(answer).map_err(|reason| {
-            RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason,
-            }
-        })?;
-        crate::execution::outcome::stated_usage(answer).map_err(|reason| {
-            RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason,
-            }
-        })?;
-        crate::execution::outcome::stated_host(answer).map_err(|reason| {
-            RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason,
-            }
-        })?;
+            .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?;
+        crate::execution::outcome::stated_model(answer)
+            .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?;
+        crate::execution::outcome::stated_usage(answer)
+            .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?;
+        crate::execution::outcome::stated_host(answer)
+            .map_err(|reason| RuntimeError::step_failed(step.id.clone(), reason))?;
     }
     Ok(outcome)
 }
@@ -2283,6 +2298,7 @@ where
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
+        usage: None,
         receipt,
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
@@ -2380,10 +2396,7 @@ fn run_question_step<A>(
 where
     A: SkillAdapter,
 {
-    let invalid = |reason: String| RuntimeError::StepFailed {
-        step_id: step.id.clone(),
-        reason,
-    };
+    let invalid = |reason: String| RuntimeError::step_failed(step.id.clone(), reason);
     let questions = ask_questions(
         inputs
             .get("questions")
@@ -2443,6 +2456,7 @@ where
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
+        usage: None,
         receipt,
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
@@ -2595,7 +2609,7 @@ where
     };
     let record = error.public_failure_projection();
     let mut output =
-        InvocationOutput::runtime_failure(JsonValue::Object(record.clone()), error.to_string(), 0);
+        InvocationOutput::runtime_failure(JsonValue::Object(record.clone()), error.failure(), 0);
     output.observations.failure = Some(record);
     // An agent step that fails still names the calls its turn completed.
     let calls = match &step.kind {
@@ -2643,6 +2657,13 @@ where
         artifact_outputs: projection.artifact_outputs,
         ephemeral_contract: EphemeralValue::default(),
         outcome: output.into(),
+        usage: match &error {
+            #[cfg(feature = "agent")]
+            RuntimeError::ManagedAgentResolution { source, .. } => source
+                .telemetry()
+                .and_then(crate::adapters::agent::AgentExecutionTelemetry::usage),
+            _ => None,
+        },
         receipt,
         nested_receipts: lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),

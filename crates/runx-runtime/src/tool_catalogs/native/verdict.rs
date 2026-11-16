@@ -111,17 +111,11 @@ fn criteria(
     invocation: &NativeInvocation<'_, CriteriaInput>,
 ) -> Result<CriteriaOutput, RuntimeError> {
     let criteria = Criteria::new(invocation.inputs.criteria.clone()).map_err(|refused| {
-        RuntimeError::SkillFailed {
-            skill_name: "verdict.criteria".to_owned(),
-            message: refused.to_string(),
-        }
+        RuntimeError::failed("verdict.criteria".to_owned(), refused.to_string())
     })?;
-    criteria
-        .check()
-        .map_err(|refused| RuntimeError::SkillFailed {
-            skill_name: "verdict.criteria".to_owned(),
-            message: refused.to_string(),
-        })?;
+    criteria.check().map_err(|refused| {
+        RuntimeError::failed("verdict.criteria".to_owned(), refused.to_string())
+    })?;
     Ok(CriteriaOutput { criteria })
 }
 

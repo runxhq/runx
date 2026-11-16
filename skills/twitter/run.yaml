@@ -98,13 +98,7 @@ methods:
         enum: [posts, following, followers]
       archive_file:
         type: string
-        description: Relative path to an X archive export file.
-      archive_base:
-        type: string
-        default: workspace
-        description: "Archive path base: workspace or skill."
-        enum: [workspace, skill]
-        optional: true
+        description: Path to an X archive export file, from the workspace root, or $package/<path> for one this package carries.
       max_items:
         type: integer
         default: 200
@@ -114,8 +108,7 @@ methods:
         optional: true
     examples:
       - query: posts
-        archive_file: fixtures/data/archive-tweets.js
-        archive_base: skill
+        archive_file: $package/fixtures/data/archive-tweets.js
         max_items: 10
     result_from: [finalize]
     steps:
@@ -131,9 +124,8 @@ methods:
       - id: normalize
         inputs:
           archive_file: "$input.archive_file"
-          archive_base: "$input.archive_base"
           read_plan: $steps.prepare.twitter_read_plan
-        tool: {module: twitter-read.mjs, export: normalizeArchivePage, paged_input: {path: archive_file, path_scope: archive_base, media_type: application/javascript, framing: json_array, page_bytes: 524288}}
+        tool: {module: twitter-read.mjs, export: normalizeArchivePage, paged_input: {path: archive_file, media_type: application/javascript, framing: json_array, page_bytes: 524288}}
         outputs:
           twitter_read_result: {type: object}
       - id: digest
@@ -241,12 +233,6 @@ methods:
         type: string
         description: Path to an X tweets.js archive export; required for target posts.
         optional: true
-      archive_base:
-        type: string
-        default: workspace
-        description: "Archive path base: workspace or skill."
-        enum: [workspace, skill]
-        optional: true
       following_file:
         type: string
         description: Path to an X following.js archive export; required for target users.
@@ -285,8 +271,7 @@ methods:
       - objective: Delete all reposts of the BetaList account.
         principal: account:@example
         target: posts
-        archive_file: fixtures/data/archive-tweets.js
-        archive_base: skill
+        archive_file: $package/fixtures/data/archive-tweets.js
         predicate: {is_retweet: true, rt_of: BetaList}
         max_acts: 5000
     result_from: [finalize-posts, finalize-users]
@@ -307,7 +292,6 @@ methods:
           value: $steps.prepare.twitter_selection_plan.target
           equals: users
         inputs:
-          path_scope: "$input.archive_base"
           paths: $steps.prepare.twitter_selection_plan.paths
       - id: select-posts
         inputs:
@@ -316,7 +300,6 @@ methods:
           predicate: "$input.predicate"
           max_acts: "$input.max_acts"
           archive_file: "$input.archive_file"
-          archive_base: "$input.archive_base"
           selection_plan: $steps.prepare.twitter_selection_plan
           target: $input.target
           following_file: $input.following_file
@@ -324,7 +307,7 @@ methods:
         when:
           value: $steps.prepare.twitter_selection_plan.target
           equals: posts
-        tool: {module: twitter-selection.mjs, export: selectArchivePage, paged_input: {path: archive_file, path_scope: archive_base, media_type: application/javascript, framing: json_array, page_bytes: 524288}}
+        tool: {module: twitter-selection.mjs, export: selectArchivePage, paged_input: {path: archive_file, media_type: application/javascript, framing: json_array, page_bytes: 524288}}
         outputs:
           twitter_selection_draft: {type: object}
       - id: select-users
@@ -337,7 +320,6 @@ methods:
           file_read_bundle: $steps.read-users.file_read_bundle
           target: $input.target
           archive_file: $input.archive_file
-          archive_base: $input.archive_base
           following_file: $input.following_file
           followers_file: $input.followers_file
         when:

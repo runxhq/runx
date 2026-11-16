@@ -2218,6 +2218,18 @@ fn a_scripts_read_of_a_local_only_artifact_on_a_remote_host_settles_as_refused()
         ),
         "{rendered}"
     );
+    // Its refused call, read whole later, is labelled by what the script was
+    // given, which its call's input was written from.
+    let run_id = text(object(&refused.output)?, "run_id").ok_or("missing run_id")?;
+    let (_, labels) = runx_runtime::run_record::read_call(
+        &env(temp.path()),
+        temp.path(),
+        run_id,
+        "prepare",
+        0,
+        0,
+    )?;
+    assert_eq!(labels.sharing, runx_contracts::ContextSharing::LocalOnly);
     Ok(())
 }
 
@@ -2238,8 +2250,9 @@ fn a_returned_local_only_descriptor_no_call_of_the_step_returned_fails_the_step(
     assert_eq!(text(output, "outcome"), Some("failed"), "{output:?}");
     let rendered = serde_json::to_string(output)?;
     assert!(
-        rendered.contains("step prepare: output kept: ")
-            && rendered.contains("names no artifact a call of the step returned"),
+        rendered.contains("output kept: ")
+            && rendered.contains("names no artifact a call of the step returned")
+            && rendered.contains("at prepare)."),
         "{rendered}"
     );
     assert!(

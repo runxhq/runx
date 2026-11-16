@@ -645,6 +645,8 @@ mod tests {
             reuse: None,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
+            effect: true,
+            given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })?;
         Ok((run_id, log))
     }
@@ -676,7 +678,7 @@ mod tests {
         assert!(
             early
                 .to_string()
-                .contains("call 0 of its turn has not settled"),
+                .contains("each of its calls has settled, and call 0 has not"),
             "{early}"
         );
         // A person's answer reaches the open session through the run's

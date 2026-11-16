@@ -47,13 +47,13 @@ pub fn resolve_local_skill_reference(
             0 => {}
             1 => return Ok(versions.pop()),
             _ => {
-                return Err(RuntimeError::SkillFailed {
-                    skill_name: reference.to_string_lossy().into_owned(),
-                    message: format!(
+                return Err(RuntimeError::failed(
+                    reference.to_string_lossy().into_owned(),
+                    format!(
                         "skill reference is ambiguous in {}; use an exact package path",
                         candidate.display()
                     ),
-                });
+                ));
             }
         }
     }

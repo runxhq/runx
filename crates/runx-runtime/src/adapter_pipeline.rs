@@ -23,14 +23,14 @@ impl AdapterProjection {
         &self,
         status: InvocationStatus,
         value: JsonValue,
-        failure: Option<String>,
+        failure: Option<crate::Failure>,
         observations: Observations,
     ) -> InvocationOutput {
         let mut output = match status {
             InvocationStatus::Success => InvocationOutput::runtime_success(value, self.duration_ms),
             InvocationStatus::Failure => InvocationOutput::runtime_failure(
                 value,
-                failure.unwrap_or_else(|| "runtime invocation failed".to_owned()),
+                failure.unwrap_or_else(|| crate::Failure::new("runx", "the invocation failed")),
                 self.duration_ms,
             ),
         };
@@ -52,11 +52,15 @@ impl AdapterProjection {
         output
     }
 
-    pub(crate) fn failure(self, message: String, observations: Observations) -> InvocationOutput {
+    pub(crate) fn failure(
+        self,
+        failure: crate::Failure,
+        observations: Observations,
+    ) -> InvocationOutput {
         self.runtime_output(
             InvocationStatus::Failure,
             JsonValue::Null,
-            Some(message),
+            Some(failure),
             observations,
         )
     }
