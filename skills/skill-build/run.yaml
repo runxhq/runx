@@ -6,7 +6,7 @@ catalog:
   category: authoring
 methods:
   design:
-    description: Plan a skill's catalog fit and architecture without writing any package bytes.
+    description: Write a candidate skill package and check it as the package it makes, writing nothing to the workspace.
     inputs:
       objective:
         type: string
@@ -16,10 +16,13 @@ methods:
         default: .
         description: Workspace root to inspect.
         optional: true
+      package_name:
+        type: string
+        description: The name a new package takes, its SKILL.md name.
+        optional: true
       target_dir:
         type: string
-        description: Existing or proposed repo-relative package directory.
-        optional: true
+        description: Repo-relative package directory the design creates or changes; nothing is written there.
       project_context:
         type: string
         description: Product, repository, and operator constraints.
@@ -29,45 +32,51 @@ methods:
         repo_root: .
         target_dir: skills/research
         project_context: Preserve remote evidence support and reuse native file admission.
-    result_from:
-      - plan
+    result_from: [author, check]
     steps:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
           repo_root: $input.repo_root
           target_dir: $input.target_dir
-      - id: architect
-        agent: skill-build-architecture
+      - id: author
+        agent: skill-build-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
         outputs:
-          architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
+          change_draft: {type: object, packet: runx.skill.change_draft.v1}
         inputs:
           objective: $input.objective
+          package_name: $input.package_name
           project_context: $input.project_context
           authoring_mode: design
           authoring_context: $steps.inspect.authoring_context
           repo_root: $input.repo_root
           target_dir: $input.target_dir
-      - id: plan
-        tool: runx.skill.plan
-        outputs:
-          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
-          authoring_required: {type: boolean}
+      - id: bind
+        tool: runx.skill.bind
         inputs:
-          mode: design
           authoring_context: $steps.inspect.authoring_context
-          architecture: $steps.architect.architecture_decision
+          mode: design
+          change_draft: $steps.author.change_draft
+      - id: check
+        tool: runx.skill.apply
+        inputs:
+          target_dir: $input.target_dir
+          repo_root: $input.repo_root
+          mode: design
+          change_bundle: $steps.bind.change_bundle
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}
   build:
-    description: Create or update a skill package, writing it only once its exact staged bundle passes parsing, inspection and safe replay of its tests.
+    description: Create a skill package where none stands, writing it only once its exact staged package passes parsing, inspection and safe replay of its tests.
     inputs:
       objective:
         type: string
-        description: Skill capability to create or update.
+        description: Skill capability to create.
       package_name:
         type: string
-        description: Explicit package identity when the caller is creating a new skill.
+        description: The name the new package takes, its SKILL.md name.
         optional: true
       repo_root:
         type: string
@@ -76,51 +85,24 @@ methods:
         optional: true
       target_dir:
         type: string
-        description: Repo-relative package directory to create or update.
+        description: Repo-relative package directory to create, where no package stands.
       project_context:
         type: string
         description: Product, repository, and operator constraints.
         optional: true
     examples:
-      - objective: Add bounded local-file evidence to the existing research skill.
+      - objective: Create a skill that drafts a customer update from the week's merged work.
         repo_root: .
-        target_dir: skills/research
-        project_context: Preserve remote evidence support and avoid package-local file readers.
-    result_from:
-      - plan
-      - apply
-      - apply-terminal
+        target_dir: skills/customer-update
+        project_context: Reuse the native git and file reads; the person approves the draft before anything is sent.
+    result_from: [author, apply]
     steps:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
           repo_root: $input.repo_root
           target_dir: $input.target_dir
-      - id: architect
-        agent: skill-build-architecture
-        calls:
-          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
-        outputs:
-          architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
-        inputs:
-          objective: $input.objective
-          package_name: $input.package_name
-          project_context: $input.project_context
-          authoring_mode: build
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
-          target_dir: $input.target_dir
-      - id: plan
-        tool: runx.skill.plan
-        outputs:
-          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
-          authoring_required: {type: boolean}
-        inputs:
-          mode: build
-          authoring_context: $steps.inspect.authoring_context
-          architecture: $steps.architect.architecture_decision
       - id: author
-        when: {value: $steps.plan.authoring_required, equals: true}
         agent: skill-build-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
@@ -132,38 +114,21 @@ methods:
           project_context: $input.project_context
           authoring_mode: build
           authoring_context: $steps.inspect.authoring_context
-          architecture_plan: $steps.plan.architecture_plan
           repo_root: $input.repo_root
           target_dir: $input.target_dir
       - id: bind
-        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.bind
         inputs:
-          architecture_plan: $steps.plan.architecture_plan
+          authoring_context: $steps.inspect.authoring_context
+          mode: build
           change_draft: $steps.author.change_draft
       - id: apply
-        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
           mode: build
           change_bundle: $steps.bind.change_bundle
-        outputs:
-          apply_result: {type: object, packet: runx.skill.apply_result.v1}
-      - id: bind-terminal
-        when: {value: $steps.plan.authoring_required, equals: false}
-        tool: runx.skill.bind
-        inputs:
-          architecture_plan: $steps.plan.architecture_plan
-      - id: apply-terminal
-        when: {value: $steps.plan.authoring_required, equals: false}
-        tool: runx.skill.apply
-        inputs:
-          target_dir: $input.target_dir
-          repo_root: $input.repo_root
-          mode: build
-          change_bundle: $steps.bind-terminal.change_bundle
         outputs:
           apply_result: {type: object, packet: runx.skill.apply_result.v1}
 
@@ -232,7 +197,7 @@ methods:
           apply_result: {type: object, packet: runx.skill.apply_result.v1}
 
   draft:
-    description: Turn one receipt or test failure into a bounded update of a package, bound and validated, and stop before anything is written. A caller such as reflection tests the change first and applies it itself.
+    description: Turn one receipt or test failure into a bounded change to a package, bound to the package it was authored against, and stop before anything is written. A caller such as reflection proves the change first and applies it itself.
     inputs:
       objective:
         type: string
@@ -270,44 +235,14 @@ methods:
         target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
         test_output: The agent could not construct the nested resources selector from inspection.
-    result_from:
-      - plan
-      - bind
-      - bind-terminal
+    result_from: [author, bind]
     steps:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
           repo_root: $input.repo_root
           target_dir: $input.target_dir
-      - id: architect
-        agent: skill-build-architecture
-        calls:
-          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
-        outputs:
-          architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
-        inputs:
-          objective: $input.objective
-          project_context: $input.project_context
-          receipt_id: $input.receipt_id
-          receipt_summary: $input.receipt_summary
-          test_output: $input.test_output
-          failure_packet: $input.failure_packet
-          authoring_mode: improve
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
-          target_dir: $input.target_dir
-      - id: plan
-        tool: runx.skill.plan
-        outputs:
-          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
-          authoring_required: {type: boolean}
-        inputs:
-          mode: improve
-          authoring_context: $steps.inspect.authoring_context
-          architecture: $steps.architect.architecture_decision
       - id: author
-        when: {value: $steps.plan.authoring_required, equals: true}
         agent: skill-build-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
@@ -322,23 +257,17 @@ methods:
           failure_packet: $input.failure_packet
           authoring_mode: improve
           authoring_context: $steps.inspect.authoring_context
-          architecture_plan: $steps.plan.architecture_plan
           repo_root: $input.repo_root
           target_dir: $input.target_dir
       - id: bind
-        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.bind
         inputs:
-          architecture_plan: $steps.plan.architecture_plan
+          authoring_context: $steps.inspect.authoring_context
+          mode: improve
           change_draft: $steps.author.change_draft
-      - id: bind-terminal
-        when: {value: $steps.plan.authoring_required, equals: false}
-        tool: runx.skill.bind
-        inputs:
-          architecture_plan: $steps.plan.architecture_plan
 
   test:
-    description: Add tests to an existing package and replay them against the candidate before writing.
+    description: Add tests and the fixtures they read to a package that stands, and replay them against the candidate before writing.
     inputs:
       objective:
         type: string
@@ -364,41 +293,14 @@ methods:
         repo_root: .
         target_dir: skills/research
         project_context: Exercise the real native file and evidence capabilities.
-    result_from:
-      - plan
-      - apply
-      - apply-terminal
+    result_from: [author, apply]
     steps:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
           repo_root: $input.repo_root
           target_dir: $input.target_dir
-      - id: architect
-        agent: skill-build-architecture
-        calls:
-          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
-        outputs:
-          architecture_decision: {type: object, packet: runx.skill.architecture_decision.v1}
-        inputs:
-          objective: $input.objective
-          project_context: $input.project_context
-          test_output: $input.test_output
-          authoring_mode: test
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
-          target_dir: $input.target_dir
-      - id: plan
-        tool: runx.skill.plan
-        outputs:
-          architecture_plan: {type: object, packet: runx.skill.architecture_plan.v1}
-          authoring_required: {type: boolean}
-        inputs:
-          mode: test
-          authoring_context: $steps.inspect.authoring_context
-          architecture: $steps.architect.architecture_decision
       - id: author
-        when: {value: $steps.plan.authoring_required, equals: true}
         agent: skill-build-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
@@ -410,35 +312,20 @@ methods:
           test_output: $input.test_output
           authoring_mode: test
           authoring_context: $steps.inspect.authoring_context
-          architecture_plan: $steps.plan.architecture_plan
           repo_root: $input.repo_root
           target_dir: $input.target_dir
       - id: bind
-        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.bind
         inputs:
-          architecture_plan: $steps.plan.architecture_plan
+          authoring_context: $steps.inspect.authoring_context
+          mode: test
           change_draft: $steps.author.change_draft
       - id: apply
-        when: {value: $steps.plan.authoring_required, equals: true}
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
           repo_root: $input.repo_root
           mode: test
           change_bundle: $steps.bind.change_bundle
-      - id: bind-terminal
-        when: {value: $steps.plan.authoring_required, equals: false}
-        tool: runx.skill.bind
-        inputs:
-          architecture_plan: $steps.plan.architecture_plan
-      - id: apply-terminal
-        when: {value: $steps.plan.authoring_required, equals: false}
-        tool: runx.skill.apply
-        inputs:
-          target_dir: $input.target_dir
-          repo_root: $input.repo_root
-          mode: test
-          change_bundle: $steps.bind-terminal.change_bundle
         outputs:
           apply_result: {type: object, packet: runx.skill.apply_result.v1}

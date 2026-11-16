@@ -6,24 +6,10 @@ use crate::list::{RunxListItemKind, RunxListStatus};
 use crate::schema::{NonEmptyString, RunxSchema};
 use crate::{Digest, JsonObject};
 
-pub const SKILL_ARCHITECTURE_DECISION_SCHEMA: &str = "runx.skill.architecture_decision.v1";
-pub const SKILL_ARCHITECTURE_PLAN_SCHEMA: &str = "runx.skill.architecture_plan.v1";
 pub const SKILL_CHANGE_DRAFT_SCHEMA: &str = "runx.skill.change_draft.v1";
 pub const SKILL_CHANGE_BUNDLE_SCHEMA: &str = "runx.skill.change_bundle.v1";
 pub const SKILL_VALIDATION_RESULT_SCHEMA: &str = "runx.skill.validation_result.v1";
 pub const SKILL_APPLY_RESULT_SCHEMA: &str = "runx.skill.apply_result.v1";
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-pub enum SkillArchitectureDecisionSchema {
-    #[serde(rename = "runx.skill.architecture_decision.v1")]
-    V1,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-pub enum SkillArchitecturePlanSchema {
-    #[serde(rename = "runx.skill.architecture_plan.v1")]
-    V1,
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 pub enum SkillChangeBundleSchema {
@@ -49,16 +35,9 @@ pub enum SkillApplyResultSchema {
     V1,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillArchitectureChoice {
-    Build,
-    ExtendExisting,
-    NoChange,
-    NoSkill,
-    NeedsCore,
-}
-
+/// What an authoring run does with the package: `design` checks a candidate
+/// and writes nothing, `build` creates one where none stands, `improve`
+/// changes one that does, and `test` adds to its tests and fixtures.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillAuthoringMode {
@@ -79,204 +58,9 @@ impl SkillAuthoringMode {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillExecutionLane {
-    Manual,
-    Workflow,
-    Agent,
-    NativeCapability,
-    DomainModule,
-    Process,
-    Operation,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillEffectClass {
-    None,
-    Read,
-    Draft,
-    Mutate,
-    Financial,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillApprovalRequirement {
-    None,
-    Policy,
-    Human,
-}
-
-#[derive(
-    Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize, RunxSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillProofKind {
-    Contract,
-    Test,
-    Regression,
-    Security,
-    Performance,
-    TriggerEval,
-    DirectUseEval,
-    ChainUseEval,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillIdentityAction {
-    Keep,
-    Rename,
-    Create,
-    Internalize,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum SkillPackageVisibility {
-    Public,
-    Internal,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillIdentityDecision {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_name: Option<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proposed_name: Option<NonEmptyString>,
-    pub action: SkillIdentityAction,
-    pub visibility: SkillPackageVisibility,
-    pub rationale: NonEmptyString,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillDirectUse {
-    pub trigger_requests: Vec<NonEmptyString>,
-    pub non_trigger_requests: Vec<NonEmptyString>,
-    pub default_outcome: NonEmptyString,
-    pub routine_host_work: Vec<NonEmptyString>,
-    pub runx_boundary: NonEmptyString,
-    pub terminal_result: NonEmptyString,
-    pub blocker_behavior: NonEmptyString,
-    pub native_escape: NonEmptyString,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillChainUse {
-    pub accepted_inputs: Vec<NonEmptyString>,
-    pub result: NonEmptyString,
-    pub reused_evidence: Vec<NonEmptyString>,
-    pub reused_effects: Vec<NonEmptyString>,
-    pub must_not_repeat: Vec<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillKnowledge {
-    pub purpose: NonEmptyString,
-    pub evidence_required: Vec<NonEmptyString>,
-    pub decision_logic: Vec<NonEmptyString>,
-    pub stop_conditions: Vec<NonEmptyString>,
-    pub recovery: Vec<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillBehaviorDecision {
-    pub id: NonEmptyString,
-    pub outcome: NonEmptyString,
-    pub lane: SkillExecutionLane,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reuses: Option<NonEmptyString>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub domain_module_justification: Option<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillNativeReuseEvidence {
-    pub inspected_capabilities: Vec<NonEmptyString>,
-    pub selected_capabilities: Vec<NonEmptyString>,
-    pub missing_capabilities: Vec<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillEffectRequirement {
-    pub effect: SkillEffectClass,
-    pub authority_scopes: Vec<NonEmptyString>,
-    pub approval: SkillApprovalRequirement,
-    pub provider_boundary: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillChainPlan {
-    pub context_skills: Vec<NonEmptyString>,
-    pub routes: Vec<NonEmptyString>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillResourceBudget {
-    pub max_files: u64,
-    pub max_executable_lines: u64,
-    pub max_process_spawns: u64,
-    pub network_allowed: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillProofRequirement {
-    pub name: NonEmptyString,
-    pub kind: SkillProofKind,
-    pub expected: NonEmptyString,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.skill.architecture_decision.v1")]
-pub struct SkillArchitectureDecision {
-    pub schema: SkillArchitectureDecisionSchema,
-    pub choice: SkillArchitectureChoice,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub identity: Option<SkillIdentityDecision>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub direct_use: Option<SkillDirectUse>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub chain_use: Option<SkillChainUse>,
-    pub objective: NonEmptyString,
-    pub operator_value: NonEmptyString,
-    pub knowledge_contract: SkillKnowledge,
-    pub required_behaviors: Vec<SkillBehaviorDecision>,
-    pub native_reuse: SkillNativeReuseEvidence,
-    pub effects: Vec<SkillEffectRequirement>,
-    pub skill_chain: SkillChainPlan,
-    pub resource_budget: SkillResourceBudget,
-    pub preservation_obligations: Vec<NonEmptyString>,
-    pub deletions: Vec<NonEmptyString>,
-    pub proof_plan: Vec<SkillProofRequirement>,
-}
-
-/// The exact architecture decision admitted against one inspected package
-/// state. `plan_digest` binds both fields so a change bundle cannot silently
-/// reuse the decision after the target package changes.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-#[runx_schema(id = "runx.skill.architecture_plan.v1")]
-pub struct SkillArchitecturePlan {
-    pub schema: SkillArchitecturePlanSchema,
-    pub mode: SkillAuthoringMode,
-    pub base_digest: NonEmptyString,
-    pub plan_digest: NonEmptyString,
-    pub architecture: SkillArchitectureDecision,
-}
-
+/// What an author decided: to `write` the change, that the package needs
+/// `no_change`, that the work is `no_skill`'s, or that it `needs_core`: a
+/// capability runx lacks, which its summary names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SkillChangeDecision {
@@ -293,18 +77,9 @@ pub struct SkillFileWrite {
     pub contents: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub struct SkillExpectedOutput {
-    pub name: NonEmptyString,
-    pub value_type: NonEmptyString,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub packet: Option<crate::PacketId>,
-}
-
-/// Agent-authored package bytes and intent before the runtime binds them to an
-/// inspected package state. This contract deliberately contains no digest:
-/// agents never calculate or copy runtime integrity values.
+/// What an author returns: its decision, why, and the package files it
+/// writes and deletes. The files are the package's contract, and runx checks
+/// them. It carries no digest: an author never calculates or copies one.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.skill.change_draft.v1")]
@@ -312,12 +87,12 @@ pub struct SkillChangeDraft {
     pub schema: SkillChangeDraftSchema,
     pub decision: SkillChangeDecision,
     pub summary: NonEmptyString,
-    pub non_goals: Vec<NonEmptyString>,
     pub writes: Vec<SkillFileWrite>,
     pub deletes: Vec<NonEmptyString>,
-    pub expected_outputs: Vec<SkillExpectedOutput>,
 }
 
+/// A draft bound to the package state it was authored against, so a change
+/// to the package since then refuses it.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.skill.change_bundle.v1")]
@@ -325,13 +100,9 @@ pub struct SkillChangeBundle {
     pub schema: SkillChangeBundleSchema,
     pub decision: SkillChangeDecision,
     pub base_digest: NonEmptyString,
-    pub plan_digest: NonEmptyString,
-    pub architecture: SkillArchitectureDecision,
     pub summary: NonEmptyString,
-    pub non_goals: Vec<NonEmptyString>,
     pub writes: Vec<SkillFileWrite>,
     pub deletes: Vec<NonEmptyString>,
-    pub expected_outputs: Vec<SkillExpectedOutput>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -380,7 +151,6 @@ pub struct SkillValidationResult {
     pub schema: SkillValidationResultSchema,
     pub target_dir: NonEmptyString,
     pub base_digest: NonEmptyString,
-    pub plan_digest: NonEmptyString,
     pub candidate_digest: NonEmptyString,
     pub checks: Vec<SkillValidationCheck>,
     pub before: SkillPackageMetrics,
@@ -394,6 +164,8 @@ pub struct SkillValidationResult {
 pub enum SkillApplyVerdict {
     Unchanged,
     NeedsCore,
+    /// A design's candidate validated, and nothing was written.
+    Validated,
     ValidatedAndApplied,
 }
 
@@ -406,7 +178,6 @@ pub struct SkillApplyResult {
     pub decision: SkillChangeDecision,
     pub verdict: SkillApplyVerdict,
     pub base_digest: NonEmptyString,
-    pub plan_digest: NonEmptyString,
     /// The package digest of the package standing at the target, as `runx
     /// skill inspect` reports it; none when no package stands there.
     #[serde(default, skip_serializing_if = "Option::is_none")]

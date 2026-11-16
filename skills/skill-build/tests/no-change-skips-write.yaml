@@ -12,62 +12,13 @@ inputs:
       - Reproduce the report with a sealed receipt before changing the package.
 host:
   answers:
-    architect:
-      architecture_decision:
-        schema: runx.skill.architecture_decision.v1
-        choice: no_change
-        objective: Decide whether weak evidence warrants a package change.
-        operator_value: Protect a package from speculative corrections.
-        knowledge_contract:
-          purpose: Require reproducible evidence before changing existing behavior.
-          evidence_required:
-            - A sealed receipt or reproducible test failure.
-          decision_logic:
-            - Preserve current behavior when the supplied report cannot be reproduced.
-          stop_conditions:
-            - Stop authoring when material failure evidence is absent.
-          recovery:
-            - Resume with a sealed receipt or focused failing fixture.
-        required_behaviors:
-          - id: evidence-gate
-            outcome: Return no change when failure evidence is insufficient.
-            lane: manual
-        native_reuse:
-          inspected_capabilities:
-            - runx.skill.inspect
-            - runx.skill.plan
-            - runx.skill.bind
-            - runx.skill.apply
-          selected_capabilities: []
-          missing_capabilities: []
-        effects:
-          - effect: none
-            authority_scopes: []
-            approval: none
-            provider_boundary: false
-        skill_chain:
-          context_skills:
-            - diagnose-skill-run
-          routes:
-            - Route unresolved evidence back to diagnose-skill-run.
-        resource_budget:
-          max_files: 0
-          max_executable_lines: 0
-          max_process_spawns: 0
-          network_allowed: false
-        preservation_obligations:
-          - Preserve behavior until evidence identifies a bounded correction.
-        deletions: []
-        proof_plan:
-          - name: improvement-selection
-            kind: trigger_eval
-            expected: Evidence-backed improvement selects Skill Build and an unverified change request does not proceed.
-          - name: no-change-without-proof
-            kind: direct_use_eval
-            expected: Weak direct evidence produces no filesystem mutation.
-          - name: failure-evidence-reuse
-            kind: chain_use_eval
-            expected: A supplied diagnosis packet is reused without repeating the failed operation.
+    author:
+      change_draft:
+        schema: runx.skill.change_draft.v1
+        decision: no_change
+        summary: The report has no receipt or reproducible test output, so the evidence justifies no change; reproduce it with a sealed receipt first.
+        writes: []
+        deletes: []
 expect:
   status: sealed
   receipt:

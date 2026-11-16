@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 53,
+  "capability_count": 52,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -571,18 +571,6 @@
         "kind": "named",
         "output": "authoring_context",
         "packet": "runx.skill_lab.authoring_context.v1"
-      },
-      "execution_boundary": "native_capability"
-    },
-    {
-      "id": "runx.skill.plan",
-      "source": "runx-runtime/authoring",
-      "effect": "read",
-      "approval": "none",
-      "artifacts": {
-        "kind": "named",
-        "output": "architecture_plan",
-        "packet": "runx.skill.architecture_plan.v1"
       },
       "execution_boundary": "native_capability"
     },

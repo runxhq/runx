@@ -2,6 +2,6 @@ name: adopt-needs-local-source-selector
 method: adopt
 inputs:
   objective: Adopt this captured decision-note procedure as a runnable local runx package.
-  target_dir: .runx-tmp/skill-build-fixtures/fixture-decision-note
+  target_dir: .runx-tmp/skill-adopt-fixtures/missing-source-selector/fixture-decision-note
 expect:
   status: failure

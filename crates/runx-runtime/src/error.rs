@@ -377,6 +377,10 @@ pub enum RuntimeError {
     },
     #[error("skill '{skill_name}' failed: {message}")]
     SkillFailed { skill_name: String, message: String },
+    /// An authored skill change runx refused, at its bind or its apply: the
+    /// step that refused it says which.
+    #[error("the skill change is refused: {message}")]
+    SkillChangeRefused { message: String },
     #[cfg(feature = "agent")]
     #[error("model provider failed: {detail}")]
     ModelProvider { detail: String },
@@ -489,7 +493,8 @@ impl RuntimeError {
             | Self::CredentialDelivery(_)
             | Self::ProviderEffectRejected { .. }
             | Self::ProviderEffectContradicted { .. }
-            | Self::SkillFailed { .. } => false,
+            | Self::SkillFailed { .. }
+            | Self::SkillChangeRefused { .. } => false,
             Self::InputContract { .. } => false,
             #[cfg(feature = "agent")]
             Self::ManagedAgentResolution { .. } | Self::ModelProvider { .. } => false,

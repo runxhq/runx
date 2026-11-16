@@ -6,15 +6,14 @@ mod handlers;
 mod inputs;
 mod outputs;
 
-use handlers::{apply_skill, bind_skill, inspect_skill, plan_skill, validate_skill};
+use handlers::{apply_skill, bind_skill, inspect_skill, validate_skill};
 use inputs::{
-    APPLY_FIELDS, ApplyInput, BIND_FIELDS, BindInput, INSPECT_FIELDS, InspectInput, PLAN_FIELDS,
-    PlanInput, VALIDATE_FIELDS, ValidateInput,
+    APPLY_FIELDS, ApplyInput, BIND_FIELDS, BindInput, INSPECT_FIELDS, InspectInput,
+    VALIDATE_FIELDS, ValidateInput,
 };
-use outputs::{ApplyOutput, AuthoringInspectOutput, BindOutput, PlanOutput, ValidateOutput};
+use outputs::{ApplyOutput, AuthoringInspectOutput, BindOutput, ValidateOutput};
 
 const VALIDATE_TOOL: &str = "runx.skill.validate";
-const PLAN_TOOL: &str = "runx.skill.plan";
 const BIND_TOOL: &str = "runx.skill.bind";
 const APPLY_TOOL: &str = "runx.skill.apply";
 
@@ -53,27 +52,11 @@ static VALIDATE: TypedNativeCapability<ValidateInput, ValidateOutput> = TypedNat
     validate_skill,
 );
 
-static PLAN: TypedNativeCapability<PlanInput, PlanOutput> = TypedNativeCapability::new(
-    CapabilityDefinition {
-        id: PLAN_TOOL,
-        source: "runx-runtime/authoring",
-        summary: "Validate and digest-bind one skill architecture decision.",
-        effect: CapabilityEffect::Read,
-        approval: CapabilityApproval::None,
-        artifacts: CapabilityArtifacts::Named {
-            output: "architecture_plan",
-            packet: "runx.skill.architecture_plan.v1",
-        },
-        fields: PLAN_FIELDS,
-    },
-    plan_skill,
-);
-
 static BIND: TypedNativeCapability<BindInput, BindOutput> = TypedNativeCapability::new(
     CapabilityDefinition {
         id: BIND_TOOL,
         source: "runx-runtime/authoring",
-        summary: "Bind one closed content draft to its native architecture plan.",
+        summary: "Check one authored change's decision against its mode and bind it to the package state it was authored against.",
         effect: CapabilityEffect::Read,
         approval: CapabilityApproval::None,
         artifacts: CapabilityArtifacts::Named {
@@ -89,7 +72,7 @@ static APPLY: TypedNativeCapability<ApplyInput, ApplyOutput> = TypedNativeCapabi
     CapabilityDefinition {
         id: APPLY_TOOL,
         source: "runx-runtime/authoring",
-        summary: "Transactionally apply one validated, bounded skill change bundle.",
+        summary: "Validate one bound skill change as the staged package it makes, and write it unless the mode is design.",
         // Applying validates the candidate first, test included.
         effect: CapabilityEffect::Mutate,
         approval: CapabilityApproval::None,
@@ -103,5 +86,4 @@ static APPLY: TypedNativeCapability<ApplyInput, ApplyOutput> = TypedNativeCapabi
 )
 .describing(handlers::apply_skill_effect);
 
-pub(super) const CAPABILITIES: &[&dyn NativeCapability] =
-    &[&INSPECT, &PLAN, &BIND, &VALIDATE, &APPLY];
+pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&INSPECT, &BIND, &VALIDATE, &APPLY];

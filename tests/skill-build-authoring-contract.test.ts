@@ -2,10 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import {
-  validateSkillArchitectureDecisionContract,
-  validateSkillChangeDraftContract,
-} from "@runxhq/contracts";
+import { validateSkillChangeDraftContract } from "@runxhq/contracts";
 import {
   validateTestFixtureYamlBatch,
   validateMethodManifestYaml,
@@ -13,8 +10,6 @@ import {
 
 const root = process.cwd();
 const canonicalPackets = [
-  ["skill-architecture-decision.schema.json", "runx.skill.architecture_decision.v1"],
-  ["skill-architecture-plan.schema.json", "runx.skill.architecture_plan.v1"],
   ["skill-change-draft.schema.json", "runx.skill.change_draft.v1"],
   ["skill-change-bundle.schema.json", "runx.skill.change_bundle.v1"],
   ["skill-validation-result.schema.json", "runx.skill.validation_result.v1"],
@@ -31,39 +26,32 @@ describe("Skill Build authoring ownership", () => {
     }
   });
 
-  it("rejects unknown fields in nested architecture and draft values", () => {
-    const architecture = architectureDecision();
-    expect(() => validateSkillArchitectureDecisionContract(architecture)).not.toThrow();
-    architecture.knowledge_contract.unowned = true;
-    expect(() => validateSkillArchitectureDecisionContract(architecture)).toThrow(/knowledge_contract/);
-
+  it("rejects unknown fields in a draft", () => {
     const draft = changeDraft();
     expect(() => validateSkillChangeDraftContract(draft)).not.toThrow();
     draft.writes[0]!.mode = "executable";
     expect(() => validateSkillChangeDraftContract(draft)).toThrow(/writes/);
   });
 
-  it("keeps hashes native and uses architect-plan-author-bind-apply", async () => {
+  it("authors in one turn, then binds and checks natively", async () => {
     const profile = validateMethodManifestYaml({
       skill: "skill-build",
       yaml: await readFile(path.join(root, "skills/skill-build/run.yaml"), "utf8"),
     }).raw.document as Record<string, any>;
-    expect(stepIds(profile.methods.design)).toEqual(["inspect", "architect", "plan"]);
-    for (const methodName of ["build", "improve", "test"]) {
-      expect(stepIds(profile.methods[methodName])).toEqual([
-        "inspect",
-        "architect",
-        "plan",
-        "author",
-        "bind",
-        "apply",
-      ]);
-      expect(step(profile.methods[methodName], "plan").tool).toBe("runx.skill.plan");
-      expect(step(profile.methods[methodName], "bind").tool).toBe("runx.skill.bind");
-      expect(step(profile.methods[methodName], "apply").tool).toBe("runx.skill.apply");
-      expect(step(profile.methods[methodName], "author").outputs.change_draft.packet)
-        .toBe("runx.skill.change_draft.v1");
+    const methods = profile.methods;
+    expect(stepIds(methods.design)).toEqual(["inspect", "author", "bind", "check"]);
+    expect(stepIds(methods.draft)).toEqual(["inspect", "author", "bind"]);
+    expect(stepIds(methods.improve)).toEqual(["draft", "apply"]);
+    for (const methodName of ["build", "test"]) {
+      expect(stepIds(methods[methodName])).toEqual(["inspect", "author", "bind", "apply"]);
     }
+    for (const methodName of ["design", "build", "draft", "test"]) {
+      const method = methods[methodName];
+      expect(step(method, "bind").tool).toBe("runx.skill.bind");
+      expect(step(method, "author").outputs.change_draft.packet).toBe("runx.skill.change_draft.v1");
+    }
+    expect(step(methods.design, "check").tool).toBe("runx.skill.apply");
+    expect(step(methods.design, "check").inputs.mode).toBe("design");
 
     const testRoot = path.join(root, "skills/skill-build/tests");
     const testFiles = (await readdir(testRoot)).filter((entry) => entry.endsWith(".yaml"));
@@ -75,15 +63,11 @@ describe("Skill Build authoring ownership", () => {
       const answers = fixture.host?.answers ?? {};
       // A test refused before any turn answers none.
       if (Object.keys(answers).length === 0) continue;
-      expect(answers["architect"].architecture_decision.schema)
-        .toBe("runx.skill.architecture_decision.v1");
-      // A design run architects and plans; only an authoring run drafts.
-      if (answers["author"] === undefined) continue;
+      // One turn authors: it decides and writes, and never states a digest.
+      expect(Object.keys(answers)).toEqual(["author"]);
       const draft = answers["author"].change_draft;
       expect(draft.schema).toBe("runx.skill.change_draft.v1");
       expect(draft).not.toHaveProperty("base_digest");
-      expect(draft).not.toHaveProperty("plan_digest");
-      expect(draft).not.toHaveProperty("architecture");
     }
   });
 
@@ -92,12 +76,11 @@ describe("Skill Build authoring ownership", () => {
       .replace(/\s+/g, " ");
     for (const meaning of [
       "## Authoring rules",
-      "## Agent task: skill-build-architecture",
       "## Agent task: skill-build-author",
-      "required evidence",
-      "stop conditions",
-      "resource ceilings",
-      "Never copy or calculate `base_digest`",
+      "cold-operator trial",
+      "Never copy or calculate a digest",
+      "A change to a package keeps its name",
+      "Every agent turn the change writes reads the person's memory",
       "no workspace path",
     ]) {
       expect(manual).toContain(meaning);
@@ -130,82 +113,12 @@ function assertClosedObjects(value: unknown, location: string): void {
   Object.entries(record).forEach(([key, child]) => assertClosedObjects(child, `${location}.${key}`));
 }
 
-function architectureDecision(): Record<string, any> {
-  return {
-    schema: "runx.skill.architecture_decision.v1",
-    choice: "build",
-    identity: {
-      proposed_name: "demo",
-      action: "create",
-      visibility: "public",
-      rationale: "Demo is the natural operation name.",
-    },
-    direct_use: {
-      trigger_requests: ["Make a bounded demo decision."],
-      non_trigger_requests: ["Publish this decision."],
-      default_outcome: "Return one bounded decision.",
-      routine_host_work: ["Inspect the supplied objective."],
-      runx_boundary: "Bind result evidence in a receipt.",
-      terminal_result: "A reviewable demo decision.",
-      blocker_behavior: "Block once and name missing evidence.",
-      native_escape: "Return gathered evidence for native continuation.",
-    },
-    chain_use: {
-      accepted_inputs: ["A supplied objective or prior evidence packet."],
-      result: "A reusable demo decision.",
-      reused_evidence: ["Prior objective evidence."],
-      reused_effects: [],
-      must_not_repeat: ["Do not rediscover supplied evidence."],
-    },
-    objective: "Create one bounded skill.",
-    operator_value: "Give the operator one reviewable outcome.",
-    knowledge_contract: {
-      purpose: "Explain the bounded operation.",
-      evidence_required: ["A supplied objective."],
-      decision_logic: ["Preserve supplied evidence."],
-      stop_conditions: ["Stop when evidence is missing."],
-      recovery: ["Resume with the missing evidence."],
-    },
-    required_behaviors: [{ id: "guide", outcome: "Explain the operation.", lane: "manual" }],
-    native_reuse: { inspected_capabilities: [], selected_capabilities: [], missing_capabilities: [] },
-    effects: [{ effect: "none", authority_scopes: [], approval: "none", provider_boundary: false }],
-    skill_chain: { context_skills: [], routes: [] },
-    resource_budget: {
-      max_files: 2,
-      max_executable_lines: 0,
-      max_process_spawns: 0,
-      network_allowed: false,
-    },
-    preservation_obligations: ["Keep the manual substantive."],
-    deletions: [],
-    proof_plan: [
-      {
-        name: "trigger-eval",
-        kind: "trigger_eval",
-        expected: "The natural request selects demo and a publish request does not.",
-      },
-      {
-        name: "standalone-result",
-        kind: "direct_use_eval",
-        expected: "The direct request returns a decision.",
-      },
-      {
-        name: "composed-reuse",
-        kind: "chain_use_eval",
-        expected: "Prior evidence is reused without rediscovery.",
-      },
-    ],
-  };
-}
-
 function changeDraft(): Record<string, any> {
   return {
     schema: "runx.skill.change_draft.v1",
     decision: "write",
     summary: "Create the package.",
-    non_goals: ["Do not publish."],
     writes: [{ path: "SKILL.md", contents: "---\nname: demo\n---\n" }],
     deletes: [],
-    expected_outputs: [],
   };
 }

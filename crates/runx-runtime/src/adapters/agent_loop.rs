@@ -1030,21 +1030,18 @@ mod tests {
                             if results.iter().any(|result|
                                 result.is_error
                                     && result.content.contains("declared output contract")
-                                    && result.content.contains("architecture_decision")
+                                    && result.content.contains("change_draft")
                                     && result.content.contains("required property")))
                     }));
                 }
-                let architecture = JsonValue::Object(JsonObject::from([(
+                let draft = JsonValue::Object(JsonObject::from([(
                     "schema".to_owned(),
-                    JsonValue::String("runx.skill.architecture_decision.v1".to_owned()),
+                    JsonValue::String("runx.skill.change_draft.v1".to_owned()),
                 )]));
                 let input = if call == 0 {
-                    architecture
+                    draft
                 } else {
-                    JsonValue::Object(JsonObject::from([(
-                        "architecture_decision".to_owned(),
-                        architecture,
-                    )]))
+                    JsonValue::Object(JsonObject::from([("change_draft".to_owned(), draft)]))
                 };
                 Ok(unmetered(vec![AgentToolUse {
                     id: format!("final-{call}"),
@@ -1064,7 +1061,7 @@ mod tests {
             max_empty_turn_resamples: 0,
             final_result_tool: FINAL.to_owned(),
             final_result_output: Some(BTreeMap::from([(
-                "architecture_decision".to_owned(),
+                "change_draft".to_owned(),
                 OutputField {
                     schema: JsonObject::from([(
                         "type".to_owned(),
@@ -1088,10 +1085,10 @@ mod tests {
         assert_eq!(
             resolution.answer,
             Some(JsonValue::Object(JsonObject::from([(
-                "architecture_decision".to_owned(),
+                "change_draft".to_owned(),
                 JsonValue::Object(JsonObject::from([(
                     "schema".to_owned(),
-                    JsonValue::String("runx.skill.architecture_decision.v1".to_owned()),
+                    JsonValue::String("runx.skill.change_draft.v1".to_owned()),
                 )])),
             )])))
         );

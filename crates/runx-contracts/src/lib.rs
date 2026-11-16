@@ -238,20 +238,13 @@ pub use schema_definitions::{
 };
 pub use schema_reconcile::{SchemaDrift, reconcile_schema_artifacts};
 pub use skill_authoring::{
-    SKILL_APPLY_RESULT_SCHEMA, SKILL_ARCHITECTURE_DECISION_SCHEMA, SKILL_ARCHITECTURE_PLAN_SCHEMA,
-    SKILL_CHANGE_BUNDLE_SCHEMA, SKILL_CHANGE_DRAFT_SCHEMA, SKILL_VALIDATION_RESULT_SCHEMA,
-    SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict, SkillApprovalRequirement,
-    SkillArchitectureChoice, SkillArchitectureDecision, SkillArchitectureDecisionSchema,
-    SkillArchitecturePlan, SkillArchitecturePlanSchema, SkillAuthoringContext, SkillAuthoringMode,
-    SkillBehaviorDecision, SkillCatalogEntry, SkillChainPlan, SkillChainUse, SkillChangeBundle,
+    SKILL_APPLY_RESULT_SCHEMA, SKILL_CHANGE_BUNDLE_SCHEMA, SKILL_CHANGE_DRAFT_SCHEMA,
+    SKILL_VALIDATION_RESULT_SCHEMA, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
+    SkillAuthoringContext, SkillAuthoringMode, SkillCatalogEntry, SkillChangeBundle,
     SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
-    SkillDirectUse, SkillEffectClass, SkillEffectRequirement, SkillExecutionLane,
-    SkillExpectedOutput, SkillFileWrite, SkillIdentityAction, SkillIdentityDecision,
-    SkillKnowledge, SkillNativeReuseEvidence, SkillPackageDelta, SkillPackageFile,
-    SkillPackageMetrics, SkillPackageVisibility, SkillProofKind, SkillProofRequirement,
-    SkillResourceBudget, SkillValidation, SkillValidationCheck, SkillValidationCheckStatus,
-    SkillValidationResult, SkillValidationResultSchema, SkillValidationSchema,
-    SkillValidationVerdict,
+    SkillFileWrite, SkillPackageDelta, SkillPackageFile, SkillPackageMetrics, SkillValidation,
+    SkillValidationCheck, SkillValidationCheckStatus, SkillValidationResult,
+    SkillValidationResultSchema, SkillValidationSchema, SkillValidationVerdict,
 };
 pub use source_packet::{
     OperationalProposalRedactionStatus, SOURCE_PACKET_SCHEMA, SignalAuthenticity, SignalTrustLevel,

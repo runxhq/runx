@@ -34,7 +34,7 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
     let run_id = line_value(&pending_text, "run_id: ")?;
 
     assert!(pending_text.contains("status: needs_agent"));
-    assert!(pending_text.contains("architect"));
+    assert!(pending_text.contains("author"));
     assert!(pending_text.contains(&format!(
         "runx resume {run_id} - --receipt-dir {}",
         receipts.display()
@@ -44,29 +44,26 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
         "skill-build wrote before authoring completed"
     );
 
-    // Each act is answered when the run asks it: the architect, then the
-    // author its decision leads to.
+    // The one turn the run asks for, the author, decides and writes.
     let answers = root.join("answers.json");
-    let mut completed = Value::Null;
-    for (step, exit) in [("architect", 2), ("author", 0)] {
-        let read = command(&repo, &root)
-            .args(["history", run_id, "--json"])
-            .output()?;
-        let answer = serde_json::json!({ "answers": { step: authoring_answers()[step].clone() } });
-        fs::write(
-            &answers,
-            crate::support::bind_resume(&assert_json(&read, 0)?, answer)?.to_string(),
-        )?;
-        let resumed = command(&repo, &root)
-            .arg("resume")
-            .arg(run_id)
-            .arg(&answers)
-            .arg("--receipt-dir")
-            .arg(&receipts)
-            .args(["--json", "--diagnostics"])
-            .output()?;
-        completed = assert_json(&resumed, exit)?;
-    }
+    let read = command(&repo, &root)
+        .args(["history", run_id, "--json"])
+        .output()?;
+    let answer =
+        serde_json::json!({ "answers": { "author": authoring_answers()["author"].clone() } });
+    fs::write(
+        &answers,
+        crate::support::bind_resume(&assert_json(&read, 0)?, answer)?.to_string(),
+    )?;
+    let resumed = command(&repo, &root)
+        .arg("resume")
+        .arg(run_id)
+        .arg(&answers)
+        .arg("--receipt-dir")
+        .arg(&receipts)
+        .args(["--json", "--diagnostics"])
+        .output()?;
+    let completed = assert_json(&resumed, 0)?;
 
     assert_eq!(completed["status"], "sealed");
     assert_eq!(completed["outcome"], "completed");
@@ -179,121 +176,21 @@ fn assert_json(output: &Output, expected: i32) -> TestResult<Value> {
     serde_json::from_slice(&output.stdout).map_err(Into::into)
 }
 
-/// What the architect and the author answer, by step.
+/// What the author answers: its decision and the package it writes.
 fn authoring_answers() -> Value {
     serde_json::json!({
-            "architect": {
-                "architecture_decision": {
-                    "schema": "runx.skill.architecture_decision.v1",
-                    "choice": "build",
-                    "identity": {
-                        "proposed_name": "digest-note",
-                        "action": "create",
-                        "visibility": "public",
-                        "rationale": "Digest note is the exact operation an agent requests."
-                    },
-                    "direct_use": {
-                        "trigger_requests": ["Digest this note."],
-                        "non_trigger_requests": ["Publish this note."],
-                        "default_outcome": "Return the canonical digest for the supplied note.",
-                        "routine_host_work": ["Read the supplied note."],
-                        "runx_boundary": "Execute the canonical digest capability and receipt the result.",
-                        "terminal_result": "A reusable digest packet.",
-                        "blocker_behavior": "Block once when the note is absent.",
-                        "native_escape": "Return the unchanged note for native hashing."
-                    },
-                    "chain_use": {
-                        "accepted_inputs": ["A note or prior note artifact."],
-                        "result": "A reusable digest packet.",
-                        "reused_evidence": ["The supplied note artifact."],
-                        "reused_effects": [],
-                        "must_not_repeat": ["Do not reacquire or rewrite the supplied note."]
-                    },
-                    "objective": "Create a bounded digest-note skill using the native digest capability.",
-                    "operator_value": "Give an operator one stable digest for a supplied note without package code.",
-                    "knowledge_contract": {
-                        "purpose": "Explain and perform one deterministic note-digest operation.",
-                        "evidence_required": ["One note supplied by the operator."],
-                        "decision_logic": ["Hash the exact supplied note through the canonical native capability."],
-                        "stop_conditions": ["Stop when the note is absent."],
-                        "recovery": ["Resume with a non-empty note."]
-                    },
-                    "required_behaviors": [
-                        {
-                            "id": "operating-guide",
-                            "outcome": "Teach a cold operator what is hashed and what the receipt proves.",
-                            "lane": "manual"
-                        },
-                        {
-                            "id": "digest-note",
-                            "outcome": "Return a canonical SHA-256 digest for the supplied note.",
-                            "lane": "native_capability",
-                            "reuses": "data.digest"
-                        }
-                    ],
-                    "native_reuse": {
-                        "inspected_capabilities": [
-                            "runx.skill.inspect",
-                            "runx.skill.plan",
-                            "runx.skill.bind",
-                            "runx.skill.apply",
-                            "data.digest"
-                        ],
-                        "selected_capabilities": ["data.digest"],
-                        "missing_capabilities": []
-                    },
-                    "effects": [{
-                        "effect": "read",
-                        "authority_scopes": [],
-                        "approval": "none",
-                        "provider_boundary": false
-                    }],
-                    "skill_chain": { "context_skills": [], "routes": [] },
-                    "resource_budget": {
-                        "max_files": 4,
-                        "max_executable_lines": 0,
-                        "max_process_spawns": 0,
-                        "network_allowed": false
-                    },
-                    "preservation_obligations": ["Keep the operator manual and native method aligned."],
-                    "deletions": [],
-                    "proof_plan": [
-                        {
-                            "name": "digest-note-selection",
-                            "kind": "trigger_eval",
-                            "expected": "Digest requests select this skill and publish requests do not."
-                        },
-                        {
-                            "name": "digest-note-standalone",
-                            "kind": "direct_use_eval",
-                            "expected": "A supplied note is digested without package code."
-                        },
-                        {
-                            "name": "digest-note-composed",
-                            "kind": "chain_use_eval",
-                            "expected": "A prior note artifact is reused without reacquisition."
-                        }
-                    ]
-                }
-            },
-            "author": {
-                "change_draft": {
-                    "schema": "runx.skill.change_draft.v1",
-                    "decision": "write",
-                    "summary": "Create one manual and one declarative native digest workflow.",
-                    "non_goals": ["Do not add JavaScript, network access, or provider effects."],
-                    "writes": digest_note_files()
-                        .iter()
-                        .map(|(path, contents)| serde_json::json!({ "path": path, "contents": contents }))
-                        .collect::<Vec<_>>(),
-                    "deletes": [],
-                    "expected_outputs": [{
-                        "name": "digest_result",
-                        "value_type": "object",
-                        "packet": "runx.data.digest.v1"
-                    }]
-                }
+        "author": {
+            "change_draft": {
+                "schema": "runx.skill.change_draft.v1",
+                "decision": "write",
+                "summary": "Create one manual and one declarative native digest workflow.",
+                "writes": digest_note_files()
+                    .iter()
+                    .map(|(path, contents)| serde_json::json!({ "path": path, "contents": contents }))
+                    .collect::<Vec<_>>(),
+                "deletes": []
             }
+        }
     })
 }
 

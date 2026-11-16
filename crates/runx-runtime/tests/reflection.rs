@@ -410,33 +410,17 @@ fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestRe
     Ok(())
 }
 
-/// What skill-build's architect decides for one objective: a no_change for
-/// a decline, and for the stopped run an internal extension of the skill
-/// that keeps its name.
+/// What skill-build's author drafts for one objective: the fix and its case
+/// for the stopped run, and no change for any other, such as a decline.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
-fn architecture(objective: &str) -> serde_json::Value {
-    let effects = serde_json::json!([{"effect": "none", "authority_scopes": [], "approval": "none", "provider_boundary": false}]);
-    let native_reuse = serde_json::json!({"inspected_capabilities": ["runx.skill.inspect", "runx.skill.plan", "runx.skill.bind", "runx.skill.apply"], "selected_capabilities": [], "missing_capabilities": []});
-    let knowledge = serde_json::json!({"purpose": "Greet the team.", "evidence_required": ["The run's record."], "decision_logic": ["Fix only what the record shows."], "stop_conditions": ["Stop when the record shows nothing to fix."], "recovery": ["Resume with the record."]});
-    let proofs = serde_json::json!([{"name": "selects", "kind": "trigger_eval", "expected": "A greeting selects greet."}]);
-    if !objective.contains("sealed_blocked") {
-        return serde_json::json!({
-            "schema": "runx.skill.architecture_decision.v1", "choice": "no_change", "objective": objective,
-            "operator_value": "Keep a person's decline as theirs.", "knowledge_contract": knowledge,
-            "required_behaviors": [{"id": "keep", "outcome": "Leave the skill as it is.", "lane": "manual"}],
-            "native_reuse": native_reuse, "effects": effects, "skill_chain": {"context_skills": [], "routes": []},
-            "resource_budget": {"max_files": 0, "max_executable_lines": 0, "max_process_spawns": 0, "network_allowed": false},
-            "preservation_obligations": ["Keep every method."], "deletions": [], "proof_plan": proofs,
-        });
+fn drafted(objective: &str) -> serde_json::Value {
+    if objective.contains("sealed_blocked") {
+        return fixed_greet();
     }
     serde_json::json!({
-        "schema": "runx.skill.architecture_decision.v1", "choice": "extend_existing",
-        "identity": {"current_name": "greet", "proposed_name": "greet", "action": "keep", "visibility": "internal", "rationale": "The fix is greet's own."},
-        "objective": objective, "operator_value": "A greeting that runs to its end.", "knowledge_contract": knowledge,
-        "required_behaviors": [{"id": "insist", "outcome": "The broken method runs both its steps.", "lane": "manual"}],
-        "native_reuse": native_reuse, "effects": effects, "skill_chain": {"context_skills": [], "routes": []},
-        "resource_budget": {"max_files": 8, "max_executable_lines": 0, "max_process_spawns": 0, "network_allowed": false},
-        "preservation_obligations": ["Keep every method."], "deletions": [], "proof_plan": proofs,
+        "schema": "runx.skill.change_draft.v1", "decision": "no_change",
+        "summary": "The record shows nothing in greet to fix.",
+        "writes": [], "deletes": [],
     })
 }
 
@@ -454,12 +438,11 @@ fn fixed_greet() -> serde_json::Value {
     serde_json::json!({
         "schema": "runx.skill.change_draft.v1", "decision": "write",
         "summary": "Make broken's compare agree, so its guard lets insist run.",
-        "non_goals": ["Change no other method."],
         "writes": [
             {"path": "run.yaml", "contents": fixed},
             {"path": "tests/broken-insists.yaml", "contents": "name: broken-insists\nmethod: broken\nexpect:\n  status: sealed\n  steps: [compare, insist]\n"},
         ],
-        "deletes": [], "expected_outputs": [],
+        "deletes": [],
     })
 }
 
@@ -495,12 +478,9 @@ fn reflection_model(
             .unwrap_or_default();
         let complete =
             |output: serde_json::Value| tool_call("call-final", "turn_complete", &output);
-        if offered.get("architecture_decision").is_some() {
-            let objective = inputs["objective"].as_str().unwrap_or_default();
-            return complete(serde_json::json!({"architecture_decision": architecture(objective)}));
-        }
         if offered.get("change_draft").is_some() {
-            return complete(serde_json::json!({"change_draft": fixed_greet()}));
+            let objective = inputs["objective"].as_str().unwrap_or_default();
+            return complete(serde_json::json!({"change_draft": drafted(objective)}));
         }
         if let Some(resistance) = inputs.get("resistance") {
             // Misdirected, the stopped run's diagnosis cites a receipt no

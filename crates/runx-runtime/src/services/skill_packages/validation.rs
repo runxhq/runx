@@ -3,18 +3,13 @@ use std::fs;
 use std::path::Path;
 
 use runx_contracts::{
-    JsonObject, JsonValue, SkillArchitectureDecision, SkillPackageVisibility, SkillValidation,
-    SkillValidationSchema, SkillValidationVerdict,
+    JsonObject, JsonValue, SkillValidation, SkillValidationSchema, SkillValidationVerdict,
 };
 
 use super::path::{canonical_directory, display_repo_path, invalid_skill_change};
 use super::staging::{InlineCandidateStage, ValidationReceiptStage, isolated_test_env};
 use crate::effects::RuntimeEffectRegistry;
 use crate::{PackageTestReport, RuntimeError, TestProcesses};
-
-mod resources;
-
-use resources::{candidate_resource_usage, validate_architecture_resources};
 
 /// What validating a candidate package found: its inspection, and how each
 /// of its cases came out.
@@ -48,12 +43,11 @@ pub(super) fn validate_candidate(
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
     processes: TestProcesses,
-    architecture: Option<&SkillArchitectureDecision>,
+    authored: Option<&Authored>,
 ) -> Result<CandidateValidation, RuntimeError> {
     let loaded = crate::load_validated_skill_package(candidate)?;
-    if let Some(architecture) = architecture {
-        validate_architecture_identity(architecture, &loaded.package, loaded.manifest())?;
-        validate_architecture_resources(architecture, &candidate_resource_usage(&loaded.package))?;
+    if let Some(authored) = authored {
+        authored.check(&loaded.package, loaded.manifest())?;
     }
     let inspect = crate::inspect_skill_package(candidate, None, Some(env))
         .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
@@ -66,39 +60,88 @@ pub(super) fn validate_candidate(
     Ok(CandidateValidation { inspect, test })
 }
 
-fn validate_architecture_identity(
-    architecture: &SkillArchitectureDecision,
-    package: &runx_parser::ValidatedSkillPackage,
-    manifest: Option<&runx_parser::SkillMethodManifest>,
-) -> Result<(), RuntimeError> {
-    // The package loader already enforces public catalog readiness. This
-    // boundary binds that validated package to the admitted architecture.
-    let identity = architecture.identity.as_ref().ok_or_else(|| {
-        invalid_skill_change("a written package requires its admitted identity decision")
-    })?;
-    if identity.proposed_name.as_ref().map(|name| name.as_str())
-        != Some(package.skill.name.as_str())
-    {
-        return Err(invalid_skill_change(
-            "candidate package name differs from the admitted identity",
-        ));
-    }
-    let manifest = manifest.ok_or_else(|| {
-        invalid_skill_change("an authored package requires an explicit method manifest and catalog")
-    })?;
-    let catalog = manifest.catalog.as_ref().ok_or_else(|| {
-        invalid_skill_change("candidate catalog visibility must match the admitted identity")
-    })?;
-    let visibility = match identity.visibility {
-        SkillPackageVisibility::Public => runx_parser::CatalogVisibility::Public,
-        SkillPackageVisibility::Internal => runx_parser::CatalogVisibility::Internal,
+/// What an authored package must say of itself, beyond loading: its
+/// catalog, which states its visibility; where a package stood at its
+/// target, the name it had, which a change to it keeps; and that every turn
+/// the change writes reads the person's memory. The turns that stood
+/// already, by method and step, are the person's to change.
+pub(super) struct Authored {
+    pub(super) keeps_name: Option<String>,
+    pub(super) standing_turns: std::collections::BTreeSet<(String, String)>,
+}
+
+/// Each agent turn `manifest` holds, by method and step.
+pub(super) fn turns(
+    manifest: &runx_parser::SkillMethodManifest,
+) -> Vec<(String, &runx_parser::WorkflowStep)> {
+    manifest
+        .methods
+        .iter()
+        .flat_map(|(method, definition)| {
+            definition
+                .workflow
+                .steps
+                .iter()
+                .filter(|step| matches!(step.kind, runx_parser::StepKind::Agent(_)))
+                .map(move |step| (method.clone(), step))
+        })
+        .collect()
+}
+
+/// Whether `turn` reads the person's memory: its context's entries are
+/// those of a step in `steps` that calls `runx/memory#index`.
+fn reads_memory(turn: &runx_parser::WorkflowStep, steps: &[runx_parser::WorkflowStep]) -> bool {
+    let runx_parser::StepKind::Agent(task) = &turn.kind else {
+        return true;
     };
-    if catalog.visibility != visibility {
-        return Err(invalid_skill_change(
-            "candidate catalog visibility differs from the admitted identity",
-        ));
+    task.context_entries.iter().any(|entry| {
+        let runx_parser::Source::Step { step, path } = entry else {
+            return false;
+        };
+        path.first().map(String::as_str) == Some("entries")
+            && steps.iter().any(|recall| {
+                recall.id == *step
+                    && matches!(&recall.kind, runx_parser::StepKind::Skill(target)
+                        if target.skill == "runx/memory" && target.method.as_deref() == Some("index"))
+            })
+    })
+}
+
+impl Authored {
+    fn check(
+        &self,
+        package: &runx_parser::ValidatedSkillPackage,
+        manifest: Option<&runx_parser::SkillMethodManifest>,
+    ) -> Result<(), RuntimeError> {
+        if let Some(name) = &self.keeps_name
+            && package.skill.name != *name
+        {
+            return Err(invalid_skill_change(format!(
+                "a change to {name} keeps its name, and the candidate names itself {}: a rename is the person's own act",
+                package.skill.name
+            )));
+        }
+        // The package loader enforces a public catalog's readiness; an
+        // authored package states its catalog rather than leaving its
+        // visibility to a default.
+        let Some(manifest) = manifest.filter(|manifest| manifest.catalog.is_some()) else {
+            return Err(invalid_skill_change(
+                "an authored package states its catalog in run.yaml, its visibility public or internal",
+            ));
+        };
+        for (method, turn) in turns(manifest) {
+            let written = !self
+                .standing_turns
+                .contains(&(method.clone(), turn.id.clone()));
+            if written && !reads_memory(turn, &manifest.methods[&method].workflow.steps) {
+                return Err(invalid_skill_change(format!(
+                    "methods.{method}.steps.{}: every turn a change writes reads the person's memory, from a step on runx/memory#index at the personal and workspace levels, its entries in the turn's context.entries",
+                    turn.id
+                )));
+            }
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 fn run_candidate_test(
@@ -350,11 +393,6 @@ fn resolve_candidate_path(
 mod tests {
     #![allow(clippy::expect_used)]
 
-    use runx_contracts::SkillArchitectureDecision;
-    use serde_json::json;
-
-    use super::resources::{CandidateResourceUsage, validate_architecture_resources};
-
     #[test]
     fn candidate_inspection_resolves_the_workspaces_pinned_installed_connector()
     -> Result<(), Box<dyn std::error::Error>> {
@@ -417,124 +455,5 @@ mod tests {
         assert!(refusal.is_some_and(|error| error.contains("case: expected ready")));
         assert!(validation("inconclusive").applicable().is_err());
         assert!(validation("passed").applicable().is_ok());
-    }
-
-    fn architecture(domain_module: bool) -> SkillArchitectureDecision {
-        serde_json::from_value(json!({
-            "schema": "runx.skill.architecture_decision.v1",
-            "choice": "build",
-            "identity": {
-                "proposed_name": "demo",
-                "action": "create",
-                "visibility": "public",
-                "rationale": "Demo is the exact operator-facing identity."
-            },
-            "direct_use": {
-                "trigger_requests": ["Make one bounded demo decision."],
-                "non_trigger_requests": ["Publish this decision."],
-                "default_outcome": "Return one bounded decision.",
-                "routine_host_work": ["Inspect the supplied objective."],
-                "runx_boundary": "Bind result evidence in a receipt.",
-                "terminal_result": "A reviewable demo decision.",
-                "blocker_behavior": "Block once and name missing evidence.",
-                "native_escape": "Return gathered evidence for native continuation."
-            },
-            "chain_use": {
-                "accepted_inputs": ["A supplied objective or prior evidence packet."],
-                "result": "A reusable demo decision.",
-                "reused_evidence": ["Prior objective evidence."],
-                "reused_effects": [],
-                "must_not_repeat": ["Do not rediscover supplied evidence."]
-            },
-            "objective": "Create a bounded operator skill.",
-            "operator_value": "Return one reviewable result.",
-            "knowledge_contract": {
-                "purpose": "Perform the bounded operation.",
-                "evidence_required": ["A supplied objective."],
-                "decision_logic": ["Preserve supplied evidence."],
-                "stop_conditions": ["Stop when evidence is incomplete."],
-                "recovery": ["Resume with the missing evidence."]
-            },
-            "required_behaviors": [{
-                "id": "operate",
-                "outcome": "Return one bounded result.",
-                "lane": if domain_module { "domain_module" } else { "agent" },
-                "domain_module_justification": if domain_module {
-                    Some("The transformation cannot be expressed by a native tool.")
-                } else {
-                    None
-                }
-            }],
-            "native_reuse": {
-                "inspected_capabilities": ["runx.skill.inspect"],
-                "selected_capabilities": [],
-                "missing_capabilities": []
-            },
-            "effects": [{
-                "effect": "none",
-                "authority_scopes": [],
-                "approval": "none",
-                "provider_boundary": false
-            }],
-            "skill_chain": { "context_skills": [], "routes": [] },
-            "resource_budget": {
-                "max_files": 8,
-                "max_executable_lines": if domain_module { 100 } else { 0 },
-                "max_process_spawns": if domain_module { 1 } else { 0 },
-                "network_allowed": false
-            },
-            "preservation_obligations": ["Keep the operating manual substantive."],
-            "deletions": [],
-            "proof_plan": [
-                {
-                    "name": "trigger-eval",
-                    "kind": "trigger_eval",
-                    "expected": "The natural request selects demo and a publish request does not."
-                },
-                {
-                    "name": "standalone-result",
-                    "kind": "direct_use_eval",
-                    "expected": "The direct request returns a decision."
-                },
-                {
-                    "name": "composed-reuse",
-                    "kind": "chain_use_eval",
-                    "expected": "Prior evidence is reused without rediscovery."
-                }
-            ]
-        }))
-        .expect("architecture fixture must be valid")
-    }
-
-    #[test]
-    fn skill_authoring_architecture_resource_validation_enforces_every_runtime_budget() {
-        let declarative = architecture(false);
-
-        let process = CandidateResourceUsage {
-            process_spawns: 1,
-            ..CandidateResourceUsage::default()
-        };
-        assert!(validate_architecture_resources(&declarative, &process).is_err());
-
-        let network = CandidateResourceUsage {
-            network: true,
-            ..CandidateResourceUsage::default()
-        };
-        assert!(validate_architecture_resources(&declarative, &network).is_err());
-
-        let unplanned_domain_module = CandidateResourceUsage {
-            domain_modules: true,
-            ..CandidateResourceUsage::default()
-        };
-        assert!(validate_architecture_resources(&declarative, &unplanned_domain_module).is_err());
-
-        let planned_domain_module = CandidateResourceUsage {
-            process_spawns: 1,
-            domain_modules: true,
-            ..CandidateResourceUsage::default()
-        };
-        assert!(
-            validate_architecture_resources(&architecture(true), &planned_domain_module).is_ok()
-        );
     }
 }

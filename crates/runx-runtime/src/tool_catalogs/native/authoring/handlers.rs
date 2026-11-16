@@ -3,8 +3,8 @@ use std::path::Path;
 use runx_contracts::JsonValue;
 
 use super::super::{NativeInvocation, invalid_input, resolve_repo_root_for};
-use super::inputs::{ApplyInput, BindInput, InspectInput, PlanInput, ValidateInput};
-use super::outputs::{ApplyOutput, AuthoringInspectOutput, BindOutput, PlanOutput, ValidateOutput};
+use super::inputs::{ApplyInput, BindInput, InspectInput, ValidateInput};
+use super::outputs::{ApplyOutput, AuthoringInspectOutput, BindOutput, ValidateOutput};
 use super::{APPLY_TOOL, VALIDATE_TOOL};
 use crate::RuntimeError;
 
@@ -104,30 +104,12 @@ fn requested_skill_path<'a>(
     Ok(requested_path)
 }
 
-pub(super) fn plan_skill(
-    invocation: &NativeInvocation<'_, PlanInput>,
-) -> Result<PlanOutput, RuntimeError> {
-    let context = &invocation.inputs.authoring_context;
-    let plan = crate::services::plan_skill_architecture(
-        context.base_digest.as_str(),
-        invocation.inputs.mode,
-        crate::services::kept_identity(context, invocation.inputs.architecture.clone()),
-    )?;
-    Ok(PlanOutput {
-        authoring_required: matches!(
-            plan.architecture.choice,
-            runx_contracts::SkillArchitectureChoice::Build
-                | runx_contracts::SkillArchitectureChoice::ExtendExisting
-        ),
-        architecture_plan: plan,
-    })
-}
-
 pub(super) fn bind_skill(
     invocation: &NativeInvocation<'_, BindInput>,
 ) -> Result<BindOutput, RuntimeError> {
     let bundle = crate::services::bind_skill_change(
-        &invocation.inputs.architecture_plan,
+        &invocation.inputs.authoring_context,
+        invocation.inputs.mode,
         invocation.inputs.change_draft.clone(),
     )?;
     Ok(BindOutput {
@@ -194,6 +176,7 @@ pub(super) fn apply_skill_effect(
     crate::services::skill_change_effect(
         &repo_root,
         &invocation.inputs.target_dir,
+        invocation.inputs.mode,
         &invocation.inputs.change_bundle,
         invocation.reach,
     )

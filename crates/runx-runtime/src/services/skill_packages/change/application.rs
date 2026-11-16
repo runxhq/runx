@@ -10,12 +10,11 @@ use runx_contracts::{
 };
 
 use super::super::path::{
-    assert_allowed_package_delete_path, assert_allowed_package_write_path, invalid_skill_change,
-    normalize_package_file, reject_secret_material,
+    assert_mode_path, invalid_skill_change, normalize_package_file, reject_secret_material,
 };
 use super::super::snapshot::{PackageSnapshot, package_delta, package_metrics};
-use super::super::validation::{CandidateValidation, validate_candidate};
-use super::admission::{validate_digest, validate_resource_budget};
+use super::super::validation::{Authored, CandidateValidation, validate_candidate};
+use super::admission::validate_digest;
 use super::{RuntimeEffectRegistry, RuntimeError};
 use crate::TestProcesses;
 use crate::filesystem::{TextBundle, TextFileWrite};
@@ -87,7 +86,6 @@ struct SkillApplicationRecord {
     schema: String,
     target_dir: String,
     base_digest: String,
-    plan_digest: String,
     bundle_digest: String,
     snapshot_digest: String,
 }
@@ -98,7 +96,6 @@ pub(super) struct AdmittedSkillChange {
 
 pub(super) fn admit_skill_change(
     target_dir: &str,
-    target: &Path,
     mode: runx_contracts::SkillAuthoringMode,
     change: &SkillChangeBundle,
     secret_prefixes: &BTreeSet<String>,
@@ -106,7 +103,7 @@ pub(super) fn admit_skill_change(
     let writes = change
         .writes
         .iter()
-        .map(|write| admit_write(target_dir, target, mode, write, secret_prefixes))
+        .map(|write| admit_write(target_dir, mode, write, secret_prefixes))
         .collect::<Result<Vec<_>, RuntimeError>>()?;
     let deletes = change
         .deletes
@@ -124,13 +121,12 @@ pub(super) fn admit_skill_change(
 
 fn admit_write(
     target_dir: &str,
-    target: &Path,
     mode: runx_contracts::SkillAuthoringMode,
     write: &runx_contracts::SkillFileWrite,
     secret_prefixes: &BTreeSet<String>,
 ) -> Result<TextFileWrite, RuntimeError> {
     let relative = normalize_package_file(write.path.as_str().to_owned())?;
-    assert_allowed_package_write_path(&relative, target, mode)?;
+    assert_mode_path(&relative, mode)?;
     reject_secret_material(&relative, &write.contents, secret_prefixes)?;
     Ok(TextFileWrite {
         path: format!("{target_dir}/{relative}"),
@@ -144,7 +140,7 @@ fn admit_delete(
     delete: &str,
 ) -> Result<String, RuntimeError> {
     let relative = normalize_package_file(delete.to_owned())?;
-    assert_allowed_package_delete_path(&relative, mode)?;
+    assert_mode_path(&relative, mode)?;
     if relative == "SKILL.md" {
         return Err(invalid_skill_change("SKILL.md cannot be deleted"));
     }
@@ -153,7 +149,6 @@ fn admit_delete(
 
 pub(super) fn validation_result(
     target_dir: &str,
-    change: &SkillChangeBundle,
     before: &PackageSnapshot,
     after: &PackageSnapshot,
     before_metrics: SkillPackageMetrics,
@@ -166,7 +161,6 @@ pub(super) fn validation_result(
         schema: SkillValidationResultSchema::V1,
         target_dir: target_dir.into(),
         base_digest: before.digest.as_str().into(),
-        plan_digest: change.plan_digest.clone(),
         candidate_digest: after.digest.as_str().into(),
         checks: check_results,
         before: before_metrics,
@@ -189,8 +183,8 @@ fn validation_checks(test_status: &str) -> Vec<SkillValidationCheck> {
             },
         ),
         passed_check(
-            "resource_budget",
-            "declared file, executable-line, fan-out, process, network, and domain-module budgets passed",
+            "authored_package",
+            "the package states its catalog and keeps the name its mode keeps",
         ),
     ]
 }
@@ -199,25 +193,23 @@ pub(super) fn validate_stable_target(
     repo_root: &Path,
     target: &Path,
     target_dir: &str,
-    change: &SkillChangeBundle,
     snapshot: &PackageSnapshot,
+    authored: &Authored,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<SkillValidationResult, RuntimeError> {
     let metrics = package_metrics(snapshot);
-    validate_resource_budget(&change.architecture, &metrics)?;
     let checks = validate_candidate(
         repo_root,
         target,
         env,
         effects,
         TestProcesses::Run,
-        Some(&change.architecture),
+        Some(authored),
     )?
     .applicable()?;
     Ok(validation_result(
         target_dir,
-        change,
         snapshot,
         snapshot,
         metrics.clone(),
@@ -234,7 +226,7 @@ pub(super) fn recorded_application_matches(
 ) -> Result<bool, RuntimeError> {
     let path = paths
         .authoring_applications()
-        .join(application_record_file(change.plan_digest.as_str())?);
+        .join(application_record_file(change)?);
     let contents = match fs::read_to_string(&path) {
         Ok(contents) => contents,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
@@ -254,7 +246,6 @@ pub(super) fn recorded_application_matches(
     Ok(record.schema == APPLICATION_RECORD_SCHEMA
         && record.target_dir == target_dir
         && record.base_digest == change.base_digest.as_str()
-        && record.plan_digest == change.plan_digest.as_str()
         && record.bundle_digest == change_bundle_digest(change)?
         && record.snapshot_digest == snapshot_digest)
 }
@@ -274,7 +265,6 @@ pub(super) fn record_application(
         schema: APPLICATION_RECORD_SCHEMA.to_owned(),
         target_dir: target_dir.to_owned(),
         base_digest: change.base_digest.as_str().to_owned(),
-        plan_digest: change.plan_digest.as_str().to_owned(),
         bundle_digest: change_bundle_digest(change)?,
         snapshot_digest: snapshot_digest.to_owned(),
     };
@@ -291,7 +281,7 @@ pub(super) fn record_application(
         )
     })?;
     let write = TextFileWrite {
-        path: application_record_file(change.plan_digest.as_str())?,
+        path: application_record_file(change)?,
         contents: format!("{contents}\n"),
     };
     crate::filesystem::apply_text_bundle(
@@ -308,11 +298,14 @@ pub(super) fn record_application(
     Ok(())
 }
 
-fn application_record_file(plan_digest: &str) -> Result<String, RuntimeError> {
-    validate_digest("plan_digest", plan_digest)?;
-    let digest = plan_digest
+/// The record of `change`'s application, named by the bundle's own digest,
+/// which binds its base and every byte it writes.
+fn application_record_file(change: &SkillChangeBundle) -> Result<String, RuntimeError> {
+    let bundle_digest = change_bundle_digest(change)?;
+    validate_digest("bundle_digest", &bundle_digest)?;
+    let digest = bundle_digest
         .strip_prefix("sha256:")
-        .ok_or_else(|| invalid_skill_change("plan_digest prefix was not validated"))?;
+        .ok_or_else(|| invalid_skill_change("bundle_digest prefix was not validated"))?;
     Ok(format!("{digest}.json"))
 }
 
@@ -340,7 +333,6 @@ pub(super) fn no_change_result(
             SkillApplyVerdict::Unchanged
         },
         base_digest: change.base_digest.clone(),
-        plan_digest: change.plan_digest.clone(),
         package_digest: standing.package,
         distribution_digest: standing.distribution,
         changed_paths: Vec::new(),

@@ -156,14 +156,10 @@ export {
 export type * from "./generated/contract-types.js";
 
 export {
-  skillArchitectureDecisionV1Schema,
-  skillArchitecturePlanV1Schema,
   skillChangeDraftV1Schema,
   skillChangeBundleV1Schema,
   skillValidationResultV1Schema,
   skillApplyResultV1Schema,
-  validateSkillArchitectureDecisionContract,
-  validateSkillArchitecturePlanContract,
   validateSkillChangeDraftContract,
   validateSkillChangeBundleContract,
   validateSkillValidationResultContract,
@@ -373,8 +369,6 @@ export const runxContractSchemas = {
   storeResult: storeResultV1Schema,
   doctor: runxSchemaArtifacts["doctor.schema.json"],
   list: runxSchemaArtifacts["list.schema.json"],
-  skillArchitectureDecision: runxSchemaArtifacts["skill-architecture-decision.schema.json"],
-  skillArchitecturePlan: runxSchemaArtifacts["skill-architecture-plan.schema.json"],
   skillChangeDraft: runxSchemaArtifacts["skill-change-draft.schema.json"],
   skillChangeBundle: runxSchemaArtifacts["skill-change-bundle.schema.json"],
   skillValidationResult: runxSchemaArtifacts["skill-validation-result.schema.json"],

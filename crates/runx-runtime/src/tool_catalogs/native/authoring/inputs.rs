@@ -1,6 +1,6 @@
 use runx_contracts::{
-    JsonObject, JsonValue, SkillArchitectureDecision, SkillArchitecturePlan, SkillAuthoringContext,
-    SkillAuthoringMode, SkillChangeBundle, SkillChangeDraft,
+    JsonObject, JsonValue, SkillAuthoringContext, SkillAuthoringMode, SkillChangeBundle,
+    SkillChangeDraft,
 };
 use serde::{Deserialize, Serialize};
 
@@ -39,20 +39,10 @@ impl CapabilityInput for ApplyInput {
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
-pub(super) struct PlanInput {
+pub(super) struct BindInput {
     pub(super) authoring_context: SkillAuthoringContext,
     pub(super) mode: SkillAuthoringMode,
-    pub(super) architecture: SkillArchitectureDecision,
-}
-
-impl CapabilityInput for PlanInput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct BindInput {
-    pub(super) architecture_plan: SkillArchitecturePlan,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) change_draft: Option<SkillChangeDraft>,
+    pub(super) change_draft: SkillChangeDraft,
 }
 
 impl CapabilityInput for BindInput {}
@@ -87,36 +77,28 @@ pub(super) const INSPECT_FIELDS: &[CapabilityField] = &[
 pub(super) const APPLY_FIELDS: &[CapabilityField] = &[
     root_field(),
     field("target_dir", "Package path relative to the project root."),
-    field("mode", "Authoring boundary: build, improve, or test."),
+    field(
+        "mode",
+        "design validates the change and writes nothing; build creates a package where none stands; improve changes one that does; test adds to its tests and fixtures.",
+    ),
     field(
         "change_bundle",
         "Digest-bound, closed skill change contract.",
     ),
 ];
 
-pub(super) const PLAN_FIELDS: &[CapabilityField] = &[
-    field(
-        "mode",
-        "Exact authoring mode, bound into the plan digest and checked before authoring.",
-    ),
-    field(
-        "authoring_context",
-        "What the matching runx.skill.inspect call returned: the plan binds its base digest, and an extension that states no identity keeps its target package's own.",
-    ),
-    field(
-        "architecture",
-        "Closed architecture decision to validate and bind to the inspected package.",
-    ),
-];
-
 pub(super) const BIND_FIELDS: &[CapabilityField] = &[
     field(
-        "architecture_plan",
-        "Native digest-bound architecture plan returned by runx.skill.plan.",
+        "authoring_context",
+        "What the matching runx.skill.inspect call returned: the change binds its base digest.",
+    ),
+    field(
+        "mode",
+        "The authoring mode, which the change's decision must fit.",
     ),
     field(
         "change_draft",
-        "Required for package authoring. Omit for a terminal plan; native binding derives empty writes and deletes.",
+        "The author's decision, summary, writes and deletes.",
     ),
 ];
 

@@ -1,11 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 
-use runx_contracts::{
-    SkillArchitectureChoice, SkillArchitectureDecision, SkillChangeDecision, SkillChangeDraft,
-    SkillChangeDraftSchema, SkillFileWrite,
-};
-use serde_json::json;
+use runx_contracts::{SkillChangeDecision, SkillFileWrite};
 
 use super::*;
 
@@ -19,8 +15,14 @@ catalog:
 methods:
   decide:
     steps:
+      - id: recall
+        skill: runx/memory#index
+        inputs:
+          levels: [{level: personal}, {level: workspace}]
       - id: decide
         agent: demo-decide
+        context:
+          entries: [$steps.recall.entries]
         outputs:
           decision: {type: object}
 "#;
@@ -46,15 +48,14 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
     )?;
     let admitted = admit_skill_change(
         &target.relative,
-        &target.path,
         runx_contracts::SkillAuthoringMode::Improve,
         &change,
         &std::collections::BTreeSet::new(),
     )?;
     let candidate = validate_candidate_stage(
         &target,
-        &change,
         &admitted,
+        &target.authored(),
         &BTreeMap::new(),
         &RuntimeEffectRegistry::default(),
     )?;
@@ -83,120 +84,15 @@ fn authoring_rejects_a_change_between_validation_and_commit_without_partial_appl
 }
 
 fn change_bundle(base_digest: &str, manual: String) -> Result<SkillChangeBundle, RuntimeError> {
-    let plan = plan_skill_architecture(
-        base_digest,
-        runx_contracts::SkillAuthoringMode::Improve,
-        architecture()?,
-    )?;
-    bind_skill_change(
-        &plan,
-        Some(SkillChangeDraft {
-            schema: SkillChangeDraftSchema::V1,
-            decision: SkillChangeDecision::Write,
-            summary: "Apply one bounded manual correction.".into(),
-            non_goals: vec!["Do not publish or call a provider.".into()],
-            writes: vec![SkillFileWrite {
-                path: "SKILL.md".into(),
-                contents: manual,
-            }],
-            deletes: Vec::new(),
-            expected_outputs: Vec::new(),
-        }),
-    )
-}
-
-fn architecture() -> Result<SkillArchitectureDecision, RuntimeError> {
-    serde_json::from_value(json!({
-        "schema": "runx.skill.architecture_decision.v1",
-        "choice": choice_name(SkillArchitectureChoice::ExtendExisting),
-        "identity": {
-            "current_name": "demo",
-            "proposed_name": "demo",
-            "action": "keep",
-            "visibility": "public",
-            "rationale": "Demo remains the exact operator-facing identity."
-        },
-        "direct_use": {
-            "trigger_requests": ["Make one bounded demo decision."],
-            "non_trigger_requests": ["Publish this decision."],
-            "default_outcome": "Return one bounded decision.",
-            "routine_host_work": ["Inspect the supplied objective."],
-            "runx_boundary": "Bind result evidence in a receipt.",
-            "terminal_result": "A reviewable demo decision.",
-            "blocker_behavior": "Block once and name missing evidence.",
-            "native_escape": "Return gathered evidence for native continuation."
-        },
-        "chain_use": {
-            "accepted_inputs": ["A supplied objective or prior evidence packet."],
-            "result": "A reusable demo decision.",
-            "reused_evidence": ["Prior objective evidence."],
-            "reused_effects": [],
-            "must_not_repeat": ["Do not rediscover supplied evidence."]
-        },
-        "objective": "Maintain the bounded demo skill.",
-        "operator_value": "Give the operator one reviewable decision.",
-        "knowledge_contract": {
-            "purpose": "Explain and perform the bounded decision.",
-            "evidence_required": ["A supplied objective."],
-            "decision_logic": ["Preserve supplied evidence."],
-            "stop_conditions": ["Stop when evidence is incomplete."],
-            "recovery": ["Resume with the missing evidence."]
-        },
-        "required_behaviors": [{
-            "id": "decide",
-            "outcome": "Return one bounded decision.",
-            "lane": "agent"
+    Ok(SkillChangeBundle {
+        schema: SkillChangeBundleSchema::V1,
+        decision: SkillChangeDecision::Write,
+        base_digest: base_digest.into(),
+        summary: "Apply one bounded manual correction.".into(),
+        writes: vec![SkillFileWrite {
+            path: "SKILL.md".into(),
+            contents: manual,
         }],
-        "native_reuse": {
-            "inspected_capabilities": ["runx.skill.inspect", "runx.skill.apply"],
-            "selected_capabilities": [],
-            "missing_capabilities": []
-        },
-        "effects": [{
-            "effect": "none",
-            "authority_scopes": [],
-            "approval": "none",
-            "provider_boundary": false
-        }],
-        "skill_chain": { "context_skills": [], "routes": [] },
-        "resource_budget": {
-            "max_files": 8,
-            "max_executable_lines": 0,
-            "max_process_spawns": 0,
-            "network_allowed": false
-        },
-        "preservation_obligations": ["Keep the operating manual substantive."],
-        "deletions": [],
-        "proof_plan": [
-            {
-                "name": "trigger-eval",
-                "kind": "trigger_eval",
-                "expected": "The natural request selects demo and a publish request does not."
-            },
-            {
-                "name": "standalone-result",
-                "kind": "direct_use_eval",
-                "expected": "The direct request returns a decision."
-            },
-            {
-                "name": "composed-reuse",
-                "kind": "chain_use_eval",
-                "expected": "Prior evidence is reused without rediscovery."
-            }
-        ]
-    }))
-    .map_err(|source| RuntimeError::Json {
-        context: "parsing the skill architecture test fixture".to_owned(),
-        source,
+        deletes: Vec::new(),
     })
-}
-
-fn choice_name(choice: SkillArchitectureChoice) -> &'static str {
-    match choice {
-        SkillArchitectureChoice::Build => "build",
-        SkillArchitectureChoice::ExtendExisting => "extend_existing",
-        SkillArchitectureChoice::NoChange => "no_change",
-        SkillArchitectureChoice::NoSkill => "no_skill",
-        SkillArchitectureChoice::NeedsCore => "needs_core",
-    }
 }

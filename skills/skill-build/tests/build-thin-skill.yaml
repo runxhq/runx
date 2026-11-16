@@ -7,84 +7,11 @@ inputs:
   project_context: Keep the package declarative and prove its native test.
 host:
   answers:
-    architect:
-      architecture_decision:
-        schema: runx.skill.architecture_decision.v1
-        choice: build
-        identity:
-          proposed_name: fixture-decision-note
-          action: create
-          visibility: internal
-          rationale: Decision note is the exact bounded artifact the fixture promises.
-        chain_use:
-          accepted_inputs:
-            - A bounded objective or prior objective artifact.
-          result: A reusable decision-note packet.
-          reused_evidence:
-            - The supplied objective artifact.
-          reused_effects: []
-          must_not_repeat:
-            - Do not reacquire or rewrite the supplied objective.
-        objective: Create a bounded decision-note skill without package-local runtime code.
-        operator_value: Give an operator one reviewable decision from a bounded objective.
-        knowledge_contract:
-          purpose: Explain and perform one evidence-bounded decision.
-          evidence_required:
-            - A bounded decision objective.
-          decision_logic:
-            - Preserve the objective and return one concise recommendation.
-          stop_conditions:
-            - Stop when the objective is absent.
-          recovery:
-            - Resume with a bounded objective.
-        required_behaviors:
-          - id: operating-guide
-            outcome: Teach a cold operator what the decision lane does and where it stops.
-            lane: manual
-          - id: decide
-            outcome: Return one bounded decision note.
-            lane: agent
-        native_reuse:
-          inspected_capabilities:
-            - runx.skill.inspect
-            - runx.skill.plan
-            - runx.skill.bind
-            - runx.skill.apply
-          selected_capabilities: []
-          missing_capabilities: []
-        effects:
-          - effect: none
-            authority_scopes: []
-            approval: none
-            provider_boundary: false
-        skill_chain:
-          context_skills: []
-          routes: []
-        resource_budget:
-          max_files: 4
-          max_executable_lines: 0
-          max_process_spawns: 0
-          network_allowed: false
-        preservation_obligations:
-          - Keep the package manual useful to a cold operator.
-        deletions: []
-        proof_plan:
-          - name: decision-note-selection
-            kind: trigger_eval
-            expected: A decision-note request selects the skill and an execution request does not.
-          - name: decision-note-standalone
-            kind: direct_use_eval
-            expected: The direct objective produces a useful decision note.
-          - name: decision-note-composed
-            kind: chain_use_eval
-            expected: A prior objective artifact is reused without reacquisition.
     author:
       change_draft:
         schema: runx.skill.change_draft.v1
         decision: write
         summary: Create one thin agent skill with a supplied-answer test.
-        non_goals:
-          - Do not add package-local JavaScript or a provider boundary.
         writes:
           - path: SKILL.md
             contents: |
@@ -121,8 +48,14 @@ host:
                       type: string
                       description: Bounded decision objective.
                   steps:
+                    - id: recall
+                      skill: runx/memory#index
+                      inputs:
+                        levels: [{level: personal}, {level: workspace}]
                     - id: note
                       agent: fixture-decision-note
+                      context:
+                        entries: [$steps.recall.entries]
                       inputs:
                         objective: $input.objective
                       outputs:
@@ -164,17 +97,12 @@ host:
                 receipt:
                   schema: runx.receipt.v1
         deletes: []
-        expected_outputs:
-          - name: decision_note
-            value_type: object
 expect:
   status: sealed
   receipt:
     schema: runx.receipt.v1
   steps:
     - inspect
-    - architect
-    - plan
     - author
     - bind
     - apply

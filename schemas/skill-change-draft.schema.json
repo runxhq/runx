@@ -2,25 +2,12 @@
   "$id": "https://schemas.runx.ai/runx/skill/change-draft/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Agent-authored package bytes and intent before the runtime binds them to an inspected package state. This contract deliberately contains no digest: agents never calculate or copy runtime integrity values.",
+  "description": "What an author returns: its decision, why, and the package files it writes and deletes. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one.",
   "properties": {
     "decision": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeDecision"
     },
     "deletes": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "expected_outputs": {
-      "items": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillExpectedOutput"
-      },
-      "type": "array"
-    },
-    "non_goals": {
       "items": {
         "minLength": 1,
         "type": "string"
@@ -45,10 +32,8 @@
     "schema",
     "decision",
     "summary",
-    "non_goals",
     "writes",
-    "deletes",
-    "expected_outputs"
+    "deletes"
   ],
   "title": "SkillChangeDraft",
   "type": "object",

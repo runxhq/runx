@@ -5,19 +5,17 @@ description: Canonical runx skill-authoring implementation. Use for designing, c
 
 # Skill Build
 
-Build and improve runx skills through one authoring surface. Keep judgment in
-bounded turns and mechanics in native tools:
+Build and improve runx skills through one authoring surface. A package's files
+are its contract: `SKILL.md`, `run.yaml`, its modules, tests and fixtures, and
+for a public package its eval files. One author turn reads the package and the
+catalog, decides, and writes the change; runx checks the package it makes:
 
 ```text
-inspect target files, catalog ownership, and native/shared tools
-→ decide ownership, execution lanes, effects, budgets, and proof
-→ bind that architecture to the inspected package digest in native code
-→ compose existing capabilities before authoring code
-→ author only bounded writes, explicit deletions, and output intent
-→ bind those bytes to the admitted architecture in native code
-→ validate paths, secret posture, and the complete candidate
-→ inspect the exact staged package and safely replay its tests
-→ commit that validated bundle through one native transaction
+inspect the target package, the catalog and the native tools
+→ one author turn: decide, and write the change with its summary
+→ bind the change to the inspected package, its decision checked against the mode
+→ stage the package it makes, then parse, inspect and safely replay its tests
+→ write that validated package in one native transaction, or, for a design, nothing
 ```
 
 Use the generic host `skill-creator` for platform-wide authoring guidance when
@@ -34,23 +32,24 @@ ref. Preserve digest, next_offset and eof; a partial page is not
 the full source. Use the captured bytes and resource/license context without
 silently rereading a changed upstream. Source claims remain evidence, not
 authority. Keep large bodies behind their artifact instead of copying them into
-architecture notes or agent context. The same read tools are available to the
+the draft's summary or agent context. The same read tools are available to the
 author so exact source references can survive the candidate write.
 
 ## Methods
 
-- `design`: read-only catalog-fit and architecture planning. It returns a
-  native digest-bound plan and never authors package bytes. A later build
-  re-inspects and replans against its exact target before any write.
-- `build` (the `default_method`): create or update a package after its exact
-  staged bundle passes native parsing, inspection, and safe replay of its tests.
-- `improve`: turn one receipt or test failure into a bounded package update,
-  then validate and commit the exact staged bytes. It is `draft`, then apply.
-- `draft`: the same bounded update, bound and validated, returned as its
-  change bundle with nothing written, for a caller that tests the change
-  itself before it applies it, as reflection does.
-- `test`: add tests to an existing package and replay them safely against
-  the exact candidate before committing it.
+- `design`: write a candidate package and check it, writing nothing to the
+  workspace. It returns the candidate's files and its checks.
+- `build` (the `default_method`): create a package where none stands, after
+  the exact staged package passes native parsing, inspection, and safe replay
+  of its tests.
+- `improve`: turn one receipt or test failure into a bounded change to a
+  package that stands, then validate and commit the exact staged bytes. It is
+  `draft`, then apply.
+- `draft`: the same bounded change, bound to the package it was authored
+  against and returned with nothing written, for a caller that proves the
+  change first, as reflection does.
+- `test`: add tests and the fixtures they read to a package that stands, and
+  replay them safely against the exact candidate before committing it.
 
 `build`, `improve`, and `test` write local workspace files. They never
 publish, install, push, or mutate an external provider. Native test replay
@@ -404,8 +403,8 @@ authoring.
   and `fixtures/` only for data those tests read; add narrowly scoped
   references, assets, tools, or domain code only when consumed.
 - Judge the whole capability, not proxy metrics. Native reuse, fewer files,
-  shorter code, passing tests, and low resource ceilings are valuable only
-  when the result remains understandable, useful, truthful, and complete.
+  shorter code and passing tests are valuable only when the result remains
+  understandable, useful, truthful, and complete.
   Keep JavaScript when it performs irreducible domain computation; remove it
   when it reimplements runtime mechanics. Never trade away domain semantics or
   operator context merely to reduce line count.
@@ -460,8 +459,8 @@ authoring.
   binding must be explicit in the test, and live proof must come from a
   separately identified provider run.
 
-Before admitting an architecture, perform a cold-operator trial against the
-actual proposed result:
+Before writing a change, perform a cold-operator trial against the actual
+proposed result:
 
 1. Can the operator tell what the skill concluded and which evidence supports
    it?
@@ -473,163 +472,102 @@ actual proposed result:
    and the declared provider-selection boundary without reconstructing lost
    context?
 5. Does one clear owner hold each decision, approval, mutation, and readback?
-6. Would this still be the architecture chosen from scratch against the current
-   runx catalog?
+6. Would this still be the design chosen from scratch against the current runx
+   catalog?
 7. Can a cold agent actually invoke every public method from inspection alone,
    using local or remote evidence appropriate to the job, without source-diving,
    guessed JSON, or an unnecessary provider dependency?
 
-If any answer is no, the package is not ready even if its schemas, tests, and
-budgets pass. Fix the capability design or return `no_skill`/`needs_core`;
+If any answer is no, the package is not ready even if its schemas and tests
+pass. Fix the capability design or return `no_skill`/`needs_core`;
 do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 
 ## Outputs
 
-- `architecture_decision`: the agent's closed ownership and execution design.
-- `architecture_plan`: that decision bound by native code to the exact
-  inspection digest. Every method returns it so the rationale, limits and
-  recovery survive applied, unchanged and stopped outcomes. Design stops here.
-- `change_draft`: package bytes and intent authored against the admitted plan;
-  it contains no model-authored integrity values.
-- `change_bundle`: the native, digest-bound transaction candidate produced from
-  the plan and draft.
-- `apply_result`: unchanged, needs-core, or validated-and-applied, with exact
-  changed/deleted paths, package digest, focused proof, and line/file deltas.
-  For a shared/public package, this is the exact local half of the registry
+- `change_draft`: the author's decision, `write`, `no_change`, `no_skill` or
+  `needs_core`, its summary, and the package files it writes and deletes. It
+  carries no integrity value.
+- `change_bundle`: that draft bound by native code to the package state it was
+  authored against, so a change to the package since refuses it.
+- `apply_result`: unchanged, needs-core, validated (a design, nothing written)
+  or validated-and-applied, with exact changed and deleted paths, the package
+  and distribution digests, focused proof, and line and file deltas. For a
+  shared or public package, this is the exact local half of the registry
   publication handoff; registry publish and readback evidence remain separate.
 
 ## Inputs
 
 - `objective` (required): capability or improvement to deliver.
-- `package_name` (optional, build): explicit identity for a newly requested
-  package; use it as `SKILL.md`'s `name` even when the target directory has a
+- `package_name` (optional, build and design): the name a new package takes, its
+  `SKILL.md` frontmatter `name`, even when the target directory has a
   different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
-- `target_dir` (required for `build`, `improve`, `draft`, and `test`): repo-relative package directory.
+- `target_dir` (required for every method but `design`): repo-relative package directory.
 - `project_context` (optional): product, repository, and operator constraints.
 - `receipt_id`, `receipt_summary`, `test_output`, `failure_packet` (improve and draft):
   failure evidence, including the stable packet from `diagnose-skill-run`.
   `test_output` carries a test run's sanitized output.
 
-## Agent task: skill-build-architecture
-
-Call `turn_complete` with exactly one root field,
-`{"architecture_decision": <decision>}`. The inner decision uses
-`runx.skill.architecture_decision.v1`. Choose `build`, `extend_existing`,
-`no_change`, `no_skill`, or `needs_core`. Explain the operator value and the manual's
-knowledge contract: purpose, required evidence, decision logic, stop conditions,
-and recovery. Assign every required behavior to exactly one real execution lane
-(`manual`, `workflow`, `agent`, `native_capability`, `domain_module`,
-`process`, or `operation`). A native lane names a selected capability;
-a domain module supplies a specific justification. Record inspected, selected,
-and genuinely missing native capabilities; use `needs_core` only for a runtime
-or security invariant or a primitive with two independent existing consumers.
-Return the architecture decision once the evidence is sufficient. The workflow's
-native `plan` step validates it and binds it to the inspected package digest.
-For every `native_capability` behavior, `reuses` must be exactly one entry from
-`native_reuse.selected_capabilities`; split a behavior when it needs more than
-one capability.
-When `package_name` is supplied, treat it as the requested package identity;
-do not silently rename the package from its target path.
-
-Inspect an existing target in one bounded pass. Use the target file list and
-repository root in `authoring_context` to read the relevant files together with
-`fs.read_bundle`; do not crawl them one at a time or reread files already
-present in context. Once the evidence is sufficient, return the declared
-architecture decision instead of spending the remaining round budget on
-optional discovery.
-
-For a `build` decision, make the identity decision explicit: the proposed
-name, `create`, whether the package is public or internal, and why that name
-is the operation a cold agent will reach for. An `extend_existing` decision
-that keeps the package's name and visibility leaves identity out, and native
-plan keeps the package's own; state it only to `rename` or `internalize`,
-with the current and proposed name. A rename or internalization is a clean
-cutover: identify every consumer and do
-not plan aliases or duplicate discovery rows. Internal packages have no public
-direct-use contract.
-
-For every public package, declare both operator contexts before authoring:
-
-- `direct_use` names realistic natural-language trigger and non-trigger
-  requests, the default outcome, routine work the host should do normally, the
-  exact boundary where runx adds value, the terminal result, one actionable
-  blocker behavior, and the context-preserving native escape path.
-- `chain_use` names accepted typed inputs, the reusable result, prior evidence
-  and effects that survive the boundary, and work that must not repeat.
-
-The proof plan must contain distinct `trigger_eval`, `direct_use_eval`, and
-`chain_use_eval` entries for a public package. They are different claims:
-intuitive selection, useful direct completion, and evidence-preserving
-composition. A generic test or sealed receipt may supplement them but cannot
-replace them. The trigger eval's queries include requests for at least two real
-nearby public skills, which must not trigger this one; the direct-use eval runs
-the actual default; and the chain-use eval names both reused prior evidence and
-work that must not repeat. The final candidate proves the direct-use eval with a
-sealed test of its default method, carries both evals in its `evals/evals.json`,
-and carries the trigger eval's queries in its `eval_queries.json`.
-
-Declare effects, authority scopes, approval meaning, provider boundary, skill
-routes, resource ceilings, preservation obligations, exact intended deletions,
-and a proof plan. For every skill route, state the domain result being handed
-off, the canonical capability or authority owner, whether a connector is
-required or operator-selected, the context that must survive the boundary, and
-the truthful effect state before and after that route. A turn that should follow
-the person's standing words and corrections reads them through a route to
-`runx/memory#index`, a step before the turn whose `entries` the turn takes as
-`context.entries`, at the personal and workspace levels as the bundled agent
-does. Plan it for a job the person repeats and corrects; a run reads their
-memory under the standing authority they save for the workspace. Cover every
-material outcome independently. Reject an unnecessary provider pin even when it appears
-in prior work or the request's implementation sketch. Apply the cold-operator
-trial to the proposed public result and chain before making the architecture choice.
-Classify every potentially large value as control input,
-immutable artifact, durable cursor/projection, or bounded domain result, and
-name its production owner plus small/large proof. Reads, drafts, local
-validation, reversible package writes, and routine grant-scoped provider
-mutations do not gain ceremonial human approval. Add an exact resumable gate
-only when the action genuinely requires a separate human decision. Assign each
-such action exactly one approval owner; never pair
-an explicit workflow approval with an effect-owned approval for the same action.
-Budgets are operational ceilings, not guesses to be widened after validation.
-Do not write files, calculate a digest, invent provider proof, or solve an
-ownership gap with package code.
-
-For a shared/public package, also preserve its intended registry identity and
-state whether registry availability is in scope. If it is, the plan ends local
-authoring at the exact applied package and names the canonical registry
-operator as the separate publish-and-readback boundary. Do not plan embedded
-registry HTTP, credentials, auto-publish, or an adjacent publisher/name.
-
-For `improve`, diagnose only from supplied receipt or test evidence and
-distinguish contract, implementation, fixture, environment, and operator
-failures. When evidence cannot justify a change, choose `no_change`. Do not invent a
-package identity, direct-use contract or chain-use contract for that stop. The
-workflow binds the authoring mode and derives an empty change bundle natively;
-there is no author turn for a terminal decision. Preserve the missing evidence
-and next step in the decision. For `test`, plan test-only changes, new
-`tests/<name>.yaml` and the `fixtures/` data they read, and preserve all
-production behavior.
-
 ## Agent task: skill-build-author
 
-Receive the exact native `architecture_plan` and return one `change_draft` using
-`runx.skill.change_draft.v1`. Never copy or calculate `base_digest`,
-`plan_digest`, architecture, or any other integrity field; native bind owns
-those values. Choose `write`, `no_skill`, `no_change`, or `needs_core` in a way
-that agrees with the plan. A non-write draft has empty `writes` and `deletes`.
-A write contains the smallest complete target-relative file set, the exact
-planned deletions, a truthful summary and non-goals, and the outputs the package
-will actually produce.
+Read the target package and the catalog, decide, and return one
+`change_draft`: `{"change_draft": <draft>}`, using
+`runx.skill.change_draft.v1`. Its `decision` is `write`, `no_change`,
+`no_skill` or `needs_core`; its `summary` says why, and for `needs_core` names
+the capability runx lacks; its `writes` are the smallest complete set of
+target-relative files and its `deletes` the files the change removes. Only a
+`write` carries writes or deletes. Never copy or calculate a digest: native
+bind binds the draft to the package you inspected.
 
-When source bytes are needed, read the planned target files together with
-`fs.read_bundle`. Do not spend separate rounds reopening files already supplied
-by `authoring_context` or the architecture plan; reserve the final round for the
-complete `change_draft`.
+The decision fits the method. A `build` creates a package where none stands, or
+finds the work `no_skill` or `needs_core`. An `improve` changes the package that
+stands, or finds `no_change` or `needs_core`. A `test` adds cases or finds
+`no_change`. A `design` may decide anything and writes nothing.
+
+Inspect the target in one bounded pass: read the files `authoring_context`
+lists together with `fs.read_bundle`, rather than one at a time, and don't
+reread files already in context. Once the evidence is sufficient, return the
+draft rather than spending the remaining rounds on optional discovery.
 
 The package's name is its `SKILL.md` frontmatter `name`; `run.yaml` has no
-name of its own. When `package_name` is supplied, use it there. The directory
-is a placement decision, not a second source of package identity.
+name of its own. A new package takes `package_name` when it's supplied. A
+change to a package keeps its name: a rename is the person's own act, and
+native apply refuses one. The directory is a placement decision, not a second
+source of identity.
+
+A package states its `catalog` in `run.yaml`, which takes exact values, and
+native apply refuses any other: `visibility` public or internal, `category`
+code, research, ops, growth, content, data, security, authoring or payments,
+and `tags`. A public package carries `eval_queries.json`, with requests that
+should select it and requests for at least two real nearby skills that
+shouldn't, and `evals/evals.json`, with an eval that runs its default method
+directly and one that composes it, naming the prior evidence it reuses and the
+work it must not repeat. An internal package carries neither.
+
+Every agent turn the change writes reads the person's memory, as the bundled
+agent does, so each turn follows the person's standing words and corrections:
+a step before the turn on `runx/memory#index`, and its `entries` as the turn's
+`context.entries`. Native apply refuses a written turn that doesn't. A run
+reads that memory under the standing authority the person saves for the
+workspace, and reads none without one.
+
+```yaml
+      - id: recall
+        skill: runx/memory#index
+        inputs:
+          levels: [{level: personal}, {level: workspace}]
+      - id: draft
+        agent: customer-update-draft
+        context:
+          entries: [$steps.recall.entries]
+```
+
+For `improve`, diagnose only from the supplied receipt or test evidence, and
+distinguish contract, implementation, fixture, environment and operator
+failures. When the evidence can't justify a change, decide `no_change` and say
+what's missing and what would show it. For `test`, write only new
+`tests/<name>.yaml` and the `fixtures/` data they read, and preserve all
+production behavior.
 
 Write `run.yaml` in the shape the parser reads, which refuses every key it
 doesn't. Its root says `version`; `minimum_runx`, required, the oldest runx
@@ -644,30 +582,20 @@ may add `when`, `guard`, `inputs`, `outputs`, `result_as`, `effects` and
 `reach`. An `agent` step names its task, and `SKILL.md` must hold that task's
 `## Agent task: <name>` section with its instructions; its `calls` lists what
 the turn may call (`tools`, `operations` as `<connector>/<operation>`, `skills`
-as `<ref>#<method>`, `load`, `ask: true`), its `context.skills` the
-skills it reads first, and its `context.entries` the entries an earlier step
-gives it, such as `[$steps.recall.entries]`. A `skill` step names its target as `<ref>#<method>`,
-where `.#<method>` is this package's own method. Steps read `$input`,
-`$steps.<id>`, and `$run.act` inside an `act`.
-
-A `catalog` block takes exact values, and native apply refuses any other:
-`visibility` public or internal, `category` code, research, ops, growth,
-content, data, security, authoring or payments, and `tags`.
+as `<ref>#<method>`, `load`, `ask: true`), its `context.skills` the skills it
+reads first, and its `context.entries` the entries an earlier step gives it. A
+`skill` step names its target as `<ref>#<method>`, where `.#<method>` is this
+package's own method. Steps read `$input`, `$steps.<id>`, and `$run.act` inside
+an `act`.
 
 Put static operating knowledge and task-specific agent rules in `SKILL.md` and
-execution structure in `run.yaml`. Compose selected native capabilities and
-declared skill routes first. Ensure the manual explains what each route is for,
-what context crosses it, and what remains unperformed; do not substitute an
-adapter name for that explanation. Add a domain module only when the architecture
-admits it, and keep the module inside its stated computation boundary. A module
-runs in one worker process, so its architecture budgets `max_process_spawns` of
-at least 1. Include
-focused proof for a useful path and a stop, refusal, or regression path, each a
-`tests/<name>.yaml`. In `test` mode, write or delete only tests and the
-`fixtures/` data they read. Preserve
-useful behavior and delete superseded implementation in the same draft. Never
-add auxiliary docs, generated state, credentials, placeholder modules,
-duplicated generic runx mechanics, or an undeclared provider boundary.
-Registry publication code, credentials, and live-state claims are likewise
-outside the authored package; preserve only the canonical package identity
-needed by the later registry operator.
+execution structure in `run.yaml`. Reuse runx's native capabilities and the
+catalog's skills first, and write code only where none fits, keeping a module
+inside its one computation. Ensure the manual explains what each route is for,
+what context crosses it, and what remains unperformed. Include focused proof
+for a useful path and a stop, refusal or regression path, each a
+`tests/<name>.yaml`. Preserve useful behavior and delete superseded
+implementation in the same change. Never add generated state, credentials,
+placeholder modules, duplicated generic runx mechanics, or an undeclared
+provider boundary. Registry publication code, credentials and live-state
+claims are outside the authored package.

@@ -2,10 +2,8 @@
   "$id": "https://schemas.runx.ai/runx/skill/change-bundle/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "description": "A draft bound to the package state it was authored against, so a change to the package since then refuses it.",
   "properties": {
-    "architecture": {
-      "$ref": "https://schemas.runx.ai/runx/skill/architecture-decision/v1.json"
-    },
     "base_digest": {
       "minLength": 1,
       "type": "string"
@@ -19,23 +17,6 @@
         "type": "string"
       },
       "type": "array"
-    },
-    "expected_outputs": {
-      "items": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillExpectedOutput"
-      },
-      "type": "array"
-    },
-    "non_goals": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "plan_digest": {
-      "minLength": 1,
-      "type": "string"
     },
     "schema": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeBundleSchema"
@@ -55,13 +36,9 @@
     "schema",
     "decision",
     "base_digest",
-    "plan_digest",
-    "architecture",
     "summary",
-    "non_goals",
     "writes",
-    "deletes",
-    "expected_outputs"
+    "deletes"
   ],
   "title": "SkillChangeBundle",
   "type": "object",

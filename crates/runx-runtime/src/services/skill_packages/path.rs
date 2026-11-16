@@ -52,55 +52,18 @@ pub(super) fn normalize_package_file(value: String) -> Result<String, RuntimeErr
     Ok(display_relative(&path))
 }
 
-pub(super) fn assert_allowed_package_write_path(
-    relative: &str,
-    target: &Path,
-    mode: SkillAuthoringMode,
-) -> Result<(), RuntimeError> {
-    if let Some(basename) = auxiliary_doc(relative)
-        && !(mode == SkillAuthoringMode::Improve && target.join(relative).is_file())
-    {
-        return Err(invalid_skill_change(format!(
-            "{basename} is auxiliary package bloat; keep operating guidance in SKILL.md"
-        )));
-    }
-    assert_test_path(relative, mode)
-}
-
-pub(super) fn assert_allowed_package_delete_path(
+/// A path `mode` may write or delete: a test changes only the package's
+/// tests, `tests/<name>.yaml`, and what they read, under `fixtures/`.
+pub(super) fn assert_mode_path(
     relative: &str,
     mode: SkillAuthoringMode,
 ) -> Result<(), RuntimeError> {
-    if let Some(basename) = auxiliary_doc(relative) {
+    let test_case = relative.strip_prefix("tests/").is_some_and(|name| {
+        !name.contains('/') && (name.ends_with(".yaml") || name.ends_with(".yml"))
+    });
+    if mode == SkillAuthoringMode::Test && !test_case && !relative.starts_with("fixtures/") {
         return Err(invalid_skill_change(format!(
-            "{basename} is an existing public package surface and cannot be deleted by skill-build"
-        )));
-    }
-    assert_test_path(relative, mode)
-}
-
-/// The name of a document beside SKILL.md that would split its guidance. A
-/// file under `fixtures/` is data a test reads, named for what it stands for,
-/// so a changelog a test drafts from is no guidance at all.
-fn auxiliary_doc(relative: &str) -> Option<&str> {
-    let basename = relative.rsplit('/').next().unwrap_or(relative);
-    (!relative.starts_with("fixtures/")
-        && matches!(
-            basename,
-            "README.md" | "CHANGELOG.md" | "INSTALLATION_GUIDE.md" | "QUICK_REFERENCE.md"
-        ))
-    .then_some(basename)
-}
-
-fn assert_test_path(relative: &str, mode: SkillAuthoringMode) -> Result<(), RuntimeError> {
-    // A package's tests are its tests/<name>.yaml files.
-    if mode == SkillAuthoringMode::Test
-        && !(relative.starts_with("tests/")
-            && !relative["tests/".len()..].contains('/')
-            && (relative.ends_with(".yaml") || relative.ends_with(".yml")))
-    {
-        return Err(invalid_skill_change(format!(
-            "test mode may only change tests/*.yaml files: {relative}"
+            "test changes only tests/*.yaml and fixtures/: {relative}"
         )));
     }
     Ok(())
@@ -207,8 +170,7 @@ pub(super) fn unique_stage_root(repo_root: &Path, target: &Path) -> PathBuf {
 }
 
 pub(super) fn invalid_skill_change(message: impl Into<String>) -> RuntimeError {
-    RuntimeError::SkillFailed {
-        skill_name: "runx.skill.apply".to_owned(),
+    RuntimeError::SkillChangeRefused {
         message: message.into(),
     }
 }
@@ -217,22 +179,7 @@ pub(super) fn invalid_skill_change(message: impl Into<String>) -> RuntimeError {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use runx_contracts::SkillAuthoringMode;
-
-    use super::{
-        assert_allowed_package_write_path, declared_secret_prefixes, reject_secret_material,
-    };
-
-    /// A changelog beside SKILL.md splits its guidance; one under fixtures/
-    /// is the data a test drafts from.
-    #[test]
-    fn a_fixture_named_for_a_document_is_data_and_never_package_bloat() {
-        let target = std::path::Path::new("skills/customer-update");
-        let build = SkillAuthoringMode::Build;
-        assert!(assert_allowed_package_write_path("CHANGELOG.md", target, build).is_err());
-        assert!(assert_allowed_package_write_path("references/README.md", target, build).is_err());
-        assert!(assert_allowed_package_write_path("fixtures/CHANGELOG.md", target, build).is_ok());
-    }
+    use super::{declared_secret_prefixes, reject_secret_material};
 
     #[test]
     fn secret_material_rejection_detects_private_key_headers_without_static_secrets() {

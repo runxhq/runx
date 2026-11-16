@@ -9407,85 +9407,11 @@ export const runxSchemaArtifacts = {
         "enum": [
           "unchanged",
           "needs_core",
+          "validated",
           "validated_and_applied"
         ],
         "title": "SkillApplyVerdict",
         "type": "string"
-      },
-      "SkillApprovalRequirement": {
-        "enum": [
-          "none",
-          "policy",
-          "human"
-        ],
-        "title": "SkillApprovalRequirement",
-        "type": "string"
-      },
-      "SkillArchitectureChoice": {
-        "enum": [
-          "build",
-          "extend_existing",
-          "no_change",
-          "no_skill",
-          "needs_core"
-        ],
-        "title": "SkillArchitectureChoice",
-        "type": "string"
-      },
-      "SkillArchitectureDecisionSchema": {
-        "enum": [
-          "runx.skill.architecture_decision.v1"
-        ],
-        "title": "SkillArchitectureDecisionSchema",
-        "type": "string"
-      },
-      "SkillArchitecturePlanSchema": {
-        "enum": [
-          "runx.skill.architecture_plan.v1"
-        ],
-        "title": "SkillArchitecturePlanSchema",
-        "type": "string"
-      },
-      "SkillAuthoringMode": {
-        "enum": [
-          "design",
-          "build",
-          "improve",
-          "test"
-        ],
-        "title": "SkillAuthoringMode",
-        "type": "string"
-      },
-      "SkillBehaviorDecision": {
-        "additionalProperties": false,
-        "properties": {
-          "domain_module_justification": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "id": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "lane": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillExecutionLane"
-          },
-          "outcome": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "reuses": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "outcome",
-          "lane"
-        ],
-        "title": "SkillBehaviorDecision",
-        "type": "object"
       },
       "SkillCatalog": {
         "additionalProperties": false,
@@ -9551,77 +9477,6 @@ export const runxSchemaArtifacts = {
         "title": "SkillCatalogEntry",
         "type": "object"
       },
-      "SkillChainPlan": {
-        "additionalProperties": false,
-        "properties": {
-          "context_skills": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "routes": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "context_skills",
-          "routes"
-        ],
-        "title": "SkillChainPlan",
-        "type": "object"
-      },
-      "SkillChainUse": {
-        "additionalProperties": false,
-        "properties": {
-          "accepted_inputs": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "must_not_repeat": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "result": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "reused_effects": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "reused_evidence": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "accepted_inputs",
-          "result",
-          "reused_evidence",
-          "reused_effects",
-          "must_not_repeat"
-        ],
-        "title": "SkillChainUse",
-        "type": "object"
-      },
       "SkillChangeBundleSchema": {
         "enum": [
           "runx.skill.change_bundle.v1"
@@ -9630,6 +9485,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "SkillChangeDecision": {
+        "description": "What an author decided: to `write` the change, that the package needs `no_change`, that the work is `no_skill`'s, or that it `needs_core`: a capability runx lacks, which its summary names.",
         "enum": [
           "write",
           "no_skill",
@@ -9645,141 +9501,6 @@ export const runxSchemaArtifacts = {
         ],
         "title": "SkillChangeDraftSchema",
         "type": "string"
-      },
-      "SkillDirectUse": {
-        "additionalProperties": false,
-        "properties": {
-          "blocker_behavior": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "default_outcome": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "native_escape": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "non_trigger_requests": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "routine_host_work": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "runx_boundary": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "terminal_result": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "trigger_requests": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "trigger_requests",
-          "non_trigger_requests",
-          "default_outcome",
-          "routine_host_work",
-          "runx_boundary",
-          "terminal_result",
-          "blocker_behavior",
-          "native_escape"
-        ],
-        "title": "SkillDirectUse",
-        "type": "object"
-      },
-      "SkillEffectClass": {
-        "enum": [
-          "none",
-          "read",
-          "draft",
-          "mutate",
-          "financial"
-        ],
-        "title": "SkillEffectClass",
-        "type": "string"
-      },
-      "SkillEffectRequirement": {
-        "additionalProperties": false,
-        "properties": {
-          "approval": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillApprovalRequirement"
-          },
-          "authority_scopes": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "effect": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillEffectClass"
-          },
-          "provider_boundary": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "effect",
-          "authority_scopes",
-          "approval",
-          "provider_boundary"
-        ],
-        "title": "SkillEffectRequirement",
-        "type": "object"
-      },
-      "SkillExecutionLane": {
-        "enum": [
-          "manual",
-          "workflow",
-          "agent",
-          "native_capability",
-          "domain_module",
-          "process",
-          "operation"
-        ],
-        "title": "SkillExecutionLane",
-        "type": "string"
-      },
-      "SkillExpectedOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "packet": {
-            "maxLength": 200,
-            "pattern": "^(runx|[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?/[a-z0-9]+(?:-[a-z0-9]+)*)(\\.[a-z][a-z0-9_]*)+\\.v[1-9][0-9]*$",
-            "type": "string"
-          },
-          "value_type": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "value_type"
-        ],
-        "title": "SkillExpectedOutput",
-        "type": "object"
       },
       "SkillFileWrite": {
         "additionalProperties": false,
@@ -9799,46 +9520,6 @@ export const runxSchemaArtifacts = {
         "title": "SkillFileWrite",
         "type": "object"
       },
-      "SkillIdentityAction": {
-        "enum": [
-          "keep",
-          "rename",
-          "create",
-          "internalize"
-        ],
-        "title": "SkillIdentityAction",
-        "type": "string"
-      },
-      "SkillIdentityDecision": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillIdentityAction"
-          },
-          "current_name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "proposed_name": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "rationale": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "visibility": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageVisibility"
-          }
-        },
-        "required": [
-          "action",
-          "visibility",
-          "rationale"
-        ],
-        "title": "SkillIdentityDecision",
-        "type": "object"
-      },
       "SkillInspectionSchema": {
         "enum": [
           "runx.skill.inspect.v1"
@@ -9852,52 +9533,6 @@ export const runxSchemaArtifacts = {
         ],
         "title": "SkillInspectionStatus",
         "type": "string"
-      },
-      "SkillKnowledge": {
-        "additionalProperties": false,
-        "properties": {
-          "decision_logic": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "evidence_required": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "purpose": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "recovery": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "stop_conditions": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "purpose",
-          "evidence_required",
-          "decision_logic",
-          "stop_conditions",
-          "recovery"
-        ],
-        "title": "SkillKnowledge",
-        "type": "object"
       },
       "SkillManual": {
         "additionalProperties": false,
@@ -9917,39 +9552,6 @@ export const runxSchemaArtifacts = {
           "content"
         ],
         "title": "SkillManual",
-        "type": "object"
-      },
-      "SkillNativeReuseEvidence": {
-        "additionalProperties": false,
-        "properties": {
-          "inspected_capabilities": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "missing_capabilities": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "selected_capabilities": {
-            "items": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "inspected_capabilities",
-          "selected_capabilities",
-          "missing_capabilities"
-        ],
-        "title": "SkillNativeReuseEvidence",
         "type": "object"
       },
       "SkillOutputSchema": {
@@ -10071,79 +9673,6 @@ export const runxSchemaArtifacts = {
           "executable_lines"
         ],
         "title": "SkillPackageMetrics",
-        "type": "object"
-      },
-      "SkillPackageVisibility": {
-        "enum": [
-          "public",
-          "internal"
-        ],
-        "title": "SkillPackageVisibility",
-        "type": "string"
-      },
-      "SkillProofKind": {
-        "enum": [
-          "contract",
-          "test",
-          "regression",
-          "security",
-          "performance",
-          "trigger_eval",
-          "direct_use_eval",
-          "chain_use_eval"
-        ],
-        "title": "SkillProofKind",
-        "type": "string"
-      },
-      "SkillProofRequirement": {
-        "additionalProperties": false,
-        "properties": {
-          "expected": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "kind": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillProofKind"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "kind",
-          "expected"
-        ],
-        "title": "SkillProofRequirement",
-        "type": "object"
-      },
-      "SkillResourceBudget": {
-        "additionalProperties": false,
-        "properties": {
-          "max_executable_lines": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "max_files": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "max_process_spawns": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "network_allowed": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "max_files",
-          "max_executable_lines",
-          "max_process_spawns",
-          "network_allowed"
-        ],
-        "title": "SkillResourceBudget",
         "type": "object"
       },
       "SkillValidationCheck": {
@@ -14210,10 +13739,6 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "plan_digest": {
-        "minLength": 1,
-        "type": "string"
-      },
       "residual_risks": {
         "items": {
           "minLength": 1,
@@ -14241,7 +13766,6 @@ export const runxSchemaArtifacts = {
       "decision",
       "verdict",
       "base_digest",
-      "plan_digest",
       "changed_paths",
       "deleted_paths",
       "residual_risks"
@@ -14250,135 +13774,6 @@ export const runxSchemaArtifacts = {
     "type": "object",
     "x-runx-packet": true,
     "x-runx-schema": "runx.skill.apply_result.v1"
-  } as JsonSchema,
-  "skill-architecture-decision.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/skill/architecture-decision/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "properties": {
-      "chain_use": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChainUse"
-      },
-      "choice": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillArchitectureChoice"
-      },
-      "deletions": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "direct_use": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillDirectUse"
-      },
-      "effects": {
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillEffectRequirement"
-        },
-        "type": "array"
-      },
-      "identity": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillIdentityDecision"
-      },
-      "knowledge_contract": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillKnowledge"
-      },
-      "native_reuse": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillNativeReuseEvidence"
-      },
-      "objective": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "operator_value": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "preservation_obligations": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "proof_plan": {
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillProofRequirement"
-        },
-        "type": "array"
-      },
-      "required_behaviors": {
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillBehaviorDecision"
-        },
-        "type": "array"
-      },
-      "resource_budget": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillResourceBudget"
-      },
-      "schema": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillArchitectureDecisionSchema"
-      },
-      "skill_chain": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChainPlan"
-      }
-    },
-    "required": [
-      "schema",
-      "choice",
-      "objective",
-      "operator_value",
-      "knowledge_contract",
-      "required_behaviors",
-      "native_reuse",
-      "effects",
-      "skill_chain",
-      "resource_budget",
-      "preservation_obligations",
-      "deletions",
-      "proof_plan"
-    ],
-    "title": "SkillArchitectureDecision",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.skill.architecture_decision.v1"
-  } as JsonSchema,
-  "skill-architecture-plan.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/skill/architecture-plan/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "description": "The exact architecture decision admitted against one inspected package state. `plan_digest` binds both fields so a change bundle cannot silently reuse the decision after the target package changes.",
-    "properties": {
-      "architecture": {
-        "$ref": "https://schemas.runx.ai/runx/skill/architecture-decision/v1.json"
-      },
-      "base_digest": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "mode": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillAuthoringMode"
-      },
-      "plan_digest": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "schema": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillArchitecturePlanSchema"
-      }
-    },
-    "required": [
-      "schema",
-      "mode",
-      "base_digest",
-      "plan_digest",
-      "architecture"
-    ],
-    "title": "SkillArchitecturePlan",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.skill.architecture_plan.v1"
   } as JsonSchema,
   "skill-authoring-context.schema.json": {
     "$id": "https://schemas.runx.ai/runx/skill-lab/authoring-context/v1.json",
@@ -14471,10 +13866,8 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/skill/change-bundle/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
+    "description": "A draft bound to the package state it was authored against, so a change to the package since then refuses it.",
     "properties": {
-      "architecture": {
-        "$ref": "https://schemas.runx.ai/runx/skill/architecture-decision/v1.json"
-      },
       "base_digest": {
         "minLength": 1,
         "type": "string"
@@ -14488,23 +13881,6 @@ export const runxSchemaArtifacts = {
           "type": "string"
         },
         "type": "array"
-      },
-      "expected_outputs": {
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillExpectedOutput"
-        },
-        "type": "array"
-      },
-      "non_goals": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "plan_digest": {
-        "minLength": 1,
-        "type": "string"
       },
       "schema": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeBundleSchema"
@@ -14524,13 +13900,9 @@ export const runxSchemaArtifacts = {
       "schema",
       "decision",
       "base_digest",
-      "plan_digest",
-      "architecture",
       "summary",
-      "non_goals",
       "writes",
-      "deletes",
-      "expected_outputs"
+      "deletes"
     ],
     "title": "SkillChangeBundle",
     "type": "object",
@@ -14541,25 +13913,12 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/skill/change-draft/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "Agent-authored package bytes and intent before the runtime binds them to an inspected package state. This contract deliberately contains no digest: agents never calculate or copy runtime integrity values.",
+    "description": "What an author returns: its decision, why, and the package files it writes and deletes. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one.",
     "properties": {
       "decision": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeDecision"
       },
       "deletes": {
-        "items": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "expected_outputs": {
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillExpectedOutput"
-        },
-        "type": "array"
-      },
-      "non_goals": {
         "items": {
           "minLength": 1,
           "type": "string"
@@ -14584,10 +13943,8 @@ export const runxSchemaArtifacts = {
       "schema",
       "decision",
       "summary",
-      "non_goals",
       "writes",
-      "deletes",
-      "expected_outputs"
+      "deletes"
     ],
     "title": "SkillChangeDraft",
     "type": "object",
@@ -14828,10 +14185,6 @@ export const runxSchemaArtifacts = {
       "delta": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageDelta"
       },
-      "plan_digest": {
-        "minLength": 1,
-        "type": "string"
-      },
       "residual_risks": {
         "items": {
           "minLength": 1,
@@ -14851,7 +14204,6 @@ export const runxSchemaArtifacts = {
       "schema",
       "target_dir",
       "base_digest",
-      "plan_digest",
       "candidate_digest",
       "checks",
       "before",

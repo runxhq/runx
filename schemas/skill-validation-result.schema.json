@@ -26,10 +26,6 @@
     "delta": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageDelta"
     },
-    "plan_digest": {
-      "minLength": 1,
-      "type": "string"
-    },
     "residual_risks": {
       "items": {
         "minLength": 1,
@@ -49,7 +45,6 @@
     "schema",
     "target_dir",
     "base_digest",
-    "plan_digest",
     "candidate_digest",
     "checks",
     "before",

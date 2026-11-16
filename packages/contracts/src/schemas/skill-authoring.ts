@@ -1,17 +1,11 @@
 import { generatedSchema, validateContractSchema } from "../internal.js";
 import type {
   SkillApplyResultContract,
-  SkillArchitectureDecisionContract,
-  SkillArchitecturePlanContract,
   SkillChangeBundleContract,
   SkillChangeDraftContract,
   SkillValidationResultContract,
 } from "../generated/contract-types.js";
 
-export const skillArchitectureDecisionV1Schema =
-  generatedSchema<SkillArchitectureDecisionContract>("skill-architecture-decision.schema.json");
-export const skillArchitecturePlanV1Schema =
-  generatedSchema<SkillArchitecturePlanContract>("skill-architecture-plan.schema.json");
 export const skillChangeDraftV1Schema =
   generatedSchema<SkillChangeDraftContract>("skill-change-draft.schema.json");
 export const skillChangeBundleV1Schema =
@@ -20,20 +14,6 @@ export const skillValidationResultV1Schema =
   generatedSchema<SkillValidationResultContract>("skill-validation-result.schema.json");
 export const skillApplyResultV1Schema =
   generatedSchema<SkillApplyResultContract>("skill-apply-result.schema.json");
-
-export function validateSkillArchitectureDecisionContract(
-  value: unknown,
-  label = "skill_architecture_decision",
-): SkillArchitectureDecisionContract {
-  return validateContractSchema(skillArchitectureDecisionV1Schema, value, label);
-}
-
-export function validateSkillArchitecturePlanContract(
-  value: unknown,
-  label = "skill_architecture_plan",
-): SkillArchitecturePlanContract {
-  return validateContractSchema(skillArchitecturePlanV1Schema, value, label);
-}
 
 export function validateSkillChangeDraftContract(
   value: unknown,

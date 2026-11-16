@@ -71,9 +71,9 @@ inspected base digest and exact transaction, not an unchecked overwrite.
 2. The snapshot is stored as an immutable native project artifact. Only its
    descriptor and small source counts and its native validation result enter model context; native artifact
    open/read tools provide bounded pages of the captured bodies. Source
-   context, dependency and license obligations enter the existing Skill
-   Build architecture turn. That owner chooses native capabilities and canonical
-   skill routes before its author writes anything.
+   context, dependency and license obligations enter Skill Build's author
+   turn, which chooses native capabilities and canonical skill routes as it
+   writes the package.
 3. The author retains useful source procedure and an unchanged upstream
    reference copy where permitted, includes required resources, and declares
    the exact runnable inputs, results, tools and effects. Unsupported dependencies
@@ -83,11 +83,11 @@ inspected base digest and exact transaction, not an unchecked overwrite.
    changed paths, package digest and proof. The adoption receipt includes that
    child execution; a ready context alone is not an applied package.
 
-An agent continues the offered nested architect and author turns using their
-actual request addresses and tool contracts. Do not substitute answers copied
-from a fixture. Use the result's outcome and apply_result: no_skill, needs_core,
-unchanged, failure and applied are different results. The returned architecture_plan
-preserves the builder’s decision rationale and recovery even when no package is written.
+An agent continues the offered nested author turn using its actual request
+address and tool contract. Do not substitute answers copied from a fixture.
+Use the result's outcome and apply_result: no_skill, needs_core, unchanged,
+failure and applied are different results. The returned change_draft keeps the
+builder's decision and its summary even when no package is written.
 Inspect and invoke the
 returned local package for its promised job before recommending adoption.
 

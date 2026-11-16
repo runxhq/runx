@@ -34,10 +34,6 @@
       "minLength": 1,
       "type": "string"
     },
-    "plan_digest": {
-      "minLength": 1,
-      "type": "string"
-    },
     "residual_risks": {
       "items": {
         "minLength": 1,
@@ -65,7 +61,6 @@
     "decision",
     "verdict",
     "base_digest",
-    "plan_digest",
     "changed_paths",
     "deleted_paths",
     "residual_risks"

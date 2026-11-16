@@ -1,7 +1,4 @@
-use runx_contracts::{
-    SkillApplyResult, SkillArchitecturePlan, SkillAuthoringContext, SkillChangeBundle,
-    SkillValidation,
-};
+use runx_contracts::{SkillApplyResult, SkillAuthoringContext, SkillChangeBundle, SkillValidation};
 use serde::{Deserialize, Serialize};
 
 use crate::CapabilityOutput;
@@ -21,15 +18,6 @@ pub(super) struct ValidateOutput {
 }
 
 impl CapabilityOutput for ValidateOutput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-pub(super) struct PlanOutput {
-    pub(super) architecture_plan: SkillArchitecturePlan,
-    pub(super) authoring_required: bool,
-}
-
-impl CapabilityOutput for PlanOutput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]

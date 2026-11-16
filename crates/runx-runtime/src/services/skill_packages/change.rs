@@ -3,12 +3,9 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
-    Digest, JsonValue, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
-    SkillArchitectureChoice, SkillArchitectureDecision, SkillArchitecturePlan,
-    SkillArchitecturePlanSchema, SkillAuthoringContext, SkillAuthoringMode, SkillChangeBundle,
-    SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
-    SkillIdentityAction, SkillIdentityDecision, SkillPackageVisibility, SkillValidationResult,
-    sha256_prefixed,
+    Digest, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict, SkillAuthoringContext,
+    SkillAuthoringMode, SkillChangeBundle, SkillChangeBundleSchema, SkillChangeDecision,
+    SkillChangeDraft, SkillValidationResult,
 };
 
 use super::path::{
@@ -16,7 +13,7 @@ use super::path::{
 };
 use super::snapshot::{PackageSnapshot, package_metrics, package_snapshot};
 use super::staging::CandidateStage;
-use super::validation::validate_candidate;
+use super::validation::{Authored, validate_candidate};
 use crate::RuntimeError;
 use crate::TestProcesses;
 use crate::effects::RuntimeEffectRegistry;
@@ -29,165 +26,41 @@ mod application;
 mod commit_tests;
 
 use admission::{
-    validate_architecture, validate_architecture_decision, validate_change_contract,
-    validate_change_shape, validate_digest, validate_mode_architecture, validate_mode_decision,
-    validate_resource_budget,
+    validate_change_contract, validate_change_shape, validate_digest, validate_mode_decision,
+    validate_mode_target,
 };
 use application::{
     AdmittedSkillChange, SkillApplicationLock, admit_skill_change, no_change_result,
     record_application, recorded_application_matches, validate_stable_target, validation_result,
 };
 
-pub(crate) fn architecture_digest(
-    base_digest: &str,
-    mode: SkillAuthoringMode,
-    architecture: &SkillArchitectureDecision,
-) -> Result<String, RuntimeError> {
-    let architecture: JsonValue = serde_json::to_value(architecture)
-        .and_then(serde_json::from_value)
-        .map_err(|source| RuntimeError::json("serializing skill architecture decision", source))?;
-    let value = JsonValue::Object(runx_contracts::JsonObject::from([
-        (
-            "base_digest".to_owned(),
-            JsonValue::String(base_digest.to_owned()),
-        ),
-        ("architecture".to_owned(), architecture),
-        (
-            "mode".to_owned(),
-            JsonValue::String(mode.as_str().to_owned()),
-        ),
-    ]));
-    let canonical = runx_contracts::canonical_stable_json(&value)
-        .map_err(|error| invalid_skill_change(format!("canonicalizing architecture: {error}")))?;
-    Ok(sha256_prefixed(canonical.as_bytes()))
-}
-
-/// An extension that states no identity keeps its package's own: the name
-/// its SKILL.md gives and the visibility its catalog states, public when it
-/// states none, as runx lists and exports it, read from the target `context`
-/// names, so a turn never restates what the package says.
-/// One that renames or internalizes states it, and a target that doesn't
-/// load keeps nothing, so the plan refuses the missing identity.
-pub(crate) fn kept_identity(
-    context: &SkillAuthoringContext,
-    mut architecture: SkillArchitectureDecision,
-) -> SkillArchitectureDecision {
-    if architecture.choice != SkillArchitectureChoice::ExtendExisting
-        || architecture.identity.is_some()
-        || !context.target_exists
-    {
-        return architecture;
-    }
-    let Some(target) = context
-        .target_dir
-        .as_ref()
-        .and_then(|target| normalize_child_path(target.as_str()).ok())
-    else {
-        return architecture;
-    };
-    let Ok(loaded) =
-        crate::load_validated_skill_package(&Path::new(context.repo_root.as_str()).join(target))
-    else {
-        return architecture;
-    };
-    let visibility = loaded
-        .manifest()
-        .and_then(|manifest| manifest.catalog.as_ref())
-        .map(|catalog| catalog.visibility);
-    let name = NonEmptyString::from(loaded.package.skill.name.as_str());
-    architecture.identity = Some(SkillIdentityDecision {
-        current_name: Some(name.clone()),
-        proposed_name: Some(name),
-        action: SkillIdentityAction::Keep,
-        visibility: match visibility {
-            Some(runx_parser::CatalogVisibility::Internal) => SkillPackageVisibility::Internal,
-            Some(runx_parser::CatalogVisibility::Public) | None => SkillPackageVisibility::Public,
-        },
-        rationale: NonEmptyString::from("The package keeps its own name and visibility."),
-    });
-    architecture
-}
-
-pub(crate) fn plan_skill_architecture(
-    base_digest: &str,
-    mode: SkillAuthoringMode,
-    architecture: SkillArchitectureDecision,
-) -> Result<SkillArchitecturePlan, RuntimeError> {
-    validate_digest("base_digest", base_digest)?;
-    validate_architecture_decision(&architecture)?;
-    validate_mode_architecture(mode, architecture.choice)?;
-    let plan_digest = architecture_digest(base_digest, mode, &architecture)?;
-    Ok(SkillArchitecturePlan {
-        schema: SkillArchitecturePlanSchema::V1,
-        mode,
-        base_digest: base_digest.to_owned().into(),
-        plan_digest: plan_digest.into(),
-        architecture,
-    })
-}
-
+/// Bind an author's `draft` to the package `context` inspected, once its
+/// decision fits `mode` and the target: the bundle names the base it was
+/// authored against, so a change to the package since refuses it.
 pub(crate) fn bind_skill_change(
-    plan: &SkillArchitecturePlan,
-    draft: Option<SkillChangeDraft>,
+    context: &SkillAuthoringContext,
+    mode: SkillAuthoringMode,
+    draft: SkillChangeDraft,
 ) -> Result<SkillChangeBundle, RuntimeError> {
-    validate_digest("base_digest", plan.base_digest.as_str())?;
-    validate_digest("plan_digest", plan.plan_digest.as_str())?;
-    validate_architecture_decision(&plan.architecture)?;
-    validate_mode_architecture(plan.mode, plan.architecture.choice)?;
-    if plan.mode == SkillAuthoringMode::Design {
-        return Err(invalid_skill_change(
-            "design plans do not bind package changes",
-        ));
+    validate_digest("base_digest", context.base_digest.as_str())?;
+    validate_mode_decision(mode, draft.decision)?;
+    if mode != SkillAuthoringMode::Design {
+        validate_mode_target(mode, draft.decision, context.target_exists)?;
     }
-    let expected_plan =
-        architecture_digest(plan.base_digest.as_str(), plan.mode, &plan.architecture)?;
-    if plan.plan_digest.as_str() != expected_plan {
-        return Err(invalid_skill_change(
-            "architecture plan digest does not bind its base and decision",
-        ));
-    }
-    let draft = match draft {
-        Some(draft) => draft,
-        None => {
-            let decision = match plan.architecture.choice {
-                SkillArchitectureChoice::NoChange => SkillChangeDecision::NoChange,
-                SkillArchitectureChoice::NoSkill => SkillChangeDecision::NoSkill,
-                SkillArchitectureChoice::NeedsCore => SkillChangeDecision::NeedsCore,
-                _ => {
-                    return Err(invalid_skill_change(
-                        "package authoring requires a change_draft",
-                    ));
-                }
-            };
-            SkillChangeDraft {
-                schema: SkillChangeDraftSchema::V1,
-                decision,
-                summary: plan.architecture.operator_value.clone(),
-                non_goals: plan.architecture.preservation_obligations.clone(),
-                writes: Vec::new(),
-                deletes: Vec::new(),
-                expected_outputs: Vec::new(),
-            }
-        }
-    };
-    validate_mode_decision(plan.mode, draft.decision)?;
     let bundle = SkillChangeBundle {
         schema: SkillChangeBundleSchema::V1,
         decision: draft.decision,
-        base_digest: plan.base_digest.clone(),
-        plan_digest: plan.plan_digest.clone(),
-        architecture: plan.architecture.clone(),
+        base_digest: context.base_digest.as_str().into(),
         summary: draft.summary,
-        non_goals: draft.non_goals,
         writes: draft.writes,
         deletes: draft.deletes,
-        expected_outputs: draft.expected_outputs,
     };
     validate_change_shape(&bundle)?;
-    validate_architecture(&bundle)?;
     Ok(bundle)
 }
 
+/// Apply `change` to the skill at `target_dir` as `mode` does: validate the
+/// package it makes, staged, and write it, or, for a design, write nothing.
 pub(crate) fn apply_skill_change(
     repo_root: &Path,
     target_dir: &str,
@@ -199,21 +72,25 @@ pub(crate) fn apply_skill_change(
     let target = ApplyTarget::resolve(repo_root, target_dir, env)?;
     validate_change_contract(change, mode, target.before.digest.as_str())?;
     let secret_prefixes = super::path::declared_secret_prefixes(repo_root, env)?;
-    let admitted = admit_skill_change(
-        &target.relative,
-        &target.path,
-        mode,
-        change,
-        &secret_prefixes,
-    )?;
+    let admitted = admit_skill_change(&target.relative, mode, change, &secret_prefixes)?;
     if change.decision != SkillChangeDecision::Write {
         let standing = PackageDigests::standing(&target, env)?;
         return Ok(no_change_result(&target.relative, change, standing));
     }
-    if let Some(result) = reapplied_result(&target, change, env, effects)? {
+    let authored = target.authored();
+    if mode != SkillAuthoringMode::Design
+        && let Some(result) = reapplied_result(&target, change, &authored, env, effects)?
+    {
         return Ok(result);
     }
-    let candidate = validate_candidate_stage(&target, change, &admitted, env, effects)?;
+    if mode != SkillAuthoringMode::Design {
+        validate_mode_target(mode, change.decision, target.path.is_dir())?;
+    }
+    let candidate = validate_candidate_stage(&target, &admitted, &authored, env, effects)?;
+    if mode == SkillAuthoringMode::Design {
+        // A design shows the package and its checks, and writes nothing.
+        return Ok(validated_result(&target, change, candidate.validation));
+    }
     let journal = crate::filesystem::Journal::of_run(env, repo_root)?;
     let result = commit_candidate(&target, change, admitted, &candidate, journal.as_ref(), env)?;
     drop(candidate);
@@ -226,28 +103,32 @@ pub(crate) fn apply_skill_change(
 pub(crate) fn skill_change_effect(
     repo_root: &Path,
     target_dir: &str,
+    mode: SkillAuthoringMode,
     change: &SkillChangeBundle,
     reach: runx_contracts::Reach,
 ) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
     let target = display_relative(&normalize_child_path(target_dir)?);
     let under = |path: &str| format!("{target}/{path}");
     let bundle = match change.decision {
-        SkillChangeDecision::Write => crate::filesystem::TextBundle {
-            writes: change
-                .writes
-                .iter()
-                .map(|write| crate::filesystem::TextFileWrite {
-                    path: under(write.path.as_str()),
-                    contents: write.contents.clone(),
-                })
-                .collect(),
-            deletes: change
-                .deletes
-                .iter()
-                .map(|path| under(path.as_str()))
-                .collect(),
-            expected: Default::default(),
-        },
+        // A design writes nothing.
+        SkillChangeDecision::Write if mode != SkillAuthoringMode::Design => {
+            crate::filesystem::TextBundle {
+                writes: change
+                    .writes
+                    .iter()
+                    .map(|write| crate::filesystem::TextFileWrite {
+                        path: under(write.path.as_str()),
+                        contents: write.contents.clone(),
+                    })
+                    .collect(),
+                deletes: change
+                    .deletes
+                    .iter()
+                    .map(|path| under(path.as_str()))
+                    .collect(),
+                expected: Default::default(),
+            }
+        }
         _ => crate::filesystem::TextBundle::default(),
     };
     crate::filesystem::text_bundle_effect("runx.skill.apply", repo_root, &bundle, reach)
@@ -308,6 +189,28 @@ struct ApplyTarget {
 }
 
 impl ApplyTarget {
+    /// What a package written here must say of itself: the name of the
+    /// package that stands here, which a change to it keeps. A target with
+    /// no package, or one that doesn't load, names none.
+    fn authored(&self) -> Authored {
+        let standing = crate::load_validated_skill_package(&self.path).ok();
+        Authored {
+            keeps_name: standing
+                .as_ref()
+                .map(|loaded| loaded.package.skill.name.clone()),
+            standing_turns: standing
+                .as_ref()
+                .and_then(|loaded| loaded.manifest())
+                .map(|manifest| {
+                    super::validation::turns(manifest)
+                        .into_iter()
+                        .map(|(method, step)| (method, step.id.clone()))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
+    }
+
     fn resolve(
         repo_root: &Path,
         target_dir: &str,
@@ -332,6 +235,7 @@ impl ApplyTarget {
 fn reapplied_result(
     target: &ApplyTarget,
     change: &SkillChangeBundle,
+    authored: &Authored,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<Option<SkillApplyResult>, RuntimeError> {
@@ -352,8 +256,8 @@ fn reapplied_result(
         &target.repo_root,
         &target.path,
         &target.relative,
-        change,
         &target.before,
+        authored,
         env,
         effects,
     )?;
@@ -375,7 +279,6 @@ fn unchanged_write_result(
         decision: SkillChangeDecision::Write,
         verdict: SkillApplyVerdict::Unchanged,
         base_digest: change.base_digest.clone(),
-        plan_digest: change.plan_digest.clone(),
         package_digest: applied.package,
         distribution_digest: applied.distribution,
         changed_paths: Vec::new(),
@@ -393,8 +296,8 @@ struct ValidatedCandidate {
 
 fn validate_candidate_stage(
     target: &ApplyTarget,
-    change: &SkillChangeBundle,
     admitted: &AdmittedSkillChange,
+    authored: &Authored,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<ValidatedCandidate, RuntimeError> {
@@ -402,19 +305,17 @@ fn validate_candidate_stage(
     let snapshot = package_snapshot(&stage.skill_dir)?;
     let before_metrics = package_metrics(&target.before);
     let after_metrics = package_metrics(&snapshot);
-    validate_resource_budget(&change.architecture, &after_metrics)?;
     let checks = validate_candidate(
         &target.repo_root,
         &stage.skill_dir,
         env,
         effects,
         TestProcesses::Run,
-        Some(&change.architecture),
+        Some(authored),
     )?
     .applicable()?;
     let validation = validation_result(
         &target.relative,
-        change,
         &target.before,
         &snapshot,
         before_metrics,
@@ -426,6 +327,27 @@ fn validate_candidate_stage(
         snapshot,
         validation,
     })
+}
+
+/// A design's result: its candidate validated, and nothing written.
+fn validated_result(
+    target: &ApplyTarget,
+    change: &SkillChangeBundle,
+    validation: SkillValidationResult,
+) -> SkillApplyResult {
+    SkillApplyResult {
+        schema: SkillApplyResultSchema::V1,
+        target_dir: target.relative.clone().into(),
+        decision: SkillChangeDecision::Write,
+        verdict: SkillApplyVerdict::Validated,
+        base_digest: change.base_digest.clone(),
+        package_digest: None,
+        distribution_digest: None,
+        changed_paths: Vec::new(),
+        deleted_paths: Vec::new(),
+        validation: Some(validation),
+        residual_risks: Vec::new(),
+    }
 }
 
 fn ensure_target_unchanged(target: &Path, base_digest: &Digest) -> Result<(), RuntimeError> {
@@ -477,7 +399,6 @@ fn commit_candidate(
         decision: SkillChangeDecision::Write,
         verdict: SkillApplyVerdict::ValidatedAndApplied,
         base_digest: change.base_digest.clone(),
-        plan_digest: change.plan_digest.clone(),
         package_digest: applied.package,
         distribution_digest: applied.distribution,
         changed_paths: change

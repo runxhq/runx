@@ -2,24 +2,44 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::path::Path;
 
 use runx_contracts::{
-    Digest, JsonValue, SkillApplyVerdict, SkillArchitectureChoice, SkillArchitectureDecision,
-    SkillAuthoringMode, SkillChangeBundle, SkillChangeDecision, SkillChangeDraft,
-    SkillChangeDraftSchema, SkillFileWrite, SkillPackageVisibility, SkillProofKind,
+    Digest, JsonValue, SkillApplyResult, SkillApplyVerdict, SkillAuthoringMode, SkillChangeBundle,
+    SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
+    SkillFileWrite,
 };
-use serde_json::json;
 
 use super::{
-    CandidateStage, apply_skill_change, assert_allowed_package_delete_path,
-    assert_allowed_package_write_path, bind_skill_change, inspect_skill_workspace, kept_identity,
-    package_snapshot, plan_skill_architecture,
+    CandidateStage, apply_skill_change, assert_mode_path, bind_skill_change,
+    inspect_skill_workspace, package_snapshot,
 };
-use crate::RuntimeEffectRegistry;
 use crate::filesystem::TextBundle;
+use crate::{RuntimeEffectRegistry, RuntimeError};
 
 const VALID_MANUAL: &str = "---\nname: demo\ndescription: Make one bounded, reviewable decision from supplied evidence.\n---\n\n# Demo\n\n## Agent task: demo-decide\n\nUse this skill when an operator needs one bounded decision. Inspect the supplied evidence, stop when it is incomplete, and return the decision without mutating an external system.\n";
 const VALID_MANIFEST: &str = r#"version: "0.1.0"
+minimum_runx: 0.12.0
+
+catalog:
+  visibility: public
+
+methods:
+  decide:
+    steps:
+      - id: recall
+        skill: runx/memory#index
+        inputs:
+          levels: [{level: personal}, {level: workspace}]
+      - id: decide
+        agent: demo-decide
+        context:
+          entries: [$steps.recall.entries]
+        outputs:
+          decision: {type: object}
+"#;
+/// The demo package as it was written before every turn read memory.
+const UNRECALLED_MANIFEST: &str = r#"version: "0.1.0"
 minimum_runx: 0.12.0
 
 catalog:
@@ -34,154 +54,66 @@ methods:
           decision: {type: object}
 "#;
 
-fn architecture(choice: SkillArchitectureChoice, deletes: &[&str]) -> SkillArchitectureDecision {
-    let choice_name = match choice {
-        SkillArchitectureChoice::Build => "build",
-        SkillArchitectureChoice::ExtendExisting => "extend_existing",
-        SkillArchitectureChoice::NoChange => "no_change",
-        SkillArchitectureChoice::NoSkill => "no_skill",
-        SkillArchitectureChoice::NeedsCore => "needs_core",
-    };
-    let implements_package = matches!(
-        choice,
-        SkillArchitectureChoice::Build | SkillArchitectureChoice::ExtendExisting
-    );
-    serde_json::from_value(json!({
-        "schema": "runx.skill.architecture_decision.v1",
-        "choice": choice_name,
-        "identity": if implements_package {
-            json!({
-                "current_name": if choice == SkillArchitectureChoice::ExtendExisting {
-                    json!("demo")
-                } else {
-                    json!(null)
-                },
-                "proposed_name": "demo",
-                "action": if choice == SkillArchitectureChoice::Build { "create" } else { "keep" },
-                "visibility": "public",
-                "rationale": "Demo is the exact operator-facing identity."
-            })
-        } else {
-            json!(null)
-        },
-        "direct_use": if implements_package {
-            json!({
-                "trigger_requests": ["Make one bounded demo decision."],
-                "non_trigger_requests": ["Publish this decision."],
-                "default_outcome": "Return one bounded decision.",
-                "routine_host_work": ["Inspect the supplied objective."],
-                "runx_boundary": "Bind the result and evidence in a receipt.",
-                "terminal_result": "A reviewable demo decision.",
-                "blocker_behavior": "Block once and name missing evidence.",
-                "native_escape": "Return gathered context for native continuation."
-            })
-        } else {
-            json!(null)
-        },
-        "chain_use": if implements_package {
-            json!({
-                "accepted_inputs": ["A supplied objective or prior evidence packet."],
-                "result": "A reusable demo decision.",
-                "reused_evidence": ["Prior objective evidence."],
-                "reused_effects": [],
-                "must_not_repeat": ["Do not rediscover supplied evidence."]
-            })
-        } else {
-            json!(null)
-        },
-        "objective": "Create or maintain the bounded demo skill.",
-        "operator_value": "Give the operator one reviewable decision.",
-        "knowledge_contract": {
-            "purpose": "Explain and perform the bounded decision.",
-            "evidence_required": ["A supplied objective."],
-            "decision_logic": ["Preserve supplied evidence."],
-            "stop_conditions": ["Stop when evidence is incomplete."],
-            "recovery": ["Resume with the missing evidence."]
-        },
-        "required_behaviors": if implements_package {
-            json!([{
-                "id": "decide",
-                "outcome": "Return one bounded decision.",
-                "lane": "agent"
-            }])
-        } else {
-            json!([])
-        },
-        "native_reuse": {
-            "inspected_capabilities": ["runx.skill.inspect", "runx.skill.apply"],
-            "selected_capabilities": [],
-            "missing_capabilities": if choice == SkillArchitectureChoice::NeedsCore {
-                json!(["runx.missing.capability"])
-            } else {
-                json!([])
-            }
-        },
-        "effects": [{
-            "effect": "none",
-            "authority_scopes": [],
-            "approval": "none",
-            "provider_boundary": false
-        }],
-        "skill_chain": { "context_skills": [], "routes": [] },
-        "resource_budget": {
-            "max_files": 8,
-            "max_executable_lines": 0,
-            "max_process_spawns": 0,
-            "network_allowed": false
-        },
-        "preservation_obligations": ["Keep the operating manual substantive."],
-        "deletions": deletes,
-        "proof_plan": if implements_package {
-            json!([
-                {
-                    "name": "trigger-eval",
-                    "kind": "trigger_eval",
-                    "expected": "The natural request selects demo and a publish request does not."
-                },
-                {
-                    "name": "standalone-result",
-                    "kind": "direct_use_eval",
-                    "expected": "The direct request returns a decision."
-                },
-                {
-                    "name": "composed-reuse",
-                    "kind": "chain_use_eval",
-                    "expected": "Prior evidence is reused without rediscovery."
-                }
-            ])
-        } else {
-            json!([])
-        }
-    }))
-    .expect("architecture fixture must be valid")
+fn files(writes: &[(&str, &str)]) -> Vec<SkillFileWrite> {
+    writes
+        .iter()
+        .map(|(path, contents)| SkillFileWrite {
+            path: (*path).into(),
+            contents: (*contents).to_owned(),
+        })
+        .collect()
 }
 
-fn change_bundle(
-    base_digest: &Digest,
-    mode: runx_contracts::SkillAuthoringMode,
-    decision: SkillChangeDecision,
-    architecture: SkillArchitectureDecision,
-    writes: &[(&str, &str)],
-    deletes: &[&str],
-) -> SkillChangeBundle {
-    let plan = plan_skill_architecture(base_digest.as_str(), mode, architecture)
-        .expect("architecture fixture must produce a plan");
-    let draft = SkillChangeDraft {
+/// What an author returns.
+fn draft(decision: SkillChangeDecision, writes: &[(&str, &str)]) -> SkillChangeDraft {
+    SkillChangeDraft {
         schema: SkillChangeDraftSchema::V1,
         decision,
         summary: "Apply the bounded demo package change.".into(),
-        non_goals: vec!["Do not publish or call a provider.".into()],
-        writes: writes
-            .iter()
-            .map(|(path, contents)| SkillFileWrite {
-                path: (*path).into(),
-                contents: (*contents).to_owned(),
-            })
-            .collect(),
+        writes: files(writes),
+        deletes: Vec::new(),
+    }
+}
+
+/// A change bound to `base_digest`, as runx.skill.bind binds one.
+fn change_bundle(
+    base_digest: &Digest,
+    decision: SkillChangeDecision,
+    writes: &[(&str, &str)],
+    deletes: &[&str],
+) -> SkillChangeBundle {
+    SkillChangeBundle {
+        schema: SkillChangeBundleSchema::V1,
+        decision,
+        base_digest: base_digest.as_str().into(),
+        summary: "Apply the bounded demo package change.".into(),
+        writes: files(writes),
         deletes: deletes.iter().map(|path| (*path).into()).collect(),
-        expected_outputs: Vec::new(),
-    };
-    bind_skill_change(&plan, Some(draft)).expect("valid plan and draft must bind")
+    }
+}
+
+fn apply(
+    root: &Path,
+    mode: SkillAuthoringMode,
+    bundle: &SkillChangeBundle,
+) -> Result<SkillApplyResult, RuntimeError> {
+    apply_skill_change(
+        root,
+        "skills/demo",
+        mode,
+        bundle,
+        &BTreeMap::new(),
+        &RuntimeEffectRegistry::default(),
+    )
+}
+
+/// The demo package, written at `skills/demo` under `root`.
+fn demo(root: &Path) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let target = root.join("skills/demo");
+    fs::create_dir_all(&target)?;
+    fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
+    fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
+    Ok(target)
 }
 
 #[test]
@@ -262,22 +194,8 @@ fn skill_authoring_workspace_keeps_invalid_target_repairable()
 fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
     let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
-    let bundle = change_bundle(
-        &base,
-        runx_contracts::SkillAuthoringMode::Improve,
-        SkillChangeDecision::NoChange,
-        architecture(SkillArchitectureChoice::ExtendExisting, &[]),
-        &[],
-        &[],
-    );
-    let report = apply_skill_change(
-        temp.path(),
-        "skills/demo",
-        SkillAuthoringMode::Improve,
-        &bundle,
-        &BTreeMap::new(),
-        &RuntimeEffectRegistry::default(),
-    )?;
+    let bundle = change_bundle(&base, SkillChangeDecision::NoChange, &[], &[]);
+    let report = apply(temp.path(), SkillAuthoringMode::Improve, &bundle)?;
 
     assert_eq!(report.verdict, SkillApplyVerdict::Unchanged);
     assert!(!temp.path().join("skills/demo").exists());
@@ -288,116 +206,82 @@ fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn st
     Ok(())
 }
 
+/// Bind checks an author's decision against the mode and the target it
+/// inspected, and binds the base it was authored against, which the author
+/// never writes: a build creates where nothing stands, an improve changes what
+/// does, a decision that writes nothing carries no files, and a design takes
+/// any decision.
 #[test]
-fn skill_authoring_terminal_plan_binds_mode_and_preserves_current_state()
+fn bind_checks_the_decision_against_the_mode_and_the_target()
 -> Result<(), Box<dyn std::error::Error>> {
-    use runx_contracts::SkillAuthoringMode::{Build, Design, Improve, Test};
+    use SkillAuthoringMode::{Build, Design, Improve, Test};
+    use SkillChangeDecision::{NeedsCore, NoChange, NoSkill, Write};
+    let effects = RuntimeEffectRegistry::default();
+    let empty = tempfile::tempdir()?;
+    let missing = inspect_skill_workspace(empty.path(), Some("skills/demo"), &effects)?;
+    let standing = tempfile::tempdir()?;
+    demo(standing.path())?;
+    let existing = inspect_skill_workspace(standing.path(), Some("skills/demo"), &effects)?;
+    let write = draft(Write, &[("SKILL.md", VALID_MANUAL)]);
+    assert!(serde_json::to_value(&write)?.get("base_digest").is_none());
+
+    let built = bind_skill_change(&missing, Build, write.clone())?;
+    assert_eq!(built.base_digest.as_str(), missing.base_digest.as_str());
+    for (context, mode, expected) in [
+        (&existing, Build, "creates a package where none stands"),
+        (&missing, Improve, "changes a package that stands"),
+        (&missing, Test, "changes a package that stands"),
+    ] {
+        let error = bind_skill_change(context, mode, write.clone())
+            .expect_err("the target doesn't fit the mode");
+        assert!(error.to_string().contains(expected), "{error}");
+    }
+    bind_skill_change(&existing, Improve, write.clone())?;
+    for (mode, decision) in [(Improve, NoSkill), (Test, NeedsCore), (Build, NoChange)] {
+        assert!(bind_skill_change(&existing, mode, draft(decision, &[])).is_err());
+    }
+    assert!(bind_skill_change(&existing, Improve, draft(NoChange, &[("SKILL.md", "x")])).is_err());
+    assert!(bind_skill_change(&existing, Improve, draft(Write, &[])).is_err());
+    for decision in [Write, NoChange, NoSkill, NeedsCore] {
+        let writes: &[(&str, &str)] = if decision == Write {
+            &[("SKILL.md", VALID_MANUAL)]
+        } else {
+            &[]
+        };
+        bind_skill_change(&existing, Design, draft(decision, writes))?;
+    }
+    Ok(())
+}
+
+/// A decision to write nothing is about the package as it stands: applied,
+/// it leaves the package as it was, and once the package changes it refuses.
+#[test]
+fn a_decision_that_writes_nothing_is_about_the_package_as_it_stands()
+-> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
-    let target = temp.path().join("skills/demo");
-    fs::create_dir_all(&target)?;
-    fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
+    let target = demo(temp.path())?;
     let base = package_snapshot(&target)?.digest;
-    let plan = plan_skill_architecture(
-        base.as_str(),
-        Improve,
-        architecture(SkillArchitectureChoice::NoChange, &[]),
-    )?;
-    assert!(plan.architecture.identity.is_none());
-    let bundle = bind_skill_change(&plan, None)?;
-    assert_eq!(bundle.decision, SkillChangeDecision::NoChange);
-    assert!(bundle.writes.is_empty() && bundle.deletes.is_empty());
-    let result = apply_skill_change(
+    let context = inspect_skill_workspace(
         temp.path(),
-        "skills/demo",
-        SkillAuthoringMode::Improve,
-        &bundle,
-        &BTreeMap::new(),
+        Some("skills/demo"),
         &RuntimeEffectRegistry::default(),
     )?;
+    let bundle = bind_skill_change(
+        &context,
+        SkillAuthoringMode::Improve,
+        draft(SkillChangeDecision::NoChange, &[]),
+    )?;
+    let result = apply(temp.path(), SkillAuthoringMode::Improve, &bundle)?;
     assert_eq!(result.verdict, SkillApplyVerdict::Unchanged);
     assert_eq!(fs::read_to_string(target.join("SKILL.md"))?, VALID_MANUAL);
     assert_eq!(package_snapshot(&target)?.digest, base);
 
-    let mut tampered = plan.clone();
-    tampered.mode = Test;
-    assert!(bind_skill_change(&tampered, None).is_err());
-    assert!(
-        apply_skill_change(
-            temp.path(),
-            "skills/demo",
-            SkillAuthoringMode::Test,
-            &bundle,
-            &BTreeMap::new(),
-            &RuntimeEffectRegistry::default()
-        )
-        .is_err()
-    );
-    let draft = SkillChangeDraft {
-        schema: SkillChangeDraftSchema::V1,
-        decision: SkillChangeDecision::NoChange,
-        summary: "Attempt a write under a no-change decision.".into(),
-        non_goals: Vec::new(),
-        writes: vec![SkillFileWrite {
-            path: "SKILL.md".into(),
-            contents: "replacement".to_owned(),
-        }],
-        deletes: Vec::new(),
-        expected_outputs: Vec::new(),
-    };
-    assert!(bind_skill_change(&plan, Some(draft)).is_err());
     fs::write(target.join("operator-note.txt"), "concurrent edit")?;
-    assert!(
-        apply_skill_change(
-            temp.path(),
-            "skills/demo",
-            SkillAuthoringMode::Improve,
-            &bundle,
-            &BTreeMap::new(),
-            &RuntimeEffectRegistry::default()
-        )
-        .is_err()
-    );
+    assert!(apply(temp.path(), SkillAuthoringMode::Improve, &bundle).is_err());
     assert_eq!(
         fs::read_to_string(target.join("operator-note.txt"))?,
         "concurrent edit"
     );
-    assert!(
-        plan_skill_architecture(
-            base.as_str(),
-            Improve,
-            architecture(SkillArchitectureChoice::NoSkill, &[])
-        )
-        .is_err()
-    );
-    assert!(
-        plan_skill_architecture(
-            base.as_str(),
-            Improve,
-            architecture(SkillArchitectureChoice::NoChange, &["SKILL.md"])
-        )
-        .is_err()
-    );
-    assert!(
-        plan_skill_architecture(
-            base.as_str(),
-            Test,
-            architecture(SkillArchitectureChoice::NeedsCore, &[])
-        )
-        .is_err()
-    );
-    let write_plan = plan_skill_architecture(
-        base.as_str(),
-        Build,
-        architecture(SkillArchitectureChoice::Build, &[]),
-    )?;
-    assert!(bind_skill_change(&write_plan, None).is_err());
-    let design_plan = plan_skill_architecture(
-        base.as_str(),
-        Design,
-        architecture(SkillArchitectureChoice::NoChange, &[]),
-    )?;
-    assert!(bind_skill_change(&design_plan, None).is_err());
     Ok(())
 }
 
@@ -408,23 +292,14 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
     let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
     let bundle = change_bundle(
         &base,
-        runx_contracts::SkillAuthoringMode::Build,
         SkillChangeDecision::Write,
-        architecture(SkillArchitectureChoice::Build, &[]),
         &[
             ("SKILL.md", "not valid skill frontmatter"),
             ("run.yaml", "schema: runx.method.v1\n"),
         ],
         &[],
     );
-    let result = apply_skill_change(
-        temp.path(),
-        "skills/demo",
-        SkillAuthoringMode::Build,
-        &bundle,
-        &BTreeMap::new(),
-        &RuntimeEffectRegistry::default(),
-    );
+    let result = apply(temp.path(), SkillAuthoringMode::Build, &bundle);
 
     assert!(result.is_err());
     assert!(!temp.path().join("skills/demo").exists());
@@ -436,92 +311,109 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
     Ok(())
 }
 
-/// An extension that keeps its package's identity leaves it out, and the
-/// plan keeps the package's own, public for a package a person wrote with no
-/// catalog, as runx lists it; one that states it keeps what it states.
+/// A written package states its catalog, so its visibility is never a
+/// default; a change to a package keeps its name, since a rename is the
+/// person's own act; and every turn a change writes reads the person's
+/// memory, while a turn that stood already is the person's to change. Each
+/// refuses before anything is written.
 #[test]
-fn an_extension_plans_with_its_packages_own_identity_unstated()
+fn an_authored_package_states_its_catalog_keeps_its_name_and_its_new_turns_read_memory()
 -> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempfile::tempdir()?;
-    let skill = temp.path().join("skills/demo");
-    fs::create_dir_all(&skill)?;
-    fs::write(skill.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(
-        skill.join("run.yaml"),
-        VALID_MANIFEST.replace("catalog:\n  visibility: public\n\n", ""),
-    )?;
-    let context = inspect_skill_workspace(
-        temp.path(),
-        Some("skills/demo"),
-        &RuntimeEffectRegistry::default(),
-    )?;
-    let stated = architecture(SkillArchitectureChoice::ExtendExisting, &[]);
-    let mut unstated = stated.clone();
-    unstated.identity = None;
-    let plan = plan_skill_architecture(
-        context.base_digest.as_str(),
-        SkillAuthoringMode::Improve,
-        kept_identity(&context, unstated),
-    )?;
-    let kept = plan
-        .architecture
-        .identity
-        .expect("the package's own identity");
-    assert_eq!(
-        (
-            kept.current_name.as_ref().map(|name| name.as_str()),
-            kept.proposed_name.as_ref().map(|name| name.as_str()),
-            kept.action,
-            kept.visibility
-        ),
-        (
-            Some("demo"),
-            Some("demo"),
-            runx_contracts::SkillIdentityAction::Keep,
-            SkillPackageVisibility::Public
-        )
+    let no_catalog = VALID_MANIFEST.replacen("catalog:\n  visibility: public\n", "", 1);
+    let empty = tempfile::tempdir()?;
+    let base = package_snapshot(&empty.path().join("skills/demo"))?.digest;
+    let bundle = change_bundle(
+        &base,
+        SkillChangeDecision::Write,
+        &[("SKILL.md", VALID_MANUAL), ("run.yaml", &no_catalog)],
+        &[],
     );
-    assert_eq!(kept_identity(&context, stated.clone()), stated);
+    let error = apply(empty.path(), SkillAuthoringMode::Build, &bundle)
+        .expect_err("a package with no catalog is refused");
+    assert!(error.to_string().contains("states its catalog"), "{error}");
+    assert!(!empty.path().join("skills/demo").exists());
+
+    let internal = VALID_MANIFEST.replace("visibility: public", "visibility: internal");
+    let bundle = change_bundle(
+        &base,
+        SkillChangeDecision::Write,
+        &[("SKILL.md", VALID_MANUAL), ("run.yaml", &internal)],
+        &[],
+    );
+    assert_eq!(
+        apply(empty.path(), SkillAuthoringMode::Build, &bundle)?.verdict,
+        SkillApplyVerdict::ValidatedAndApplied
+    );
+
+    let standing = tempfile::tempdir()?;
+    let target = demo(standing.path())?;
+    let renamed = VALID_MANUAL.replacen("name: demo", "name: other", 1);
+    let bundle = change_bundle(
+        &package_snapshot(&target)?.digest,
+        SkillChangeDecision::Write,
+        &[("SKILL.md", &renamed)],
+        &[],
+    );
+    let error = apply(standing.path(), SkillAuthoringMode::Improve, &bundle)
+        .expect_err("a renamed package is refused");
+    assert!(error.to_string().contains("keeps its name"), "{error}");
+    assert_eq!(fs::read_to_string(target.join("SKILL.md"))?, VALID_MANUAL);
+
+    // A new turn that reads no memory is refused.
+    let bundle = change_bundle(
+        &base,
+        SkillChangeDecision::Write,
+        &[
+            ("SKILL.md", VALID_MANUAL),
+            ("run.yaml", UNRECALLED_MANIFEST),
+        ],
+        &[],
+    );
+    let fresh = tempfile::tempdir()?;
+    let error = apply(fresh.path(), SkillAuthoringMode::Build, &bundle)
+        .expect_err("a written turn that reads no memory is refused");
+    assert!(
+        error.to_string().contains("reads the person's memory"),
+        "{error}"
+    );
+    assert!(!fresh.path().join("skills/demo").exists());
+    // A turn that stood already isn't the change's to rewrite.
+    let older = tempfile::tempdir()?;
+    let target = older.path().join("skills/demo");
+    fs::create_dir_all(&target)?;
+    fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
+    fs::write(target.join("run.yaml"), UNRECALLED_MANIFEST)?;
+    let corrected = VALID_MANUAL.replace("bounded decision", "bounded operator decision");
+    let bundle = change_bundle(
+        &package_snapshot(&target)?.digest,
+        SkillChangeDecision::Write,
+        &[("SKILL.md", &corrected)],
+        &[],
+    );
+    assert_eq!(
+        apply(older.path(), SkillAuthoringMode::Improve, &bundle)?.verdict,
+        SkillApplyVerdict::ValidatedAndApplied
+    );
     Ok(())
 }
 
+/// A design validates the package its change makes, staged, and writes
+/// nothing.
 #[test]
-fn skill_authoring_rejects_candidate_identity_drift_before_writing()
--> Result<(), Box<dyn std::error::Error>> {
-    let no_catalog = VALID_MANIFEST.replacen("catalog:\n  visibility: public\n", "", 1);
-    let wrong_visibility = VALID_MANIFEST.replace("visibility: public", "visibility: internal");
-    let other_manual = VALID_MANUAL.replacen("name: demo", "name: other", 1);
-    for (manual, manifest, expected) in [
-        (VALID_MANUAL, no_catalog.as_str(), "catalog visibility"),
-        (
-            VALID_MANUAL,
-            wrong_visibility.as_str(),
-            "catalog visibility",
-        ),
-        (other_manual.as_str(), VALID_MANIFEST, "package name"),
-    ] {
-        let temp = tempfile::tempdir()?;
-        let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
-        let bundle = change_bundle(
-            &base,
-            runx_contracts::SkillAuthoringMode::Build,
-            SkillChangeDecision::Write,
-            architecture(SkillArchitectureChoice::Build, &[]),
-            &[("SKILL.md", manual), ("run.yaml", manifest)],
-            &[],
-        );
-        let error = apply_skill_change(
-            temp.path(),
-            "skills/demo",
-            SkillAuthoringMode::Build,
-            &bundle,
-            &BTreeMap::new(),
-            &RuntimeEffectRegistry::default(),
-        )
-        .expect_err("identity drift must fail before committing files");
-        assert!(error.to_string().contains(expected), "{error}");
-        assert!(!temp.path().join("skills/demo").exists());
-    }
+fn a_design_validates_its_candidate_and_writes_nothing() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempfile::tempdir()?;
+    let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
+    let bundle = change_bundle(
+        &base,
+        SkillChangeDecision::Write,
+        &[("SKILL.md", VALID_MANUAL), ("run.yaml", VALID_MANIFEST)],
+        &[],
+    );
+    let result = apply(temp.path(), SkillAuthoringMode::Design, &bundle)?;
+    assert_eq!(result.verdict, SkillApplyVerdict::Validated);
+    assert!(result.validation.is_some());
+    assert!(result.changed_paths.is_empty());
+    assert!(!temp.path().join("skills/demo").exists());
     Ok(())
 }
 
@@ -529,22 +421,8 @@ fn skill_authoring_rejects_candidate_identity_drift_before_writing()
 fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
     let base = package_snapshot(&temp.path().join("skills/demo"))?.digest;
-    let bundle = change_bundle(
-        &base,
-        runx_contracts::SkillAuthoringMode::Build,
-        SkillChangeDecision::NeedsCore,
-        architecture(SkillArchitectureChoice::NeedsCore, &[]),
-        &[],
-        &[],
-    );
-    let report = apply_skill_change(
-        temp.path(),
-        "skills/demo",
-        SkillAuthoringMode::Build,
-        &bundle,
-        &BTreeMap::new(),
-        &RuntimeEffectRegistry::default(),
-    )?;
+    let bundle = change_bundle(&base, SkillChangeDecision::NeedsCore, &[], &[]);
+    let report = apply(temp.path(), SkillAuthoringMode::Build, &bundle)?;
 
     assert_eq!(report.verdict, SkillApplyVerdict::NeedsCore);
     assert!(!temp.path().join("skills/demo").exists());
@@ -552,173 +430,17 @@ fn skill_authoring_needs_core_does_not_touch_workspace() -> Result<(), Box<dyn s
 }
 
 #[test]
-fn skill_authoring_plan_digest_binds_the_base_and_architecture()
--> Result<(), Box<dyn std::error::Error>> {
-    let architecture = architecture(SkillArchitectureChoice::Build, &[]);
-    let first = plan_skill_architecture(
-        &format!("sha256:{}", "a".repeat(64)),
-        runx_contracts::SkillAuthoringMode::Build,
-        architecture.clone(),
-    )?;
-    let second = plan_skill_architecture(
-        &format!("sha256:{}", "b".repeat(64)),
-        runx_contracts::SkillAuthoringMode::Build,
-        architecture,
-    )?;
-
-    assert_ne!(first.plan_digest, second.plan_digest);
-    Ok(())
-}
-
-#[test]
-fn skill_authoring_rejects_public_architecture_without_operator_contract_and_each_eval_proof() {
-    let digest = format!("sha256:{}", "a".repeat(64));
-    let mut missing_identity = architecture(SkillArchitectureChoice::Build, &[]);
-    missing_identity.identity = None;
-    assert!(
-        plan_skill_architecture(
-            &digest,
-            runx_contracts::SkillAuthoringMode::Build,
-            missing_identity
-        )
-        .is_err()
-    );
-
-    for missing in [
-        SkillProofKind::TriggerEval,
-        SkillProofKind::DirectUseEval,
-        SkillProofKind::ChainUseEval,
-    ] {
-        let mut incomplete = architecture(SkillArchitectureChoice::Build, &[]);
-        incomplete.proof_plan.retain(|proof| proof.kind != missing);
-        assert!(
-            plan_skill_architecture(
-                &digest,
-                runx_contracts::SkillAuthoringMode::Build,
-                incomplete
-            )
-            .is_err(),
-            "missing {missing:?} must fail admission"
-        );
-    }
-
-    let mut internal = architecture(SkillArchitectureChoice::ExtendExisting, &[]);
-    let identity = internal
-        .identity
-        .as_mut()
-        .expect("extension fixture must have identity");
-    identity.visibility = SkillPackageVisibility::Internal;
-    internal.direct_use = None;
-    assert!(
-        plan_skill_architecture(&digest, runx_contracts::SkillAuthoringMode::Build, internal)
-            .is_ok()
-    );
-
-    let mut internal_with_public_triggers =
-        architecture(SkillArchitectureChoice::ExtendExisting, &[]);
-    internal_with_public_triggers
-        .identity
-        .as_mut()
-        .expect("extension fixture must have identity")
-        .visibility = SkillPackageVisibility::Internal;
-    assert!(
-        plan_skill_architecture(
-            &digest,
-            runx_contracts::SkillAuthoringMode::Build,
-            internal_with_public_triggers
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn skill_authoring_bind_owns_integrity_fields_and_rejects_tampered_plan()
--> Result<(), Box<dyn std::error::Error>> {
-    let base_digest = format!("sha256:{}", "a".repeat(64));
-    let plan = plan_skill_architecture(
-        &base_digest,
-        runx_contracts::SkillAuthoringMode::Build,
-        architecture(SkillArchitectureChoice::Build, &[]),
-    )?;
-    let draft = SkillChangeDraft {
-        schema: SkillChangeDraftSchema::V1,
-        decision: SkillChangeDecision::Write,
-        summary: "Create the bounded demo package.".into(),
-        non_goals: vec!["Do not call a provider.".into()],
-        writes: vec![SkillFileWrite {
-            path: "SKILL.md".into(),
-            contents: VALID_MANUAL.to_owned(),
-        }],
-        deletes: Vec::new(),
-        expected_outputs: Vec::new(),
-    };
-    let serialized_draft = serde_json::to_value(&draft)?;
-    assert!(serialized_draft.get("base_digest").is_none());
-    assert!(serialized_draft.get("plan_digest").is_none());
-
-    let bundle = bind_skill_change(&plan, Some(draft.clone()))?;
-    assert_eq!(bundle.base_digest, plan.base_digest);
-    assert_eq!(bundle.plan_digest, plan.plan_digest);
-    assert_eq!(bundle.architecture, plan.architecture);
-
-    let mut tampered = plan;
-    tampered.plan_digest = format!("sha256:{}", "f".repeat(64)).into();
-    assert!(bind_skill_change(&tampered, Some(draft)).is_err());
-    Ok(())
-}
-
-#[test]
-fn skill_authoring_rejects_stale_base_and_plan_drift() -> Result<(), Box<dyn std::error::Error>> {
+fn skill_authoring_rejects_a_stale_base() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
-    let target = temp.path().join("skills/demo");
-    fs::create_dir_all(&target)?;
-    fs::write(target.join("SKILL.md"), VALID_MANUAL)?;
-    fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
-    let base = package_snapshot(&target)?.digest;
-    let mut bundle = change_bundle(
-        &base,
-        runx_contracts::SkillAuthoringMode::Improve,
-        SkillChangeDecision::Write,
-        architecture(SkillArchitectureChoice::ExtendExisting, &[]),
-        &[(
-            "SKILL.md",
-            &VALID_MANUAL.replace("bounded decision", "bounded operator decision"),
-        )],
-        &[],
-    );
-    bundle.plan_digest = format!("sha256:{}", "f".repeat(64)).into();
-    assert!(
-        apply_skill_change(
-            temp.path(),
-            "skills/demo",
-            SkillAuthoringMode::Improve,
-            &bundle,
-            &BTreeMap::new(),
-            &RuntimeEffectRegistry::default(),
-        )
-        .is_err()
-    );
-
+    let target = demo(temp.path())?;
     let bundle = change_bundle(
-        &base,
-        runx_contracts::SkillAuthoringMode::Improve,
+        &package_snapshot(&target)?.digest,
         SkillChangeDecision::Write,
-        architecture(SkillArchitectureChoice::ExtendExisting, &[]),
         &[("SKILL.md", VALID_MANUAL)],
         &[],
     );
     fs::write(target.join("operator-note.txt"), "concurrent change\n")?;
-    assert!(
-        apply_skill_change(
-            temp.path(),
-            "skills/demo",
-            SkillAuthoringMode::Improve,
-            &bundle,
-            &BTreeMap::new(),
-            &RuntimeEffectRegistry::default(),
-        )
-        .is_err()
-    );
+    assert!(apply(temp.path(), SkillAuthoringMode::Improve, &bundle).is_err());
     Ok(())
 }
 
@@ -732,14 +454,7 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
     fs::write(target.join("obsolete.txt"), "old path\n")?;
     let base = package_snapshot(&target)?.digest;
-    let bundle = change_bundle(
-        &base,
-        runx_contracts::SkillAuthoringMode::Improve,
-        SkillChangeDecision::Write,
-        architecture(SkillArchitectureChoice::ExtendExisting, &["obsolete.txt"]),
-        &[],
-        &["obsolete.txt"],
-    );
+    let bundle = change_bundle(&base, SkillChangeDecision::Write, &[], &["obsolete.txt"]);
 
     let first = apply_skill_change(
         temp.path(),
@@ -783,14 +498,7 @@ fn skill_authoring_apply_states_the_package_and_distribution_digests_of_what_it_
     fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
     fs::write(target.join("obsolete.txt"), "old path\n")?;
     let base = package_snapshot(&target)?.digest;
-    let bundle = change_bundle(
-        &base,
-        runx_contracts::SkillAuthoringMode::Improve,
-        SkillChangeDecision::Write,
-        architecture(SkillArchitectureChoice::ExtendExisting, &["obsolete.txt"]),
-        &[],
-        &["obsolete.txt"],
-    );
+    let bundle = change_bundle(&base, SkillChangeDecision::Write, &[], &["obsolete.txt"]);
     let env = BTreeMap::new();
     let apply = || {
         apply_skill_change(
@@ -838,23 +546,16 @@ fn skill_authoring_apply_states_the_package_and_distribution_digests_of_what_it_
     Ok(())
 }
 
+/// A test changes only the package's tests and what they read, and every
+/// other mode writes any path in the package, a README among them.
 #[test]
-fn skill_authoring_improve_may_maintain_but_not_add_or_delete_public_docs()
--> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempfile::tempdir()?;
-    let target = temp.path().join("skills/demo");
-    fs::create_dir_all(&target)?;
-    fs::write(target.join("README.md"), "existing public surface\n")?;
-
-    assert_allowed_package_write_path("README.md", &target, SkillAuthoringMode::Improve)?;
-    assert!(
-        assert_allowed_package_write_path("CHANGELOG.md", &target, SkillAuthoringMode::Improve)
-            .is_err()
-    );
-    assert!(
-        assert_allowed_package_write_path("README.md", &target, SkillAuthoringMode::Build).is_err()
-    );
-    assert!(assert_allowed_package_delete_path("README.md", SkillAuthoringMode::Improve).is_err());
+fn a_test_changes_only_tests_and_fixtures() -> Result<(), Box<dyn std::error::Error>> {
+    assert_mode_path("tests/reads-the-catalog.yaml", SkillAuthoringMode::Test)?;
+    assert_mode_path("fixtures/catalog.json", SkillAuthoringMode::Test)?;
+    assert!(assert_mode_path("SKILL.md", SkillAuthoringMode::Test).is_err());
+    assert!(assert_mode_path("tests/nested/case.yaml", SkillAuthoringMode::Test).is_err());
+    assert_mode_path("README.md", SkillAuthoringMode::Improve)?;
+    assert_mode_path("README.md", SkillAuthoringMode::Build)?;
     Ok(())
 }
 

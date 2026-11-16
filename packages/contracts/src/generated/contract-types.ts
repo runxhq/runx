@@ -3137,7 +3137,6 @@ export type SkillApplyResultContract = {
   readonly distribution_digest?: string;
   /** The package digest of the package standing at the target, as `runx skill inspect` reports it; none when no package stands there. */
   readonly package_digest?: string;
-  readonly plan_digest: string;
   readonly residual_risks: readonly string[];
   readonly schema: SkillApplyResultSchemaContract;
   readonly target_dir: string;
@@ -3147,43 +3146,7 @@ export type SkillApplyResultContract = {
 
 export type SkillApplyResultSchemaContract = "runx.skill.apply_result.v1";
 
-export type SkillApplyVerdictContract = "unchanged" | "needs_core" | "validated_and_applied";
-
-export type SkillApprovalRequirementContract = "none" | "policy" | "human";
-
-export type SkillArchitectureChoiceContract = "build" | "extend_existing" | "no_change" | "no_skill" | "needs_core";
-
-export type SkillArchitectureDecisionContract = {
-  readonly chain_use?: SkillChainUseContract;
-  readonly choice: SkillArchitectureChoiceContract;
-  readonly deletions: readonly string[];
-  readonly direct_use?: SkillDirectUseContract;
-  readonly effects: readonly SkillEffectRequirementContract[];
-  readonly identity?: SkillIdentityDecisionContract;
-  readonly knowledge_contract: SkillKnowledgeContract;
-  readonly native_reuse: SkillNativeReuseEvidenceContract;
-  readonly objective: string;
-  readonly operator_value: string;
-  readonly preservation_obligations: readonly string[];
-  readonly proof_plan: readonly SkillProofRequirementContract[];
-  readonly required_behaviors: readonly SkillBehaviorDecisionContract[];
-  readonly resource_budget: SkillResourceBudgetContract;
-  readonly schema: SkillArchitectureDecisionSchemaContract;
-  readonly skill_chain: SkillChainPlanContract;
-};
-
-export type SkillArchitectureDecisionSchemaContract = "runx.skill.architecture_decision.v1";
-
-/** The exact architecture decision admitted against one inspected package state. `plan_digest` binds both fields so a change bundle cannot silently reuse the decision after the target package changes. */
-export type SkillArchitecturePlanContract = {
-  readonly architecture: SkillArchitectureDecisionContract;
-  readonly base_digest: string;
-  readonly mode: SkillAuthoringModeContract;
-  readonly plan_digest: string;
-  readonly schema: SkillArchitecturePlanSchemaContract;
-};
-
-export type SkillArchitecturePlanSchemaContract = "runx.skill.architecture_plan.v1";
+export type SkillApplyVerdictContract = "unchanged" | "needs_core" | "validated" | "validated_and_applied";
 
 /** What `runx.skill.inspect` returns: the workspace a skill change is authored in, its target package as it stands, and the catalog it can reuse. */
 export type SkillAuthoringContextContract = {
@@ -3205,16 +3168,6 @@ export type SkillAuthoringContextContract = {
   readonly target_metrics: SkillPackageMetricsContract;
 };
 
-export type SkillAuthoringModeContract = "design" | "build" | "improve" | "test";
-
-export type SkillBehaviorDecisionContract = {
-  readonly domain_module_justification?: string;
-  readonly id: string;
-  readonly lane: SkillExecutionLaneContract;
-  readonly outcome: string;
-  readonly reuses?: string;
-};
-
 /** How a catalog files the package. */
 export type SkillCatalogContract = {
   readonly category?: string;
@@ -3233,27 +3186,11 @@ export type SkillCatalogEntryContract = {
   readonly test_cases?: number;
 };
 
-export type SkillChainPlanContract = {
-  readonly context_skills: readonly string[];
-  readonly routes: readonly string[];
-};
-
-export type SkillChainUseContract = {
-  readonly accepted_inputs: readonly string[];
-  readonly must_not_repeat: readonly string[];
-  readonly result: string;
-  readonly reused_effects: readonly string[];
-  readonly reused_evidence: readonly string[];
-};
-
+/** A draft bound to the package state it was authored against, so a change to the package since then refuses it. */
 export type SkillChangeBundleContract = {
-  readonly architecture: SkillArchitectureDecisionContract;
   readonly base_digest: string;
   readonly decision: SkillChangeDecisionContract;
   readonly deletes: readonly string[];
-  readonly expected_outputs: readonly SkillExpectedOutputContract[];
-  readonly non_goals: readonly string[];
-  readonly plan_digest: string;
   readonly schema: SkillChangeBundleSchemaContract;
   readonly summary: string;
   readonly writes: readonly SkillFileWriteContract[];
@@ -3261,14 +3198,13 @@ export type SkillChangeBundleContract = {
 
 export type SkillChangeBundleSchemaContract = "runx.skill.change_bundle.v1";
 
+/** What an author decided: to `write` the change, that the package needs `no_change`, that the work is `no_skill`'s, or that it `needs_core`: a capability runx lacks, which its summary names. */
 export type SkillChangeDecisionContract = "write" | "no_skill" | "no_change" | "needs_core";
 
-/** Agent-authored package bytes and intent before the runtime binds them to an inspected package state. This contract deliberately contains no digest: agents never calculate or copy runtime integrity values. */
+/** What an author returns: its decision, why, and the package files it writes and deletes. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one. */
 export type SkillChangeDraftContract = {
   readonly decision: SkillChangeDecisionContract;
   readonly deletes: readonly string[];
-  readonly expected_outputs: readonly SkillExpectedOutputContract[];
-  readonly non_goals: readonly string[];
   readonly schema: SkillChangeDraftSchemaContract;
   readonly summary: string;
   readonly writes: readonly SkillFileWriteContract[];
@@ -3276,47 +3212,9 @@ export type SkillChangeDraftContract = {
 
 export type SkillChangeDraftSchemaContract = "runx.skill.change_draft.v1";
 
-export type SkillDirectUseContract = {
-  readonly blocker_behavior: string;
-  readonly default_outcome: string;
-  readonly native_escape: string;
-  readonly non_trigger_requests: readonly string[];
-  readonly routine_host_work: readonly string[];
-  readonly runx_boundary: string;
-  readonly terminal_result: string;
-  readonly trigger_requests: readonly string[];
-};
-
-export type SkillEffectClassContract = "none" | "read" | "draft" | "mutate" | "financial";
-
-export type SkillEffectRequirementContract = {
-  readonly approval: SkillApprovalRequirementContract;
-  readonly authority_scopes: readonly string[];
-  readonly effect: SkillEffectClassContract;
-  readonly provider_boundary: boolean;
-};
-
-export type SkillExecutionLaneContract = "manual" | "workflow" | "agent" | "native_capability" | "domain_module" | "process" | "operation";
-
-export type SkillExpectedOutputContract = {
-  readonly name: string;
-  readonly packet?: string;
-  readonly value_type: string;
-};
-
 export type SkillFileWriteContract = {
   readonly contents: string;
   readonly path: string;
-};
-
-export type SkillIdentityActionContract = "keep" | "rename" | "create" | "internalize";
-
-export type SkillIdentityDecisionContract = {
-  readonly action: SkillIdentityActionContract;
-  readonly current_name?: string;
-  readonly proposed_name?: string;
-  readonly rationale: string;
-  readonly visibility: SkillPackageVisibilityContract;
 };
 
 export type SkillInspectionContract = {
@@ -3364,25 +3262,11 @@ export type SkillInspectionSchemaContract = "runx.skill.inspect.v1";
 
 export type SkillInspectionStatusContract = "ok";
 
-export type SkillKnowledgeContract = {
-  readonly decision_logic: readonly string[];
-  readonly evidence_required: readonly string[];
-  readonly purpose: string;
-  readonly recovery: readonly string[];
-  readonly stop_conditions: readonly string[];
-};
-
 /** A skill's manual: its `SKILL.md` exactly as its package holds it, the skill's operating guidance. A host gives it to its model as guidance, below the host's own instructions and runx's governance, which it never widens, and never as a tool result's data. */
 export type SkillManualContract = {
   readonly content: string;
   /** `sha256:` over `content`'s bytes. */
   readonly digest: string;
-};
-
-export type SkillNativeReuseEvidenceContract = {
-  readonly inspected_capabilities: readonly string[];
-  readonly missing_capabilities: readonly string[];
-  readonly selected_capabilities: readonly string[];
 };
 
 export type SkillOutputContract = {
@@ -3450,23 +3334,6 @@ export type SkillPackageMetricsContract = {
   readonly test_lines: number;
 };
 
-export type SkillPackageVisibilityContract = "public" | "internal";
-
-export type SkillProofKindContract = "contract" | "test" | "regression" | "security" | "performance" | "trigger_eval" | "direct_use_eval" | "chain_use_eval";
-
-export type SkillProofRequirementContract = {
-  readonly expected: string;
-  readonly kind: SkillProofKindContract;
-  readonly name: string;
-};
-
-export type SkillResourceBudgetContract = {
-  readonly max_executable_lines: number;
-  readonly max_files: number;
-  readonly max_process_spawns: number;
-  readonly network_allowed: boolean;
-};
-
 /** What `runx.skill.validate` returns: one package's inspection and test outcome. A failed validation names its failure in both. */
 export type SkillValidationContract = {
   readonly inspect: {
@@ -3496,7 +3363,6 @@ export type SkillValidationResultContract = {
   readonly candidate_digest: string;
   readonly checks: readonly SkillValidationCheckContract[];
   readonly delta: SkillPackageDeltaContract;
-  readonly plan_digest: string;
   readonly residual_risks: readonly string[];
   readonly schema: SkillValidationResultSchemaContract;
   readonly target_dir: string;
