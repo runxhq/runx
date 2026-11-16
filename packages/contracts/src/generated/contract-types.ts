@@ -2703,6 +2703,25 @@ export type ReuseDecisionContract = {
   readonly reason: RecomputeReasonContract;
 };
 
+/** One call a run made, read whole by its address (`run.call`): what it called, its whole input, how it ended, the turn it was made in, and, for a turn's script call, each call its script made, in position order. A run's read gives a call's input by its digest; this is where it's read whole, as Save as skill reads the script it keeps. */
+export type RunCallContract = {
+  /** `<step>/<index>` in its run. */
+  readonly address: string;
+  /** The step's attempt that made it: its latest holding the index. */
+  readonly attempt: number;
+  /** Each call its script made, a turn's script call's; none otherwise. */
+  readonly calls?: readonly RunScriptCallContract[];
+  readonly input: {
+    readonly [key: string]: unknown;
+  };
+  readonly outcome: RunCallOutcomeContract;
+  readonly run_id: string;
+  readonly schema: RunCallSchemaContract;
+  readonly target: CallTargetContract;
+  /** The request of the turn that made it, which holds the turn's task and what it was given. */
+  readonly turn?: ResolutionRequestContract;
+};
+
 /** How a call stood when this event recorded it. */
 export type RunCallOutcomeContract = {
   /** The call's output its record holds: every field but those `outputs` names. */
@@ -2767,6 +2786,8 @@ export type RunCallReuseContract = {
   /** Only a result this model made, when the call named one. */
   readonly model?: string;
 };
+
+export type RunCallSchemaContract = "runx.run_call.v1";
 
 /** Where a call a turn's script made stands in that script: the script call, by its index in the turn's step, and the call's position among the calls the script made, which its replay matches it by. */
 export type RunCallScriptContract = {
@@ -2979,6 +3000,19 @@ export type RunReadSummaryContract = {
   readonly skill: string;
   readonly state: RunStateContract;
   readonly updated_at: string;
+};
+
+/** A call a turn's script made, as its script call's read gives it. */
+export type RunScriptCallContract = {
+  /** `<step>/<index>` in its run. */
+  readonly address: string;
+  readonly input: {
+    readonly [key: string]: unknown;
+  };
+  readonly outcome: RunCallOutcomeContract;
+  /** Its place among the calls the script made. */
+  readonly position: number;
+  readonly target: CallTargetContract;
 };
 
 /** Where a run stands, from its latest event alone. */

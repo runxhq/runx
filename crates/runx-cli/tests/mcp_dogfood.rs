@@ -766,6 +766,247 @@ fn a_turns_script_killed_mid_way_recovers_from_its_record() -> Result<(), Box<dy
     Ok(())
 }
 
+/// Save as skill, end to end on an MCP host (Stage 5): a turn's script call
+/// that worked is read whole by `run.call`, skill-build's `save` has its
+/// author write it as a package of its own, apply writes it once its test
+/// passes, and a later run of the saved skill on the recorded inputs gives
+/// the recorded result.
+#[test]
+fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = TestTempDir::new("runx-save-as-skill")?;
+    let root = workspace.path();
+    let skill_dir = root.join("turn-demo");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: turn-demo\ndescription: Answers with what it digested.\n---\n# Turn demo\n\n## Agent task: answer\n\nDigest what you need, then answer.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let receipts = root.join("receipts");
+    let runx = || {
+        let mut command = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key");
+        command.current_dir(root).env("RUNX_CWD", root);
+        command
+    };
+    let started = runx()
+        .arg("skill")
+        .arg(&skill_dir)
+        .args(["--input", "question=what digests?", "--receipt-dir"])
+        .arg(&receipts)
+        .arg("--json")
+        .output()?;
+    let started: Value = serde_json::from_slice(&started.stdout)?;
+    let run_id = started["run_id"]
+        .as_str()
+        .ok_or("missing run_id")?
+        .to_owned();
+
+    // The turn's script: each value's digest, by the turn's own tool name.
+    let mut server = {
+        let mut command = runx();
+        command
+            .args(["mcp", "--run", run_id.as_str(), "--receipt-dir"])
+            .arg(&receipts);
+        spawn_stdio(command)?
+    };
+    write_frame(server.stdin_mut()?, &initialize_request(1))?;
+    server.read_response("initialize")?;
+    write_frame(server.stdin_mut()?, &initialized_notification())?;
+    let values = json!(["first", "second"]);
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            2,
+            "tools/call",
+            json!({"name": "turn_call", "arguments": {
+                "turn": "answer",
+                "tool": "script",
+                "input": {"source": TURN_SCRIPT, "inputs": {"values": values}},
+            }}),
+        ),
+    )?;
+    let script = server.read_response("turn_call")?;
+    let outcome = &script["result"]["structuredContent"]["outcome"];
+    assert_eq!(outcome["status"], "completed", "{script}");
+    let recorded = outcome["output"].clone();
+    assert_eq!(
+        recorded["digests"].as_array().map(Vec::len),
+        Some(2),
+        "{script}"
+    );
+    write_frame(
+        server.stdin_mut()?,
+        &request(
+            3,
+            "tools/call",
+            json!({"name": "turn_complete", "arguments": {
+                "turn": "answer",
+                "output": {"answer": "digested"},
+            }}),
+        ),
+    )?;
+    server.read_response("turn_complete")?;
+    server.close_stdin();
+    assert!(server.wait_exit()?.success());
+
+    // Save it: the author is given the call whole, and writes the package.
+    let paused = runx()
+        .args(["skill", "runx/skill-build#save", "-i"])
+        .arg(format!("run_id={run_id}"))
+        .args([
+            "-i",
+            "call=answer/0",
+            "-i",
+            "package_name=digest-list",
+            "-i",
+            "target_dir=digest-list",
+            "--json",
+        ])
+        .output()?;
+    let paused: Value = serde_json::from_slice(&paused.stdout)?;
+    let save_run = paused["run_id"]
+        .as_str()
+        .ok_or("missing the save's run_id")?
+        .to_owned();
+    let history = runx()
+        .args(["history", save_run.as_str(), "--json"])
+        .output()?;
+    let history: Value = serde_json::from_slice(&history.stdout)?;
+    let read = history["events"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|record| record["event"]["kind"] == "step" && record["event"]["step_id"] == "read")
+        .ok_or("the save read the call")?;
+    let call = &read["event"]["output"]["run_call"]["data"];
+    assert_eq!(call["input"]["source"], TURN_SCRIPT, "{call}");
+    assert_eq!(call["calls"].as_array().map(Vec::len), Some(2), "{call}");
+    let answers = root.join("answers.json");
+    fs::write(
+        &answers,
+        crate::support::bind_resume(
+            &history,
+            json!({"answers": {"author": {"change_draft": saved_package()}}}),
+        )?
+        .to_string(),
+    )?;
+    let saved = runx()
+        .arg("resume")
+        .arg(&save_run)
+        .arg(&answers)
+        .arg("--json")
+        .output()?;
+    let saved: Value = serde_json::from_slice(&saved.stdout)?;
+    assert_eq!(saved["status"], "sealed", "{saved}");
+    assert!(root.join("digest-list/digest-list.mjs").is_file());
+
+    // A later run of the saved skill on the recorded inputs.
+    let inputs = root.join("inputs.json");
+    fs::write(&inputs, json!({"values": values}).to_string())?;
+    let reused = runx()
+        .arg("skill")
+        .arg(root.join("digest-list"))
+        .arg("--inputs")
+        .arg(&inputs)
+        .arg("--json")
+        .output()?;
+    let reused: Value = serde_json::from_slice(&reused.stdout)?;
+    assert_eq!(reused["status"], "sealed", "{reused}");
+    assert_eq!(reused["result"]["digests"], recorded["digests"], "{reused}");
+    Ok(())
+}
+
+const TURN_SCRIPT: &str = "export default async function (ctx, inputs) {\n  const digests = [];\n  for (const value of inputs.values) {\n    const result = await ctx.tool(\"data_digest\", { value, encoding: \"utf8_text\" });\n    digests.push((await ctx.read(result.digest_result)).digest);\n  }\n  return { digests };\n}\n";
+
+/// What skill-build's author writes for the saved script: the script as the
+/// package's module, naming its call as a script step names its `calls`,
+/// under contracts, a manual and a test of its own.
+fn saved_package() -> Value {
+    json!({
+        "decision": "write",
+        "summary": "Keep the turn's digest script as a package: one script step that digests each value in order.",
+        "writes": [
+            {"path": "digest-list/SKILL.md", "contents": SAVED_MANUAL},
+            {"path": "digest-list/run.yaml", "contents": SAVED_MANIFEST},
+            {"path": "digest-list/digest-list.mjs", "contents": SAVED_MODULE},
+            {"path": "digest-list/tests/digest-list-ready.yaml", "contents": SAVED_TEST},
+        ],
+        "deletes": [],
+    })
+}
+
+const SAVED_MANUAL: &str = r#"---
+name: digest-list
+description: Compute a stable SHA-256 digest for each value in an ordered list.
+---
+
+# Digest List
+
+Use this skill when an operator needs a stable identity for each of several
+exact values, in the order given, and does not need storage, publication, or a
+provider action. Each digest can bind a later comparison to the same text; none
+proves who wrote a value or that anyone acted on it.
+
+Supply the values as `values`, each a string. The method's script passes each
+one to runx's native `data.digest` capability as UTF-8 text, one call at a
+time, and returns `digests` in the same order. runx makes and records each
+call and seals the receipt; the script has no I/O of its own.
+
+An empty list returns no digests. If a downstream operation needs to compare
+values, route the sealed digests to the capability that owns that comparison
+instead of treating a digest as authorization.
+
+The result proves only that runx hashed the supplied bytes during this run. It
+does not store the values, publish them, sign them for another party, or claim
+an external effect.
+"#;
+
+const SAVED_MANIFEST: &str = r#"version: "0.1.0"
+minimum_runx: 0.12.0
+catalog:
+  visibility: internal
+methods:
+  digest:
+    description: Digest each supplied value as UTF-8 text, in order.
+    inputs:
+      values:
+        type: array
+        items: {type: string}
+        description: The values to digest, in the order their digests return.
+    steps:
+      - id: digest
+        script: {module: digest-list.mjs}
+        inputs:
+          values: $input.values
+        calls:
+          tools: [data.digest]
+        max_calls: 200
+        effects: none
+        outputs:
+          digests:
+            type: array
+            items: {type: string}
+"#;
+
+const SAVED_MODULE: &str = "// Each value's digest, by the native digest, one call each and in order.\nexport default async function digestList(ctx, inputs) {\n  const digests = [];\n  for (const value of inputs.values) {\n    const result = await ctx.tool(\"data.digest\", { value, encoding: \"utf8_text\" });\n    digests.push((await ctx.read(result.digest_result)).digest);\n  }\n  return { digests };\n}\n";
+
+const SAVED_TEST: &str = r#"name: digest-list-ready
+method: digest
+inputs:
+  values: [first, second]
+expect:
+  status: sealed
+  output:
+    subset:
+      digests:
+        - sha256:a7937b64b8caa58f03721bb6bacf5c78cb235febe0e70b1b84cd99541461a08e
+        - sha256:16367aacb67a4a017c8da8ab95682ccb390863780f7114dda0a0e0c55644c7c4
+"#;
+
 /// A host's cancellation of a turn call (`notifications/cancelled`) stops it
 /// gracefully: the command it runs is terminated, the run records the call,
 /// and the turn's next call runs on the same connection. MCP sends no reply

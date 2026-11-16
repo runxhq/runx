@@ -446,6 +446,52 @@ pub struct RunCallScript {
     pub position: u32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+pub enum RunCallSchema {
+    #[serde(rename = "runx.run_call.v1")]
+    V1,
+}
+
+/// One call a run made, read whole by its address (`run.call`): what it
+/// called, its whole input, how it ended, the turn it was made in, and, for a
+/// turn's script call, each call its script made, in position order. A run's
+/// read gives a call's input by its digest; this is where it's read whole, as
+/// Save as skill reads the script it keeps.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.run_call.v1")]
+pub struct RunCall {
+    pub schema: RunCallSchema,
+    pub run_id: NonEmptyString,
+    /// `<step>/<index>` in its run.
+    pub address: NonEmptyString,
+    /// The step's attempt that made it: its latest holding the index.
+    pub attempt: u32,
+    pub target: CallTarget,
+    pub input: JsonObject,
+    pub outcome: RunCallOutcome,
+    /// The request of the turn that made it, which holds the turn's task and
+    /// what it was given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn: Option<ResolutionRequest>,
+    /// Each call its script made, a turn's script call's; none otherwise.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub calls: Vec<RunScriptCall>,
+}
+
+/// A call a turn's script made, as its script call's read gives it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunScriptCall {
+    /// Its place among the calls the script made.
+    pub position: u32,
+    /// `<step>/<index>` in its run.
+    pub address: NonEmptyString,
+    pub target: CallTarget,
+    pub input: JsonObject,
+    pub outcome: RunCallOutcome,
+}
+
 /// What a call that asked to reuse a result asked, and what it was answered
 /// (reuse, D32): the source it settled from, or why it ran again, so reuse
 /// that never fires shows up.

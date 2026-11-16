@@ -7092,6 +7092,13 @@
       "title": "RunCallReuse",
       "type": "object"
     },
+    "RunCallSchema": {
+      "enum": [
+        "runx.run_call.v1"
+      ],
+      "title": "RunCallSchema",
+      "type": "string"
+    },
     "RunCallScript": {
       "additionalProperties": false,
       "description": "Where a call a turn's script made stands in that script: the script call, by its index in the turn's step, and the call's position among the calls the script made, which its replay matches it by.",
@@ -7759,6 +7766,41 @@
         "updated_at"
       ],
       "title": "RunReadSummary",
+      "type": "object"
+    },
+    "RunScriptCall": {
+      "additionalProperties": false,
+      "description": "A call a turn's script made, as its script call's read gives it.",
+      "properties": {
+        "address": {
+          "description": "`<step>/<index>` in its run.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "outcome": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
+        },
+        "position": {
+          "description": "Its place among the calls the script made.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "target": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
+        }
+      },
+      "required": [
+        "position",
+        "address",
+        "target",
+        "input",
+        "outcome"
+      ],
+      "title": "RunScriptCall",
       "type": "object"
     },
     "RunState": {

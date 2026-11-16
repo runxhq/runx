@@ -127,7 +127,10 @@ reason, so a host reads every call's outcome from the run alone. A load's
 event names the package it bound, `{ skill, package_digest }`, whether it
 completed or waits on the person's trust, and an agent step's event names the
 model its turn stated. A skill reads the same through the `run.read` tool,
-which without a `run_id` reads the run making the call. The read's
+which without a `run_id` reads the run making the call, and one call whole
+through `run.call`, by its address, `<step>/<index>`: its whole input, how it
+ended, the turn that made it, and, for a turn's script call, each call its
+script made in order (`runx.run_call.v1`). The read's
 `cursor`, passed back as `--after`, returns only what followed. A sealed run is
 terminal; inspect its receipt with `runx verify <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both
@@ -285,7 +288,9 @@ supplied inputs names no calls.
 `{id, prompt, options?: [{label, detail?}], free_text?, required?}` with at most
 four options, the recommended first; a question without options takes text.
 `script` takes `{source, inputs?}`: one ECMAScript module, which imports
-nothing, whose default export runx runs as `async (ctx, inputs)`. It's offered
+nothing, whose default export, `export default async function (ctx, inputs)`,
+runs and returns the call's result, an object; one that throws or returns
+anything else fails the call. It's offered
 wherever a turn offers a tool, an operation or a skill, and it reaches nothing
 the turn doesn't: `ctx.tool(name, input)` makes one of the turn's own calls,
 by the name `turn_status` lists it under and with the input it takes there,

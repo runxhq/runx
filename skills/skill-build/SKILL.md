@@ -50,8 +50,11 @@ author so exact source references can survive the candidate write.
   change first, as reflection does.
 - `test`: add tests and the fixtures they read to a package that stands, and
   replay them safely against the exact candidate before committing it.
+- `save`: keep a turn's script call that worked as a package of its own. It
+  reads the call whole with `run.call`, its author writes the package around
+  the script, and it's checked and written as a `build`'s is.
 
-`build`, `improve`, and `test` write local workspace files. They never
+`build`, `improve`, `test` and `save` write local workspace files. They never
 publish, install, push, or mutate an external provider. Native test replay
 runs with isolated runx home, receipts, and no operator credentials. Invalid
 staged packages stop before the target package is touched. Design, inspection,
@@ -497,8 +500,10 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 
 ## Inputs
 
-- `objective` (required): capability or improvement to deliver.
-- `package_name` (optional, build and design): the name a new package takes, its
+- `objective` (required but for save): capability or improvement to deliver.
+- `run_id`, `call` (save): the run and the script call's address in it,
+  `<step>/<index>`, as `run.read`'s events name it.
+- `package_name` (optional, build, design and save): the name a new package takes, its
   `SKILL.md` frontmatter `name`, even when the target directory has a
   different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
@@ -525,7 +530,25 @@ the draft to the package you inspected.
 The decision fits the method. A `build` creates a package where none stands, or
 finds the work `no_skill` or `needs_core`. An `improve` changes the package that
 stands, or finds `no_change` or `needs_core`. A `test` adds cases or finds
-`no_change`. A `design` may decide anything and writes nothing.
+`no_change`. A `design` may decide anything and writes nothing. A `save`
+creates a package from the script call, or finds it `no_skill`, a one-off that
+no later run would choose, or `needs_core`.
+
+For `save`, `script_call` is the call read whole: its script's `source` and
+`inputs`, how it ended and what it returned, each call the script made with
+its target, input and outcome, and the turn it was made in. Write the script as
+the package's module, verbatim where it holds. A turn's script makes its calls
+with `ctx.tool` by the turn's tool names; a package's script makes its step's
+`calls`, by the names each call's `target` gives: `ctx.tool("<catalog tool>")`,
+`ctx.operation("<connector>/<operation>")`, `ctx.skill("<ref>#<method>")`.
+Declare the step's `calls` from what the script needs, never from what it
+reached: a refused call the script caught is no dependency. State its inputs
+and outputs as contracts, not as types read off one sample. Write a test that
+runs the saved method on the recorded inputs and expects the recorded result,
+answering each call that leaves runx at its boundary with a fixture written
+from that call's input and outcome. A saved package stands alone, so it carries
+its manual; a public one also carries its evals, with the turn's request as one
+that should select it.
 
 Inspect the target in one bounded pass: read the files `authoring_context`
 lists together with `fs.read_bundle`, rather than one at a time, and don't
@@ -580,9 +603,13 @@ only when there is more than one method; and `methods`. A method has its
 `description`, `inputs`, `outputs`, `examples` and `steps`, and may add
 `input_constraints`, `result_from`, `effects`, `reach` and `offer`. A method is
 always its steps, and one agent turn is one `agent` step. Every step has an
-`id` and exactly one kind: `agent`, `tool`, `operation`, `ask` or `skill`, and
-may add `when`, `guard`, `inputs`, `outputs`, `result_as`, `effects` and
-`reach`. An `agent` step names its task, and `SKILL.md` must hold that task's
+`id` and exactly one kind: `agent`, `tool`, `operation`, `ask`, `skill` or
+`script`, and may add `when`, `guard`, `inputs`, `outputs`, `result_as`,
+`effects` and `reach`. A `script` step, `script: {module: <name>.mjs}`, runs
+the module's default export, `export default async function (ctx, inputs)`,
+whose returned object is the step's output; its `calls` are what the script
+may call, as an agent step's are, `max_calls` its hard stop, required, and
+`concurrency` how many run at once, one unless it says. An `agent` step names its task, and `SKILL.md` must hold that task's
 `## Agent task: <name>` section with its instructions; its `calls` lists what
 the turn may call (`tools`, `operations` as `<connector>/<operation>`, `skills`
 as `<ref>#<method>`, `load`, `ask: true`), its `context.skills` the skills it

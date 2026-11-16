@@ -1,0 +1,8 @@
+name: save-needs-a-call
+method: save
+inputs:
+  run_id: run-that-never-ran
+  call: answer/0
+  target_dir: .runx-tmp/skill-build-fixtures/fixture-saved
+expect:
+  status: failure

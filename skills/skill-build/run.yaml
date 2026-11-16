@@ -132,6 +132,79 @@ methods:
         outputs:
           apply_result: {type: object, packet: runx.skill.apply_result.v1}
 
+  save:
+    description: Keep a turn's script call that worked as a skill package of its own, its script the package's module, under the contracts, test and manual its author writes, written only once its exact staged package passes as a build's is.
+    inputs:
+      run_id:
+        type: string
+        description: The run the script call was made in.
+      call:
+        type: string
+        description: The script call's address in that run, <step>/<index>, as run.read's events name it.
+      package_name:
+        type: string
+        description: The name the new package takes, its SKILL.md name.
+        optional: true
+      repo_root:
+        type: string
+        default: .
+        description: Workspace root that owns target_dir.
+        optional: true
+      target_dir:
+        type: string
+        description: Repo-relative package directory to create, where no package stands.
+      project_context:
+        type: string
+        description: Product, repository, and operator constraints.
+        optional: true
+    examples:
+      - run_id: run-weekly-digest
+        call: answer/3
+        package_name: weekly-digest
+        repo_root: .
+        target_dir: skills/weekly-digest
+    result_from: [author, apply]
+    steps:
+      - id: inspect
+        tool: runx.skill.inspect
+        inputs:
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
+      - id: read
+        tool: run.call
+        inputs:
+          run_id: $input.run_id
+          call: $input.call
+      - id: author
+        agent: skill-build-author
+        calls:
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
+        outputs:
+          change_draft: {type: object, packet: runx.skill.change_draft.v1}
+        inputs:
+          script_call: $steps.read.run_call
+          package_name: $input.package_name
+          project_context: $input.project_context
+          authoring_mode: save
+          authoring_context: $steps.inspect.authoring_context
+          repo_root: $input.repo_root
+          target_dir: $input.target_dir
+      - id: bind
+        tool: runx.skill.bind
+        inputs:
+          authoring_context: $steps.inspect.authoring_context
+          mode: build
+          change_draft: $steps.author.change_draft
+      - id: apply
+        tool: runx.skill.apply
+        inputs:
+          target_dir: $input.target_dir
+          repo_root: $input.repo_root
+          mode: build
+          change_bundle: $steps.bind.change_bundle
+        outputs:
+          apply_result: {type: object, packet: runx.skill.apply_result.v1}
+
   improve:
     description: Turn one receipt or test failure into a bounded update of a package, validated before it is written.
     inputs:

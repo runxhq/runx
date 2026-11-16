@@ -8354,6 +8354,13 @@ export const runxSchemaArtifacts = {
         "title": "RunCallReuse",
         "type": "object"
       },
+      "RunCallSchema": {
+        "enum": [
+          "runx.run_call.v1"
+        ],
+        "title": "RunCallSchema",
+        "type": "string"
+      },
       "RunCallScript": {
         "additionalProperties": false,
         "description": "Where a call a turn's script made stands in that script: the script call, by its index in the turn's step, and the call's position among the calls the script made, which its replay matches it by.",
@@ -9021,6 +9028,41 @@ export const runxSchemaArtifacts = {
           "updated_at"
         ],
         "title": "RunReadSummary",
+        "type": "object"
+      },
+      "RunScriptCall": {
+        "additionalProperties": false,
+        "description": "A call a turn's script made, as its script call's read gives it.",
+        "properties": {
+          "address": {
+            "description": "`<step>/<index>` in its run.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "outcome": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
+          },
+          "position": {
+            "description": "Its place among the calls the script made.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "target": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
+          }
+        },
+        "required": [
+          "position",
+          "address",
+          "target",
+          "input",
+          "outcome"
+        ],
+        "title": "RunScriptCall",
         "type": "object"
       },
       "RunState": {
@@ -13518,6 +13560,66 @@ export const runxSchemaArtifacts = {
     "title": "ResumeDocument",
     "type": "object",
     "x-runx-schema": "runx.resume.v1"
+  } as JsonSchema,
+  "run-call.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/run-call/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "One call a run made, read whole by its address (`run.call`): what it called, its whole input, how it ended, the turn it was made in, and, for a turn's script call, each call its script made, in position order. A run's read gives a call's input by its digest; this is where it's read whole, as Save as skill reads the script it keeps.",
+    "properties": {
+      "address": {
+        "description": "`<step>/<index>` in its run.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "attempt": {
+        "description": "The step's attempt that made it: its latest holding the index.",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "calls": {
+        "description": "Each call its script made, a turn's script call's; none otherwise.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunScriptCall"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "input": {
+        "additionalProperties": {},
+        "type": "object"
+      },
+      "outcome": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
+      },
+      "run_id": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "schema": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallSchema"
+      },
+      "target": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
+      },
+      "turn": {
+        "$ref": "https://schemas.runx.ai/runx/resolution-request/v1.json",
+        "description": "The request of the turn that made it, which holds the turn's task and what it was given."
+      }
+    },
+    "required": [
+      "schema",
+      "run_id",
+      "address",
+      "attempt",
+      "target",
+      "input",
+      "outcome"
+    ],
+    "title": "RunCall",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.run_call.v1"
   } as JsonSchema,
   "run-context.schema.json": {
     "$id": "https://schemas.runx.ai/runx/control/run-context/v1.json",
