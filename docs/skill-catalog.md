@@ -13,7 +13,7 @@ include before it belongs in the runx repo.
 
 ## runx foundation and optional packages
 
-The maintained foundation is `skill-build`, `skill-review`, `skill-adopt`,
+The maintained foundation is `skill-lab`, `skill-review`, `skill-adopt`,
 `diagnose-skill-run`, `run-history`, `receipt-query`, `receipt-audit`,
 `least-privilege`, `policy-draft`, and `sign-receipt`, alongside the root
 `runx` orientation manual. Their complete packages ship inside runx and work
@@ -199,7 +199,7 @@ evidence, not copied into the repo by default.
 
 | Category | Maintained packages |
 | --- | --- |
-| `authoring` | `skill-adopt`, `diagnose-skill-run`, `policy-draft`, `prior-art`, `skill-review`, `skill-build`, `code-plan` |
+| `authoring` | `skill-adopt`, `diagnose-skill-run`, `policy-draft`, `prior-art`, `skill-review`, `skill-lab`, `code-plan` |
 | `code` | `github-pr-review`, `release`, `schema-check` |
 | `content` | `brand-voice`, `content-package`, `contract-draft`, `ghostwrite`, `moltbook` |
 | `data` | `product-analytics`, `run-history`, `sql-analysis` |
@@ -253,7 +253,7 @@ package, test, and evidence without separating it from repo history.
 Most new skills should start outside the first-party repo:
 
 ```bash
-runx skill runx/skill-build#build -i objective="Describe the bounded operator outcome" -i target_dir=<skill-name>
+runx skill runx/skill-lab#build -i objective="Describe the bounded operator outcome" -i target_dir=<skill-name>
 runx test ./<skill-name> --json
 runx login --for publish
 runx registry publish ./<skill-name>/SKILL.md

@@ -18,5 +18,6 @@
   {"query": "Make a runx skill package that checks for broken links on our docs site.", "should_trigger": true},
   {"query": "Add a test case to skills/support-triage for a request with no product evidence.", "should_trigger": true},
   {"query": "Split our sbom skill's run.yaml into separate methods, and make sure its tests still replay.", "should_trigger": true},
-  {"query": "Help me author a new runx skill for posting Discord announcements, starting with where it fits in the catalog.", "should_trigger": true}
+  {"query": "Help me author a new runx skill for posting Discord announcements, starting with where it fits in the catalog.", "should_trigger": true},
+  {"query": "That script you just ran worked; keep it as a skill I can run again next week.", "should_trigger": true}
 ]

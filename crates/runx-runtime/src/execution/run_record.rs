@@ -56,7 +56,7 @@ mod read;
 
 pub(crate) use claim::retained_claim;
 pub use driver::{DriverLock, driven};
-pub use read::read_run;
+pub use read::{read_call, read_run};
 
 /// One event in a run's stream.
 #[derive(Debug, Serialize, Deserialize)]
@@ -804,6 +804,8 @@ pub enum RunRecordError {
     InvalidCursor,
     #[error("run {run_id} has no record in this workspace")]
     UnknownRun { run_id: String },
+    #[error("run {run_id} made no call {call}")]
+    UnknownCall { run_id: String, call: String },
 }
 
 /// The writer of one run's stream.

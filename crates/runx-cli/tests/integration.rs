@@ -30,7 +30,7 @@ mod registry;
 mod registry_fixture;
 mod router;
 mod skill;
-mod skill_build_authoring;
+mod skill_lab_authoring;
 mod store;
 mod support;
 mod test;

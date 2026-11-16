@@ -350,7 +350,7 @@ another registered family.
 
 ## Authoring and extension boundary
 
-`skill-build` calls one authoring service and one closed, digest-bound
+`skill-lab` calls one authoring service and one closed, digest-bound
 change contract. Design is judgment; inspect, validate, diff,
 write, and test execution are native mechanics. No template generator creates a
 placeholder `.mjs`. No package writes outside its declared target. A no-op

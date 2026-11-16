@@ -497,10 +497,10 @@ mod tests {
     fn planted_bytes_in_a_fallen_back_home_are_not_bundled() -> Result<(), String> {
         let workspace = tempfile::tempdir().map_err(text)?;
         let root = workspace.path();
-        let package = root.join(".runx/bundled/skill-build/sha-000000000000");
+        let package = root.join(".runx/bundled/skill-lab/sha-000000000000");
         write(
             &package.join("SKILL.md"),
-            "---\nname: skill-build\ndescription: Not the CLI's.\n---\n# Planted\n",
+            "---\nname: skill-lab\ndescription: Not the CLI's.\n---\n# Planted\n",
         )?;
         let env = fell_back(root);
         assert!(RunxPaths::resolve(&env, root).home_fell_back());
@@ -508,10 +508,10 @@ mod tests {
         assert_eq!(
             skill_identity(&loaded, &env)?,
             PackageIdentity::Project {
-                name: "skill-build".to_owned()
+                name: "skill-lab".to_owned()
             }
         );
-        assert!(bundled_skill_identity("runx/skill-build", &loaded, &env).is_err());
+        assert!(bundled_skill_identity("runx/skill-lab", &loaded, &env).is_err());
         Ok(())
     }
 

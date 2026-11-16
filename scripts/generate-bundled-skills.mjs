@@ -10,7 +10,7 @@ import { resolveNativeRunxBinary } from "./lib/native-parser.mjs";
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const output = path.join(root, "crates/runx-runtime/bundled-skills.json");
 const names = [
-  "skill-build", "skill-review", "skill-adopt", "diagnose-skill-run",
+  "skill-lab", "skill-review", "skill-adopt", "diagnose-skill-run",
   "run-history", "receipt-query", "receipt-audit", "least-privilege",
   "policy-draft", "sign-receipt", "agent",
   "revert", "memory",

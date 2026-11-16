@@ -1,9 +1,9 @@
-name: skill-build-builds-thin-skill
+name: skill-lab-builds-thin-skill
 method: build
 inputs:
   objective: Create a bounded decision-note skill without package-local runtime code
   repo_root: .
-  target_dir: .runx-tmp/skill-build-fixtures/fixture-decision-note
+  target_dir: .runx-tmp/skill-lab-fixtures/fixture-decision-note
   project_context: Keep the package declarative and prove its native test.
 host:
   answers:
@@ -12,7 +12,7 @@ host:
         decision: write
         summary: Create one thin agent skill with a supplied-answer test.
         writes:
-          - path: .runx-tmp/skill-build-fixtures/fixture-decision-note/SKILL.md
+          - path: .runx-tmp/skill-lab-fixtures/fixture-decision-note/SKILL.md
             contents: |
               ---
               name: fixture-decision-note
@@ -34,7 +34,7 @@ host:
 
               Return `decision_note` with the objective preserved exactly and
               one concise recommendation and an explicit caveats array. Do not claim external effects.
-          - path: .runx-tmp/skill-build-fixtures/fixture-decision-note/run.yaml
+          - path: .runx-tmp/skill-lab-fixtures/fixture-decision-note/run.yaml
             contents: |
               version: "0.1.0"
               minimum_runx: 0.12.0
@@ -77,7 +77,7 @@ host:
                               items:
                                 type: string
                                 minLength: 1
-          - path: .runx-tmp/skill-build-fixtures/fixture-decision-note/tests/fixture-decision-note-ready.yaml
+          - path: .runx-tmp/skill-lab-fixtures/fixture-decision-note/tests/fixture-decision-note-ready.yaml
             contents: |
               name: fixture-decision-note-ready
               method: note

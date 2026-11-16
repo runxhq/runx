@@ -16,7 +16,7 @@ export function prepareAdoption(input) {
       blockers: [],
       source_mode: mode,
       project_context: JSON.stringify({
-        task: "Adopt the supplied third-party skill into the exact operator-selected local target through canonical skill-build.",
+        task: "Adopt the supplied third-party skill into the exact operator-selected local target through canonical skill-lab.",
         operator_context: input.project_context ?? "",
         source_mode:
           "A captured source snapshot. Its shape and bytes are admitted; its provenance claims are not independently verified.",
@@ -34,7 +34,7 @@ export function prepareAdoption(input) {
           "Use the supplied captured bytes, not a silent refetch of a moving upstream. Inspect only genuinely missing required resources through existing native readers and preserve their capture; hold if the source closure or licensing cannot be established.",
           "Reuse native tools, limits, authority and canonical skills. A prose scope, echoed prefix or max_acts value is not an enforced sandbox. Choose needs_core or no_skill when the promised job or boundary cannot be implemented honestly.",
           "Create a complete runnable local package with useful standalone and composed journeys. Existing packages keep their major/minor version; a new package starts at 0.1.0.",
-          "Native skill-build must validate and safely replay the exact candidate before atomically applying it. Report applied only from its actual apply_result. Do not claim provider effects, registry trust, installation on another host, or publication.",
+          "Native skill-lab must validate and safely replay the exact candidate before atomically applying it. Report applied only from its actual apply_result. Do not claim provider effects, registry trust, installation on another host, or publication.",
         ],
       }),
     },

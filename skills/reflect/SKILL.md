@@ -55,7 +55,7 @@ then can't be met, and the mark it returns moves only past what it read.
   sealed receipt or an event of that run. A finding that rests on anything else
   is dropped, and the check says why.
 - **`propose`** drafts a fix for each kept diagnosis through
-  `runx/skill-build#draft`, whose own turns write the fix and its case. Code
+  `runx/skill-lab#draft`, whose own turns write the fix and its case. Code
   keeps the draft only when it adds a case, names each case it changes or
   removes, and two candidate tests prove the new case: it fails on the
   package as the workspace holds it, with only the new case added, and passes

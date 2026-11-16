@@ -14,7 +14,7 @@ methods:
             verify_chain: true
           receipts:
             - receipt_id: rcpt_context_flattening
-              skill: skills/skill-build
+              skill: skills/skill-lab
               outcome: failed
               created_at: 2026-07-16T00:00:00Z
               verification_status: verified
@@ -22,7 +22,7 @@ methods:
             - id: rcpt_context_flattening
               receipt_uri: runx:receipt:rcpt_context_flattening
               subject_kind: workflow
-              subject_uri: skills/skill-build
+              subject_uri: skills/skill-lab
               created_at: 2026-07-16T00:00:00Z
               outcome: failed
               verification:
@@ -53,7 +53,7 @@ methods:
         inputs:
           receipt_id: rcpt_context_flattening
           test_output: Context edge pointed at stdout and flattened the payload.
-          skill_path: skills/skill-build
+          skill_path: skills/skill-lab
           receipt_evidence: $steps.evidence.ledger_answer_packet
       - id: digest
         tool: data.digest

@@ -109,13 +109,13 @@ function recommendations({ decision, outcomes, refusalCount, untestedCatalogEntr
     items.push({ lane: "none", action: `Inspect the ${unreadableCount} unreadable run record${unreadableCount === 1 ? "" : "s"} with a compatible runtime before relying on this partial history.` });
   }
   if ((outcomes.failed || 0) > 0 || (outcomes.timed_out || 0) > 0) {
-    items.push({ lane: "diagnose-skill-run", action: "Diagnose representative failed or timed-out runs and route bounded fixes through skill-build improve." });
+    items.push({ lane: "diagnose-skill-run", action: "Diagnose representative failed or timed-out runs and route bounded fixes through skill-lab improve." });
   }
   if (refusalCount > 0) {
     items.push({ lane: "receipt-audit", action: "Sample the receipts of blocked or declined runs to confirm the governance boundary is behaving as intended." });
   }
   if (untestedCatalogEntries > 0) {
-    items.push({ lane: "skill-build test", action: `Add public-contract coverage to ${untestedCatalogEntries} catalog entr${untestedCatalogEntries === 1 ? "y" : "ies"} with no declared fixture or inline case.` });
+    items.push({ lane: "skill-lab test", action: `Add public-contract coverage to ${untestedCatalogEntries} catalog entr${untestedCatalogEntries === 1 ? "y" : "ies"} with no declared fixture or inline case.` });
   }
   return items;
 }

@@ -355,6 +355,32 @@ export type CallCostContract = {
   readonly settled_usd_micro?: number;
 };
 
+/** One call a run made, read whole by its address (`call.read`): what it called, its whole input, how it ended, the request of the turn that made it, and, for a turn's script call, each call its script made, at its position. A run's read names a call's input by its digest; this is where it's read whole, as an artifact read in bounded pages, labelled with everything it holds. */
+export type CallReadContract = {
+  /** The step's attempt that made it: its latest holding the index. */
+  readonly attempt: number;
+  readonly call: CallReadEntryContract;
+  /** The calls under it: a script call's, at their positions. */
+  readonly calls?: readonly CallReadEntryContract[];
+  readonly run_id: string;
+  readonly schema: CallReadSchemaContract;
+  /** The request of the turn that made it, which holds the turn's task and what it was given. */
+  readonly turn?: ResolutionRequestContract;
+};
+
+/** One call as `call.read` gives it. */
+export type CallReadEntryContract = {
+  /** `<step>/<index>` in its run. */
+  readonly address: string;
+  readonly input: {
+    readonly [key: string]: unknown;
+  };
+  readonly outcome: RunCallOutcomeContract;
+  readonly target: CallTargetContract;
+};
+
+export type CallReadSchemaContract = "runx.call_read.v1";
+
 /** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, `ask` and `load` where its step allows them, and `script` where it offers a tool, an operation or a skill; a script is offered a tool, an operation or a skill its step's `calls` lists, `wait` and `read`. */
 export type CallTargetContract = {
   readonly kind: "tool";

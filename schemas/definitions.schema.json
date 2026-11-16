@@ -769,6 +769,42 @@
       "title": "CallCost",
       "type": "object"
     },
+    "CallReadEntry": {
+      "additionalProperties": false,
+      "description": "One call as `call.read` gives it.",
+      "properties": {
+        "address": {
+          "description": "`<step>/<index>` in its run.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "outcome": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
+        },
+        "target": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
+        }
+      },
+      "required": [
+        "address",
+        "target",
+        "input",
+        "outcome"
+      ],
+      "title": "CallReadEntry",
+      "type": "object"
+    },
+    "CallReadSchema": {
+      "enum": [
+        "runx.call_read.v1"
+      ],
+      "title": "CallReadSchema",
+      "type": "string"
+    },
     "CallTarget": {
       "anyOf": [
         {

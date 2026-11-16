@@ -1,4 +1,4 @@
-name: skill-build-stops-for-earned-core-gap
+name: skill-lab-stops-for-earned-core-gap
 method: build
 inputs:
   objective: Add a digest-bound compare-and-swap bundle primitive required by two existing skills

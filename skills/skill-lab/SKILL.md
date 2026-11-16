@@ -1,9 +1,9 @@
 ---
-name: skill-build
+name: skill-lab
 description: Canonical runx skill-authoring implementation. Use for designing, creating, updating, improving, or adding test coverage to a runx skill package; it combines bounded agent judgment with native file writes, inspection, and safe test replay. When a host skill-creator also triggers, use its general guidance but execute runx work through this skill.
 ---
 
-# Skill Build
+# Skill Lab
 
 Build and improve runx skills through one authoring surface. A package's files
 are its contract: `SKILL.md`, `run.yaml`, its modules, tests and fixtures, and
@@ -20,7 +20,7 @@ inspect the target package, the catalog and the native tools
 
 Use the generic host `skill-creator` for platform-wide authoring guidance when
 it is available. Do not reproduce runx package operations from that guidance;
-invoke the appropriate `skill-build` method, as `runx skill runx/skill-build#<method>`,
+invoke the appropriate `skill-lab` method, as `runx skill runx/skill-lab#<method>`,
 so the work is bounded and receipted.
 
 ## Captured source artifacts
@@ -50,8 +50,12 @@ author so exact source references can survive the candidate write.
   change first, as reflection does.
 - `test`: add tests and the fixtures they read to a package that stands, and
   replay them safely against the exact candidate before committing it.
+- `save`: keep a turn's script call that worked as a package of its own. It
+  reads the call whole with `call.read`, its author writes the package around
+  the script, and it's checked as a `build`'s is and written once the person
+  approves its exact files.
 
-`build`, `improve`, and `test` write local workspace files. They never
+`build`, `improve`, `test` and `save` write local workspace files. They never
 publish, install, push, or mutate an external provider. Native test replay
 runs with isolated runx home, receipts, and no operator credentials. Invalid
 staged packages stop before the target package is touched. Design, inspection,
@@ -71,7 +75,7 @@ operator's objective includes shipping or registry availability, continue that
 exact candidate through the repository's canonical registry operator: publish
 under the intended existing publisher/name, then independently read back the same
 version and distribution digest. Do not call the work shipped while that sync is
-pending or unverified. Publication remains a separate authenticated act so Skill Build
+pending or unverified. Publication remains a separate authenticated act so Skill Lab
 never receives registry credentials or hides a remote mutation inside local
 authoring.
 
@@ -497,8 +501,10 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 
 ## Inputs
 
-- `objective` (required): capability or improvement to deliver.
-- `package_name` (optional, build and design): the name a new package takes, its
+- `objective` (required but for save): capability or improvement to deliver.
+- `run_id`, `call` (save): the run and the script call's address in it,
+  `<step>/<index>`, as `run.read`'s events name it.
+- `package_name` (optional, build, design and save): the name a new package takes, its
   `SKILL.md` frontmatter `name`, even when the target directory has a
   different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
@@ -509,7 +515,7 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
   failure evidence, including the stable packet from `diagnose-skill-run`.
   `test_output` carries a test run's sanitized output.
 
-## Agent task: skill-build-author
+## Agent task: skill-lab-author
 
 Read the target package and the catalog, decide, and return one
 `change_draft`: `{"change_draft": <draft>}`, using
@@ -525,7 +531,26 @@ the draft to the package you inspected.
 The decision fits the method. A `build` creates a package where none stands, or
 finds the work `no_skill` or `needs_core`. An `improve` changes the package that
 stands, or finds `no_change` or `needs_core`. A `test` adds cases or finds
-`no_change`. A `design` may decide anything and writes nothing.
+`no_change`. A `design` may decide anything and writes nothing. A `save`
+creates a package from the script call, or finds it `no_skill`, a one-off that
+no later run would choose, or `needs_core`.
+
+For `save`, `script_call` is the call read whole, as an artifact: open it with
+`artifact.open` and read its pages with `artifact.read`. It holds the script's
+`source` and `inputs`, how the call ended and what it returned, each call the
+script made, at its position, with its target, input and outcome, and the turn
+it was made in. A turn's script makes its calls by their real names, as a
+package's script does, so the module is the source byte for byte. Declare the
+step's `calls` from what the script needs, never from what it reached: a
+refused call the script caught is no dependency. State its inputs and outputs
+as contracts, not as types read off one sample. Write a test that runs the
+saved method on the recorded inputs and expects the recorded result, answering
+each call that leaves runx at its boundary with a fixture written from that
+call's input and outcome. A saved package stands alone, so it carries its
+manual and its evals, whether it's public or not: `eval_queries.json` with the
+turn's request as one that should select it and two nearby skills' requests as
+ones that shouldn't, and `evals/evals.json` with the saved method run on the
+recorded inputs.
 
 Inspect the target in one bounded pass: read the files `authoring_context`
 lists together with `fs.read_bundle`, rather than one at a time, and don't
@@ -580,9 +605,13 @@ only when there is more than one method; and `methods`. A method has its
 `description`, `inputs`, `outputs`, `examples` and `steps`, and may add
 `input_constraints`, `result_from`, `effects`, `reach` and `offer`. A method is
 always its steps, and one agent turn is one `agent` step. Every step has an
-`id` and exactly one kind: `agent`, `tool`, `operation`, `ask` or `skill`, and
-may add `when`, `guard`, `inputs`, `outputs`, `result_as`, `effects` and
-`reach`. An `agent` step names its task, and `SKILL.md` must hold that task's
+`id` and exactly one kind: `agent`, `tool`, `operation`, `ask`, `skill` or
+`script`, and may add `when`, `guard`, `inputs`, `outputs`, `result_as`,
+`effects` and `reach`. A `script` step, `script: {module: <name>.mjs}`, runs
+the module's default export, `export default async function (ctx, inputs)`,
+whose returned object is the step's output; its `calls` are what the script
+may call, as an agent step's are, `max_calls` its hard stop, required, and
+`concurrency` how many run at once, one unless it says. An `agent` step names its task, and `SKILL.md` must hold that task's
 `## Agent task: <name>` section with its instructions; its `calls` lists what
 the turn may call (`tools`, `operations` as `<connector>/<operation>`, `skills`
 as `<ref>#<method>`, `load`, `ask: true`), its `context.skills` the skills it

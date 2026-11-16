@@ -7,16 +7,16 @@ use serde_json::Value;
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 #[test]
-fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResult {
+fn skill_lab_waits_for_agent_then_applies_one_validated_package() -> TestResult {
     let repo = crate::support::repo_root()?;
-    let root = crate::support::isolated_target_temp_root("skill-build-authoring")?;
+    let root = crate::support::isolated_target_temp_root("skill-lab-authoring")?;
     let target = root.join("digest-note");
     let receipts = root.join("receipts");
 
     let pending = command(&repo, &root)
         .args([
             "skill",
-            "runx/skill-build#build",
+            "runx/skill-lab#build",
             "-i",
             "objective=Create a bounded digest-note skill using the native digest capability",
             "-i",
@@ -41,7 +41,7 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
     )));
     assert!(
         !target.exists(),
-        "skill-build wrote before authoring completed"
+        "skill-lab wrote before authoring completed"
     );
 
     // The one turn the run asks for, the author, decides and writes.
@@ -67,7 +67,7 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
 
     assert_eq!(completed["status"], "sealed");
     assert_eq!(completed["outcome"], "completed");
-    assert_eq!(completed["trace"]["workflow"], "skill-build");
+    assert_eq!(completed["trace"]["workflow"], "skill-lab");
     // The target holds exactly the files the author wrote, as written.
     let mut written = package_files(&target, &target)?;
     written.sort();
@@ -84,17 +84,17 @@ fn skill_build_waits_for_agent_then_applies_one_validated_package() -> TestResul
 }
 
 #[test]
-fn skill_build_refuses_a_target_outside_the_workspace_without_writing() -> TestResult {
+fn skill_lab_refuses_a_target_outside_the_workspace_without_writing() -> TestResult {
     let repo = crate::support::repo_root()?;
-    let root = crate::support::isolated_target_temp_root("skill-build-containment")?;
+    let root = crate::support::isolated_target_temp_root("skill-lab-containment")?;
     let outside =
-        std::env::temp_dir().join(format!("runx-skill-build-outside-{}", std::process::id()));
+        std::env::temp_dir().join(format!("runx-skill-lab-outside-{}", std::process::id()));
     fs::remove_dir_all(&outside).ok();
 
     let output = command(&repo, &root)
         .args([
             "skill",
-            "runx/skill-build#build",
+            "runx/skill-lab#build",
             "-i",
             "objective=Create a bounded skill",
             "-i",
@@ -119,7 +119,7 @@ fn skill_build_refuses_a_target_outside_the_workspace_without_writing() -> TestR
 fn command(repo: &Path, runx_home: &Path) -> Command {
     let mut command = crate::support::unsigned_runx_command_at(repo);
     command.env("RUNX_HOME", runx_home.join("home"));
-    // The bundled skill-build materializes into this home, and what it
+    // The bundled skill-lab materializes into this home, and what it
     // writes goes to the test's own project, never the repository.
     command.env("RUNX_CWD", runx_home);
     crate::support::isolate_project(&mut command);

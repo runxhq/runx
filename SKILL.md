@@ -143,11 +143,11 @@ object, as step 5 of the default workflow does.
    one job at a time.
 2. **Look for one that exists.** `runx list skills --json` and
    `runx registry search <query>`. Prefer a skill that already does the job.
-3. **Design it, then build it.** `runx skill runx/skill-build#design` lays the
-   skill out and writes nothing. `runx skill runx/skill-build#build` writes the
+3. **Design it, then build it.** `runx skill runx/skill-lab#design` lays the
+   skill out and writes nothing. `runx skill runx/skill-lab#build` writes the
    package into the project's `skills/` folder, and only once its tests pass.
 4. **Prove how it behaves.** Add a case for each way it should behave, a
-   refusal among them, with `runx skill runx/skill-build#test`, then run
+   refusal among them, with `runx skill runx/skill-lab#test`, then run
    `runx test skills/<name>`.
 5. **Run it like any skill**, under the authority the person grants, with an
    approval before anything consequential.
@@ -166,9 +166,9 @@ object, as step 5 of the default workflow does.
    `runx authority save memory <file> --standing`. Then keep each correction's
    exact words with `runx skill runx/memory#remember`, which asks them to
    confirm, and later runs apply it: a skill reads it through a
-   `runx/memory#index` step before its turn, which `skill-build` plans for a
+   `runx/memory#index` step before its turn, which `skill-lab` plans for a
    job the person repeats. Change the skill itself with
-   `runx skill runx/skill-build#improve`, which tests the change before it
+   `runx skill runx/skill-lab#improve`, which tests the change before it
    writes it.
 
 ## Command reference

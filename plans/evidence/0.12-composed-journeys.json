@@ -329,7 +329,7 @@
         "pointer": "/harness/cases/0/operator_journeys/1",
         "mode": "composed",
         "request": "Continue from this failed receipt and harness report into a skill improvement diagnosis.",
-        "expected_outcome": "Reuse native receipt detail and supplied harness evidence in a skill-build-ready diagnosis without repeating execution.",
+        "expected_outcome": "Reuse native receipt detail and supplied harness evidence in a skill-lab-ready diagnosis without repeating execution.",
         "prior_evidence": [
           "The verified failed receipt detail, harness output, and target skill path supplied in the fixture."
         ],
@@ -1559,7 +1559,7 @@
     },
     {
       "source": {
-        "file": "skills/skill-build/fixtures/no-change-skips-write.yaml",
+        "file": "skills/skill-lab/fixtures/no-change-skips-write.yaml",
         "pointer": "/operator_journeys/0",
         "mode": "composed",
         "request": "Improve this skill from the supplied failed-run diagnosis.",
@@ -1572,7 +1572,7 @@
           "Do not rediscover the already inspected package state."
         ]
       },
-      "eval_file": "skills/skill-build/evals/evals.json",
+      "eval_file": "skills/skill-lab/evals/evals.json",
       "eval_id": 2
     },
     {

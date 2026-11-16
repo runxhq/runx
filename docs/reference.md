@@ -81,7 +81,7 @@ a runx workspace; bare skill names resolve from the current workspace's
 `skills/` directory.
 
 A reference names the method it runs after `#`, as in
-`runx skill ./skills/skill-build#design`, and `runx skill inspect` and
+`runx skill ./skills/skill-lab#design`, and `runx skill inspect` and
 `runx mcp` take the same form. A reference with no `#method` runs the
 package's `default_method`, or its only method. A package directory, or a file
 in one, is that package: it never falls through to a registry lookup.
@@ -90,13 +90,13 @@ in one, is that package: it never falls through to a registry lookup.
 runx --help
 runx skill /path/to/runx/oss/fixtures/skills/echo -i message=hello --json
 cd /path/to/runx/oss
-runx skill ./skills/skill-build#design -i objective="build sourcey docs skill" --json
+runx skill ./skills/skill-lab#design -i objective="build sourcey docs skill" --json
 ```
 
 Recommended flows:
 
 ```bash
-runx skill runx/skill-build#build -i objective="Create a bounded documentation decision skill" -i target_dir=skills/docs-demo
+runx skill runx/skill-lab#build -i objective="Create a bounded documentation decision skill" -i target_dir=skills/docs-demo
 runx list skills
 runx registry search weather --json
 runx skill acme/weather@1.0.0 --registry https://runx.example.test --json
@@ -108,7 +108,7 @@ runx history
 runx history <run-id> --json
 runx verify <receipt-id> --json
 runx mcp ./fixtures/skills/echo
-runx skill ./skills/skill-build#design -i objective="build github review skill"
+runx skill ./skills/skill-lab#design -i objective="build github review skill"
 runx test ./examples/hello-world
 runx config set agent.provider openai
 runx config set agent.model gpt-6-sol
@@ -128,9 +128,10 @@ event names the package it bound, `{ skill, package_digest }`, whether it
 completed or waits on the person's trust, and an agent step's event names the
 model its turn stated. A skill reads the same through the `run.read` tool,
 which without a `run_id` reads the run making the call, and one call whole
-through `run.call`, by its address, `<step>/<index>`: its whole input, how it
-ended, the turn that made it, and, for a turn's script call, each call its
-script made in order (`runx.run_call.v1`). The read's
+through `call.read`, by its address, `<step>/<index>`: its whole input, how it
+ended, the turn that made it, and, for a script call, each call its script
+made, written as a `runx.call_read.v1` artifact labelled with everything it
+holds and read in pages with `artifact.open` and `artifact.read`. The read's
 `cursor`, passed back as `--after`, returns only what followed. A sealed run is
 terminal; inspect its receipt with `runx verify <receipt-id>`. To execute
 the work again, invoke the original `runx skill` command and retain both
@@ -688,7 +689,7 @@ Command-surface ownership:
 | policy, authority, payment, x402 | Rust core/runtime policy | published type mirrors and product UX |
 | governed data operations | the store connector's native driver | generated types, helper SDKs |
 | non-execution extension protocols | lane-specific Rust/cloud owners | generated types, helper SDKs, provider glue |
-| skill authoring | `runx-runtime` authoring service plus `skill-build` | npm launcher only |
+| skill authoring | `runx-runtime` authoring service plus `skill-lab` | npm launcher only |
 | marketplace and docs projection | Rust-owned catalog/contracts | generated docs and client views |
 
 Stateful product work should use the governed data-plane shape in
@@ -924,7 +925,7 @@ publish policy. See [docs/github-issue-to-pr.md](github-issue-to-pr.md).
 
 ## Standalone Skill Packages
 
-The `skill-build` skill authors a package. It inspects the target and catalog,
+The `skill-lab` skill authors a package. It inspects the target and catalog,
 requests a closed architecture decision and change draft, binds both to the
 inspected package digest in native code, stages the exact candidate and
 replays its tests, then applies the same bytes transactionally to `target_dir`, which
@@ -933,7 +934,7 @@ placeholder JavaScript module. Nothing needs initializing first: a repository
 or the `skills/` directory marks the project.
 
 ```bash
-runx skill runx/skill-build#build \
+runx skill runx/skill-lab#build \
   -i objective="Create a bounded documentation decision skill" \
   -i target_dir=skills/docs-demo
 ```
@@ -1193,7 +1194,7 @@ for the package belong in `SKILL.md`; external guides belong under `docs/`.
 See [composing-skills.md](composing-skills.md) for composing skills into a workflow and
 [publishing.md](publishing.md) for publishing and trust tiers.
 
-Use `code-plan` for bounded change planning, `skill-build` for skill-package
+Use `code-plan` for bounded change planning, `skill-lab` for skill-package
 design and improvement, and the named downstream execution lane for mutation.
 
 ## Tool Authoring
@@ -1239,7 +1240,7 @@ or import uncompiled TypeScript.
 The runx-maintained catalog is explicit about why each package is public:
 
 - canonical governed skills: `charge`, `dispute-respond`,
-  `skill-build`, `skill-review`, `least-privilege`, `skill-adopt`,
+  `skill-lab`, `skill-review`, `least-privilege`, `skill-adopt`,
   `policy-draft`, `receipt-audit`, `refund`, `operations-review`, `message-send`, `pay`,
   `invoice-pay`, `nws-weather`, `open-meteo-weather`
 - context skills: `brand-voice`, `taste-profile`

@@ -1,4 +1,4 @@
-name: skill-build-test-no-change-skips-write
+name: skill-lab-test-no-change-skips-write
 method: test
 inputs:
   objective: Decide whether a vague report justifies a new regression fixture

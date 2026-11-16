@@ -3,7 +3,7 @@ inputs:
   receipt_id: rcpt_context_flattening
   receipt_rows:
     - receipt_id: rcpt_context_flattening
-      skill: skills/skill-build
+      skill: skills/skill-lab
       outcome: failed
       created_at: 2026-07-16T00:00:00Z
       verification_status: verified
@@ -11,7 +11,7 @@ inputs:
     - id: rcpt_context_flattening
       receipt_uri: runx:receipt:rcpt_context_flattening
       subject_kind: workflow
-      subject_uri: skills/skill-build
+      subject_uri: skills/skill-lab
       created_at: 2026-07-16T00:00:00Z
       outcome: failed
       verification:
@@ -38,7 +38,7 @@ inputs:
       lineage_uris: []
       seal_reason: workflow_step_failed
   test_output: Context edge pointed at stdout and flattened the payload.
-  skill_path: skills/skill-build
+  skill_path: skills/skill-lab
 host:
   answers:
     diagnose:
@@ -46,12 +46,12 @@ host:
         verdict: needs_update
         failure_summary: Context edges are reading stdout instead of an artifact envelope, so structured data is flattened before the next step.
         improvement_proposals:
-          - target: skills/skill-build/run.yaml
+          - target: skills/skill-lab/run.yaml
             change: Emit a wrapped artifact from the upstream step and consume the named artifact data in downstream context.
             rationale: Preserves structured objects across governed workflow steps.
             risk: Existing fixtures that parse stdout-shaped context will need updates.
         next_test_checks:
-          - skill-build passes structured authoring context into the bounded author step
+          - skill-lab passes structured authoring context into the bounded author step
 expect:
   status: sealed
   steps:
@@ -70,7 +70,7 @@ expect:
               verification_status: verified
           receipt_details:
             - id: rcpt_context_flattening
-              subject_uri: skills/skill-build
+              subject_uri: skills/skill-lab
               seal_reason: workflow_step_failed
   receipt:
     schema: runx.receipt.v1

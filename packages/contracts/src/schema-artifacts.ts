@@ -566,6 +566,51 @@ export const runxSchemaArtifacts = {
     "x-runx-packet": true,
     "x-runx-schema": "runx.authority_term.v1"
   } as JsonSchema,
+  "call-read.schema.json": {
+    "$id": "https://schemas.runx.ai/runx/call-read/v1.json",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "One call a run made, read whole by its address (`call.read`): what it called, its whole input, how it ended, the request of the turn that made it, and, for a turn's script call, each call its script made, at its position. A run's read names a call's input by its digest; this is where it's read whole, as an artifact read in bounded pages, labelled with everything it holds.",
+    "properties": {
+      "attempt": {
+        "description": "The step's attempt that made it: its latest holding the index.",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "call": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallReadEntry"
+      },
+      "calls": {
+        "description": "The calls under it: a script call's, at their positions.",
+        "items": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallReadEntry"
+        },
+        "minItems": 1,
+        "type": "array"
+      },
+      "run_id": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "schema": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallReadSchema"
+      },
+      "turn": {
+        "$ref": "https://schemas.runx.ai/runx/resolution-request/v1.json",
+        "description": "The request of the turn that made it, which holds the turn's task and what it was given."
+      }
+    },
+    "required": [
+      "schema",
+      "run_id",
+      "attempt",
+      "call"
+    ],
+    "title": "CallRead",
+    "type": "object",
+    "x-runx-packet": true,
+    "x-runx-schema": "runx.call_read.v1"
+  } as JsonSchema,
   "cli-help.schema.json": {
     "$id": "https://schemas.runx.ai/runx/cli/help/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2030,6 +2075,42 @@ export const runxSchemaArtifacts = {
         ],
         "title": "CallCost",
         "type": "object"
+      },
+      "CallReadEntry": {
+        "additionalProperties": false,
+        "description": "One call as `call.read` gives it.",
+        "properties": {
+          "address": {
+            "description": "`<step>/<index>` in its run.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "outcome": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
+          },
+          "target": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
+          }
+        },
+        "required": [
+          "address",
+          "target",
+          "input",
+          "outcome"
+        ],
+        "title": "CallReadEntry",
+        "type": "object"
+      },
+      "CallReadSchema": {
+        "enum": [
+          "runx.call_read.v1"
+        ],
+        "title": "CallReadSchema",
+        "type": "string"
       },
       "CallTarget": {
         "anyOf": [

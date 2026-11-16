@@ -17,7 +17,7 @@ environment, and credential material to trusted host processes, then reports
 them honestly without a filesystem, network, or syscall-confinement claim.
 TypeScript remains for generated contracts, CLI/client wrappers,
 cloud/product integrations, host adapters, docs, and narrow helper SDKs over
-language-neutral external protocols. Native authoring plus `skill-build` own skill
+language-neutral external protocols. Native authoring plus `skill-lab` own skill
 creation and improvement. TypeScript does not own a parallel authoring service
 or a local executor-package fallback for trusted local behavior.
 
@@ -96,7 +96,7 @@ implied.
 | Package | Decision |
 | --- | --- |
 | `@runxhq/contracts` | Publishes portable packet definitions and the generated TypeScript view of Rust-owned wire schemas, maintained with fixture cross-validation. |
-| `@runxhq/cli` | Stays as a platform-aware npm launcher that resolves and execs the Rust binary. It must remain useful from an installed package without TypeScript sources and must fail closed instead of falling back to TypeScript local execution. It also carries the drift-free cold-start: `npx @runxhq/cli skill runx/skill-build build -i objective=<outcome> -i target_dir=<dir>` downloads the launcher and runs the same `skill-build` skill without a prior runx install. The launcher owns no templates or authoring logic. |
+| `@runxhq/cli` | Stays as a platform-aware npm launcher that resolves and execs the Rust binary. It must remain useful from an installed package without TypeScript sources and must fail closed instead of falling back to TypeScript local execution. It also carries the drift-free cold-start: `npx @runxhq/cli skill runx/skill-lab build -i objective=<outcome> -i target_dir=<dir>` downloads the launcher and runs the same `skill-lab` skill without a prior runx install. The launcher owns no templates or authoring logic. |
 | `@runxhq/core` | Deleted. Its registry/config/parser remnants were not a shipped execution boundary; live OSS code uses Rust crates, generated contracts, tool-local modules, or explicit protocol packages instead. Cloud uses its owning feature packages and the small `@runx/protocol` contract/utility subpaths. |
 | `@runxhq/client` | Typed finite Node invocation of the native CLI, with bounded processes and artifact decoding. The `./adapters` subpath formats native results without Node or framework imports. The previous host-adapters package and unimplemented HostBridge run-state contract are removed. |
 | `runx-py` | A thin Python client over the `runx` CLI's JSON output. `RunxClient` runs the CLI with `--json` to search the registry, run a skill, and resume a paused run from a `runx.resume.v1` document, and returns what the CLI printed. |

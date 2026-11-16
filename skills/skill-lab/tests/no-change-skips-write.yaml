@@ -1,4 +1,4 @@
-name: skill-build-no-change-skips-write
+name: skill-lab-no-change-skips-write
 method: improve
 inputs:
   objective: Decide whether weak evidence warrants a package change

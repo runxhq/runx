@@ -1,4 +1,4 @@
-name: code-plan-skill-package-requires-skill-build
+name: code-plan-skill-package-requires-skill-lab
 inputs:
   objective: Add a new runx operator skill.
   repo_root: fixtures/workspace
@@ -67,5 +67,5 @@ expect:
         validation:
           status: hold
           findings:
-            - code: skill_package.skill_build_required
+            - code: skill_package.skill_lab_required
               path: orchestration_steps

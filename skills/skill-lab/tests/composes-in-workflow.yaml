@@ -1,10 +1,5 @@
-name: skill-build-designs-bounded-package
-method: design
-inputs:
-  objective: Add a governed release-notes skill
-  repo_root: .
-  target_dir: skills/release-notes
-  project_context: runx OSS first-party catalog
+name: skill-lab-composes-in-workflow
+package: fixtures/composed
 host:
   answers:
     author:
@@ -57,16 +52,5 @@ host:
         deletes: []
 expect:
   status: sealed
-  receipt:
-    schema: runx.receipt.v1
-  steps:
-    - inspect
-    - author
-    - bind
-    - check
-  step_outputs:
-    check:
-      subset:
-        apply_result:
-          verdict: validated
-          changed_paths: []
+  steps: [skill-lab, digest]
+  receipt: {schema: runx.receipt.v1}

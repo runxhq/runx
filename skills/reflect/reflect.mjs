@@ -481,7 +481,7 @@ function outcomes(validation, names) {
 }
 
 /**
- * Propose a fix for each kept diagnosis, through skill-build#draft, whose
+ * Propose a fix for each kept diagnosis, through skill-lab#draft, whose
  * own turns write the fix and its case. Code keeps a proposal only when the
  * draft adds a case, names each case it changes or removes, and two candidate
  * tests prove the new case fails on the old revision and passes on the fix:
@@ -532,7 +532,7 @@ export async function propose(ctx, { survey, findings }) {
     const old = await packageFiles(target_dir);
     let draft;
     try {
-      draft = await ctx.skill("runx/skill-build#draft", {
+      draft = await ctx.skill("runx/skill-lab#draft", {
         objective: `Fix ${item.skill}: ${finding.summary}`,
         repo_root: ".",
         target_dir,

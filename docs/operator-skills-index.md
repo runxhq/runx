@@ -107,7 +107,7 @@ paths, not alternative operator choices.
 
 | Directory | Purpose |
 |---|---|
-| `skill-build/` | Design, build, improve, and add validated test coverage to runx skills. |
+| `skill-lab/` | Design, build, improve, and add validated test coverage to runx skills. |
 | `skill-adopt/` | Adopt a pinned third-party SKILL.md as a governed native runx binding bundle. |
 | `moltbook/` | Scan for posting opportunities and prepare governed Moltbook entries. |
 

@@ -51,7 +51,7 @@ evidence is available for grant review; actual usage and policy semantics are st
 - the most frequently run skills;
 - catalog entry and test-coverage counts;
 - bounded recommendations routed to `diagnose-skill-run`, `receipt-audit`, or
-  `skill-build test`;
+  `skill-lab test`;
 - limitations when native projections cannot support a stronger claim.
 
 This skill never executes another skill, changes a grant, or changes a run.

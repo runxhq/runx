@@ -410,7 +410,7 @@ fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestRe
     Ok(())
 }
 
-/// What skill-build's author drafts for one objective: the fix and its case
+/// What skill-lab's author drafts for one objective: the fix and its case
 /// for the stopped run, and no change for any other, such as a decline.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn drafted(objective: &str) -> serde_json::Value {
@@ -460,7 +460,7 @@ enum Diagnoses {
 
 /// The scripted model a whole reflection runs on: each diagnosis as
 /// `diagnoses` gives it, each sampled run did what its purpose asks, and
-/// skill-build writes the fix and its case for the stopped run.
+/// skill-lab writes the fix and its case for the stopped run.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflection_model(
     diagnoses: Diagnoses,

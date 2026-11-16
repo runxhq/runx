@@ -525,7 +525,7 @@ Keep a skill in your project, adapt an existing package, or publish it for
 others to compose. Start an authoring run with:
 
 ```bash
-runx skill runx/skill-build#build \
+runx skill runx/skill-lab#build \
   -i objective="Review a release and prepare its customer announcement" \
   -i target_dir=skills/launch-review
 ```

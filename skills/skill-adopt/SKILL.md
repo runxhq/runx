@@ -1,6 +1,6 @@
 ---
 name: skill-adopt
-description: Adapt a captured third-party skill into a useful, validated local runx package through the canonical authoring engine, preserving source context and required resources. Use skill-build for first-party authoring and skill-review for assessment alone.
+description: Adapt a captured third-party skill into a useful, validated local runx package through the canonical authoring engine, preserving source context and required resources. Use skill-lab for first-party authoring and skill-review for assessment alone.
 ---
 
 # Skill Adopt
@@ -8,12 +8,12 @@ description: Adapt a captured third-party skill into a useful, validated local r
 Turn an upstream skill you want to use into a real local runx package. Supply
 its captured manual and supporting files, a destination in your repository,
 and the operator job it must perform. Adoption carries that source context
-into Skill Build, which designs the execution contract, writes the complete
+into Skill Lab, which designs the execution contract, writes the complete
 package, and applies it only after native validation and safe isolated replay.
 The upstream files remain untouched.
 
 Use this when adapting third-party operating knowledge. Use skill-review to
-judge a skill before choosing it, or skill-build when you own the capability
+judge a skill before choosing it, or skill-lab when you own the capability
 and do not need upstream-source intake. A source that is redundant, incomplete,
 unlicensed for the intended use, or impossible to govern may correctly produce
 no_skill, needs_core, or a blocked result instead of an adopted package.
@@ -22,7 +22,7 @@ no_skill, needs_core, or a blocked result instead of an adopted package.
 
 <!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
 
-- `skill-build#build`
+- `skill-lab#build`
 
 ## Source and destination
 
@@ -61,7 +61,7 @@ For example, after capturing an upstream skill locally:
 
 The input object names objective, target_dir and source_paths such as
 ["vendor/tool/SKILL.md", "vendor/tool/LICENSE", "vendor/tool/references/checklist.md"].
-Choose the target deliberately: updating an existing package uses Skill Build's
+Choose the target deliberately: updating an existing package uses Skill Lab's
 inspected base digest and exact transaction, not an unchecked overwrite.
 
 ## What happens
@@ -71,14 +71,14 @@ inspected base digest and exact transaction, not an unchecked overwrite.
 2. The snapshot is stored as an immutable native project artifact. Only its
    descriptor and small source counts and its native validation result enter model context; native artifact
    open/read tools provide bounded pages of the captured bodies. Source
-   context, dependency and license obligations enter Skill Build's author
+   context, dependency and license obligations enter Skill Lab's author
    turn, which chooses native capabilities and canonical skill routes as it
    writes the package.
 3. The author retains useful source procedure and an unchanged upstream
    reference copy where permitted, includes required resources, and declares
    the exact runnable inputs, results, tools and effects. Unsupported dependencies
    or enforcement requirements hold rather than becoming a simulated feature.
-4. Skill Build validates and safely replays the exact candidate before one
+4. Skill Lab validates and safely replays the exact candidate before one
    atomic local application. Its apply_result identifies the actual destination,
    changed paths, package digest and proof. The adoption receipt includes that
    child execution; a ready context alone is not an applied package.

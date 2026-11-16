@@ -1,4 +1,4 @@
-name: skill-build-build-no-skill-skips-write
+name: skill-lab-build-no-skill-skips-write
 method: build
 inputs:
   objective: Add a second general-purpose release skill

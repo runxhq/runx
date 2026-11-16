@@ -10,14 +10,14 @@ Turn one objective into a plan that downstream methods can consume without reint
 ## Procedure
 
 1. Start from `objective`. When `change_set` is supplied by `code-intake`, preserve it exactly; do not rewrite its target surfaces, invariants, success criteria, or supplied source context.
-2. Classify the plan as `workspace_change` or `skill_package`. Skill-package authoring belongs to `skill-build`; do not route it through a generic repo-change step.
+2. Classify the plan as `workspace_change` or `skill_package`. Skill-package authoring belongs to `skill-lab`; do not route it through a generic repo-change step.
 3. Split work at authority, mutation, dependency, and review boundaries. Keep steps coarse enough to produce a meaningful artifact.
 4. Declare ordered phases and repo change requests. Parallel work must have no dependency or shared mutation target.
 5. Declare orchestration steps with exact skill references, scopes, mutation flags, inputs, and prior-step context references.
 6. Return `blocked` when a question must be answered before mutation. Never turn uncertainty into an executable plan.
 7. Native catalog inspection supplies the actual installed skill set. The
    domain validator then verifies source preservation, ordered DAGs, mutation
-   declarations, context references, catalog ownership, and the `skill-build`
+   declarations, context references, catalog ownership, and the `skill-lab`
    boundary. Invalid candidates are withheld and returned as a blocked packet.
 
 Planning is permitted by the operator request, not by a model-authored commencement field. Upstream recommendation fields, when present, are preserved as context and never treated as authority.
@@ -60,6 +60,6 @@ id, ordered dependencies, and an explicit mutation flag. A ready plan has no blo
 questions. Use only the supplied native catalog_skills for required_skills and
 orchestration routes; a skill absent from that catalog cannot be claimed available.
 Route ordinary application edits to an available repository implementation lane,
-such as github-issue-to-pr. Reserve skill-build for runx skill-package authoring.
+such as github-issue-to-pr. Reserve skill-lab for runx skill-package authoring.
 Use plan_kind skill_package for runx skill authoring and route that work through
-skill-build. This method plans only and never claims downstream execution.
+skill-lab. This method plans only and never claims downstream execution.

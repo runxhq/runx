@@ -112,13 +112,13 @@ runx verify <receipt-id> --json
 
 ## Next
 
-- Use `runx skill runx/skill-build#build -i objective="Create a bounded
+- Use `runx skill runx/skill-lab#build -i objective="Create a bounded
   documentation decision skill" -i target_dir=skills/docs-demo` to author a
   skill. runx inspects the catalog, returns an exact agent/resume handoff
   unless `--drive` was explicitly authorized, and writes only the
-  validated package. It never generates a placeholder module. The `skill-build`
+  validated package. It never generates a placeholder module. The `skill-lab`
   it uses is the one this release bundles, materialized into the runx home at
-  `<home>/bundled/skill-build/<version>/`, never into your project. To cold-start without installing runx
+  `<home>/bundled/skill-lab/<version>/`, never into your project. To cold-start without installing runx
   first, use the same command through `npx @runxhq/cli`.
 - Compose the example into a workflow with [Composing Skills](./composing-skills.md).
 - Bind provider accounts once as described in

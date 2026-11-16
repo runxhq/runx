@@ -474,3 +474,44 @@ pub enum RecomputeReason {
     /// Its source's model isn't the one it named, or names none.
     OtherModel,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+pub enum CallReadSchema {
+    #[serde(rename = "runx.call_read.v1")]
+    V1,
+}
+
+/// One call a run made, read whole by its address (`call.read`): what it
+/// called, its whole input, how it ended, the request of the turn that made
+/// it, and, for a turn's script call, each call its script made, at its
+/// position. A run's read names a call's input by its digest; this is where
+/// it's read whole, as an artifact read in bounded pages, labelled with
+/// everything it holds.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+#[runx_schema(id = "runx.call_read.v1")]
+pub struct CallRead {
+    pub schema: CallReadSchema,
+    pub run_id: NonEmptyString,
+    /// The step's attempt that made it: its latest holding the index.
+    pub attempt: u32,
+    pub call: CallReadEntry,
+    /// The request of the turn that made it, which holds the turn's task and
+    /// what it was given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn: Option<ResolutionRequest>,
+    /// The calls under it: a script call's, at their positions.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub calls: Vec<CallReadEntry>,
+}
+
+/// One call as `call.read` gives it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CallReadEntry {
+    /// `<step>/<index>` in its run.
+    pub address: NonEmptyString,
+    pub target: CallTarget,
+    pub input: JsonObject,
+    pub outcome: RunCallOutcome,
+}

@@ -4,7 +4,7 @@ catalog:
 methods:
   run:
     steps:
-      - id: skill-build
+      - id: skill-lab
         skill: ../..#design
         inputs:
           objective: Add a governed release-notes skill
@@ -14,4 +14,4 @@ methods:
       - id: digest
         tool: data.digest
         inputs:
-          value: $steps.skill-build
+          value: $steps.skill-lab

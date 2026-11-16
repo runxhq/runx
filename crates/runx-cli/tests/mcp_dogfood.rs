@@ -148,7 +148,7 @@ fn mcp_native_binary_dogfoods_streaming_skill_calls_and_receipts()
 /// A served ref resolves as `runx skill` resolves it: a bundled skill by name.
 #[test]
 fn mcp_serves_a_skill_ref_not_only_a_path() -> Result<(), Box<dyn std::error::Error>> {
-    let mut server = spawn_mcp_server(&["skill-build".to_owned()])?;
+    let mut server = spawn_mcp_server(&["skill-lab".to_owned()])?;
     write_frame(server.stdin_mut()?, &initialize_request(1))?;
     server.read_response("initialize")?;
     write_frame(server.stdin_mut()?, &initialized_notification())?;
@@ -156,7 +156,7 @@ fn mcp_serves_a_skill_ref_not_only_a_path() -> Result<(), Box<dyn std::error::Er
     let tools = server.read_response("tools/list")?;
     assert_eq!(
         path_text(&tools, &["result", "tools", "0", "name"])?,
-        "skill-build"
+        "skill-lab"
     );
     Ok(())
 }
@@ -768,10 +768,11 @@ fn a_turns_script_killed_mid_way_recovers_from_its_record() -> Result<(), Box<dy
 }
 
 /// Save as skill, end to end on an MCP host (Stage 5): a turn's script call
-/// that worked is read whole by `run.call`, skill-build's `save` has its
-/// author write it as a package of its own, apply writes it once its test
-/// passes, and a later run of the saved skill on the recorded inputs gives
-/// the recorded result.
+/// that worked is read whole by `call.read`, as an artifact; skill-lab's
+/// `save` has its author write it as a package of its own, its module the
+/// turn's source byte for byte; apply replays its test and holds its exact
+/// files for the person; once approved they're written, and a later run of
+/// the saved skill on the recorded inputs gives the recorded result.
 #[test]
 fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -806,7 +807,7 @@ fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
         .ok_or("missing run_id")?
         .to_owned();
 
-    // The turn's script: each value's digest, by the turn's own tool name.
+    // The turn's script: each value's digest, by the call's real name.
     let mut server = {
         let mut command = runx();
         command
@@ -856,7 +857,7 @@ fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
 
     // Save it: the author is given the call whole, and writes the package.
     let paused = runx()
-        .args(["skill", "runx/skill-build#save", "-i"])
+        .args(["skill", "runx/skill-lab#save", "-i"])
         .arg(format!("run_id={run_id}"))
         .args([
             "-i",
@@ -883,27 +884,54 @@ fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
         .flatten()
         .find(|record| record["event"]["kind"] == "step" && record["event"]["step_id"] == "read")
         .ok_or("the save read the call")?;
-    let call = &read["event"]["output"]["run_call"]["data"];
-    assert_eq!(call["input"]["source"], TURN_SCRIPT, "{call}");
+    // The call is an artifact, read in pages; its content is the call whole.
+    let artifact = &read["event"]["output"]["call"];
+    let path = artifact["path"]
+        .as_str()
+        .or_else(|| artifact["data"]["path"].as_str())
+        .ok_or_else(|| format!("the call is an artifact: {read}"))?;
+    let call: Value = serde_json::from_slice(&fs::read(path)?)?;
+    assert_eq!(call["schema"], "runx.call_read.v1", "{call}");
+    assert_eq!(call["call"]["input"]["source"], TURN_SCRIPT, "{call}");
     assert_eq!(call["calls"].as_array().map(Vec::len), Some(2), "{call}");
-    let answers = root.join("answers.json");
-    fs::write(
-        &answers,
-        crate::support::bind_resume(
-            &history,
-            json!({"answers": {"author": {"change_draft": saved_package()}}}),
-        )?
-        .to_string(),
+    let resume = |history: &Value, answer: Value| -> Result<Value, Box<dyn std::error::Error>> {
+        let answers = root.join("answers.json");
+        fs::write(
+            &answers,
+            crate::support::bind_resume(history, answer)?.to_string(),
+        )?;
+        let resumed = runx()
+            .arg("resume")
+            .arg(&save_run)
+            .arg(&answers)
+            .arg("--json")
+            .output()?;
+        Ok(serde_json::from_slice(&resumed.stdout)?)
+    };
+    let held = resume(
+        &history,
+        json!({"answers": {"author": {"change_draft": saved_package()}}}),
     )?;
-    let saved = runx()
-        .arg("resume")
-        .arg(&save_run)
-        .arg(&answers)
-        .arg("--json")
+    // Apply holds the exact files for the person: nothing is written yet.
+    assert_eq!(held["status"], "needs_approval", "{held}");
+    assert!(!root.join("digest-list").exists(), "{held}");
+    let history = runx()
+        .args(["history", save_run.as_str(), "--json"])
         .output()?;
-    let saved: Value = serde_json::from_slice(&saved.stdout)?;
+    let history: Value = serde_json::from_slice(&history.stdout)?;
+    let gate = history["waiting"]
+        .as_array()
+        .and_then(|waiting| waiting.first())
+        .and_then(|request| request["address"].as_str())
+        .ok_or("the save waits on the person's approval")?
+        .to_owned();
+    let saved = resume(&history, json!({"approvals": {gate: true}}))?;
     assert_eq!(saved["status"], "sealed", "{saved}");
-    assert!(root.join("digest-list/digest-list.mjs").is_file());
+    // The module is the turn's source, byte for byte.
+    assert_eq!(
+        fs::read_to_string(root.join("digest-list/digest-list.mjs"))?,
+        TURN_SCRIPT
+    );
 
     // A later run of the saved skill on the recorded inputs.
     let inputs = root.join("inputs.json");
@@ -921,11 +949,11 @@ fn a_turns_script_saved_as_a_skill_gives_its_result_in_a_later_run()
     Ok(())
 }
 
-const TURN_SCRIPT: &str = "export default async function (ctx, inputs) {\n  const digests = [];\n  for (const value of inputs.values) {\n    const result = await ctx.tool(\"data_digest\", { value, encoding: \"utf8_text\" });\n    digests.push((await ctx.read(result.digest_result)).digest);\n  }\n  return { digests };\n}\n";
+const TURN_SCRIPT: &str = "export default async function (ctx, inputs) {\n  const digests = [];\n  for (const value of inputs.values) {\n    const result = await ctx.tool(\"data.digest\", { value, encoding: \"utf8_text\" });\n    digests.push((await ctx.read(result.digest_result)).digest);\n  }\n  return { digests };\n}\n";
 
-/// What skill-build's author writes for the saved script: the script as the
-/// package's module, naming its call as a script step names its `calls`,
-/// under contracts, a manual and a test of its own.
+/// What skill-lab's author writes for the saved script: the script as the
+/// package's module, byte for byte, under contracts, a manual, a test and
+/// evals of its own.
 fn saved_package() -> Value {
     json!({
         "decision": "write",
@@ -933,8 +961,10 @@ fn saved_package() -> Value {
         "writes": [
             {"path": "digest-list/SKILL.md", "contents": SAVED_MANUAL},
             {"path": "digest-list/run.yaml", "contents": SAVED_MANIFEST},
-            {"path": "digest-list/digest-list.mjs", "contents": SAVED_MODULE},
+            {"path": "digest-list/digest-list.mjs", "contents": TURN_SCRIPT},
             {"path": "digest-list/tests/digest-list-ready.yaml", "contents": SAVED_TEST},
+            {"path": "digest-list/eval_queries.json", "contents": SAVED_QUERIES},
+            {"path": "digest-list/evals/evals.json", "contents": SAVED_EVALS},
         ],
         "deletes": [],
     })
@@ -993,7 +1023,28 @@ methods:
             items: {type: string}
 "#;
 
-const SAVED_MODULE: &str = "// Each value's digest, by the native digest, one call each and in order.\nexport default async function digestList(ctx, inputs) {\n  const digests = [];\n  for (const value of inputs.values) {\n    const result = await ctx.tool(\"data.digest\", { value, encoding: \"utf8_text\" });\n    digests.push((await ctx.read(result.digest_result)).digest);\n  }\n  return { digests };\n}\n";
+/// The turn's request as one that should select the saved skill, and two
+/// nearby skills' requests as ones that shouldn't.
+const SAVED_QUERIES: &str = r#"[
+  {"query": "Give me a stable digest for each of these values, in order.", "should_trigger": true},
+  {"query": "Hash this one note into a content identity.", "should_trigger": false},
+  {"query": "Fetch https://example.com and keep its content by digest.", "should_trigger": false}
+]
+"#;
+
+/// The saved method run on the recorded inputs.
+const SAVED_EVALS: &str = r#"{
+  "skill_name": "digest-list",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Digest first and second, in order.",
+      "expected_output": "Two SHA-256 digests, of first then second, in a sealed receipt.",
+      "files": []
+    }
+  ]
+}
+"#;
 
 const SAVED_TEST: &str = r#"name: digest-list-ready
 method: digest

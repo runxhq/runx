@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { bundledCoreSkills, classifyFiles } from "./classify-ci-changes.mjs";
 
-const core = ["receipt-audit", "skill-build"];
+const core = ["receipt-audit", "skill-lab"];
 
 test("documentation changes stay in the light lane", () => {
   assert.deepEqual(classifyFiles(["docs/reference.md", "README.md"], core), {
@@ -28,10 +28,10 @@ test("a non-core skill is product content: light, never the runtime or a test", 
 });
 
 test("a core skill change proves that skill without the runtime corpus", () => {
-  const result = classifyFiles(["skills/skill-build/run.yaml"], core);
+  const result = classifyFiles(["skills/skill-lab/run.yaml"], core);
   assert.equal(result.full, false);
   assert.equal(result.skills, true);
-  assert.deepEqual(result.core_skills, ["skill-build"]);
+  assert.deepEqual(result.core_skills, ["skill-lab"]);
 });
 
 test("a runtime change proves every core skill and runs the full gate", () => {
@@ -39,7 +39,7 @@ test("a runtime change proves every core skill and runs the full gate", () => {
     files: ["crates/runx-runtime/src/process.rs"],
     full: true,
     skills: true,
-    core_skills: ["receipt-audit", "skill-build"],
+    core_skills: ["receipt-audit", "skill-lab"],
     windows: true,
     release: false,
     light: false,
@@ -109,7 +109,7 @@ test("an unavailable diff runs every lane", () => {
     files: [],
     full: true,
     skills: true,
-    core_skills: ["receipt-audit", "skill-build"],
+    core_skills: ["receipt-audit", "skill-lab"],
     windows: true,
     release: true,
     light: false,
@@ -120,7 +120,7 @@ test("the core skills include the bundled memory owner", () => {
   const names = bundledCoreSkills();
   assert.equal(names.length, 13);
   assert.ok(names.includes("memory"));
-  assert.ok(names.includes("skill-build"));
+  assert.ok(names.includes("skill-lab"));
   assert.ok(names.includes("agent"));
   assert.ok(names.includes("revert"));
   assert.ok(!names.includes("reddit"));

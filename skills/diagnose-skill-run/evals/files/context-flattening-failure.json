@@ -2,7 +2,7 @@
   "about": "Non-live prepared receipt-query answer and sanitized failure text. Receipt rows and details are supplied replay evidence; no native signature or chain verification was performed. Preserve that limitation and do not repeat execution or ledger discovery.",
   "receipt_id": "rcpt_context_flattening",
   "test_output": "Context edge pointed at stdout and flattened the payload.",
-  "skill_path": "skills/skill-build",
+  "skill_path": "skills/skill-lab",
   "receipt_evidence": {
     "chain_verification": {
       "checked": false,
@@ -14,7 +14,7 @@
       "question": "Diagnose the selected context-flattening failure without replaying it.",
       "query": {
         "principal": "",
-        "skill": "skills/skill-build",
+        "skill": "skills/skill-lab",
         "outcome": [
           "failed"
         ],
@@ -30,7 +30,7 @@
     "matched_receipts": [
       {
         "receipt_id": "rcpt_context_flattening",
-        "skill": "skills/skill-build",
+        "skill": "skills/skill-lab",
         "outcome": "failed",
         "created_at": "2026-07-16T00:00:00Z",
         "verification_status": "unverified"
@@ -41,7 +41,7 @@
         "id": "rcpt_context_flattening",
         "receipt_uri": "fixture:context-flattening",
         "subject_kind": "graph",
-        "subject_uri": "skills/skill-build",
+        "subject_uri": "skills/skill-lab",
         "created_at": "2026-07-16T00:00:00Z",
         "outcome": "failed",
         "verification": {
@@ -80,6 +80,6 @@
         "seal_reason": "workflow_step_failed"
       }
     ],
-    "summary": "Caller-supplied fixture metadata for one failed skill-build turn; signature and chain verification remain unchecked."
+    "summary": "Caller-supplied fixture metadata for one failed skill-lab turn; signature and chain verification remain unchecked."
   }
 }

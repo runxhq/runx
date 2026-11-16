@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Adopt this captured upstream skill for useful local use.",
-      "expected_output": "Canonical Skill Build applies the complete validated package, retaining the original source reference.",
+      "expected_output": "Canonical Skill Lab applies the complete validated package, retaining the original source reference.",
       "files": []
     },
     {

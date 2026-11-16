@@ -36,12 +36,12 @@ methods:
           findings: { type: array, items: { type: object }, description: "Each check's finding with its evidence, or why it was dropped." }
       - id: propose
         # A fix with its case for each kept diagnosis, through
-        # skill-build#draft, proven to fail on the old revision and pass on
+        # skill-lab#draft, proven to fail on the old revision and pass on
         # the fix before the person is asked for the exact files.
         script: { module: reflect.mjs, export: propose }
         inputs: { survey: $steps.survey, findings: $steps.judge.findings }
         calls:
-          skills: [runx/skill-build#draft]
+          skills: [runx/skill-lab#draft]
           tools: [data.digest, fs.list, fs.read_bundle, runx.skill.validate, runx.skill.apply]
           operations: [store/key.inspect, store/events.append]
         max_calls: 200

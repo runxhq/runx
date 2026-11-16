@@ -69,9 +69,9 @@ oss	packages/cli/package.json	graphs	workflows	\btools, $		the CLI package's des
 oss	crates/runx-cli/Cargo.toml	graphs	workflows	\btools, $		the CLI crate's description is prose
 oss	packages/sdk-python/pyproject.toml	graphs	workflows	\btools, and $		the Python SDK's description is prose
 oss	crates/runx-contracts/src/skill_authoring.rs	Graph	Workflow	^\s+$	^,$	skill authoring's execution lane is a method's fixed steps, a workflow; its wire value follows the variant, and no reader stores it
-oss	skills/skill-build/SKILL.md	graph	workflow	`manual`, `$	^`, `agent`	skill-build names the execution lanes by their wire values
-oss	skills/skill-build/tests/composes-in-workflow.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
-oss	skills/skill-build/tests/skill-build-designs-bounded-package.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
+oss	skills/skill-lab/SKILL.md	graph	workflow	`manual`, `$	^`, `agent`	skill-lab names the execution lanes by their wire values
+oss	skills/skill-lab/tests/composes-in-workflow.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
+oss	skills/skill-lab/tests/skill-lab-designs-bounded-package.yaml	graph	workflow	^\s*lane: $	^$	the fixture's architecture decision chooses the workflow lane
 oss	*	graph	workflow	\bsubject_kind: $	^$	a receipt's subject kind, whose wire value for the whole run is workflow now
 oss	crates/runx-cli/tests/skill.rs	graph	workflow	\bkinds\("$	^"\)	the test reads the run receipts' subject kind, workflow now
 oss	*	graph	workflow	\btest:heavy:$		the heavy workflow scenarios' script, as package.json and CI name it

@@ -132,12 +132,12 @@ Re-run `pnpm build` after source changes that affect compiled package output.
 
 ## Skill authoring paths
 
-Run the `skill-build` skill when you already have the runx CLI available
+Run the `skill-lab` skill when you already have the runx CLI available
 locally and want a standalone skill package. It leaves the target untouched
 until the exact package validates:
 
 ```bash
-runx skill runx/skill-build build \
+runx skill runx/skill-lab build \
   -i objective="Create a bounded documentation decision skill" \
   -i target_dir=skills/docs-demo
 ```

@@ -59,7 +59,7 @@ methods:
           change_draft: {type: object, packet: runx.skill.change_draft.v1, optional: true}
           apply_result: {type: object, packet: runx.skill.apply_result.v1, optional: true}
   from-source:
-    description: Adopt already captured upstream source without another acquisition; canonical skill-build owns validation and atomic application.
+    description: Adopt already captured upstream source without another acquisition; canonical skill-lab owns validation and atomic application.
     inputs:
       objective: {}
       repo_root: {}
@@ -177,7 +177,7 @@ methods:
         when:
           value: $steps.context.adoption_context.decision
           equals: build
-        skill: runx/skill-build#build
+        skill: runx/skill-lab#build
         inputs:
           objective: $input.objective
           repo_root: $input.repo_root

@@ -106,7 +106,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("skill-export", "runx-cli + runx-runtime", "semantic", "Host-agent shims are generated from validated skill packages and delegate back to governed runx skill execution."),
   surface("authority", "runx-core/policy", "schema-exact", "Grant, scope, and authority-kind policy remains machine-checkable without OSS brokerage."),
   surface("caller-mediated-resolution", "runx-runtime", "fixture-backed", "Required input, approvals, and agent work keep the same continuation contract."),
-  surface("skill-authoring", "runx-runtime + skill-build", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, test, and transactional apply lane."),
+  surface("skill-authoring", "runx-runtime + skill-lab", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, test, and transactional apply lane."),
   surface("list", "runx-cli", "semantic", "Inventory output for tools, skills and packets stays represented."),
   surface("trust", "runx-cli + runx-runtime registry", "schema-exact", "A person states trust in a package ahead of any turn that loads it, as the record an approval writes, and a run can't state it."),
 ];

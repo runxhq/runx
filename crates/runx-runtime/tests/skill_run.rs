@@ -5053,7 +5053,7 @@ fn a_publish_refuses_a_closure_record_its_registry_did_not_sign()
     Ok(())
 }
 
-/// A skill-build candidate's test reads the registry children its closure
+/// A skill-lab candidate's test reads the registry children its closure
 /// names from the registry its operator selects: each installed, verified,
 /// into the candidate's own project before its cases run, as a publish binds
 /// its closure.

@@ -322,7 +322,7 @@ fn skill_author_journey_discovers_tests_runs_verifies_and_reads_history() -> Tes
     let skills_dir = root.join("skills");
     let skill_dir = skills_dir.join("digest-note");
     let receipt_dir = root.join(".runx/receipts");
-    for (path, contents) in crate::skill_build_authoring::digest_note_files() {
+    for (path, contents) in crate::skill_lab_authoring::digest_note_files() {
         let path = skill_dir.join(path);
         fs::create_dir_all(path.parent().ok_or("package file has no parent")?)?;
         fs::write(path, contents)?;

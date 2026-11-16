@@ -683,7 +683,7 @@ oss	memory_holds_across_the_horizon	1	hold	memory_holds_across_the_horizon	a cal
 oss	mismatched-audit-is-held	1	hold	mismatched-audit-is-held	English, or a skill's own word: stays	skills/receipt-audit/tests/mismatched-audit-is-held.yaml
 oss	missing-source-holds-before-authoring	1	hold	missing-source-holds-before-authoring	English, or a skill's own word: stays	skills/skill-adopt/tests/missing-source-holds.yaml
 oss	native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold	1	hold	native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold	English, or a skill's own word: stays	crates/runx-runtime/tests/skill_run.rs
-oss	next_harness_checks	1	harness	next_test_checks	the test sense	skills/skill-build/evals/files/weak-failure-diagnosis.json
+oss	next_harness_checks	1	harness	next_test_checks	the test sense	skills/skill-lab/evals/files/weak-failure-diagnosis.json
 oss	offer_terms_name_the_lease_a_buyer_holds	1	hold	offer_terms_name_the_lease_a_buyer_holds	English, or a skill's own word: stays	crates/runx-contracts/src/paid_skill_listing.rs
 oss	only_the_runtime_holds_a_network_client	1	hold	only_the_runtime_holds_a_network_client	English, or a skill's own word: stays	crates/runx-cli/tests/locality.rs
 oss	open-graph	1	graph	open-graph	vuln-triage's dependency graph: stays	docs/core-skill-review.md
@@ -1654,8 +1654,8 @@ oss	skill_package_consumes_conventional_graph_harness_closure	0	harness,closure,
 oss	skill_package_parses_owned_harness_fixtures	0	harness	skill_package_parses_owned_test_fixtures	the test sense	
 oss	skill_package_rejects_missing_or_unsafe_harness_files	0	harness	skill_package_rejects_missing_or_unsafe_test_files	the test sense	
 oss	skill_without_inputs_executes_default_runner	0	runner	skill_without_inputs_executes_default_method		
-oss	skill-build-composes-in-graph	0	graph	skill-build-composes-in-workflow		
-oss	skill-build-harness-no-change-skips-write	0	harness	skill-build-test-no-change-skips-write	the test sense	
+oss	skill-lab-composes-in-graph	0	graph	skill-lab-composes-in-workflow		
+oss	skill-lab-harness-no-change-skips-write	0	harness	skill-lab-test-no-change-skips-write	the test sense	
 oss	skill-review-composes-in-graph	0	graph	skill-review-composes-in-workflow		
 oss	SkillOperatorContextRunner	0	runner	SkillOperatorContextMethod		
 oss	SkillRunner	0	runner	SkillMethod		

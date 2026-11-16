@@ -1,6 +1,6 @@
 {
   "schema": "runx.native_capability_snapshot.v1",
-  "capability_count": 52,
+  "capability_count": 53,
   "capabilities": [
     {
       "id": "artifact.admit",
@@ -46,6 +46,18 @@
       "artifacts": {
         "kind": "wrapped",
         "output": "artifact",
+        "packet": "runx.artifact.v1"
+      },
+      "execution_boundary": "native_capability"
+    },
+    {
+      "id": "call.read",
+      "source": "runx-runtime/runs",
+      "effect": "read",
+      "approval": "none",
+      "artifacts": {
+        "kind": "wrapped",
+        "output": "call",
         "packet": "runx.artifact.v1"
       },
       "execution_boundary": "native_capability"

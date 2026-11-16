@@ -16,7 +16,7 @@ const canonicalPackets = [
   ["skill-apply-result.schema.json", "runx.skill.apply_result.v1"],
 ] as const;
 
-describe("Skill Build authoring ownership", () => {
+describe("Skill Lab authoring ownership", () => {
   it("publishes every Rust-owned closed contract as one core packet", async () => {
     for (const [schemaFile, packetId] of canonicalPackets) {
       const canonical = await json(path.join(root, "schemas", schemaFile));
@@ -35,8 +35,8 @@ describe("Skill Build authoring ownership", () => {
 
   it("authors in one turn, then binds and checks natively", async () => {
     const profile = validateMethodManifestYaml({
-      skill: "skill-build",
-      yaml: await readFile(path.join(root, "skills/skill-build/run.yaml"), "utf8"),
+      skill: "skill-lab",
+      yaml: await readFile(path.join(root, "skills/skill-lab/run.yaml"), "utf8"),
     }).raw.document as Record<string, any>;
     const methods = profile.methods;
     expect(stepIds(methods.design)).toEqual(["inspect", "author", "bind", "check"]);
@@ -53,7 +53,7 @@ describe("Skill Build authoring ownership", () => {
     expect(step(methods.design, "check").tool).toBe("runx.skill.apply");
     expect(step(methods.design, "check").inputs.mode).toBe("design");
 
-    const testRoot = path.join(root, "skills/skill-build/tests");
+    const testRoot = path.join(root, "skills/skill-lab/tests");
     const testFiles = (await readdir(testRoot)).filter((entry) => entry.endsWith(".yaml"));
     const tests = validateTestFixtureYamlBatch(
       await Promise.all(testFiles.map((file) => readFile(path.join(testRoot, file), "utf8"))),
@@ -72,11 +72,11 @@ describe("Skill Build authoring ownership", () => {
   });
 
   it("preserves the substantive operator manual", async () => {
-    const manual = (await readFile(path.join(root, "skills/skill-build/SKILL.md"), "utf8"))
+    const manual = (await readFile(path.join(root, "skills/skill-lab/SKILL.md"), "utf8"))
       .replace(/\s+/g, " ");
     for (const meaning of [
       "## Authoring rules",
-      "## Agent task: skill-build-author",
+      "## Agent task: skill-lab-author",
       "cold-operator trial",
       "Never copy or calculate a digest",
       "A change to a package keeps its name",
