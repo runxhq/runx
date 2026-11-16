@@ -343,7 +343,7 @@ fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestRe
     let temp = tempdir()?;
     let root = temp.path();
     record(root)?;
-    let model = reflection_model(true)?;
+    let model = reflection_model(Diagnoses::MisdirectTheStoppedRun)?;
     let endpoint = model.endpoint().to_owned();
     // The rule's promotion waits on the person; approved once, it's in the
     // workspace's AGENTS.md. The first reflection moves its reader's mark, so
@@ -463,14 +463,27 @@ fn fixed_greet() -> serde_json::Value {
     })
 }
 
-/// The scripted model a whole reflection runs on: each diagnosis cites its
-/// own evidence, each sampled run did what its purpose asks, and skill-build
-/// writes the fix and its case for the stopped run.
+/// How a scripted reflection's diagnoses are given.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+#[derive(Clone, Copy, PartialEq)]
+enum Diagnoses {
+    /// Each cites its own evidence, in the same words every time.
+    Faithful,
+    /// The stopped run's cites a receipt no record holds.
+    MisdirectTheStoppedRun,
+    /// Each is put in words of its own, as a model's are.
+    Reworded,
+}
+
+/// The scripted model a whole reflection runs on: each diagnosis as
+/// `diagnoses` gives it, each sampled run did what its purpose asks, and
+/// skill-build writes the fix and its case for the stopped run.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflection_model(
-    misdirect_the_stopped_run: bool,
+    diagnoses: Diagnoses,
 ) -> TestResult<runx_runtime::scripted_model::ScriptedModel> {
     use runx_runtime::scripted_model::{ScriptedModel, tool_call};
+    let diagnosed = std::sync::atomic::AtomicUsize::new(0);
     Ok(ScriptedModel::serve(move |request| {
         let inputs = turn_inputs(request);
         let offered = request["tools"]
@@ -492,7 +505,9 @@ fn reflection_model(
         if let Some(resistance) = inputs.get("resistance") {
             // Misdirected, the stopped run's diagnosis cites a receipt no
             // record holds.
-            let evidence = if misdirect_the_stopped_run && resistance["kind"] == "sealed_blocked" {
+            let evidence = if diagnoses == Diagnoses::MisdirectTheStoppedRun
+                && resistance["kind"] == "sealed_blocked"
+            {
                 serde_json::json!([
                     "sha256:0000000000000000000000000000000000000000000000000000000000000000"
                 ])
@@ -501,7 +516,14 @@ fn reflection_model(
             };
             return complete(serde_json::json!({"finding": {
                 "summary": format!("The {} stopped the run.", resistance["kind"].as_str().unwrap_or_default()),
-                "cause": "The record shows it.",
+                "cause": if diagnoses == Diagnoses::Reworded {
+                    format!(
+                        "The record shows it, as diagnosis {} reads it.",
+                        diagnosed.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                    )
+                } else {
+                    "The record shows it.".to_owned()
+                },
                 "evidence": evidence,
             }}));
         }
@@ -600,7 +622,7 @@ fn drive(
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 #[test]
 fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
-    let model = reflection_model(false)?;
+    let model = reflection_model(Diagnoses::Reworded)?;
     let endpoint = model.endpoint().to_owned();
 
     let approved = tempdir()?;
@@ -729,7 +751,7 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 #[test]
 fn reflection_reads_no_personal_memory_and_writes_no_persons_words() -> TestResult {
-    let model = reflection_model(false)?;
+    let model = reflection_model(Diagnoses::Faithful)?;
     let endpoint = model.endpoint().to_owned();
     let temp = tempdir()?;
     let root = temp.path();

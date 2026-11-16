@@ -513,7 +513,9 @@ export async function propose(ctx, { survey, findings }) {
       continue;
     }
     const target_dir = `skills/${item.skill}`;
-    const key = (await digest({ target_dir, kind: item.kind, evidence: item.evidence, cause: finding.cause })).slice(7);
+    // Facts only, never a model's words, so a change the person declined is
+    // the same change however its cause is put.
+    const key = (await digest({ target_dir, kind: item.kind, evidence: item.evidence })).slice(7);
     const declined = (await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation?.result;
     if ((declined?.version ?? 0) > 0) {
       proposals.push({ criterion, target_dir, declined: declined.last_event?.data?.reason ?? null, again: false });
