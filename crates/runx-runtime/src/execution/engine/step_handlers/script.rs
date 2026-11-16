@@ -328,6 +328,7 @@ where
             admission_refs,
             ending: None,
             refusal: None,
+            declined: None,
         },
         RegularSkillStepOutput {
             output,
@@ -752,6 +753,15 @@ where
                 "the artifact's size_bytes is {size_bytes}, past the worker's input bound of {bound}; give it to a call or return it by reference"
             ),
         ),
+        // A child run a person declined is declined, as any call is.
+        CallOutcome::Completed(run)
+            if run.receipt.seal.outcome == runx_contracts::RunOutcome::Declined =>
+        {
+            rejected(
+                ScriptRejection::Declined,
+                run.declined.clone().unwrap_or_else(|| output_error(run)),
+            )
+        }
         CallOutcome::Completed(run) => rejected(ScriptRejection::Failed, output_error(run)),
         CallOutcome::Failed(reason) => rejected(ScriptRejection::Failed, reason.clone()),
         // A person left it failed: the script catches it by its code.

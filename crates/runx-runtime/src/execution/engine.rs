@@ -688,6 +688,11 @@ pub struct StepRun {
     /// ran the step; its run returns it to its caller.
     #[doc(hidden)]
     pub refusal: Option<JsonObject>,
+    /// Why the person declined a gate that stopped the child run this step
+    /// ran, when they did: their own reason when they gave one. Like the
+    /// refusal it lives only in the process that ran the step.
+    #[doc(hidden)]
+    pub declined: Option<String>,
     /// The record of the failure this step's call met, when it states one,
     /// such as a provider's answer that contradicts the call. Like the
     /// refusal it lives only in the process that ran the step; its run
@@ -763,6 +768,9 @@ pub struct WorkflowRun {
     /// child run's, when one did: the refusal's public projection, which its
     /// caller reads beside the receipt and which no receipt holds.
     pub refusal: Option<JsonObject>,
+    /// Why the person declined a gate that stopped the run, or a child
+    /// run's, when they did: their own reason when they gave one.
+    pub declined: Option<String>,
 }
 
 pub struct Runtime<A> {
@@ -1215,6 +1223,12 @@ where
             RuntimeError::StepClosed { refusal, .. } => refusal.as_deref().cloned(),
             _ => None,
         };
+        // A gate the person declined, here or in a child run, says why.
+        let declined = match &error {
+            RuntimeError::Declined { reason, .. } => Some(reason.clone()),
+            RuntimeError::StepClosed { declined, .. } => declined.clone(),
+            _ => None,
+        };
         let (mut run, failure, refusal) = match stop {
             StopKind::Failed => {
                 let ending = crate::receipts::WorkflowEnding {
@@ -1240,6 +1254,7 @@ where
         };
         run.stop = Some(why);
         run.refusal = refusal;
+        run.declined = declined;
         let result = match failure {
             Some(failure) => JsonValue::Object(failure),
             None => workflow_terminal_result(&run)?,
@@ -2141,6 +2156,7 @@ mod tests {
             nested_receipts: Vec::new(),
             recorded_nested: Vec::new(),
             refusal: None,
+            declined: None,
             failure: None,
             admission_witness: StepAdmissionWitness::local_runtime(step_id, receipt.id.as_str()),
             receipt,
@@ -2184,6 +2200,7 @@ mod tests {
             receipt,
             stop: None,
             refusal: None,
+            declined: None,
         })
     }
 }

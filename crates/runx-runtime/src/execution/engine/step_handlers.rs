@@ -187,6 +187,9 @@ struct RegularSkillSeal<'a, A> {
     /// Why a guard or an authority refused the step's child run, when one
     /// did.
     refusal: Option<JsonObject>,
+    /// Why the person declined a gate that stopped the step's child run,
+    /// when they did.
+    declined: Option<String>,
 }
 
 pub(super) fn output_error(run: &StepRun) -> String {
@@ -554,6 +557,7 @@ where
         )?;
     }
     let refusal = run.refusal.clone();
+    let declined = run.declined.clone();
     let read = super::workflow_run_labels(&run);
     let receipt_lineage = match reused_from {
         Some(receipt_id) => StepReceiptLineage::reused(receipt_id),
@@ -571,6 +575,7 @@ where
             admission_refs,
             ending,
             refusal,
+            declined,
         },
         RegularSkillStepOutput {
             output,
@@ -1041,6 +1046,7 @@ where
         nested_receipts: receipt_lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
         refusal: context.refusal,
+        declined: context.declined,
         failure: None,
         admission_witness,
         settlement,
@@ -1190,6 +1196,7 @@ where
             admission_refs,
             ending: None,
             refusal: None,
+            declined: None,
         },
         regular,
     )
@@ -1295,6 +1302,7 @@ fn seal_turn_step<A>(
         nested_receipts: lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
         refusal: None,
+        declined: None,
         failure: None,
         admission_witness,
         settlement: None,
@@ -1876,6 +1884,7 @@ where
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        declined: None,
         failure: None,
         admission_witness,
         settlement,
@@ -2258,6 +2267,7 @@ where
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        declined: None,
         failure: None,
         admission_witness,
         settlement: None,
@@ -2417,6 +2427,7 @@ where
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        declined: None,
         failure: None,
         admission_witness,
         settlement: None,
@@ -2616,6 +2627,7 @@ where
         nested_receipts: lineage.into_nested_receipts(),
         recorded_nested: Vec::new(),
         refusal: None,
+        declined: None,
         failure: None,
         admission_witness,
         settlement: None,

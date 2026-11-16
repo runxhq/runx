@@ -245,6 +245,9 @@ pub enum RuntimeError {
         /// Why a guard or an authority refused the child run the step ran,
         /// when one did, which its run returns to its caller.
         refusal: Option<Box<runx_contracts::JsonObject>>,
+        /// Why the person declined a gate that stopped the child run, when
+        /// they did.
+        declined: Option<String>,
     },
     #[error(transparent)]
     ContextEdgeUnresolved(Box<ContextEdgeUnresolvedError>),

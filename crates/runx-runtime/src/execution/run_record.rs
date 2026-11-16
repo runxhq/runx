@@ -2731,6 +2731,7 @@ fn step_run(
         nested_receipts,
         recorded_nested,
         refusal: None,
+        declined: None,
         failure: None,
         admission_witness: record.admission_witness,
         settlement: None,

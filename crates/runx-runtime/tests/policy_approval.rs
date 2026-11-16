@@ -74,7 +74,13 @@ fn scoped_write_does_not_invent_approval_and_an_explicit_declined_guard_still_bl
     // A person's no is declined, never a refusal (changed 10 November: it
     // was authority denied).
     assert!(matches!(error, RuntimeError::Declined { .. }));
-    assert!(error.to_string().contains("approval guard"));
+    // With no reason given, the decline names the gate the person saw.
+    assert!(
+        error
+            .to_string()
+            .contains("the person declined the policy.write.approval gate, with no reason given"),
+        "{error}"
+    );
     assert!(!guarded_workspace.path().join("approved.txt").exists());
     Ok(())
 }

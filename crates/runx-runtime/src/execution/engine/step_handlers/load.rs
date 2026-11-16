@@ -186,6 +186,7 @@ where
         nested_receipts: Vec::new(),
         recorded_nested: Vec::new(),
         refusal: None,
+        declined: None,
         failure: None,
         admission_witness,
         settlement: None,

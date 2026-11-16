@@ -783,6 +783,7 @@ impl WorkflowExecution {
             let outcome = run.receipt.seal.outcome;
             let reason = run.receipt.seal.reason;
             let refusal = run.refusal.clone().map(Box::new);
+            let declined = run.declined.clone();
             let failure = run.failure.clone();
             self.push_run(runtime, run, answers)?;
             // A child run killed by its caller's cancel ends this run where it
@@ -801,6 +802,7 @@ impl WorkflowExecution {
                     reason,
                     summary: message,
                     refusal,
+                    declined,
                 });
             }
             // A failure that states its own record is returned with it.
@@ -962,6 +964,7 @@ impl WorkflowExecution {
             receipt,
             stop: None,
             refusal: None,
+            declined: None,
         }
     }
 
@@ -1109,11 +1112,35 @@ pub(super) fn enforce_guards(step: &WorkflowStep, runs: &[StepRun]) -> Result<()
         {
             if expected == &JsonValue::Bool(true)
                 && value == &JsonValue::Bool(false)
-                && approval_decision_of(&gate.value).is_some()
+                && let Some(decided) = approval_decision_of(&gate.value)
             {
+                // The decline is the person's own reason, when they gave one,
+                // or else the gate they declined, as they saw it.
+                let decision = runs
+                    .iter()
+                    .rev()
+                    .find(|run| run.step_id == decided)
+                    .and_then(|run| run.output("approval_decision"))
+                    .and_then(|decision| match decision {
+                        JsonValue::Object(decision) => Some(decision),
+                        _ => None,
+                    });
+                let said = |field: &str| {
+                    decision
+                        .and_then(|decision| decision.get(field))
+                        .and_then(JsonValue::as_str)
+                        .filter(|value| !value.trim().is_empty())
+                };
+                let reason = match (said("reason"), said("gate_id")) {
+                    (Some(reason), _) => reason.to_owned(),
+                    (None, Some(gate)) => {
+                        format!("the person declined the {gate} gate, with no reason given")
+                    }
+                    (None, None) => "the person declined, with no reason given".to_owned(),
+                };
                 return Err(crate::RuntimeError::Declined {
                     step_id: step.id.clone(),
-                    reason: format!("the person declined approval guard '{shown}'"),
+                    reason,
                 });
             }
             return Err(RuntimeError::WorkflowBlocked {
