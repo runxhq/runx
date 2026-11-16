@@ -136,8 +136,6 @@ jobs:
     if: needs.classify.outputs.full == 'true' || needs.classify.outputs.skills == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
-    env:
-      RUNX_SKILL_VERSION_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7

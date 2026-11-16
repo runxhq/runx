@@ -37,6 +37,7 @@
     "codex-export:check": "node scripts/check-codex-export.mjs",
     "core-skills:composes:generate": "node scripts/audit-core-skills.mjs --write-composes",
     "catalog:check": "node scripts/check-skill-version-drift.mjs && node scripts/check-skill-version-drift.mjs --self-test && node scripts/test-sweep.mjs --self-test && pnpm capabilities:snapshot:check",
+    "skills:published:check": "node scripts/check-skill-version-drift.mjs --published https://api.runx.ai",
     "capabilities:snapshot:check": "tsx scripts/generate-native-capability-snapshot.ts --check",
     "capabilities:snapshot:generate": "tsx scripts/generate-native-capability-snapshot.ts",
     "domains:check": "node scripts/check-public-domain-urls.mjs",

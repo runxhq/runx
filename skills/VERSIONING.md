@@ -1,40 +1,33 @@
 # Skill Versioning
 
-Every skill in this directory declares a `version:` field at the top
-level of its `run.yaml`. The field is semver.
+Every skill in this directory declares a `version:` field at the top level of
+its `run.yaml`, a quoted semantic version.
 
-## When to bump
+## The rule
 
-Bump the version in the same commit as the change.
+A skill's version follows what the registry published of it:
 
-- **Patch (`0.1.X`):** SKILL.md prompt tweaks, test-case additions,
-  test-fixture tightening, doc-only edits.
-- **Minor (`0.X.0`):** new method, new input field, new output field,
-  new test-case shape, backward-compatible output
-  extension.
-- **Major (`X.0.0`):** workflow redefinition, method renaming, input or
-  output removal, any change that would break an existing caller's
-  invocation shape.
+- While its content is what was published, its version is the published one.
+- Once its content changes, its version is one patch above the published
+  one, and it stays there however often it changes again, until that version
+  is published.
+- A skill the registry has never published states the version it will first
+  be published at.
 
-## Starting point
+So a version moves once per publication, never once per commit: callers pin
+a version that names exactly one published package.
 
-Skills that existed before this convention landed are initialised at
-`0.1.0`. Bump from there.
+## The check
 
-## Why
+Only the registry knows what it published, so the comparison runs where that
+read is made, at release:
 
-Dogfood cycle 1 surfaced that skills had no version field, so the
-`version_bump_on_change` invariant of the dogfood campaign fell back
-to the `oss/` submodule git sha. Sha-based tracking couples every
-skill's evolution to the monorepo commit pointer — fine for audit,
-useless for callers that need to know "does my pin of this skill
-include the pass-verdict test case".
+```sh
+RUNX_RUST_CLI_BIN=<runx> pnpm skills:published:check
+```
 
-With an explicit `version:` field, callers can pin, detect drift,
-and reason about upstream changes without reading commit logs.
-
-## Tooling
-
-No CI enforcement yet. The dogfood campaign's `version_bump_on_change`
-invariant asks cycles to bump manually; future tooling may automate
-the bump check.
+It reads each skill from the registry's public API, computes its content
+digest with `runx registry package`, and names every skill whose version
+doesn't follow the rule, with the version it should state. The catalog's
+static checks, a quoted version and each method's purpose among them, run in
+CI and in `verify:fast`.

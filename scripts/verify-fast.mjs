@@ -58,7 +58,7 @@ if (rustBuild.status === 0) {
   await runSerialGroup(
     "generated artifacts and fixtures",
     [
-      step("core skill version drift", "node", ["scripts/check-skill-version-drift.mjs", "--core-only"]),
+      step("core skill catalog", "node", ["scripts/check-skill-version-drift.mjs", "--core-only"]),
       step("bundled core skills", "pnpm", ["bundled-skills:check"]),
       step("native capability snapshot", "pnpm", ["capabilities:snapshot:check"]),
       step("runtime capabilities", "pnpm", ["runtime-capabilities:check"]),
