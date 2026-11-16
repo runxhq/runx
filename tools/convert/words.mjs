@@ -218,7 +218,7 @@ export function brandRead(token) {
  * Homebrew formula's class is the formula's name; in Markdown, outside its
  * code, and inside it where a person reads words (`fencedWords`); anywhere in
  * other data. A word joined to a path or a call,
- * `Identity::Runx`, `Runx.parseData` or `isFrozen(Runx)`, or a class's name,
+ * `Identity::Runx`, `Runx.parseData`, `isFrozen(Runx)` or `dist/nodes/Runx/`, or a class's name,
  * as a Homebrew formula a script renders has, names code wherever it's
  * written, and so does a word inside backticks, counted from where its
  * comment or string starts: a template literal's own backtick opens prose.
@@ -228,7 +228,7 @@ export function brandSites(file, text) {
   const joined = (at, token) => {
     const before = text.slice(lineStart(at), at);
     const after = text.slice(at + token.length, at + token.length + 2);
-    return before.endsWith("::") || before.endsWith("(") || /\bclass $/.test(before) || /^(::|\.[A-Za-z]|\))/.test(after);
+    return before.endsWith("::") || before.endsWith("(") || /\bclass $/.test(before) || /^(::|\.[A-Za-z]|\))/.test(after) || inPath(text, at, token);
   };
   const ticked = (from, at) => (text.slice(from, at).match(/`/g) ?? []).length % 2 === 1;
   const inLine = (at, token) => !joined(at, token) && !ticked(lineStart(at), at);

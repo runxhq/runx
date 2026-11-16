@@ -203,12 +203,13 @@ test("the guard fails on Runx where a person reads it, and passes it where it na
     "crates/runx-runtime/src/demo.rs":
       'let runx = Runx::new(); // Runx owns this.\nmatch identity { Identity::Runx => {} }\nregister(js_string!("Runx"));\nlet message = "Runx did not answer";\n',
     "scripts/formula.ts": "const ruby = `class Runx < Formula\n  desc \"the runx CLI\"\nend`;\nthrow new Error(`Runx exited with ${code ?? \"no code from Runx\"}`);\n",
+    "package.json": '{ "main": "dist/nodes/Runx/Runx.node.js", "displayName": "Runx API" }\n',
   });
   const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.deepEqual(
     run.stdout.split("\n").filter((line) => line.includes("\tbrand\t")).map((line) => line.split("\t")[0]),
-    ["README.md:1:1", "README.md:3:3", "README.md:6:8", "README.md:10:37", "README.md:15:50", "crates/runx-runtime/src/demo.rs:1:28", "crates/runx-runtime/src/demo.rs:4:16", "scripts/formula.ts:4:18", "scripts/formula.ts:4:59"],
+    ["README.md:1:1", "README.md:3:3", "README.md:6:8", "README.md:10:37", "README.md:15:50", "crates/runx-runtime/src/demo.rs:1:28", "crates/runx-runtime/src/demo.rs:4:16", "package.json:1:59", "scripts/formula.ts:4:18", "scripts/formula.ts:4:59"],
   );
 });
 
