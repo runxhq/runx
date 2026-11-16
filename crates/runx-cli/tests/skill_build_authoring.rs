@@ -176,7 +176,8 @@ fn assert_json(output: &Output, expected: i32) -> TestResult<Value> {
     serde_json::from_slice(&output.stdout).map_err(Into::into)
 }
 
-/// What the author answers: its decision and the package it writes.
+/// What the author answers: its decision and the package it writes, each
+/// file named from the workspace root.
 fn authoring_answers() -> Value {
     serde_json::json!({
         "author": {
@@ -186,7 +187,9 @@ fn authoring_answers() -> Value {
                 "summary": "Create one manual and one declarative native digest workflow.",
                 "writes": digest_note_files()
                     .iter()
-                    .map(|(path, contents)| serde_json::json!({ "path": path, "contents": contents }))
+                    .map(|(path, contents)| {
+                        serde_json::json!({ "path": format!("digest-note/{path}"), "contents": contents })
+                    })
                     .collect::<Vec<_>>(),
                 "deletes": []
             }

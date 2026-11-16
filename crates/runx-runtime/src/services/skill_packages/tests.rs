@@ -209,8 +209,9 @@ fn skill_authoring_no_change_does_not_touch_workspace() -> Result<(), Box<dyn st
 /// Bind checks an author's decision against the mode and the target it
 /// inspected, and binds the base it was authored against, which the author
 /// never writes: a build creates where nothing stands, an improve changes what
-/// does, a decision that writes nothing carries no files, and a design takes
-/// any decision.
+/// does, a decision that writes nothing carries no files, a design takes any
+/// decision, and every file is named from the workspace root, inside the
+/// target, as the inspection lists it.
 #[test]
 fn bind_checks_the_decision_against_the_mode_and_the_target()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -222,8 +223,24 @@ fn bind_checks_the_decision_against_the_mode_and_the_target()
     let standing = tempfile::tempdir()?;
     demo(standing.path())?;
     let existing = inspect_skill_workspace(standing.path(), Some("skills/demo"), &effects)?;
-    let write = draft(Write, &[("SKILL.md", VALID_MANUAL)]);
+    let write = draft(Write, &[("skills/demo/SKILL.md", VALID_MANUAL)]);
     assert!(serde_json::to_value(&write)?.get("base_digest").is_none());
+    assert!(
+        existing
+            .target_files
+            .iter()
+            .any(|file| file.path == "skills/demo/SKILL.md")
+    );
+    for outside in ["SKILL.md", "skills/demo2/SKILL.md", "skills/demo"] {
+        let error = bind_skill_change(&existing, Improve, draft(Write, &[(outside, "x")]))
+            .expect_err("a file outside the target");
+        assert!(
+            error.to_string().contains(&format!(
+                "{outside} isn't in the package at skills/demo: a change names the package's files from the workspace root, as skills/demo/SKILL.md"
+            )),
+            "{error}"
+        );
+    }
 
     let built = bind_skill_change(&missing, Build, write.clone())?;
     assert_eq!(built.base_digest.as_str(), missing.base_digest.as_str());
@@ -240,11 +257,18 @@ fn bind_checks_the_decision_against_the_mode_and_the_target()
     for (mode, decision) in [(Improve, NoSkill), (Test, NeedsCore), (Build, NoChange)] {
         assert!(bind_skill_change(&existing, mode, draft(decision, &[])).is_err());
     }
-    assert!(bind_skill_change(&existing, Improve, draft(NoChange, &[("SKILL.md", "x")])).is_err());
+    assert!(
+        bind_skill_change(
+            &existing,
+            Improve,
+            draft(NoChange, &[("skills/demo/SKILL.md", "x")])
+        )
+        .is_err()
+    );
     assert!(bind_skill_change(&existing, Improve, draft(Write, &[])).is_err());
     for decision in [Write, NoChange, NoSkill, NeedsCore] {
         let writes: &[(&str, &str)] = if decision == Write {
-            &[("SKILL.md", VALID_MANUAL)]
+            &[("skills/demo/SKILL.md", VALID_MANUAL)]
         } else {
             &[]
         };
@@ -294,8 +318,8 @@ fn skill_authoring_invalid_candidate_does_not_touch_target()
         &base,
         SkillChangeDecision::Write,
         &[
-            ("SKILL.md", "not valid skill frontmatter"),
-            ("run.yaml", "schema: runx.method.v1\n"),
+            ("skills/demo/SKILL.md", "not valid skill frontmatter"),
+            ("skills/demo/run.yaml", "schema: runx.method.v1\n"),
         ],
         &[],
     );
@@ -325,7 +349,10 @@ fn an_authored_package_states_its_catalog_keeps_its_name_and_its_new_turns_read_
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::Write,
-        &[("SKILL.md", VALID_MANUAL), ("run.yaml", &no_catalog)],
+        &[
+            ("skills/demo/SKILL.md", VALID_MANUAL),
+            ("skills/demo/run.yaml", &no_catalog),
+        ],
         &[],
     );
     let error = apply(empty.path(), SkillAuthoringMode::Build, &bundle)
@@ -337,7 +364,10 @@ fn an_authored_package_states_its_catalog_keeps_its_name_and_its_new_turns_read_
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::Write,
-        &[("SKILL.md", VALID_MANUAL), ("run.yaml", &internal)],
+        &[
+            ("skills/demo/SKILL.md", VALID_MANUAL),
+            ("skills/demo/run.yaml", &internal),
+        ],
         &[],
     );
     assert_eq!(
@@ -351,7 +381,7 @@ fn an_authored_package_states_its_catalog_keeps_its_name_and_its_new_turns_read_
     let bundle = change_bundle(
         &package_snapshot(&target)?.digest,
         SkillChangeDecision::Write,
-        &[("SKILL.md", &renamed)],
+        &[("skills/demo/SKILL.md", &renamed)],
         &[],
     );
     let error = apply(standing.path(), SkillAuthoringMode::Improve, &bundle)
@@ -364,8 +394,8 @@ fn an_authored_package_states_its_catalog_keeps_its_name_and_its_new_turns_read_
         &base,
         SkillChangeDecision::Write,
         &[
-            ("SKILL.md", VALID_MANUAL),
-            ("run.yaml", UNRECALLED_MANIFEST),
+            ("skills/demo/SKILL.md", VALID_MANUAL),
+            ("skills/demo/run.yaml", UNRECALLED_MANIFEST),
         ],
         &[],
     );
@@ -387,7 +417,7 @@ fn an_authored_package_states_its_catalog_keeps_its_name_and_its_new_turns_read_
     let bundle = change_bundle(
         &package_snapshot(&target)?.digest,
         SkillChangeDecision::Write,
-        &[("SKILL.md", &corrected)],
+        &[("skills/demo/SKILL.md", &corrected)],
         &[],
     );
     assert_eq!(
@@ -406,7 +436,10 @@ fn a_design_validates_its_candidate_and_writes_nothing() -> Result<(), Box<dyn s
     let bundle = change_bundle(
         &base,
         SkillChangeDecision::Write,
-        &[("SKILL.md", VALID_MANUAL), ("run.yaml", VALID_MANIFEST)],
+        &[
+            ("skills/demo/SKILL.md", VALID_MANUAL),
+            ("skills/demo/run.yaml", VALID_MANIFEST),
+        ],
         &[],
     );
     let result = apply(temp.path(), SkillAuthoringMode::Design, &bundle)?;
@@ -436,7 +469,7 @@ fn skill_authoring_rejects_a_stale_base() -> Result<(), Box<dyn std::error::Erro
     let bundle = change_bundle(
         &package_snapshot(&target)?.digest,
         SkillChangeDecision::Write,
-        &[("SKILL.md", VALID_MANUAL)],
+        &[("skills/demo/SKILL.md", VALID_MANUAL)],
         &[],
     );
     fs::write(target.join("operator-note.txt"), "concurrent change\n")?;
@@ -454,7 +487,12 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
     fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
     fs::write(target.join("obsolete.txt"), "old path\n")?;
     let base = package_snapshot(&target)?.digest;
-    let bundle = change_bundle(&base, SkillChangeDecision::Write, &[], &["obsolete.txt"]);
+    let bundle = change_bundle(
+        &base,
+        SkillChangeDecision::Write,
+        &[],
+        &["skills/demo/obsolete.txt"],
+    );
 
     let first = apply_skill_change(
         temp.path(),
@@ -465,7 +503,7 @@ fn skill_authoring_apply_is_idempotent_and_reports_deletion_delta()
         &RuntimeEffectRegistry::default(),
     )?;
     assert_eq!(first.verdict, SkillApplyVerdict::ValidatedAndApplied);
-    assert_eq!(first.deleted_paths, vec!["obsolete.txt"]);
+    assert_eq!(first.deleted_paths, vec!["skills/demo/obsolete.txt"]);
     assert_eq!(
         first.validation.as_ref().map(|value| value.delta.files),
         Some(-1)
@@ -498,7 +536,12 @@ fn skill_authoring_apply_states_the_package_and_distribution_digests_of_what_it_
     fs::write(target.join("run.yaml"), VALID_MANIFEST)?;
     fs::write(target.join("obsolete.txt"), "old path\n")?;
     let base = package_snapshot(&target)?.digest;
-    let bundle = change_bundle(&base, SkillChangeDecision::Write, &[], &["obsolete.txt"]);
+    let bundle = change_bundle(
+        &base,
+        SkillChangeDecision::Write,
+        &[],
+        &["skills/demo/obsolete.txt"],
+    );
     let env = BTreeMap::new();
     let apply = || {
         apply_skill_change(

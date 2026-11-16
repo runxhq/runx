@@ -502,7 +502,8 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
   `SKILL.md` frontmatter `name`, even when the target directory has a
   different basename.
 - `repo_root` (optional): workspace root; defaults to the caller workspace.
-- `target_dir` (required for every method but `design`): repo-relative package directory.
+- `target_dir` (required): repo-relative package directory; a design writes
+  nothing there.
 - `project_context` (optional): product, repository, and operator constraints.
 - `receipt_id`, `receipt_summary`, `test_output`, `failure_packet` (improve and draft):
   failure evidence, including the stable packet from `diagnose-skill-run`.
@@ -514,10 +515,12 @@ Read the target package and the catalog, decide, and return one
 `change_draft`: `{"change_draft": <draft>}`, using
 `runx.skill.change_draft.v1`. Its `decision` is `write`, `no_change`,
 `no_skill` or `needs_core`; its `summary` says why, and for `needs_core` names
-the capability runx lacks; its `writes` are the smallest complete set of
-target-relative files and its `deletes` the files the change removes. Only a
-`write` carries writes or deletes. Never copy or calculate a digest: native
-bind binds the draft to the package you inspected.
+the capability runx lacks; its `writes` are the smallest complete set of whole
+files and its `deletes` the files the change removes. Only a `write` carries
+writes or deletes. Every path is named from the workspace root, as
+`authoring_context.target_files` lists them and the read tools take them:
+`<target_dir>/SKILL.md`. Never copy or calculate a digest: native bind binds
+the draft to the package you inspected.
 
 The decision fits the method. A `build` creates a package where none stands, or
 finds the work `no_skill` or `needs_core`. An `improve` changes the package that

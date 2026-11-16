@@ -439,8 +439,8 @@ fn fixed_greet() -> serde_json::Value {
         "schema": "runx.skill.change_draft.v1", "decision": "write",
         "summary": "Make broken's compare agree, so its guard lets insist run.",
         "writes": [
-            {"path": "run.yaml", "contents": fixed},
-            {"path": "tests/broken-insists.yaml", "contents": "name: broken-insists\nmethod: broken\nexpect:\n  status: sealed\n  steps: [compare, insist]\n"},
+            {"path": "skills/greet/run.yaml", "contents": fixed},
+            {"path": "skills/greet/tests/broken-insists.yaml", "contents": "name: broken-insists\nmethod: broken\nexpect:\n  status: sealed\n  steps: [compare, insist]\n"},
         ],
         "deletes": [],
     })

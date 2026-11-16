@@ -9504,6 +9504,7 @@ export const runxSchemaArtifacts = {
       },
       "SkillFileWrite": {
         "additionalProperties": false,
+        "description": "One file a change writes whole: its path from the workspace root, inside the target package, as the authoring context lists it.",
         "properties": {
           "contents": {
             "type": "string"
@@ -13713,6 +13714,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "changed_paths": {
+        "description": "The files written and deleted, from the workspace root.",
         "items": {
           "minLength": 1,
           "type": "string"
@@ -13824,6 +13826,7 @@ export const runxSchemaArtifacts = {
         "type": "boolean"
       },
       "target_files": {
+        "description": "The target's files, from `repo_root`, as the read tools and a change name them.",
         "items": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageFile"
         },
@@ -13913,7 +13916,7 @@ export const runxSchemaArtifacts = {
     "$id": "https://schemas.runx.ai/runx/skill/change-draft/v1.json",
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
-    "description": "What an author returns: its decision, why, and the package files it writes and deletes. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one.",
+    "description": "What an author returns: its decision, why, and the package files it writes and deletes, named from the workspace root as the authoring context names them. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one.",
     "properties": {
       "decision": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeDecision"

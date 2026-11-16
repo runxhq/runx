@@ -52,6 +52,29 @@ pub(super) fn normalize_package_file(value: String) -> Result<String, RuntimeErr
     Ok(display_relative(&path))
 }
 
+/// The package's own path for `path`, a file a change to the package at
+/// `target_dir` writes or deletes. A change names files as the workspace
+/// does, as the authoring context lists them, so a path outside the package
+/// is refused, never placed inside it.
+pub(super) fn package_file(target_dir: &str, path: &str) -> Result<String, RuntimeError> {
+    let target = normalize_child_path(target_dir)?;
+    let outside = || {
+        let target = display_relative(&target);
+        invalid_skill_change(format!(
+            "{path} isn't in the package at {target}: a change names the package's files from the workspace root, as {target}/SKILL.md"
+        ))
+    };
+    let relative = normalize_child_path(path)
+        .map_err(|_| outside())?
+        .strip_prefix(&target)
+        .map(Path::to_path_buf)
+        .map_err(|_| outside())?;
+    if relative.as_os_str().is_empty() {
+        return Err(outside());
+    }
+    Ok(display_relative(&relative))
+}
+
 /// A path `mode` may write or delete: a test changes only the package's
 /// tests, `tests/<name>.yaml`, and what they read, under `fixtures/`.
 pub(super) fn assert_mode_path(

@@ -8242,6 +8242,7 @@
     },
     "SkillFileWrite": {
       "additionalProperties": false,
+      "description": "One file a change writes whole: its path from the workspace root, inside the target package, as the authoring context lists it.",
       "properties": {
         "contents": {
           "type": "string"

@@ -3130,6 +3130,7 @@ export type SkillAllowanceContract = string | CatalogRuleContract;
 
 export type SkillApplyResultContract = {
   readonly base_digest: string;
+  /** The files written and deleted, from the workspace root. */
   readonly changed_paths: readonly string[];
   readonly decision: SkillChangeDecisionContract;
   readonly deleted_paths: readonly string[];
@@ -3160,6 +3161,7 @@ export type SkillAuthoringContextContract = {
   /** The target package, relative to `repo_root`; null when none was named. */
   readonly target_dir: string | null;
   readonly target_exists: boolean;
+  /** The target's files, from `repo_root`, as the read tools and a change name them. */
   readonly target_files: readonly SkillPackageFileContract[];
   /** The existing target's inspection, or why it would not inspect; null when the target does not exist. */
   readonly target_inspection: {
@@ -3201,7 +3203,7 @@ export type SkillChangeBundleSchemaContract = "runx.skill.change_bundle.v1";
 /** What an author decided: to `write` the change, that the package needs `no_change`, that the work is `no_skill`'s, or that it `needs_core`: a capability runx lacks, which its summary names. */
 export type SkillChangeDecisionContract = "write" | "no_skill" | "no_change" | "needs_core";
 
-/** What an author returns: its decision, why, and the package files it writes and deletes. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one. */
+/** What an author returns: its decision, why, and the package files it writes and deletes, named from the workspace root as the authoring context names them. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one. */
 export type SkillChangeDraftContract = {
   readonly decision: SkillChangeDecisionContract;
   readonly deletes: readonly string[];
@@ -3212,6 +3214,7 @@ export type SkillChangeDraftContract = {
 
 export type SkillChangeDraftSchemaContract = "runx.skill.change_draft.v1";
 
+/** One file a change writes whole: its path from the workspace root, inside the target package, as the authoring context lists it. */
 export type SkillFileWriteContract = {
   readonly contents: string;
   readonly path: string;

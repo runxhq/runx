@@ -70,6 +70,8 @@ pub enum SkillChangeDecision {
     NeedsCore,
 }
 
+/// One file a change writes whole: its path from the workspace root, inside
+/// the target package, as the authoring context lists it.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SkillFileWrite {
@@ -78,7 +80,8 @@ pub struct SkillFileWrite {
 }
 
 /// What an author returns: its decision, why, and the package files it
-/// writes and deletes. The files are the package's contract, and runx checks
+/// writes and deletes, named from the workspace root as the authoring
+/// context names them. The files are the package's contract, and runx checks
 /// them. It carries no digest: an author never calculates or copies one.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -188,6 +191,7 @@ pub struct SkillApplyResult {
     /// package, as a publish would refuse it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub distribution_digest: Option<NonEmptyString>,
+    /// The files written and deleted, from the workspace root.
     pub changed_paths: Vec<NonEmptyString>,
     pub deleted_paths: Vec<NonEmptyString>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -237,6 +241,8 @@ pub struct SkillAuthoringContext {
     pub target_exists: bool,
     /// The digest a change to the target binds to.
     pub base_digest: Digest,
+    /// The target's files, from `repo_root`, as the read tools and a change
+    /// name them.
     pub target_files: Vec<SkillPackageFile>,
     pub target_metrics: SkillPackageMetrics,
     /// The existing target's inspection, or why it would not inspect; null

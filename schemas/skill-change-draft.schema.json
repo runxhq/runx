@@ -2,7 +2,7 @@
   "$id": "https://schemas.runx.ai/runx/skill/change-draft/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "What an author returns: its decision, why, and the package files it writes and deletes. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one.",
+  "description": "What an author returns: its decision, why, and the package files it writes and deletes, named from the workspace root as the authoring context names them. The files are the package's contract, and runx checks them. It carries no digest: an author never calculates or copies one.",
   "properties": {
     "decision": {
       "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillChangeDecision"

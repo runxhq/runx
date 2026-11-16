@@ -8,6 +8,7 @@
       "type": "string"
     },
     "changed_paths": {
+      "description": "The files written and deleted, from the workspace root.",
       "items": {
         "minLength": 1,
         "type": "string"

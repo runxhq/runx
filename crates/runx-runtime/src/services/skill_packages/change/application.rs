@@ -10,7 +10,7 @@ use runx_contracts::{
 };
 
 use super::super::path::{
-    assert_mode_path, invalid_skill_change, normalize_package_file, reject_secret_material,
+    assert_mode_path, invalid_skill_change, package_file, reject_secret_material,
 };
 use super::super::snapshot::{PackageSnapshot, package_delta, package_metrics};
 use super::super::validation::{Authored, CandidateValidation, validate_candidate};
@@ -125,7 +125,7 @@ fn admit_write(
     write: &runx_contracts::SkillFileWrite,
     secret_prefixes: &BTreeSet<String>,
 ) -> Result<TextFileWrite, RuntimeError> {
-    let relative = normalize_package_file(write.path.as_str().to_owned())?;
+    let relative = package_file(target_dir, write.path.as_str())?;
     assert_mode_path(&relative, mode)?;
     reject_secret_material(&relative, &write.contents, secret_prefixes)?;
     Ok(TextFileWrite {
@@ -139,7 +139,7 @@ fn admit_delete(
     mode: runx_contracts::SkillAuthoringMode,
     delete: &str,
 ) -> Result<String, RuntimeError> {
-    let relative = normalize_package_file(delete.to_owned())?;
+    let relative = package_file(target_dir, delete)?;
     assert_mode_path(&relative, mode)?;
     if relative == "SKILL.md" {
         return Err(invalid_skill_change("SKILL.md cannot be deleted"));

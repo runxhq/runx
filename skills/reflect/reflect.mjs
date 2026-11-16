@@ -455,10 +455,14 @@ export function assessments({ survey, findings, proposals = [], promoted = [], o
   };
 }
 
-/** Each test case a change writes: its path and the name its YAML gives it. */
-export function casesOf(writes) {
+/**
+ * Each test case a change to the package at `target_dir` writes: its path
+ * and the name its YAML gives it. A change names files from the workspace
+ * root, each inside the package, as bind admits them.
+ */
+export function casesOf(target_dir, writes) {
   return writes
-    .filter((write) => /^tests\/[^/]+\.ya?ml$/.test(write.path))
+    .filter((write) => /^tests\/[^/]+\.ya?ml$/.test(write.path.slice(target_dir.length + 1)))
     .map((write) => ({ path: write.path, name: /^name:\s*(\S+)/m.exec(write.contents)?.[1] ?? write.path }));
 }
 
@@ -496,12 +500,16 @@ export async function propose(ctx, { survey, findings }) {
     const files = [];
     for (let at = 0; at < paths.length; at += 16) {
       const bundle = await ctx.read((await ctx.tool("fs.read_bundle", { paths: paths.slice(at, at + 16) })).file_read_bundle);
-      for (const file of bundle.files) files.push({ path: file.path.slice(target_dir.length + 1), contents: file.contents });
+      for (const file of bundle.files) files.push({ path: file.path, contents: file.contents });
     }
     return files;
   };
-  const validate = async (files) =>
-    (await ctx.tool("runx.skill.validate", { candidate_files: files, allow_execute_test: false })).skill_validation;
+  // A candidate is validated as a package of its own, so its files are
+  // named from its root.
+  const validate = async (target_dir, files) => {
+    const candidate_files = files.map((file) => ({ path: file.path.slice(target_dir.length + 1), contents: file.contents }));
+    return (await ctx.tool("runx.skill.validate", { candidate_files, allow_execute_test: false })).skill_validation;
+  };
 
   for (const entry of findings) {
     if (!entry.criterion.startsWith("resisted_") || !entry.finding) continue;
@@ -545,18 +553,18 @@ export async function propose(ctx, { survey, findings }) {
       continue;
     }
     const oldPaths = new Set(old.map((file) => file.path));
-    const cases = casesOf(bundle.writes);
+    const cases = casesOf(target_dir, bundle.writes);
     const added = cases.filter((written) => !oldPaths.has(written.path));
     const changed = cases.filter((written) => oldPaths.has(written.path)).map((written) => written.path);
-    const removed = (bundle.deletes ?? []).filter((path) => path.startsWith("tests/"));
+    const removed = (bundle.deletes ?? []).filter((path) => path.startsWith(`${target_dir}/tests/`));
     if (added.length === 0) {
       proposals.push({ criterion, target_dir, dropped: "it adds no case", changed, removed });
       continue;
     }
     const names = added.map((written) => written.name);
     const addedFiles = bundle.writes.filter((write) => added.some((written) => written.path === write.path));
-    const before = outcomes(await validate(applied(old, { writes: addedFiles })), names);
-    const afterValidation = await validate(applied(old, bundle));
+    const before = outcomes(await validate(target_dir, applied(old, { writes: addedFiles })), names);
+    const afterValidation = await validate(target_dir, applied(old, bundle));
     const after = outcomes(afterValidation, names);
     const proof = { before, after, passed: afterValidation?.test?.status ?? null };
     if (!names.every((name) => before[name] === "failed")) {

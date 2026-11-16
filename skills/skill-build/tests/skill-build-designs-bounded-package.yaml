@@ -13,7 +13,7 @@ host:
         decision: write
         summary: A release-notes skill that drafts reviewable notes from a supplied change set, reads the person's standing words first, and claims no publication.
         writes:
-          - path: SKILL.md
+          - path: skills/release-notes/SKILL.md
             contents: |
               ---
               name: release-notes
@@ -30,7 +30,7 @@ host:
 
               Return `notes` drafted from the supplied changes only, with each
               omission named. Do not claim the notes were published.
-          - path: run.yaml
+          - path: skills/release-notes/run.yaml
             contents: |
               version: "0.1.0"
               minimum_runx: 0.12.0

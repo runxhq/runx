@@ -9,7 +9,7 @@ use runx_contracts::{
 };
 
 use super::path::{
-    canonical_directory, display_relative, invalid_skill_change, normalize_child_path,
+    canonical_directory, display_relative, invalid_skill_change, normalize_child_path, package_file,
 };
 use super::snapshot::{PackageSnapshot, package_metrics, package_snapshot};
 use super::staging::CandidateStage;
@@ -35,8 +35,9 @@ use application::{
 };
 
 /// Bind an author's `draft` to the package `context` inspected, once its
-/// decision fits `mode` and the target: the bundle names the base it was
-/// authored against, so a change to the package since refuses it.
+/// decision fits `mode` and the target and its files are the target's: the
+/// bundle names the base it was authored against, so a change to the
+/// package since refuses it.
 pub(crate) fn bind_skill_change(
     context: &SkillAuthoringContext,
     mode: SkillAuthoringMode,
@@ -56,6 +57,19 @@ pub(crate) fn bind_skill_change(
         deletes: draft.deletes,
     };
     validate_change_shape(&bundle)?;
+    let files = bundle
+        .writes
+        .iter()
+        .map(|write| write.path.as_str())
+        .chain(bundle.deletes.iter().map(NonEmptyString::as_str));
+    for path in files {
+        let target = context.target_dir.as_deref().ok_or_else(|| {
+            invalid_skill_change(
+                "a change writes a package, and none was inspected: inspect its target_dir",
+            )
+        })?;
+        package_file(target, path)?;
+    }
     Ok(bundle)
 }
 
@@ -108,7 +122,7 @@ pub(crate) fn skill_change_effect(
     reach: runx_contracts::Reach,
 ) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
     let target = display_relative(&normalize_child_path(target_dir)?);
-    let under = |path: &str| format!("{target}/{path}");
+    let under = |path: &str| package_file(&target, path).map(|file| format!("{target}/{file}"));
     let bundle = match change.decision {
         // A design writes nothing.
         SkillChangeDecision::Write if mode != SkillAuthoringMode::Design => {
@@ -116,16 +130,18 @@ pub(crate) fn skill_change_effect(
                 writes: change
                     .writes
                     .iter()
-                    .map(|write| crate::filesystem::TextFileWrite {
-                        path: under(write.path.as_str()),
-                        contents: write.contents.clone(),
+                    .map(|write| {
+                        Ok(crate::filesystem::TextFileWrite {
+                            path: under(write.path.as_str())?,
+                            contents: write.contents.clone(),
+                        })
                     })
-                    .collect(),
+                    .collect::<Result<_, RuntimeError>>()?,
                 deletes: change
                     .deletes
                     .iter()
                     .map(|path| under(path.as_str()))
-                    .collect(),
+                    .collect::<Result<_, RuntimeError>>()?,
                 expected: Default::default(),
             }
         }

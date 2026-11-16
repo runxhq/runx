@@ -118,7 +118,7 @@ function changeDraft(): Record<string, any> {
     schema: "runx.skill.change_draft.v1",
     decision: "write",
     summary: "Create the package.",
-    writes: [{ path: "SKILL.md", contents: "---\nname: demo\n---\n" }],
+    writes: [{ path: "skills/demo/SKILL.md", contents: "---\nname: demo\n---\n" }],
     deletes: [],
   };
 }

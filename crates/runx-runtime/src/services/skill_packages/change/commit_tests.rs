@@ -90,7 +90,7 @@ fn change_bundle(base_digest: &str, manual: String) -> Result<SkillChangeBundle,
         base_digest: base_digest.into(),
         summary: "Apply one bounded manual correction.".into(),
         writes: vec![SkillFileWrite {
-            path: "SKILL.md".into(),
+            path: "skills/demo/SKILL.md".into(),
             contents: manual,
         }],
         deletes: Vec::new(),

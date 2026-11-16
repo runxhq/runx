@@ -11,8 +11,8 @@ fn a_change_bundle_is_its_decision_base_and_files_and_nothing_else() {
         "base_digest": digest('a'),
         "summary": "Create the bounded package.",
         "writes": [
-            { "path": "SKILL.md", "contents": "---\nname: demo\ndescription: demo fixture.\n---\n" },
-            { "path": "run.yaml", "contents": "minimum_runx: 0.12.0\n" }
+            { "path": "skills/demo/SKILL.md", "contents": "---\nname: demo\ndescription: demo fixture.\n---\n" },
+            { "path": "skills/demo/run.yaml", "contents": "minimum_runx: 0.12.0\n" }
         ],
         "deletes": []
     });

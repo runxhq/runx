@@ -47,6 +47,7 @@
       "type": "boolean"
     },
     "target_files": {
+      "description": "The target's files, from `repo_root`, as the read tools and a change name them.",
       "items": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageFile"
       },

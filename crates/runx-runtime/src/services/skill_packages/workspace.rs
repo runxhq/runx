@@ -26,7 +26,7 @@ pub(crate) fn inspect_skill_workspace(
     let target_root = target_dir.as_ref().map(|path| repo_root.join(path));
     let target_exists = target_root.as_ref().is_some_and(|path| path.is_dir());
     let (target_files, target_metrics, base_digest) =
-        inspect_target(target_root.as_deref(), target_exists)?;
+        inspect_target(&repo_root, target_root.as_deref(), target_exists)?;
     let target_inspection =
         inspect_target_package(&repo_root, target_root.as_deref(), target_exists);
     let catalog_root = if repo_root.join("skills").is_dir() {
@@ -92,6 +92,7 @@ fn invalid_target_inspection(error: &str) -> JsonObject {
 }
 
 fn inspect_target(
+    repo_root: &Path,
     target_root: Option<&Path>,
     target_exists: bool,
 ) -> Result<(Vec<SkillPackageFile>, SkillPackageMetrics, Digest), RuntimeError> {
@@ -99,7 +100,7 @@ fn inspect_target(
         let target = target_root.ok_or_else(|| {
             invalid_skill_change("existing skill target has no resolved workspace path")
         })?;
-        bounded_file_inventory(target)?
+        bounded_file_inventory(repo_root, target)?
     } else {
         Vec::new()
     };
@@ -133,9 +134,14 @@ fn core_tool_inventory(
     Ok(core_tools)
 }
 
-fn bounded_file_inventory(root: &Path) -> Result<Vec<SkillPackageFile>, RuntimeError> {
+/// The package at `target`'s files, named from `repo_root` as the read
+/// tools and a change name them.
+fn bounded_file_inventory(
+    repo_root: &Path,
+    target: &Path,
+) -> Result<Vec<SkillPackageFile>, RuntimeError> {
     let mut output = Vec::new();
-    inventory_directory(root, root, &mut output)?;
+    inventory_directory(repo_root, target, &mut output)?;
     if output.len() > MAX_PACKAGE_FILES {
         return Err(invalid_skill_change(format!(
             "skill package inventory exceeds {MAX_PACKAGE_FILES} files"

@@ -50,7 +50,7 @@ host:
         decision: write
         summary: Create one thin agent skill with a supplied-answer test.
         writes:
-          - path: SKILL.md
+          - path: .runx-tmp/skill-adopt-fixtures/reuses-source-snapshot/fixture-decision-note/SKILL.md
             contents: |
               ---
               name: fixture-decision-note
@@ -72,7 +72,7 @@ host:
 
               Return `decision_note` with the objective preserved exactly and
               one concise recommendation and an explicit caveats array. Do not claim external effects.
-          - path: run.yaml
+          - path: .runx-tmp/skill-adopt-fixtures/reuses-source-snapshot/fixture-decision-note/run.yaml
             contents: |
               version: "0.1.0"
               minimum_runx: 0.12.0
@@ -115,7 +115,7 @@ host:
                               items:
                                 type: string
                                 minLength: 1
-          - path: references/upstream/SKILL.md
+          - path: .runx-tmp/skill-adopt-fixtures/reuses-source-snapshot/fixture-decision-note/references/upstream/SKILL.md
             contents: |
               ---
               name: fixture-decision-note
@@ -139,7 +139,7 @@ host:
 
               Return `decision_note` with the objective preserved exactly and
               one concise recommendation. Do not claim external effects.
-          - path: tests/fixture-decision-note-ready.yaml
+          - path: .runx-tmp/skill-adopt-fixtures/reuses-source-snapshot/fixture-decision-note/tests/fixture-decision-note-ready.yaml
             contents: |
               name: fixture-decision-note-ready
               method: note
