@@ -2,6 +2,8 @@
 //! declared run-outputs / artifact-emits into the typed step projection that
 //! downstream workflow state machines and receipt sealers consume.
 
+use std::path::Path;
+
 use runx_contracts::JsonObject;
 use runx_parser::{OutputArtifacts, WorkflowStep};
 
@@ -19,14 +21,16 @@ use super::verdict::{Evaluating, name_verdicts};
 /// effective artifact contract is the step's own inline `artifacts` when present,
 /// otherwise `extra_artifacts` (the invoked sub-skill / tool method contract).
 ///
-/// Every step kind's output becomes its claim here, so here each verdict it
-/// returns names its evaluator, as `evaluating` says, before anything is
-/// sealed.
+/// Every step kind's output becomes its claim here, so here runx names what
+/// no producer states: each packet's id, its packets resolving from
+/// `packets_at`, and each verdict's evaluator, as `evaluating` says, before
+/// anything is sealed.
 pub(super) fn build_step_output_projection(
     step: &WorkflowStep,
     output: &InvocationOutput,
     extra_outputs: Option<&JsonObject>,
     extra_artifacts: Option<&OutputArtifacts>,
+    packets_at: &Path,
     evaluating: &Evaluating<'_>,
 ) -> Result<StepOutputProjection, RuntimeError> {
     // A failed invocation produced diagnostics, not its declared success
@@ -43,6 +47,12 @@ pub(super) fn build_step_output_projection(
                 step_id: step.id.clone(),
                 reason: error.to_string(),
             })?;
+    crate::packet_schemas::name_packet_ids(&mut claim, artifacts, packets_at).map_err(
+        |reason| RuntimeError::StepFailed {
+            step_id: step.id.clone(),
+            reason,
+        },
+    )?;
     name_verdicts(&mut claim, artifacts, evaluating, &step.id)?;
     Ok(project_step_claim(claim, artifacts))
 }
@@ -105,8 +115,14 @@ mod tests {
             4,
         );
 
-        let projection =
-            build_step_output_projection(&step, &output, None, None, &Evaluating::Child)?;
+        let projection = build_step_output_projection(
+            &step,
+            &output,
+            None,
+            None,
+            std::path::Path::new("."),
+            &Evaluating::Child,
+        )?;
 
         assert!(projection.outputs.is_empty());
         assert_eq!(
@@ -122,11 +138,17 @@ mod tests {
         let step = declared_output_step()?;
         let output = InvocationOutput::runtime_success(JsonValue::Null, 4);
 
-        let error =
-            match build_step_output_projection(&step, &output, None, None, &Evaluating::Child) {
-                Err(error) => error,
-                Ok(_) => return Err("success without the declared output did not fail".into()),
-            };
+        let error = match build_step_output_projection(
+            &step,
+            &output,
+            None,
+            None,
+            std::path::Path::new("."),
+            &Evaluating::Child,
+        ) {
+            Err(error) => error,
+            Ok(_) => return Err("success without the declared output did not fail".into()),
+        };
 
         assert!(matches!(
             error,
@@ -161,8 +183,14 @@ methods:
             .ok_or("validated output-contract workflow omitted its step")?;
         let output = InvocationOutput::runtime_success(JsonValue::Object(JsonObject::new()), 4);
 
-        let projection =
-            build_step_output_projection(&step, &output, None, None, &Evaluating::Child)?;
+        let projection = build_step_output_projection(
+            &step,
+            &output,
+            None,
+            None,
+            std::path::Path::new("."),
+            &Evaluating::Child,
+        )?;
 
         assert!(projection.outputs.is_empty());
         Ok(())

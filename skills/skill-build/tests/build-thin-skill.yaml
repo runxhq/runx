@@ -9,7 +9,6 @@ host:
   answers:
     author:
       change_draft:
-        schema: runx.skill.change_draft.v1
         decision: write
         summary: Create one thin agent skill with a supplied-answer test.
         writes:

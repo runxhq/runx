@@ -8,7 +8,6 @@ host:
   answers:
     author:
       change_draft:
-        schema: runx.skill.change_draft.v1
         decision: no_skill
         summary: A second general-purpose release skill would split one release operation across duplicate public owners; the existing release skill owns it.
         writes: []

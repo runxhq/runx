@@ -302,6 +302,7 @@ where
         &output,
         None,
         None,
+        workflow_dir,
         &super::verdict::Evaluating::Step(&|| {
             super::verdict::evaluator(runtime, workflow_dir, step)
         }),

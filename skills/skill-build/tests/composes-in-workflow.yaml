@@ -4,7 +4,6 @@ host:
   answers:
     author:
       change_draft:
-        schema: runx.skill.change_draft.v1
         decision: write
         summary: A release-notes skill that drafts reviewable notes from a supplied change set, reads the person's standing words first, and claims no publication.
         writes:

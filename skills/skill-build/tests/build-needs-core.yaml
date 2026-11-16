@@ -8,7 +8,6 @@ host:
   answers:
     author:
       change_draft:
-        schema: runx.skill.change_draft.v1
         decision: needs_core
         summary: runx lacks fs.compare_and_swap_bundle, a digest-bound compare-and-swap bundle primitive two existing skills need; package code would duplicate a runtime security boundary.
         writes: []

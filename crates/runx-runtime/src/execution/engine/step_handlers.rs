@@ -527,8 +527,14 @@ where
     let ephemeral_result = workflow_run_ephemeral_result(&run);
     let mut output = workflow_run_skill_output(&result, &run)?;
     // The child run named the verdicts it returns as its own steps did.
-    let mut projection =
-        build_step_output_projection(request.step, &output, None, None, &Evaluating::Child)?;
+    let mut projection = build_step_output_projection(
+        request.step,
+        &output,
+        None,
+        None,
+        request.workflow_dir,
+        &Evaluating::Child,
+    )?;
     adopt_nested_workflow_result(
         &result,
         &workflow_run_result_artifacts(&run),
@@ -924,6 +930,7 @@ where
         &output,
         raw_output.as_ref(),
         extra_artifacts,
+        &skill_directory,
         &evaluating,
     )?;
     let effect_claim = contract_output_claim(&provisional_projection);
@@ -942,6 +949,7 @@ where
         &output,
         raw_output.as_ref(),
         extra_artifacts,
+        &skill_directory,
         &evaluating,
     )?;
     let ephemeral_contract =
@@ -1262,6 +1270,7 @@ fn seal_turn_step<A>(
             &answer,
             extra_outputs,
             extra_artifacts,
+            workflow_dir,
             &Evaluating::Step(&|| verdict::evaluator(runtime, workflow_dir, step)),
         )?
     };
@@ -1758,6 +1767,7 @@ pub(crate) fn read_now(
         &output,
         tool_result.outputs.as_ref(),
         tool_result.artifacts.as_ref(),
+        workflow_dir,
         &Evaluating::Step(&no_verdict),
     )
     .map(|projection| projection.outputs)
@@ -1802,7 +1812,7 @@ where
     let evaluator = || verdict::evaluator(runtime, workflow_dir, step);
     let evaluating = Evaluating::Step(&evaluator);
     let provisional_projection =
-        build_step_output_projection(step, &output, outputs, artifacts, &evaluating)?;
+        build_step_output_projection(step, &output, outputs, artifacts, workflow_dir, &evaluating)?;
     let provisional_claim = contract_output_claim(&provisional_projection);
     prepare_effect_output_before_gate(
         step,
@@ -1811,7 +1821,8 @@ where
         &mut output,
         &runtime.options.effects,
     )?;
-    let projection = build_step_output_projection(step, &output, outputs, artifacts, &evaluating)?;
+    let projection =
+        build_step_output_projection(step, &output, outputs, artifacts, workflow_dir, &evaluating)?;
     if output.succeeded() {
         // The packets the step declares, or else its tool's own, are checked
         // against the artifacts it holds, as any step's are.

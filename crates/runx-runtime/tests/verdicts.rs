@@ -64,15 +64,19 @@ fn verdict() -> Value {
 }
 
 /// A worker tool step's verdict that names no evaluator is named the step's
-/// own: its package, its method and its run.
+/// own: its package, its method and its run. One that states no id gets its
+/// declaration's, as every packet does.
 #[test]
 fn a_tool_steps_verdict_is_named_the_steps_own() -> TestResult {
     let temp = tempdir()?;
-    let skill = judge(temp.path(), &verdict())?;
+    let mut unnamed = verdict();
+    unnamed.as_object_mut().ok_or("verdict")?.remove("schema");
+    let skill = judge(temp.path(), &unnamed)?;
 
     let output = run(temp.path(), &skill)?;
 
     assert_eq!(output["status"], "sealed", "{output}");
+    assert_eq!(output["result"]["verdict"]["schema"], "runx.verdict.v1");
     let evaluator = &output["result"]["verdict"]["evaluator"];
     assert_eq!(
         evaluator,

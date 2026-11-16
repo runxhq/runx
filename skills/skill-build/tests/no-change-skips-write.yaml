@@ -14,7 +14,6 @@ host:
   answers:
     author:
       change_draft:
-        schema: runx.skill.change_draft.v1
         decision: no_change
         summary: The report has no receipt or reproducible test output, so the evidence justifies no change; reproduce it with a sealed receipt first.
         writes: []

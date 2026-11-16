@@ -8,7 +8,6 @@ host:
   answers:
     author:
       change_draft:
-        schema: runx.skill.change_draft.v1
         decision: no_change
         summary: No reproducible behavior or test output was supplied.
         writes: []

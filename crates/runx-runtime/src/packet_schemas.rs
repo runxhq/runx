@@ -165,40 +165,117 @@ fn agent_packet_shape_error() -> RuntimeError {
     }
 }
 
-/// The field of `packet` the runtime names where a step's output becomes its
-/// claim, never its producer: a verdict's evaluator, who judged.
-fn named_by_runtime(packet: &PacketId) -> Option<&'static str> {
-    (packet.as_str() == runx_contracts::VERDICT_SCHEMA).then_some(runx_contracts::VERDICT_EVALUATOR)
+/// The field a packet's schema carries its id in, when it carries one.
+const PACKET_ID_FIELD: &str = "schema";
+
+/// Whether a packet's schema carries its id, in [`PACKET_ID_FIELD`].
+fn carries_id(schema: &runx_contracts::JsonObject) -> bool {
+    matches!(
+        schema.get("properties"),
+        Some(runx_contracts::JsonValue::Object(properties)) if properties.contains_key(PACKET_ID_FIELD)
+    )
+}
+
+/// The fields of `packet` the runtime names where a step's output becomes its
+/// claim, never its producer: the packet's id, which its declaration states,
+/// where its schema carries one, and a verdict's evaluator, who judged.
+fn named_by_runtime(packet: &PacketId, schema: &runx_contracts::JsonObject) -> Vec<&'static str> {
+    let mut named = Vec::new();
+    if carries_id(schema) {
+        named.push(PACKET_ID_FIELD);
+    }
+    if packet.as_str() == runx_contracts::VERDICT_SCHEMA {
+        named.push(runx_contracts::VERDICT_EVALUATOR);
+    }
+    named
 }
 
 /// A packet's schema as its producer answers it, and as a step's output is
-/// checked against it: the field the runtime names isn't required of the
+/// checked against it: the fields the runtime names aren't required of the
 /// producer, and one it states that isn't the runtime's fails its step.
 pub(crate) fn as_produced(
     packet: &PacketId,
     mut schema: runx_contracts::JsonObject,
 ) -> runx_contracts::JsonObject {
-    if let Some(named) = named_by_runtime(packet)
-        && let Some(runx_contracts::JsonValue::Array(required)) = schema.get_mut("required")
-    {
-        required.retain(|field| field.as_str() != Some(named));
+    let named = named_by_runtime(packet, &schema);
+    if let Some(runx_contracts::JsonValue::Array(required)) = schema.get_mut("required") {
+        required.retain(|field| !field.as_str().is_some_and(|field| named.contains(&field)));
     }
     schema
 }
 
-/// A packet's schema as a model is offered it: the field the runtime names is
-/// no choice of the model's, so it isn't offered at all.
+/// A packet's schema as a model is offered it: who judged is no choice of
+/// the model's, so a verdict's evaluator isn't offered at all. Its id is its
+/// declaration's, so a model may leave it out, and may state only that.
 fn produced(
     catalog: &PacketSchemaCatalog,
     packet: &PacketId,
 ) -> Result<runx_contracts::JsonObject, RuntimeError> {
     let mut schema = as_produced(packet, packet_schema(catalog, packet)?);
-    if let Some(named) = named_by_runtime(packet)
+    if packet.as_str() == runx_contracts::VERDICT_SCHEMA
         && let Some(runx_contracts::JsonValue::Object(properties)) = schema.get_mut("properties")
     {
-        properties.remove(named);
+        properties.remove(runx_contracts::VERDICT_EVALUATOR);
     }
     Ok(schema)
+}
+
+/// Name each packet's id in `claim`, the outputs `artifacts` keeps as
+/// packets, in their envelopes, where a step's output becomes its claim:
+/// runx states it from the declaration, so no producer has to. A packet
+/// whose schema carries no id is left as it is, and one that states an id
+/// its declaration doesn't name fails its step with why.
+pub(crate) fn name_packet_ids(
+    claim: &mut runx_contracts::JsonObject,
+    artifacts: Option<&OutputArtifacts>,
+    skill_directory: &Path,
+) -> Result<(), String> {
+    use runx_contracts::JsonValue;
+    let Some(artifacts) = artifacts else {
+        return Ok(());
+    };
+    let held = artifacts
+        .packets
+        .iter()
+        .filter(|(output, _)| claim.contains_key(output.as_str()))
+        .collect::<Vec<_>>();
+    if held.is_empty() {
+        return Ok(());
+    }
+    let package_root = crate::skill_package::find_owning_package_root(skill_directory)
+        .unwrap_or_else(|| skill_directory.to_path_buf());
+    let catalog = PacketSchemaCatalog::for_package(&package_root, held.iter().map(|(_, p)| *p))
+        .map_err(|error| format!("packet schema catalog failed: {error}"))?;
+    for (output, packet) in held {
+        let schema = packet_schema(&catalog, packet).map_err(|error| error.to_string())?;
+        if !carries_id(&schema) {
+            continue;
+        }
+        let Some(JsonValue::Object(data)) =
+            claim.get_mut(output).and_then(|envelope| match envelope {
+                JsonValue::Object(envelope) => envelope.get_mut("data"),
+                _ => None,
+            })
+        else {
+            continue;
+        };
+        match data.get(PACKET_ID_FIELD) {
+            None => {
+                data.insert(
+                    PACKET_ID_FIELD.to_owned(),
+                    JsonValue::String(packet.as_str().to_owned()),
+                );
+            }
+            Some(JsonValue::String(stated)) if stated == packet.as_str() => {}
+            Some(stated) => {
+                let stated = serde_json::to_string(stated).unwrap_or_default();
+                return Err(format!(
+                    "the packet it returns as {output} states {stated} as its id, and its declaration names {packet}; runx names a packet's id"
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn packet_schema(
@@ -988,6 +1065,97 @@ mod tests {
         )?;
         let catalog = PacketSchemaCatalog::for_package(&installed, [&id])?;
         assert_eq!(catalog.get(&id).map(|entry| &entry.source), Some(&pinned));
+        Ok(())
+    }
+
+    /// A packet's id is its declaration's, so runx names it and no producer
+    /// has to: a model is offered it but not asked for it, the claim gets it,
+    /// a wrong one fails the step with why, and a packet that carries no id
+    /// gets none. Who judged a verdict isn't offered at all.
+    #[test]
+    fn runx_names_a_packets_id_from_its_declaration() -> Result<(), Box<dyn std::error::Error>> {
+        use runx_contracts::{JsonObject, JsonValue, OutputField};
+        use runx_parser::OutputArtifacts;
+        use std::collections::BTreeMap;
+
+        let workspace = tempfile::tempdir()?;
+        let skill = write_skill(workspace.path(), "plain")?;
+        let note = PacketId::new("acme/plain.note.v1").ok_or("id")?;
+        fs::write(
+            skill.join("packets/note.v1.schema.json"),
+            format!(
+                r#"{{"$id":"{}","x-runx-packet-id":"{note}","type":"object","properties":{{"text":{{"type":"string"}}}},"additionalProperties":false}}"#,
+                note.schema_url()
+            ),
+        )?;
+        let draft = PacketId::new("runx.skill.change_draft.v1").ok_or("id")?;
+        let verdict = PacketId::new("runx.verdict.v1").ok_or("id")?;
+        let artifacts = OutputArtifacts {
+            result_as: None,
+            packets: BTreeMap::from([
+                ("change_draft".to_owned(), draft.clone()),
+                ("verdict".to_owned(), verdict),
+                ("note".to_owned(), note),
+            ]),
+        };
+        let object = || OutputField {
+            schema: JsonObject::from([("type".to_owned(), JsonValue::String("object".to_owned()))]),
+            optional: false,
+            packet: None,
+        };
+        let output = BTreeMap::from([
+            ("change_draft".to_owned(), object()),
+            ("verdict".to_owned(), object()),
+            ("note".to_owned(), object()),
+        ]);
+        let offered = serde_json::to_value(super::agent_output_contract_schema(
+            &output,
+            Some(&artifacts),
+            &skill,
+        )?)?;
+        let draft_schema = &offered["properties"]["change_draft"]["allOf"][1];
+        assert!(draft_schema["properties"].get("schema").is_some());
+        assert!(
+            !draft_schema["required"]
+                .as_array()
+                .ok_or("required")?
+                .contains(&serde_json::json!("schema"))
+        );
+        let verdict_schema = &offered["properties"]["verdict"]["allOf"][1];
+        assert!(verdict_schema["properties"].get("evaluator").is_none());
+
+        let envelope = |data: serde_json::Value| -> Result<JsonValue, serde_json::Error> {
+            serde_json::from_value(serde_json::json!({ "data": data }))
+        };
+        let mut claim = JsonObject::from([
+            (
+                "change_draft".to_owned(),
+                envelope(serde_json::json!({"decision": "no_change"}))?,
+            ),
+            (
+                "note".to_owned(),
+                envelope(serde_json::json!({"text": "kept"}))?,
+            ),
+        ]);
+        super::name_packet_ids(&mut claim, Some(&artifacts), &skill)?;
+        let named = serde_json::to_value(&claim)?;
+        assert_eq!(
+            named["change_draft"]["data"]["schema"],
+            "runx.skill.change_draft.v1"
+        );
+        assert_eq!(named["note"]["data"], serde_json::json!({"text": "kept"}));
+
+        let mut wrong = JsonObject::from([(
+            "change_draft".to_owned(),
+            envelope(serde_json::json!({"schema": "runx.skill.change_draft.v2"}))?,
+        )]);
+        let error = super::name_packet_ids(&mut wrong, Some(&artifacts), &skill)
+            .err()
+            .ok_or("a wrong id is refused")?;
+        assert_eq!(
+            error,
+            "the packet it returns as change_draft states \"runx.skill.change_draft.v2\" as its id, and its declaration names runx.skill.change_draft.v1; runx names a packet's id"
+        );
         Ok(())
     }
 }

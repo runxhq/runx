@@ -182,7 +182,6 @@ fn authoring_answers() -> Value {
     serde_json::json!({
         "author": {
             "change_draft": {
-                "schema": "runx.skill.change_draft.v1",
                 "decision": "write",
                 "summary": "Create one manual and one declarative native digest workflow.",
                 "writes": digest_note_files()
