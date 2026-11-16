@@ -657,8 +657,7 @@ export async function promote(ctx, { survey }) {
 
 /**
  * An observation for each kept diagnosis, with its evidence as its sources,
- * on the workspace's observed stream, dated by its run. One that matches an
- * observation memory already holds is that one, so nothing is kept twice.
+ * on the workspace's observed stream, dated by its run.
  */
 export async function observe(ctx, { survey, findings }) {
   const observed = [];
@@ -672,11 +671,8 @@ export async function observe(ctx, { survey, findings }) {
       summary: `${item.skill}: ${finding.summary}`.replace(/\s+/g, " ").slice(0, 120),
       date: item.date,
       sources: finding.evidence.slice(0, 16),
-      supersedes: "none",
     });
-    const matches = await ctx.read(kept.matches ?? []);
-    const handle = kept.handle ?? matches[0]?.data?.handle ?? null;
-    observed.push({ criterion: entry.criterion, handle, already: kept.handle === undefined });
+    observed.push({ criterion: entry.criterion, handle: kept.handle });
   }
   return { observed };
 }

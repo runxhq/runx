@@ -8,9 +8,8 @@ inputs:
   sources: [package.json]
 setup:
   # A term that reads and writes the person's words and reaches no
-  # observation. observe writes only observations, under its own term: its
-  # look for current observations on the stream is refused, and a write that
-  # can't see what it might replace never writes, so nothing is kept.
+  # observation. observe writes only observations, under its own term, so
+  # its write is refused and nothing is kept.
   authority:
     delegations:
       - connector: private
@@ -22,5 +21,4 @@ setup:
               targets: ["runx/memory/said:*", "project:memory/said:*"]
               packages: [runx/memory, project:memory]
 expect:
-  status: failure
-  steps: [entry, likely]
+  status: policy_denied

@@ -52,18 +52,16 @@ start that begins no key, or more than one, is refused, naming the full
 handles it could mean, so `read` never guesses. Every other method and result
 names an entry by its full handle.
 
-## A write is shown what it likely replaces
+## A write always writes
 
-`remember` and `observe` take `supersedes`: the handle of the entry the new
-one replaces, or `none`. Without it, they search the stream they'd write for
-current entries whose text matches the new one. If any match, nothing is kept
-and they're returned as `matches`, so the writer decides with them in view and
-calls again. If none does, there's nothing to decide, so it's kept at once and
-the result says so, with no `matches` and the new handle. For `observe`, a
-handle keeps the new observation as that entry's next version. For
-`remember`, it makes the call a correction of that entry, at the correction's
-own gate. So a fact that contradicts an older one can't sit beside it as
-current unless the writer said it doesn't replace it.
+`remember` keeps the person's words once they confirm them, and `observe`
+keeps what an agent found. Each takes `supersedes`, the handle of an entry the
+new one replaces: for `observe`, the new observation is that entry's next
+version, and for `remember`, the call is a correction of that entry, at the
+correction's own gate. Without it, the write is a new entry. `remember`'s
+confirmation shows the person the current entries their words most likely
+match, so they can decline and correct one instead. The same words, date and
+sources name the same entry, so writing them twice keeps them once.
 
 ## The index
 

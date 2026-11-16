@@ -268,23 +268,14 @@ fn words(text: &str) -> Value {
 }
 
 /// The person's words with the line the index shows for them and their
-/// purpose, which supersede no entry.
+/// purpose.
 pub(crate) fn said(text: &str, summary: &str, purpose: &str) -> Value {
-    json!({"level": "personal", "text": text, "summary": summary, "purpose": purpose, "date": "2026-11-08", "sources": ["conversation"], "supersedes": "none"})
+    json!({"level": "personal", "text": text, "summary": summary, "purpose": purpose, "date": "2026-11-08", "sources": ["conversation"]})
 }
 
-/// An observation dated `date`, shown by its own text, which supersedes no
-/// entry.
+/// An observation dated `date`, shown by its own text.
 fn observation(text: &str, date: &str) -> Value {
-    json!({"level": "personal", "text": text, "summary": text, "date": date, "sources": ["fixture"], "supersedes": "none"})
-}
-
-/// `inputs` with nothing said about what they supersede.
-fn unsaid(mut inputs: Value) -> Value {
-    if let Some(object) = inputs.as_object_mut() {
-        object.remove("supersedes");
-    }
-    inputs
+    json!({"level": "personal", "text": text, "summary": text, "date": date, "sources": ["fixture"]})
 }
 
 /// Each group of an index as a turn reads it: its header and its lines.
@@ -720,17 +711,17 @@ fn an_entry_past_its_end_date_leaves_the_index_and_search_still_finds_it() -> Te
     let ended = memory.observe_with(json!({
         "level": "personal", "text": "The lighthouse tour runs on Tuesdays.",
         "summary": "Lighthouse tour days", "date": "1999-06-01",
-        "valid_until": "2000-01-01", "sources": ["fixture"], "supersedes": "none",
+        "valid_until": "2000-01-01", "sources": ["fixture"],
     }))?;
     let rule = memory.remember(json!({
         "level": "personal", "text": "Bring a coat to the lighthouse.",
         "summary": "Coat for the lighthouse", "purpose": "mandate",
-        "date": "1999-06-01", "valid_until": "2000-01-01", "sources": ["conversation"], "supersedes": "none",
+        "date": "1999-06-01", "valid_until": "2000-01-01", "sources": ["conversation"],
     }))?;
     let later = memory.observe_with(json!({
         "level": "personal", "text": "The ferry runs hourly.",
         "summary": "Ferry times", "date": "2026-11-09",
-        "valid_until": "2999-12-31", "sources": ["fixture"], "supersedes": "none",
+        "valid_until": "2999-12-31", "sources": ["fixture"],
     }))?;
     let (index, _) = memory.index(None)?;
     assert_eq!(handles(&index), [later.as_str()]);
@@ -789,7 +780,7 @@ fn a_focus_puts_the_facts_that_match_it_first() -> TestResult {
 
 /// The confirmation binds what's kept and how it shows: the gate shows the
 /// person the quote, the line, the purpose, the date, the end date and the
-/// sources, and the stream it goes to.
+/// sources, the stream it goes to, and the entries it likely replaces.
 #[test]
 fn the_persons_words_gate_shows_the_line_and_the_purpose() -> TestResult {
     let memory = Memory::new("runx-memory-gate")?;
@@ -797,7 +788,6 @@ fn the_persons_words_gate_shows_the_line_and_the_purpose() -> TestResult {
         "level": "personal", "text": "Always copy Sam on customer mail until the launch.",
         "summary": "Copy Sam on customer mail", "purpose": "mandate",
         "date": "2026-11-08", "valid_until": "2026-12-01", "sources": ["conversation"],
-        "supersedes": "none",
     }))?;
     let mut shown = shown;
     // The read names the digest of what the gate showed beside it.
@@ -815,57 +805,36 @@ fn the_persons_words_gate_shows_the_line_and_the_purpose() -> TestResult {
             "valid_until": "2026-12-01",
             "sources": ["conversation"],
             "stream": "said:personal",
+            "likely": [],
         })
     );
     Ok(())
 }
 
-/// Without `supersedes`, a write first looks for the current entries on its
-/// stream that match it. When none does, there's nothing to decide: the
-/// person's words go straight to their gate and are kept, an observation is
-/// kept, and the result says so, with no matches and the new handle.
+/// A write always writes once its gate passes: the person's confirmation
+/// shows the current entries their words most likely replace, so they can
+/// decline and correct one instead, and approved, the words are kept beside
+/// them. An observation is kept at once, and one that names the observation
+/// it supersedes is that entry's next version.
 #[test]
-fn a_write_that_matches_nothing_is_kept_at_once() -> TestResult {
-    let memory = Memory::new("runx-memory-unmatched")?;
-    let (result, _) = memory.remember_shown(unsaid(words("I take my tea black.")))?;
-    assert!(entries(&result["matches"])?.is_empty(), "{result}");
-    let handle = result["handle"].as_str().ok_or("no handle")?;
-    let observed = memory.completed(
-        "observe",
-        unsaid(observation("The build runs on Node 26.", "2026-11-09")),
-    )?;
-    assert!(entries(&observed["matches"])?.is_empty(), "{observed}");
-    let observed = observed["handle"].as_str().ok_or("no handle")?;
-    assert_eq!(handles(&memory.index(None)?.0), [handle, observed]);
-    Ok(())
-}
-
-/// Without `supersedes`, a write that matches current entries keeps nothing
-/// and returns them, with no gate, so the writer decides with them in view.
-/// Saying it supersedes none keeps it beside them; naming an observation
-/// makes it that entry's next version.
-#[test]
-fn a_write_that_matches_a_current_entry_keeps_nothing_and_shows_it() -> TestResult {
-    let memory = Memory::new("runx-memory-matched")?;
-    let tea = memory.remember(words("I take my tea black."))?;
-    let shown = memory.completed("remember", unsaid(words("I take my tea with milk now.")))?;
-    assert_eq!(handles(&entries(&shown["matches"])?), [tea.as_str()]);
-    assert!(shown.get("handle").is_none(), "{shown}");
-    assert_eq!(handles(&memory.index(None)?.0), [tea.as_str()]);
-    let beside = memory.remember(words("I take my tea with milk now."))?;
+fn a_write_always_writes_and_the_persons_gate_shows_what_it_likely_replaces() -> TestResult {
+    let memory = Memory::new("runx-memory-likely")?;
+    let (first, shown) = memory.remember_shown(words("I take my tea black."))?;
+    assert!(entries(&shown["likely"])?.is_empty(), "{shown}");
+    let tea = first["handle"].as_str().ok_or("no handle")?.to_owned();
+    let (beside, shown) = memory.remember_shown(words("I take my tea with milk now."))?;
     assert_eq!(
-        handles(&memory.index(None)?.0),
-        [beside.as_str(), tea.as_str()]
+        handles(&entries(&shown["likely"])?),
+        [tea.as_str()],
+        "{shown}"
     );
+    let beside = beside["handle"].as_str().ok_or("no handle")?;
+    assert_eq!(handles(&memory.index(None)?.0), [beside, tea.as_str()]);
 
     let node = memory.observe("The build runs on Node 26.", "2026-11-09")?;
-    let shown = memory.completed(
-        "observe",
-        unsaid(observation("The build runs on Node 28.", "2026-11-10")),
-    )?;
-    assert_eq!(handles(&entries(&shown["matches"])?), [node.as_str()]);
-    assert!(shown.get("handle").is_none(), "{shown}");
-    let mut superseding = observation("The build runs on Node 28.", "2026-11-10");
+    let also = memory.observe("The build runs on Node 28.", "2026-11-10")?;
+    assert_ne!(also, node);
+    let mut superseding = observation("The build runs on Node 30.", "2026-11-11");
     superseding["supersedes"] = node.clone().into();
     let next = memory.observe_with(superseding)?;
     assert_eq!(
@@ -949,9 +918,8 @@ fn a_search_matches_an_entrys_words_and_never_its_confirmation() -> TestResult {
         assert!(memory.search(word)?.is_empty(), "{word}");
     }
     assert_eq!(handles(&memory.search("tea")?), [tea.as_str()]);
-    let (result, _) =
-        memory.remember_shown(unsaid(words("Remember that the office closes early.")))?;
-    assert!(entries(&result["matches"])?.is_empty(), "{result}");
+    let (_, shown) = memory.remember_shown(words("Remember that the office closes early."))?;
+    assert!(entries(&shown["likely"])?.is_empty(), "{shown}");
     Ok(())
 }
 

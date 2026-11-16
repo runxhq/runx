@@ -2113,7 +2113,6 @@ methods:
           summary: $input.text
           date: "2026-11-15"
           sources: [journal]
-          supersedes: none
 "#;
 
 /// A term writing memory's observations, from the packages `packages` names.

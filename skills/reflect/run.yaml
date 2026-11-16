@@ -69,7 +69,7 @@ methods:
           skills: [runx/memory#observe]
         max_calls: 64
         outputs:
-          observed: { type: array, items: { type: object }, description: "Each diagnosis's observation by its handle, or the one memory already held that it matches." }
+          observed: { type: array, items: { type: object }, description: "Each diagnosis's observation by its handle." }
       - id: decide
         tool: { module: reflect.mjs, export: assessments }
         inputs: { survey: $steps.survey, findings: $steps.judge.findings, proposals: $steps.propose.proposals, promoted: $steps.promote.promotion.promoted, observed: $steps.observe.observed }

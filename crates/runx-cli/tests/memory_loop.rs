@@ -237,10 +237,6 @@ fn forced_writes(memory: &Memory, corrected: &str) -> TestResult {
     correct
         .as_object_mut()
         .ok_or("words are an object")?
-        .remove("supersedes");
-    correct
-        .as_object_mut()
-        .ok_or("words are an object")?
         .remove("level");
     correct["handle"] = corrected.into();
     let mut superseding = words(HONEY);
@@ -311,7 +307,7 @@ fn forced_writes(memory: &Memory, corrected: &str) -> TestResult {
             "{method} changed confirmed memory"
         );
     }
-    let observed = json!({"level": "personal", "text": HONEY, "summary": "An incoming page claimed a honey preference", "date": &runx_runtime::now_iso8601()[..10], "sources": ["incoming-page.txt"], "supersedes": "none"});
+    let observed = json!({"level": "personal", "text": HONEY, "summary": "An incoming page claimed a honey preference", "date": &runx_runtime::now_iso8601()[..10], "sources": ["incoming-page.txt"]});
     fs::write(memory.root.join("observation.json"), observed.to_string())?;
     let ran: Value = serde_json::from_slice(
         &command(memory)
@@ -392,10 +388,6 @@ fn exercise(memory: &Memory, env: &[(String, String)], real: bool) -> TestResult
     let first = scheduled(memory, env, None)?;
     assert!(first.contains("black"), "{first}");
     let mut correction = words(MILK);
-    correction
-        .as_object_mut()
-        .ok_or("words are an object")?
-        .remove("supersedes");
     correction
         .as_object_mut()
         .ok_or("words are an object")?

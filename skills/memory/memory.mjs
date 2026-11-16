@@ -177,14 +177,14 @@ function parsed(handle, kind, { short = false } = {}) {
 }
 
 /// The entry a `said` or `observed` write names: its stream, from its level,
-/// and its key. A write that supersedes `none`, or doesn't say, names a new
-/// entry, at version 0, whose key is the digest of its kind, level and
+/// and its key. A write that names nothing it supersedes is a new entry, at
+/// version 0, whose key is the digest of its kind, level and
 /// content, so the same words name one entry. One that supersedes a handle
 /// names that entry at its version: an observation's next version, or for
 /// the person's words, the entry their correction replaces.
 export function newEntry({ kind, level, project, brand, workspace_id, text, date, sources, supersedes }) {
   const stream = streamOf(kind, { level, project, brand, workspace_id });
-  if (supersedes !== undefined && supersedes !== "none") {
+  if (supersedes !== undefined) {
     const replaced = parsed(supersedes, kind);
     if (replaced.stream !== stream) {
       throw new Error(`${supersedes} is on ${replaced.stream}, not on ${stream}, where this is kept`);
@@ -195,12 +195,11 @@ export function newEntry({ kind, level, project, brand, workspace_id, text, date
   return { stream, key, version: 0 };
 }
 
-/// What a new entry likely replaces: when its writer didn't say what it
-/// supersedes, the current entries on the stream it would be kept on whose
-/// text best matches its own, from one search, best first. When the writer
-/// said, or nothing matches, there's nothing to decide, and it's kept.
-export async function likely(ctx, { entry, kind, text, supersedes, method }) {
-  if (supersedes !== undefined) return { matches: [] };
+/// The current entries a person's new words most likely replace: those on
+/// the stream they'd be kept on whose text best matches, from one search,
+/// best first, which their confirmation shows them. They're shown, never
+/// decided on, so the words are kept once the person confirms them.
+export async function likely(ctx, { entry, kind, text, method }) {
   const found = await resultOf(
     ctx,
     await ctx.operation("private/keys.search", {

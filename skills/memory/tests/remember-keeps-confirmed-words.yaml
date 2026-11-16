@@ -23,6 +23,7 @@ setup:
               packages: [runx/memory, project:memory]
 expect:
   status: sealed
+  steps: [entry, likely, current, change, confirm, append, readback, handle]
   step_outputs:
     handle:
       subset:

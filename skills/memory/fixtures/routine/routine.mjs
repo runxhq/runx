@@ -33,9 +33,12 @@ export async function capture(ctx, { question, observations }) {
   }
   for (const observation of observations) {
     const { quote, date, supersedes } = observation;
+    // The model answers none for a new observation: memory takes a handle or
+    // nothing.
     const kept = await ctx.skill("../..#observe", {
       level: "personal", text: quote, summary: quote.replace(/[\r\n]+/g, " ").slice(0, 120),
-      date: date ?? today, sources: ["conversation"], supersedes,
+      date: date ?? today, sources: ["conversation"],
+      ...(supersedes === "none" ? {} : { supersedes }),
     });
     if (!kept.handle) throw new Error("memory did not confirm the observation write");
   }
