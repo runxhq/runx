@@ -1083,6 +1083,36 @@ fn the_bundled_agents_turn_is_given_the_memory_its_run_may_read() -> TestResult 
     let mut agent_only: Value = serde_json::from_str(&agents_memory())?;
     agent_only["delegations"][0]["terms"][0]["bounds"]["packages"] = json!(["runx/agent"]);
     assert!(memory_given(&memory.agent_read(Some(&agent_only.to_string()))?)?.is_empty());
+
+    // Inspection says so before any run: the reads memory's index script
+    // declares aren't ready without a term, and say how to give one.
+    let private = |authority: Option<&str>| -> TestResult<(Value, Vec<Value>)> {
+        let mut args = vec!["skill", "inspect", "agent#read", "--json"];
+        if let Some(authority) = authority {
+            args.extend(["--run-authority", authority]);
+        }
+        let inspected: Value = serde_json::from_slice(&memory.runx(&args)?.stdout)?;
+        let private = inspected["connector_readiness"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|entry| entry["connector"] == "private")
+            .cloned()
+            .collect();
+        Ok((inspected, private))
+    };
+    let (unready, reads) = private(None)?;
+    assert!(
+        !reads.is_empty()
+            && reads.iter().all(|entry| entry["ready"] == false)
+            && unready.to_string().contains("--standing"),
+        "{unready}"
+    );
+    let (ready, reads) = private(Some(&agents_memory()))?;
+    assert!(
+        !reads.is_empty() && reads.iter().all(|entry| entry["ready"] == true),
+        "{ready}"
+    );
     Ok(())
 }
 

@@ -240,36 +240,52 @@ pub fn inspect_connector_readiness(
     Ok(readiness)
 }
 
-/// The requirements a method's operation steps use, narrowed to the
-/// operations they call. A step that chooses its operation per run may call
-/// any its `from` lists.
+/// The requirements a method's steps use, narrowed to the operations they
+/// call: an operation step's, any its `from` lists when it chooses one per
+/// run, and those a script step's `calls` declare, which the runtime admits
+/// before the script starts.
 fn method_requirements(
     connectors: &BTreeMap<String, runx_parser::ConnectorRequirement>,
     method: &runx_parser::SkillMethodDefinition,
 ) -> BTreeMap<String, runx_parser::ConnectorRequirement> {
     let mut used = BTreeMap::<String, runx_parser::ConnectorRequirement>::new();
-    let targets = method
-        .workflow
-        .steps
-        .iter()
-        .filter_map(runx_parser::WorkflowStep::operation);
-    for target in targets {
-        let Some(declared) = connectors.get(&target.requirement) else {
-            continue;
+    let mut add = |name: &str,
+                   declared: Option<&runx_parser::ConnectorRequirement>,
+                   operation: &runx_contracts::OperationName| {
+        let Some(declared) = declared else {
+            return;
         };
-        let requirement = used.entry(target.requirement.clone()).or_insert_with(|| {
-            runx_parser::ConnectorRequirement {
-                operations: Vec::new(),
-                ..declared.clone()
+        let requirement =
+            used.entry(name.to_owned())
+                .or_insert_with(|| runx_parser::ConnectorRequirement {
+                    operations: Vec::new(),
+                    ..declared.clone()
+                });
+        if !requirement.operations.contains(operation) {
+            requirement.operations.push(operation.clone());
+        }
+    };
+    for step in &method.workflow.steps {
+        if let Some(target) = step.operation() {
+            let operations = target
+                .operation
+                .as_ref()
+                .map_or(target.from.as_slice(), std::slice::from_ref);
+            for operation in operations {
+                add(
+                    &target.requirement,
+                    connectors.get(&target.requirement),
+                    operation,
+                );
             }
-        });
-        let operations = target
-            .operation
-            .as_ref()
-            .map_or(target.from.as_slice(), std::slice::from_ref);
-        for operation in operations {
-            if !requirement.operations.contains(operation) {
-                requirement.operations.push(operation.clone());
+        } else if let runx_parser::StepKind::Script(script) = &step.kind {
+            for allowed in &script.allowance.operations {
+                let name = allowed.requirement.as_str();
+                if let Some(operation) =
+                    runx_contracts::OperationName::new(allowed.operation.as_str())
+                {
+                    add(name, script.connectors.get(name), &operation);
+                }
             }
         }
     }
