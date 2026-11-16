@@ -13,6 +13,8 @@ operations:
     description: Store one value, as JSON or canonical base64 bytes, under the media type it names. The artifact is keyed by the call's idempotency key, so a repeated call answers with the same artifact; the reference is read back before the call settles.
     verb: write
     scopes: [artifact.allocate]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     target:
       template: {"$argument": "/purpose"}
     guarantees:

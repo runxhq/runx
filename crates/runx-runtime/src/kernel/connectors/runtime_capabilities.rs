@@ -21,6 +21,8 @@ operations:
     description: Store one value, as JSON or canonical base64 bytes, under the media type it names. The artifact is keyed by the call's idempotency key, so a repeated call answers with the same artifact; the reference is read back before the call settles.
     verb: write
     scopes: [artifact.allocate]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     target:
       template: {"$argument": "/purpose"}
     guarantees:
@@ -72,6 +74,8 @@ operations:
     description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended. An event can be standing, can state the last date it's valid, and names the fields of its data a search matches it by.
     verb: write
     scopes: [store.append]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     guarantees: {provider_idempotency: enforced}
     input_schema:
@@ -100,6 +104,8 @@ operations:
     description: Read one page of a key's events in version order, after a version, or the latest page without one.
     verb: read
     scopes: [store.read]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     input_schema:
       type: object
@@ -118,6 +124,8 @@ operations:
     description: Read a key's version, its newest event whole, and the digest that chains its events.
     verb: read
     scopes: [store.read]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     input_schema:
       type: object
@@ -134,6 +142,8 @@ operations:
     description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types, only the standing keys or only the others, only those still valid at a date, and only those a prefix begins, which reads them in key order.
     verb: read
     scopes: [store.read]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     input_schema:
       type: object
@@ -160,6 +170,8 @@ operations:
     description: Rank one stream's keys by a full-text match against the fields each key's newest event names searchable, in score order with ties newest commit first, then by key, one page at a time, optionally only keys whose newest event has one of the given types, only the standing keys or only the others, and only those still valid at a date. It searches what's current, never history. The query is quoted, so its words are plain words.
     verb: read
     scopes: [store.read]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     input_schema:
       type: object
@@ -216,6 +228,8 @@ operations:
     description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended.
     verb: write
     scopes: [store.append]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     guarantees: {provider_idempotency: enforced}
     input_schema:
@@ -235,6 +249,8 @@ operations:
     description: Read one page of a key's events in version order, after a version, or the latest page without one.
     verb: read
     scopes: [store.read]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     input_schema:
       type: object
@@ -253,6 +269,8 @@ operations:
     description: Read a key's version, its newest event whole, and the digest that chains its events.
     verb: read
     scopes: [store.read]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     input_schema:
       type: object
@@ -269,6 +287,8 @@ operations:
     description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types.
     verb: read
     scopes: [store.read]
+    # Runs in runx itself, so nothing charges for it.
+    cost: {usd_micro: 0, per: request, source: observed}
     credentials: [password]
     input_schema:
       type: object

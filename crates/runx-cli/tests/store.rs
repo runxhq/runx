@@ -1654,6 +1654,18 @@ fn a_standing_authority_gives_its_workspace_the_persons_own_data_unnamed() -> Te
 
     let observed = json(&project.run("skills/notes#observe", &SEEN, None)?, 0)?;
     assert_eq!(store_result(&observed)["status"], "committed", "{observed}");
+    // A money limit covers the person's own data, which runx declares free.
+    let limited = project
+        .runx()?
+        .args(["skill", "skills/notes#recall", "-i", "key=tea"])
+        .args(["--max-spend", "1", "--json"])
+        .output()?;
+    assert_eq!(
+        json(&limited, 0)?["outcome"],
+        "completed",
+        "{}",
+        printed(&limited)
+    );
     let second = standing("again", &memory_authority())?;
     assert!(
         !second.status.success() && printed(&second).contains("mine"),
