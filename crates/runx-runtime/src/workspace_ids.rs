@@ -1,8 +1,10 @@
 //! Workspace ids (D17, memory.md): each workspace a person runs runx in is
-//! named by an id minted in their runx home, keyed by the workspace's
-//! canonical path. The id is never read from the workspace, so a repository
-//! can't ship another workspace's id and read that workspace's memory, and a
-//! saved authority's workspace check rests on the same id.
+//! named by an id minted in their runx home, keyed by where the workspace is:
+//! its path as its git repository's main checkout holds it, so every
+//! worktree of one clone is one workspace, and outside git its own path. The
+//! id is never read from the workspace, so a repository can't ship another
+//! workspace's id and read that workspace's memory, and a saved authority's
+//! workspace check rests on the same id.
 //!
 //! runx can't tell a move from a copy, so a moved workspace is minted a new id
 //! where it now is, and `runx workspace rebind <old path>` gives it back the
@@ -29,7 +31,8 @@ const MAX_WORKSPACE_IDS_BYTES: u64 = 4 * 1024 * 1024;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkspaceIdEntry {
-    /// The workspace's canonical path.
+    /// Where the workspace is: its canonical path, as its git repository's
+    /// main checkout holds it.
     pub path: String,
     pub id: String,
     pub minted_at: String,
@@ -88,7 +91,7 @@ pub fn workspace_id(paths: &RunxPaths, now: &str) -> Result<Option<String>, Work
     if paths.home_fell_back() {
         return Err(WorkspaceIdError::HomeFellBack);
     }
-    let workspace = canonical(paths.workspace())?;
+    let workspace = located(paths.workspace())?;
     with_ids(paths, |ids| {
         if let Some(entry) = ids.workspaces.iter().find(|entry| entry.path == workspace) {
             return Ok((entry.id.clone(), false));
@@ -102,6 +105,24 @@ pub fn workspace_id(paths: &RunxPaths, now: &str) -> Result<Option<String>, Work
         Ok((id, true))
     })
     .map(Some)
+}
+
+/// The id this home has minted for the workspace runx runs in, minting none.
+/// `None` when there's no workspace, the home fell back, or none was minted.
+///
+/// # Errors
+///
+/// Returns why the home's workspace ids can't be read.
+pub fn known_id(paths: &RunxPaths) -> Result<Option<String>, WorkspaceIdError> {
+    if !paths.workspace_found() || paths.home_fell_back() {
+        return Ok(None);
+    }
+    let workspace = located(paths.workspace())?;
+    Ok(read(&ids_file(paths))?
+        .workspaces
+        .into_iter()
+        .find(|entry| entry.path == workspace)
+        .map(|entry| entry.id))
 }
 
 /// Every workspace this runx home has minted an id for, by path.
@@ -135,7 +156,7 @@ pub fn rebind(paths: &RunxPaths, old: &Path) -> Result<Rebound, WorkspaceIdError
     if paths.home_fell_back() {
         return Err(WorkspaceIdError::HomeFellBack);
     }
-    let workspace = canonical(paths.workspace())?;
+    let workspace = located(paths.workspace())?;
     // The old path may be gone, so it's matched as written once made absolute.
     let old = old_path(paths, old);
     with_ids(paths, |ids| {
@@ -234,10 +255,42 @@ fn ids_file(paths: &RunxPaths) -> PathBuf {
     paths.workspace_ids()
 }
 
-fn canonical(path: &Path) -> Result<String, WorkspaceIdError> {
-    std::fs::canonicalize(path)
-        .map(|path| path.display().to_string())
-        .map_err(|error| io(path, &error))
+/// Where a workspace is: its canonical path, or, in a worktree its git
+/// repository lists, the same path in that repository's main checkout. A
+/// worktree's `.git` file names its repository, and only the repository's
+/// own record of the worktree pointing back at that file makes it one, so a
+/// folder can't claim another repository by holding a `.git` file.
+fn located(workspace: &Path) -> Result<String, WorkspaceIdError> {
+    let workspace = std::fs::canonicalize(workspace).map_err(|error| io(workspace, &error))?;
+    let main = workspace
+        .ancestors()
+        .find(|root| root.join(".git").exists())
+        .and_then(|root| {
+            main_checkout(&root.join(".git"))
+                .zip(workspace.strip_prefix(root).ok())
+                .map(|(main, within)| main.components().chain(within.components()).collect())
+        });
+    Ok(main.unwrap_or(workspace).display().to_string())
+}
+
+/// The main checkout of the repository a worktree's `.git` file names, when
+/// the repository lists that worktree back at this file. `None` for a main
+/// checkout's `.git` directory, a submodule or anything else.
+fn main_checkout(dot_git: &Path) -> Option<PathBuf> {
+    let named = std::fs::read_to_string(dot_git).ok()?;
+    let gitdir = dot_git
+        .parent()?
+        .join(named.strip_prefix("gitdir:")?.trim());
+    let listed = std::fs::read_to_string(gitdir.join("gitdir")).ok()?;
+    let listed = std::fs::canonicalize(gitdir.join(listed.trim())).ok()?;
+    if listed != std::fs::canonicalize(dot_git).ok()? {
+        return None;
+    }
+    let common = std::fs::read_to_string(gitdir.join("commondir")).ok()?;
+    let common = std::fs::canonicalize(gitdir.join(common.trim())).ok()?;
+    (common.file_name()? == ".git")
+        .then(|| common.parent().map(Path::to_path_buf))
+        .flatten()
 }
 
 fn old_path(paths: &RunxPaths, old: &Path) -> String {

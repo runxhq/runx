@@ -299,14 +299,7 @@ pub fn standing(paths: &RunxPaths) -> Result<Option<RunAuthority>, SavedAuthorit
     if standing.is_empty() {
         return Ok(None);
     }
-    let workspace = std::fs::canonicalize(paths.workspace())
-        .map(|path| path.display().to_string())
-        .ok();
-    let Some(id) = workspace_ids::list(paths)?
-        .into_iter()
-        .find(|entry| Some(&entry.path) == workspace.as_ref())
-        .map(|entry| entry.id)
-    else {
+    let Some(id) = workspace_ids::known_id(paths)? else {
         return Ok(None);
     };
     Ok(standing

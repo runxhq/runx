@@ -116,3 +116,43 @@ fn a_moved_workspace_is_rebound_to_the_id_it_had() -> TestResult {
     assert_eq!(list(&paths(&home, &after))?.len(), 1);
     Ok(())
 }
+
+/// A git worktree is its repository's workspace, so a worktree of one clone
+/// keeps its grants and memory: its path as the main checkout holds it. Only
+/// a worktree the repository lists back counts, so a folder holding a `.git`
+/// file that names the repository is a workspace of its own.
+#[test]
+fn a_worktree_its_repository_lists_is_that_repositorys_workspace() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let home = temp.path().join("home");
+    let main = workspace(temp.path(), "main")?;
+    fs::create_dir_all(main.join("sub"))?;
+    // As `git worktree add ../feature` lays it out.
+    let feature = temp.path().join("feature");
+    let listed = main.join(".git/worktrees/feature");
+    fs::create_dir_all(feature.join("sub"))?;
+    fs::create_dir_all(&listed)?;
+    fs::write(
+        feature.join(".git"),
+        format!("gitdir: {}\n", listed.display()),
+    )?;
+    fs::write(
+        listed.join("gitdir"),
+        format!("{}\n", feature.join(".git").display()),
+    )?;
+    fs::write(listed.join("commondir"), "../..\n")?;
+    let here = workspace_id(&paths(&home, &main.join("sub")), NOW)?.ok_or("no id for main")?;
+    assert_eq!(
+        workspace_id(&paths(&home, &feature.join("sub")), NOW)?.as_deref(),
+        Some(here.as_str())
+    );
+    let forged = temp.path().join("forged");
+    fs::create_dir_all(&forged)?;
+    fs::write(
+        forged.join(".git"),
+        format!("gitdir: {}\n", listed.display()),
+    )?;
+    let own = workspace_id(&paths(&home, &forged), NOW)?.ok_or("no id for forged")?;
+    assert_ne!(own, here);
+    Ok(())
+}

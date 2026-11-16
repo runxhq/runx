@@ -365,8 +365,10 @@ A step receives exactly what it binds. Its `inputs`, and an operation step's
   `idempotency_key` reads;
 - `$run.workspace_id`: the id of the workspace the run runs in, which any
   value, condition or guard may read. The runx home mints it the first time a
-  step reads it there, keyed by the workspace's canonical path, and never
-  reads it from the workspace, so a repository can't name another workspace.
+  step reads it there, keyed by where the workspace is (its path as its git
+  repository's main checkout holds it, so every worktree of one clone is one
+  workspace, and outside git its own path), and never reads it from the
+  workspace, so a repository can't name another workspace.
   It's `null` where there's no workspace (a directory with `.git`,
   `pnpm-workspace.yaml`, `skills/` or `connectors/`), and a run whose runx home
   fell back to the workspace refuses to read it. `runx workspace list` shows
