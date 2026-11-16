@@ -78,14 +78,19 @@ then can't be met, and the mark it returns moves only past what it read.
   is met once it's kept, as a proven fix that was applied or as an
   observation, and a rule once it's promoted: until then each is `not_met`,
   saying what it lacks, a declined fix with the person's reason.
-- **`keep`** returns the disable that closes each rule `AGENTS.md` holds at
-  `HEAD`, its reason naming the commit, for the person to run: reflection's
-  term never writes a `said:` stream. Then it moves the mark past the window
-  the verdict covers, at the version survey read, so a concurrent reflection's
-  move wins and this one says it lost.
+- **`keep`** closes each rule `AGENTS.md` holds at `HEAD` through
+  `runx/memory#disable`, its reason naming the commit, so the person confirms
+  the close at memory's own gate. A close the person declines is kept in the
+  `declines` stream by the rule's handle, so a later run doesn't ask again
+  until the rule changes. Then it moves the mark past the window the verdict
+  covers, at the version survey read, so a concurrent reflection's move wins
+  and this one says it lost.
 
-Reflection's term reads the workspace's memory and writes only its
-`observed:` stream. It never reads or writes personal memory. A sampled run is met or not as its purpose-only reader found,
+Reflection's term reads the workspace's memory, writes its `observed:`
+stream, and appends to its `said:workspace` stream only for memory's disable,
+which closes a rule the repository holds. It never reads or writes personal
+memory, and never keeps or corrects a person's words: it calls no
+`remember` or `correct`. A sampled run is met or not as its purpose-only reader found,
   and unresolved when no finding was kept.
 
 ## Agent task: diagnose

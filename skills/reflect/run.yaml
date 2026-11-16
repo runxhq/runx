@@ -79,15 +79,18 @@ methods:
         tool: verdict.decide
         inputs: { verdict: $steps.decide.verdict, subject: $steps.survey.subject, criteria_ref: runx/reflect, criteria: $steps.survey.criteria }
       - id: keep
-        # The disable that closes each rule the repository holds, for the
-        # person to run, and the mark, moved past the window the verdict covers.
+        # Each rule the repository holds closed through memory's disable,
+        # whose own gate asks the person, and the mark, moved past the window
+        # the verdict covers.
         script: { module: reflect.mjs, export: keep }
         inputs: { reader: $input.reader, survey: $steps.survey }
         calls:
-          operations: [store/events.append]
-        max_calls: 2
+          skills: [runx/memory#disable]
+          tools: [data.digest]
+          operations: [store/key.inspect, store/events.append]
+        max_calls: 200
         outputs:
-          kept: { type: object, description: "The disables for the person to run, each naming the commit that holds its rule, and the mark." }
+          kept: { type: object, description: "closed, each rule AGENTS.md holds, closed at memory's gate with its reason naming the commit that holds it, or declined with the person's reason; and the mark." }
   survey:
     description: Read the mark, the record since it, the workspace's standing memory and its revision, and lay out the checks before anything is judged. No model.
     inputs:

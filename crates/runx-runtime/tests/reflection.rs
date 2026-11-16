@@ -578,8 +578,9 @@ fn decide_change(
     Ok(serde_json::to_value(&sealed.output)?)
 }
 
-/// Reflection's term: it reads the workspace's memory and writes only its
-/// observations, never a person's words.
+/// Reflection's term: it reads the workspace's memory, writes its
+/// observations, and appends to its rules only for memory's disable, which
+/// closes a rule the repository holds.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflecting() -> serde_json::Value {
     let packages = ["project:reflect", "runx/memory"];
@@ -587,7 +588,7 @@ fn reflecting() -> serde_json::Value {
         {"verbs": ["read"], "bounds": {"operations": ["private/*"], "scopes": ["store.read"],
             "targets": ["runx/memory/said:workspace:*", "runx/memory/observed:workspace:*"], "packages": packages}},
         {"verbs": ["write"], "bounds": {"operations": ["private/*"], "scopes": ["store.append"],
-            "targets": ["runx/memory/observed:workspace:*"], "packages": packages}},
+            "targets": ["runx/memory/said:workspace:*", "runx/memory/observed:workspace:*"], "packages": packages}},
     ]}]})
 }
 
@@ -616,9 +617,10 @@ fn drive(
 /// written once the new case is proven to fail on the old revision and pass
 /// on the fix, the rule goes into AGENTS.md word for word, an observation is
 /// kept and the mark moves; once the person commits, the next reflection asks
-/// nothing, names the commit in the rule's closing disable, and its window is
-/// met. Declined with a reason, nothing is written, and another reader over
-/// the same record isn't asked about that change again.
+/// only to close the rule, at memory's own gate, its reason naming the commit,
+/// and its window is met. Declined with a reason, nothing is written, and
+/// another reader over the same record isn't asked about that change again,
+/// nor a later run about a close the person declined.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 #[test]
 fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
@@ -682,16 +684,27 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
     assert_eq!(result["kept"]["mark"]["moved"], true, "{sealed}");
 
     git(root, &["commit", "-qam", "reflection's fix and rule"])?;
-    let next = reflect(root, &endpoint)?;
+    let asked = std::cell::RefCell::new(Vec::new());
+    let next = drive(root, &endpoint, reflect(root, &endpoint)?, |request| {
+        asked.borrow_mut().push(request.to_string());
+        serde_json::json!(true)
+    })?;
     assert_eq!(next["status"], "sealed", "{next}");
+    // The one thing it asks is the close, at memory's own gate.
+    let asked = asked.into_inner();
+    assert!(
+        asked.len() == 1 && asked[0].contains("memory.disable"),
+        "{asked:?}"
+    );
     let survey = &next["context"]["step_outputs"]["survey"];
     assert_eq!(survey["resistance"], serde_json::json!([]), "{next}");
     assert_eq!(survey["unheld"], serde_json::json!([]), "{next}");
     let head = git(root, &["rev-parse", "HEAD"])?;
-    let disable = &next["result"]["kept"]["disable"][0];
-    assert_eq!(disable["handle"], handle.as_str(), "{next}");
+    let closed = &next["result"]["kept"]["closed"][0];
+    assert_eq!(closed["handle"], handle.as_str(), "{next}");
+    assert!(closed["closed"].is_string(), "{next}");
     assert!(
-        disable["reason"]
+        closed["reason"]
             .as_str()
             .is_some_and(|reason| reason.contains(&head)),
         "{next}"
@@ -740,17 +753,44 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
                 && entry["again"] == false),
         "{weekly}"
     );
+    // The person commits the rule and declines its close: the rule stays in
+    // memory, and a later run doesn't ask again.
+    git(root, &["commit", "-qam", "reflection's rule"])?;
+    let kept = drive(
+        root,
+        &endpoint,
+        reflect(root, &endpoint)?,
+        |_| serde_json::json!({"approved": false, "reason": "Keep it in memory too."}),
+    )?;
+    assert_eq!(
+        kept["result"]["kept"]["closed"][0]["declined"], "Keep it in memory too.",
+        "{kept}"
+    );
+    let again = reflect(root, &endpoint)?;
+    assert_eq!(again["status"], "sealed", "{again}");
+    // The person's decline is theirs, not memory's resistance to judge.
+    assert_eq!(
+        again["context"]["step_outputs"]["survey"]["resistance"],
+        serde_json::json!([]),
+        "{again}"
+    );
+    assert_eq!(
+        again["result"]["kept"]["closed"][0]["again"], false,
+        "{again}"
+    );
     model.finish()?;
     Ok(())
 }
 
 /// Reflection's walls, whatever its term allows: it reads no personal
-/// memory, so a person's own rule is never promoted or named, and it writes
-/// no person's words, so every said: entry is where it was after a whole
-/// reflection the person approves.
+/// memory, so a person's own rule is never promoted or named, and it never
+/// keeps or corrects a person's words. After a whole reflection the person
+/// approves, every said: entry is where it was; once the person commits the
+/// rule, the next closes it only at memory's own gate, and the person's own
+/// rule is still at its first version.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 #[test]
-fn reflection_reads_no_personal_memory_and_writes_no_persons_words() -> TestResult {
+fn reflection_reads_no_personal_memory_and_never_keeps_or_corrects_a_persons_words() -> TestResult {
     let model = reflection_model(Diagnoses::Faithful)?;
     let endpoint = model.endpoint().to_owned();
     let temp = tempdir()?;
@@ -780,37 +820,57 @@ fn reflection_reads_no_personal_memory_and_writes_no_persons_words() -> TestResu
         &endpoint,
         "fixture-model",
     ));
-    let started = LocalOrchestrator::with_effects_and_environment(
-        runx_runtime::RuntimeEffectRegistry::local()?,
-        environment.clone(),
-    )
-    .run_skill_with_binding(
-        &SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: Some(serde_json::from_value(widened)?),
-            act: None,
-            skill_path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/reflect"),
-            receipt_dir: Some(root.join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs: serde_json::from_value(
-                serde_json::json!({"reader": "nightly", "until": "2099-01-01T00:00:00Z"}),
-            )?,
-            env: environment,
-            cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(4)?,
-        },
-        Some("reflect"),
-        None,
-        None,
-    )?;
-    let sealed = drive(
-        root,
-        &endpoint,
-        serde_json::to_value(&started.output)?,
-        |_| serde_json::json!(true),
-    )?;
+    // A whole reflection under it, the person approving everything asked.
+    let asked = std::cell::RefCell::new(Vec::new());
+    let reflection = || -> TestResult<serde_json::Value> {
+        let started = LocalOrchestrator::with_effects_and_environment(
+            runx_runtime::RuntimeEffectRegistry::local()?,
+            environment.clone(),
+        )
+        .run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: Some(serde_json::from_value(widened.clone())?),
+                act: None,
+                skill_path: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../skills/reflect"),
+                receipt_dir: Some(root.join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: serde_json::from_value(
+                    serde_json::json!({"reader": "nightly", "until": "2099-01-01T00:00:00Z"}),
+                )?,
+                env: environment.clone(),
+                cwd: root.to_path_buf(),
+                managed_agent: ManagedAgentPolicy::inline(4)?,
+            },
+            Some("reflect"),
+            None,
+            None,
+        )?;
+        drive(
+            root,
+            &endpoint,
+            serde_json::to_value(&started.output)?,
+            |request| {
+                asked.borrow_mut().push(request.to_string());
+                serde_json::json!(true)
+            },
+        )
+    };
+    let index = || {
+        run(
+            root,
+            root.join("skills/rules"),
+            "index",
+            serde_json::json!({}),
+            Some(
+                serde_json::json!({"delegations": [{"connector": "private", "terms": [{"verbs": ["read"],
+                "bounds": {"operations": ["private/*"], "scopes": ["store.read"], "targets": everything, "packages": ["project:rules", "runx/memory"]}}]}]}),
+            ),
+        )
+    };
+    let sealed = reflection()?;
     assert_eq!(sealed["status"], "sealed", "{sealed}");
     assert!(
         !sealed.to_string().contains(&personal),
@@ -818,26 +878,46 @@ fn reflection_reads_no_personal_memory_and_writes_no_persons_words() -> TestResu
     );
     assert!(!std::fs::read_to_string(root.join("AGENTS.md"))?.contains("Australian English"));
     // No said: entry moved: each is current at its first version.
-    let index = run(
-        root,
-        root.join("skills/rules"),
-        "index",
-        serde_json::json!({}),
-        Some(
-            serde_json::json!({"delegations": [{"connector": "private", "terms": [{"verbs": ["read"],
-            "bounds": {"operations": ["private/*"], "scopes": ["store.read"], "targets": everything, "packages": ["project:rules", "runx/memory"]}}]}]}),
-        ),
-    )?;
-    let entries = index["result"]["entries"].to_string();
+    let first = index()?;
+    let entries = first["result"]["entries"].to_string();
     assert!(
         entries.contains(&personal),
-        "the person's own rule is current: {index}"
+        "the person's own rule is current: {first}"
     );
-    assert!(!entries.contains("memory.disabled"), "{index}");
+    assert!(!entries.contains("memory.disabled"), "{first}");
     let promoted = sealed["result"]["promotion"]["promoted"][0]["handle"]
         .as_str()
-        .ok_or("the workspace's rule")?;
+        .ok_or("the workspace's rule")?
+        .to_owned();
     assert!(promoted.ends_with("@1"), "{promoted}");
+
+    // The person commits the rule, and the next reflection closes it, asking
+    // only at memory's own gate; the person's own rule is still current, at
+    // its first version.
+    git(root, &["commit", "-qam", "the workspace's rule"])?;
+    asked.borrow_mut().clear();
+    let next = reflection()?;
+    assert_eq!(next["status"], "sealed", "{next}");
+    let asked = asked.into_inner();
+    assert!(
+        asked.len() == 1 && asked[0].contains("memory.disable"),
+        "{asked:?}"
+    );
+    assert_eq!(
+        next["result"]["kept"]["closed"][0]["handle"],
+        promoted.as_str(),
+        "{next}"
+    );
+    let after = index()?;
+    let entries = after["result"]["entries"].to_string();
+    assert!(
+        entries.contains(&personal),
+        "the person's own rule is current: {after}"
+    );
+    assert!(
+        !entries.contains(&promoted),
+        "the workspace's rule is closed: {after}"
+    );
     model.finish()?;
     Ok(())
 }

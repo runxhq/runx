@@ -678,19 +678,40 @@ export async function observe(ctx, { survey, findings }) {
 }
 
 /**
- * Close what the record holds now and move the mark: for each rule the
- * repository holds at HEAD, the disable that closes it, its reason naming the
- * commit, which the person runs, since reflection never writes a said:
- * stream; and the mark, moved past the window the verdict covers, at the
- * version survey read, so a concurrent reflection's move wins and this one
- * says it lost.
+ * Close what the repository holds now and move the mark. Each rule AGENTS.md
+ * holds at HEAD is closed through runx/memory#disable, whose own gate asks
+ * the person, its reason naming the commit. A close the person declines is
+ * kept in the declines stream, keyed by the rule's handle alone, so a later
+ * run doesn't ask again until the rule changes. Reflection never keeps or
+ * corrects a person's words. Then the mark moves past the window the verdict
+ * covers, at the version survey read, so a concurrent reflection's move wins
+ * and this one says it lost.
  */
 export async function keep(ctx, { reader, survey }) {
-  const disable = survey.held.map((rule) => ({
-    skill: "runx/memory#disable",
-    handle: rule.handle,
-    reason: `Held by ${INSTRUCTIONS} at ${survey.head}, so the repository holds it.`,
-  }));
+  const closed = [];
+  for (const rule of survey.held) {
+    const key = (await ctx.tool("data.digest", { value: { close: rule.handle } })).digest_result.digest.slice(7);
+    const declined = (await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation?.result;
+    if ((declined?.version ?? 0) > 0) {
+      closed.push({ handle: rule.handle, declined: declined.last_event?.data?.reason ?? null, again: false });
+      continue;
+    }
+    const reason = `Held by ${INSTRUCTIONS} at ${survey.head}, so the repository holds it.`;
+    try {
+      const disabled = await ctx.skill("runx/memory#disable", { handle: rule.handle, reason });
+      closed.push({ handle: rule.handle, reason, closed: disabled.handle });
+    } catch (rejection) {
+      if (rejection?.code !== "declined") throw rejection;
+      // A declined call's message is the person's reason.
+      const why = rejection.message ?? null;
+      await ctx.operation(
+        "store/events.append",
+        { stream: DECLINES, key, expected_version: 0, type: "close.declined", data: { handle: rule.handle, reason: why } },
+        { idempotency_key: `decline:${key}` },
+      );
+      closed.push({ handle: rule.handle, reason, declined: why, again: false });
+    }
+  }
   const { through, at_through, open, version } = survey.mark;
   let mark;
   try {
@@ -704,5 +725,5 @@ export async function keep(ctx, { reader, survey }) {
     if (rejection?.code !== "failed" && rejection?.code !== "refused") throw rejection;
     mark = { moved: false, reason: rejection.message ?? null };
   }
-  return { kept: { disable, mark } };
+  return { kept: { closed, mark } };
 }
