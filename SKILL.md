@@ -103,6 +103,8 @@ understand objective -> choose skill -> inspect authority -> run -> verify recei
      Preserve nested input types. Test examples are test data, not the user's job.
    - `needs_agent` is a pause. Read and verify its request artifact, follow its
      output contract, and continue with the full request id and request digest.
+     Answer each request, and work each turn, by the id it carries, whole. An id
+     is opaque: never build one from a method's or a step's name.
      `runx resume --help` gives the exact answer envelope. Keep one driver, the
      same working project and runx home across continuations.
    - A skill whose agent makes governed calls runs on an MCP connection, because
