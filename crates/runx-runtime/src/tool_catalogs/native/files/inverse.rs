@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::schema::{NonEmptyString, NonEmptyVec};
 use runx_contracts::{
     CallTarget, Digest, FileBoundDelete, FileBundleWrite, FileInverseBundle, JsonObject, JsonValue,
-    RunCallOutcome, RunEventFact,
+    RunCallOutcome, RunCallScript, RunEventFact,
 };
 use serde::{Deserialize, Serialize};
 
@@ -135,10 +135,14 @@ fn inverse(
             (None, None) => {}
         }
     }
-    let calls = edits
-        .into_iter()
-        .map(|edit| named(edit.call_id, "call id"))
-        .collect::<Result<Vec<_>, _>>()?;
+    // Each call named once, a script call that made several edits too.
+    let mut calls = Vec::new();
+    for edit in edits {
+        let call = named(edit.call_id, "call id")?;
+        if !calls.contains(&call) {
+            calls.push(call);
+        }
+    }
     Ok(FileInverseBundle {
         repo_root: named(repo_root, "root")?,
         writes,
@@ -148,8 +152,18 @@ fn inverse(
     })
 }
 
+/// One call as its run last recorded it.
+struct Recorded {
+    call_id: Option<String>,
+    target: CallTarget,
+    script: Option<RunCallScript>,
+    outcome: RunCallOutcome,
+}
+
 /// The completed edit calls of run `inputs.run_id` that `inputs.call_ids`
-/// name, in the order the run made them, each with its recorded output.
+/// name, in the order the run made them, each with its recorded output. A
+/// turn's script call is named by its own id, which names each edit its
+/// script made that completed.
 fn recorded_edits(
     env: &BTreeMap<String, String>,
     workspace: &Path,
@@ -162,8 +176,7 @@ fn recorded_edits(
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
     // A call is recorded as each of its outcomes; its last is how it ended.
-    let mut latest =
-        BTreeMap::<(String, u32, u32), (Option<String>, String, RunCallOutcome)>::new();
+    let mut latest = BTreeMap::<(String, u32, u32), Recorded>::new();
     let mut cursor = None;
     loop {
         let page = crate::execution::run_record::read_run(
@@ -185,7 +198,8 @@ fn recorded_edits(
                 step_id,
                 attempt,
                 index,
-                target: CallTarget::Tool { tool },
+                script,
+                target,
                 call_id,
                 outcome,
                 ..
@@ -197,11 +211,12 @@ fn recorded_edits(
             // turn or script made it.
             latest.insert(
                 (step_id.as_str().to_owned(), attempt, index),
-                (
-                    call_id.map(|id| id.as_str().to_owned()),
-                    tool.as_str().to_owned(),
-                    *outcome,
-                ),
+                Recorded {
+                    call_id: call_id.map(|id| id.as_str().to_owned()),
+                    target,
+                    script,
+                    outcome: *outcome,
+                },
             );
         }
         if !page.more {
@@ -209,20 +224,52 @@ fn recorded_edits(
         }
         cursor = Some(page.cursor.as_str().to_owned());
     }
+    // The script calls named, by their step's attempt and index.
+    let scripts = latest
+        .iter()
+        .filter(|(_, call)| call.target == CallTarget::Script)
+        .filter_map(|((step, attempt, index), call)| {
+            call.call_id
+                .as_ref()
+                .filter(|id| wanted.contains(id.as_str()))
+                .map(|id| ((step.clone(), *attempt, *index), id.clone()))
+        })
+        .collect::<BTreeMap<_, _>>();
     let artifacts = RunxPaths::resolve(env, workspace).artifacts();
     let mut edits = Vec::new();
     let mut seen = BTreeSet::new();
-    for ((_, _, index), (call_id, tool, outcome)) in latest {
-        let Some(call_id) = call_id.filter(|id| wanted.contains(id.as_str())) else {
+    for ((step, attempt, index), call) in latest {
+        let CallTarget::Tool { tool } = &call.target else {
             continue;
         };
-        if !seen.insert(call_id.clone()) {
+        let by_script = call
+            .script
+            .and_then(|place| scripts.get(&(step.clone(), attempt, place.call)));
+        let call_id = match (by_script, call.call_id) {
+            (Some(script), _) => script.clone(),
+            (None, Some(id)) if wanted.contains(id.as_str()) => id,
+            _ => continue,
+        };
+        let edit = EDITS.iter().find(|(edit, _)| *edit == tool.as_str());
+        let completed = matches!(
+            call.outcome,
+            RunCallOutcome::Completed {
+                succeeded: true,
+                ..
+            }
+        );
+        // A script's call that edited nothing it recorded is none of its
+        // edits; a call named by its own id is one.
+        if by_script.is_some() && (edit.is_none() || !completed) {
+            continue;
+        }
+        if by_script.is_none() && !seen.insert(call_id.clone()) {
             return Err(refused(format!(
                 "run {} made more than one call {call_id}",
                 inputs.run_id
             )));
         }
-        let Some((_, packet)) = EDITS.iter().find(|(edit, _)| *edit == tool) else {
+        let Some((_, packet)) = edit else {
             return Err(refused(format!(
                 "call {call_id} is a {tool} call, not an edit"
             )));
@@ -231,7 +278,7 @@ fn recorded_edits(
             succeeded: true,
             outputs,
             ..
-        } = outcome
+        } = call.outcome
         else {
             return Err(refused(format!("call {call_id} did not complete")));
         };
@@ -258,10 +305,13 @@ fn recorded_edits(
         .iter()
         .find(|id| !edits.iter().any(|edit| edit.call_id == **id))
     {
-        return Err(refused(format!(
-            "run {} made no call {missing}",
-            inputs.run_id
-        )));
+        return Err(refused(
+            if scripts.values().any(|script| script == missing) {
+                format!("call {missing}'s script made no edit")
+            } else {
+                format!("run {} made no call {missing}", inputs.run_id)
+            },
+        ));
     }
     edits.sort_by_key(|edit| edit.index);
     Ok(edits)

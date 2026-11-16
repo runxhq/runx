@@ -184,6 +184,10 @@ pub enum RunEventFact {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         turn: Option<NonEmptyString>,
         index: u32,
+        /// The script call of the turn that made it, and its position in
+        /// that script. Absent on every other call.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        script: Option<RunCallScript>,
         target: CallTarget,
         input_digest: NonEmptyString,
         /// The id its host pinned on the call.
@@ -215,6 +219,10 @@ pub enum RunEventFact {
     Clock {
         step_id: NonEmptyString,
         attempt: u32,
+        /// The script call of the turn that read it, whose position `index`
+        /// is; absent for a script step's own read.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        script: Option<u32>,
         index: u32,
         millis: i64,
     },
@@ -426,6 +434,16 @@ mod tests {
         );
         Ok(())
     }
+}
+
+/// Where a call a turn's script made stands in that script: the script call,
+/// by its index in the turn's step, and the call's position among the calls
+/// the script made, which its replay matches it by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunCallScript {
+    pub call: u32,
+    pub position: u32,
 }
 
 /// What a call that asked to reuse a result asked, and what it was answered

@@ -2130,6 +2130,20 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
+            "description": "The call's input is `{source, inputs?}`: one ECMAScript module the turn wrote, whose default export runx runs on `inputs`. Each call it makes is a call of the turn's step, admitted as the turn's own, and its result is the call's.",
+            "properties": {
+              "kind": {
+                "const": "script",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
             "description": "A script waits until `until`, in milliseconds since the epoch, the time `ctx.now()` reads. It's runx's own, and no turn is offered it.",
             "properties": {
               "kind": {
@@ -2166,7 +2180,7 @@ export const runxSchemaArtifacts = {
             "type": "object"
           }
         ],
-        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, `wait` and `read`.",
+        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, `ask` and `load` where its step allows them, and `script` where it offers a tool, an operation or a skill. A script step's script makes the calls its step's `calls` lists, and a turn's script the turn's tool calls, each by the name the turn offers it; both make `wait` and `read`.",
         "title": "CallTarget"
       },
       "CatalogHit": {
@@ -8340,6 +8354,26 @@ export const runxSchemaArtifacts = {
         "title": "RunCallReuse",
         "type": "object"
       },
+      "RunCallScript": {
+        "additionalProperties": false,
+        "description": "Where a call a turn's script made stands in that script: the script call, by its index in the turn's step, and the call's position among the calls the script made, which its replay matches it by.",
+        "properties": {
+          "call": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "position": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "call",
+          "position"
+        ],
+        "title": "RunCallScript",
+        "type": "object"
+      },
       "RunClose": {
         "additionalProperties": false,
         "description": "Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed.",
@@ -8576,6 +8610,10 @@ export const runxSchemaArtifacts = {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallReuse",
                 "description": "What the call asked of reuse, and what it was answered. Absent when it asked for none."
               },
+              "script": {
+                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallScript",
+                "description": "The script call of the turn that made it, and its position in that script. Absent on every other call."
+              },
               "standing": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/StandingApproval",
                 "description": "The standing approval that admitted it on the approval floor, when one did."
@@ -8621,6 +8659,11 @@ export const runxSchemaArtifacts = {
                 "type": "string"
               },
               "millis": {
+                "type": "integer"
+              },
+              "script": {
+                "description": "The script call of the turn that read it, whose position `index` is; absent for a script step's own read.",
+                "minimum": 0,
                 "type": "integer"
               },
               "step_id": {

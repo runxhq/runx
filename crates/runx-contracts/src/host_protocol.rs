@@ -534,9 +534,11 @@ pub struct AllowedOperation {
 
 /// What a call names, a turn's or a script's, as its step's ledger admits
 /// and records it. A turn is offered a tool, an operation or a skill its
-/// allowance lists, and `ask` and `load` where its step allows them; a script
-/// is offered a tool, an operation or a skill its step's `calls` lists,
-/// `wait` and `read`.
+/// allowance lists, `ask` and `load` where its step allows them, and
+/// `script` where it offers a tool, an operation or a skill. A script step's
+/// script makes the calls its step's `calls` lists, and a turn's script the
+/// turn's tool calls, each by the name the turn offers it; both make `wait`
+/// and `read`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CallTarget {
@@ -562,6 +564,11 @@ pub enum CallTarget {
     /// catalog rule admits, whose methods or operations the turn offers from
     /// then on.
     Load,
+    /// The call's input is `{source, inputs?}`: one ECMAScript module the
+    /// turn wrote, whose default export runx runs on `inputs`. Each call it
+    /// makes is a call of the turn's step, admitted as the turn's own, and
+    /// its result is the call's.
+    Script,
     /// A script waits until `until`, in milliseconds since the epoch, the
     /// time `ctx.now()` reads. It's runx's own, and no turn is offered it.
     Wait {

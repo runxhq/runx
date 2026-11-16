@@ -278,6 +278,60 @@ fn a_turns_read_in_flight_settles_cancelled_and_its_stop_ends_it() -> TestResult
     Ok(())
 }
 
+/// A turn's script call its host cancels goes no further: its calls run under
+/// it, so the read it has in flight settles cancelled and its stop ends it,
+/// and the script call, which changed nothing, settles cancelled with it.
+#[test]
+fn a_cancelled_script_call_ends_the_read_it_has_in_flight() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let tool = root.join("connectors/gate/tools/gate/wait");
+    std::fs::create_dir_all(&tool)?;
+    std::fs::write(root.join("connectors/gate/connector.yaml"), GATE_CONNECTOR)?;
+    std::fs::write(tool.join("manifest.json"), GATE_TOOL)?;
+    std::fs::write(tool.join("wait.sh"), WAIT_SCRIPT)?;
+    let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
+    let skill = asker(root, "          operations: [gate/gate.wait]\n")?;
+    let (run_id, session) = open(root, skill)?;
+    let wait = session
+        .status(TURN)?
+        .tools
+        .into_iter()
+        .find(|tool| tool.name.as_str().contains("gate"))
+        .ok_or("the turn offers the gate's read")?
+        .name;
+    let source = r#"export default async function (ctx, inputs) {
+  return ctx.tool(inputs.wait, { input: { started: inputs.started, release: inputs.release } }).then(
+    () => ({ read: true }),
+    (rejected) => ({ read: false, code: rejected.code }),
+  );
+}
+"#;
+    let scripting = std::thread::spawn({
+        let session = Arc::clone(&session);
+        let call = input(serde_json::json!({"source": source, "inputs": {
+            "wait": wait.as_str(),
+            "started": on.to_string_lossy(),
+            "release": off.to_string_lossy(),
+        }}))?;
+        move || session.call(TURN, "script", None, call)
+    });
+    started(&on)?;
+    assert_eq!(session.cancel("answer/0")?, CallCancel::SettlesAsItEnds);
+    let script = scripting.join().map_err(|_| "the call panicked")??;
+    assert_eq!(script.outcome, TurnCallOutcome::Cancelled, "{script:?}");
+    assert_eq!(
+        calls(root, &run_id, &run_id)?,
+        [
+            (0, "executing", false),
+            (1, "claimed", false),
+            (1, "cancelled", true),
+            (0, "cancelled", true)
+        ]
+    );
+    Ok(())
+}
+
 /// A script's call that hasn't started settles cancelled, and the script
 /// catches it. A skill call in flight is reached in its child run: its effect
 /// runs to its end, and the child, which committed it, seals killed, so the

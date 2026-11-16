@@ -1199,6 +1199,7 @@ mod tests {
             step_id: "turn".to_owned(),
             attempt: 1,
             index: 0,
+            script: None,
             call_id: None,
             target,
             input: runx_contracts::JsonObject::new(),

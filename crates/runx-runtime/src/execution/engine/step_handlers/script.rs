@@ -1,27 +1,35 @@
-//! Script steps. A script is deterministic code in the JavaScript worker that
-//! drives the calls its step lists, and the step's run record is its history.
-//! Each drive of the step passes the script from the beginning against the
-//! calls the record settled, in the order they settled, and keeps it live
-//! from there: every call it makes past the record is admitted, executed and
-//! recorded by the kernel through the same ledger an agent turn's calls go
-//! through, and its settlement is delivered to the script where it stands. A
-//! call's identity is its position in the step. After a crash, the next drive
-//! of the step replays the record and goes on from the first call it doesn't
-//! hold.
+//! Scripts. A script is deterministic code in the JavaScript worker that
+//! drives calls: a script step's, which its step lists, or a turn's script
+//! call's, which its turn offers. Its record is its history. Each drive
+//! passes the script from the beginning against the calls the record settled,
+//! in the order they settled, and keeps it live from there: every call it
+//! makes past the record is admitted, executed and recorded by the kernel
+//! through the same ledger an agent turn's calls go through, and its
+//! settlement is delivered to the script where it stands. A call's identity
+//! is its position in the script. After a crash, the next drive replays the
+//! record and goes on from the first call it doesn't hold.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::panic::AssertUnwindSafe;
+use std::path::Path;
 
 use runx_contracts::javascript_worker::{
     ScriptCall, ScriptCallOutcome, ScriptCallTarget, ScriptContext, ScriptEnding, ScriptReference,
     ScriptRejection, ScriptSettlement,
 };
-use runx_contracts::{ArtifactLabels, CallTarget, JsonObject, JsonValue, TurnCallOutcome};
-use runx_parser::ScriptStep;
+use runx_contracts::{
+    ArtifactLabels, CallTarget, JsonObject, JsonValue, Reference, ResolutionRequest,
+    TurnCallOutcome,
+};
+use runx_parser::{ScriptStep, WorkflowStep};
 
 use super::super::super::run_record::{CallOutcome, RecordedCall};
+use super::super::admission::StepAuthorityContext;
 use super::super::bounded::run_bounded;
-use super::super::turn::{Admission, CallLedger, TurnScope, past_inline_bound, resolution_request};
+use super::super::turn::{
+    Admission, CallLedger, SCRIPT_MODULE, ScriptCalls, TurnScope, open, past_inline_bound,
+    resolution_request,
+};
 use super::{
     RegularSkillSeal, RegularSkillStepOutput, StepHandlerCtx, StepReceiptLineage,
     build_ephemeral_step_output, build_step_output_projection, output_error,
@@ -29,7 +37,9 @@ use super::{
 };
 use crate::RuntimeError;
 use crate::adapter::{InvocationOutput, SkillAdapter};
-use crate::execution::engine::StepRun;
+use crate::adapters::javascript::PreparedScript;
+use crate::execution::engine::{Runtime, StepRun};
+use crate::execution::output_projection::project_step_claim;
 use crate::host::Host;
 use crate::output_contract::method_contract_checks;
 
@@ -78,51 +88,7 @@ where
         answers_each_call: host.answers_each_call(),
         given,
     });
-    // The script passes from the beginning against its record once per drive
-    // of the step, and from there stays live: each call's settlement goes on
-    // from where the script stands.
-    // What a `ctx.now()` past the record reads, and what a wait is due by:
-    // the run's clock, as each pass or settlement reaches the script.
-    let now = || {
-        runtime
-            .options
-            .clock
-            .now_millis()
-            .ok_or_else(|| RuntimeError::StepFailed {
-                step_id: step.id.clone(),
-                reason: "the run's clock reads no time for ctx.now()".to_owned(),
-            })
-    };
-    // Calls that wait on a person, a child or a time, by position. A waiting
-    // call never stops the others: the step holds only once none can go
-    // further. A wait this drive reaches at or after its `until` settles.
-    let mut waiting = further_open_calls(&mut ledger, host, now()?)?;
-    // A pass that executes apart from the driver goes on only in the child
-    // run its act is in: the script itself goes no further, and the step
-    // stands as its record has it.
-    if host.executes() {
-        let Some((position, requests)) = waiting.into_iter().next() else {
-            return Err(RuntimeError::EngineInvariant {
-                context: "executing apart from the driver",
-                message: format!("script step {} has no call open", step.id),
-            });
-        };
-        return Err(waiting_on(&step.id, position, requests));
-    }
-    let mut settled = settlements(&ledger, ledger.recorded()?)?;
-    settled.extend(clock_reads(ledger.clock()?));
-    // An input past the inline bound reaches the script by reference, an
-    // array's item by item.
-    let (given, references) = ledger.give(&inputs)?;
-    let (mut live, mut passed) =
-        runtime
-            .javascript
-            .start_script(&prepared, (&given, references), settled, now()?)?;
-    // Every call the script has made, in position order, and how many of
-    // them are calls rather than reads of the clock.
-    let mut made = Vec::new();
-    let mut calls = 0_usize;
-    let max_calls = usize::try_from(script.max_calls).unwrap_or(usize::MAX);
+    let mut calls = ScriptCalls::of_step(&mut ledger);
     // The run's max_concurrency, and the host's ceiling, narrow what the
     // step declares.
     let concurrency = usize::try_from(crate::kernel::authority::step_concurrency(
@@ -131,8 +97,145 @@ where
         script.concurrency,
     ))
     .unwrap_or(1);
+    let ended = match drive(
+        &mut calls,
+        host,
+        &prepared,
+        &inputs,
+        (script.max_calls, concurrency),
+    )? {
+        Driven::Ended(ended) => ended,
+        Driven::Waiting((position, requests)) => {
+            return Err(waiting_on(&step.id, position, requests));
+        }
+    };
+    seal_script(
+        &calls,
+        Sealing {
+            runtime,
+            workflow_dir,
+            workflow_name,
+            step,
+            attempt,
+            authority: authority.as_ref(),
+            admission_refs,
+            claim: Claim::Declared,
+        },
+        ended,
+    )
+}
+
+/// Run a turn's script call, which runs as `step`, from `source` over what
+/// its record holds of `calls`, the calls it makes: its run, sealed once the
+/// script ends, or none while a call it made waits. Its calls run one at a
+/// time.
+pub(in crate::execution::engine) fn run_script_call<A>(
+    mut calls: ScriptCalls<'_, '_, A>,
+    host: &mut dyn Host,
+    step: &WorkflowStep,
+    source: &str,
+) -> Result<Option<StepRun>, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let scope = calls.ledger().scope();
+    let prepared =
+        scope
+            .runtime
+            .javascript
+            .prepare_source(SCRIPT_MODULE, source, &scope.runtime.options.env);
+    let max_calls = runx_contracts::javascript_worker::MAX_SCRIPT_CALLS;
+    let ended = match drive(&mut calls, host, &prepared, &step.inputs, (max_calls, 1))? {
+        Driven::Ended(ended) => ended,
+        Driven::Waiting(_) => return Ok(None),
+    };
+    seal_script(
+        &calls,
+        Sealing {
+            runtime: scope.runtime,
+            workflow_dir: scope.workflow_dir,
+            workflow_name: scope.workflow_name,
+            step,
+            attempt: 1,
+            authority: None,
+            admission_refs: Vec::new(),
+            claim: Claim::Returned,
+        },
+        ended,
+    )
+    .map(Some)
+}
+
+/// How a script's drive ended.
+enum Driven {
+    /// With its output, or why it failed.
+    Ended(Result<serde_json::Value, String>),
+    /// On a call it made that waits.
+    Waiting(Waiting),
+}
+
+/// Drive the script `prepared` on `inputs` over `calls`, the calls its record
+/// holds, making each call past the record, at most `max_calls` of them and
+/// `concurrency` at once.
+fn drive<A>(
+    calls: &mut ScriptCalls<'_, '_, A>,
+    host: &mut dyn Host,
+    prepared: &PreparedScript,
+    inputs: &JsonObject,
+    (max_calls, concurrency): (u32, usize),
+) -> Result<Driven, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let scope = calls.ledger().scope();
+    let (runtime, step_id) = (scope.runtime, scope.step_id);
+    // The script passes from the beginning against its record once per drive,
+    // and from there stays live: each call's settlement goes on from where
+    // the script stands.
+    // What a `ctx.now()` past the record reads, and what a wait is due by:
+    // the run's clock, as each pass or settlement reaches the script.
+    let now = || {
+        runtime
+            .options
+            .clock
+            .now_millis()
+            .ok_or_else(|| RuntimeError::StepFailed {
+                step_id: step_id.to_owned(),
+                reason: "the run's clock reads no time for ctx.now()".to_owned(),
+            })
+    };
+    // Calls that wait on a person, a child or a time. A waiting call never
+    // stops the others: the script holds only once none can go further. A
+    // wait this drive reaches at or after its `until` settles.
+    let mut waiting = further_open_calls(calls, host, now()?)?;
+    // A pass that executes apart from the driver goes on only in the child
+    // run its act is in: the script itself goes no further, and it stands as
+    // its record has it.
+    if host.executes() {
+        let Some(waits) = waiting.into_iter().next() else {
+            return Err(RuntimeError::EngineInvariant {
+                context: "executing apart from the driver",
+                message: format!("the script of {step_id} has no call open"),
+            });
+        };
+        return Ok(Driven::Waiting(waits));
+    }
+    let mut settled = settlements(calls, calls.recorded()?)?;
+    settled.extend(clock_reads(&calls.clock()?));
+    // An input past the inline bound reaches the script by reference, an
+    // array's item by item.
+    let (given, references) = calls.give(inputs)?;
+    let (mut live, mut passed) =
+        runtime
+            .javascript
+            .start_script(prepared, (&given, references), settled, now()?)?;
+    // Every call the script has made, in position order, and how many of
+    // them are calls rather than reads of the clock.
+    let mut made = Vec::new();
+    let mut count = 0_usize;
+    let max = usize::try_from(max_calls).unwrap_or(usize::MAX);
     let ended = loop {
-        matches_record(&step.id, &passed.calls, ledger.recorded()?, ledger.clock()?)?;
+        matches_record(calls, &passed.calls, &calls.recorded()?, &calls.clock()?)?;
         // A clock read past the record is recorded at its position as the
         // script made it, before anything else the pass did.
         let read = passed
@@ -144,20 +247,20 @@ where
             })
             .collect::<Vec<_>>();
         for (position, millis) in read {
-            if !ledger.clock()?.contains_key(&position) {
-                ledger.record_clock(position, millis)?;
+            if !calls.clock()?.contains_key(&position) {
+                calls.record_clock(position, millis)?;
             }
         }
         // Only a call this report holds can be new: every earlier one was made
         // before the script was given its settlement.
         let new = {
-            let recorded = ledger.recorded()?;
+            let recorded = calls.recorded()?;
             passed
                 .calls
                 .iter()
                 .filter(|call| {
                     !matches!(call.target, ScriptCallTarget::Now { .. })
-                        && at(recorded, call.position).is_none()
+                        && at(&recorded, call.position).is_none()
                 })
                 .cloned()
                 .collect::<Vec<_>>()
@@ -169,7 +272,7 @@ where
             .partition(|call| matches!(call.target, ScriptCallTarget::Wait { .. }));
         for call in &waits {
             if let ScriptCallTarget::Wait { until } = call.target {
-                waiting.push((call.position, vec![ledger.wait(call.position, until)?]));
+                waiting.push((call.position, vec![calls.wait(call.position, until)?]));
             }
         }
         // A read of a reference is the ledger's own too, settled at once.
@@ -178,11 +281,10 @@ where
             .partition(|call| matches!(call.target, ScriptCallTarget::Read { .. }));
         for call in &reads {
             if let ScriptCallTarget::Read { digest } = &call.target {
-                ledger.read(call.position, digest)?;
+                calls.read(call.position, digest)?;
             }
         }
-        let recorded = ledger.recorded()?;
-        calls += passed
+        count += passed
             .calls
             .iter()
             .filter(|call| !matches!(call.target, ScriptCallTarget::Now { .. }))
@@ -191,7 +293,7 @@ where
         match passed.ending {
             ScriptEnding::Diverged { position } => {
                 return Err(diverged(
-                    &step.id,
+                    step_id,
                     position,
                     "the record settles a call the script didn't make",
                 ));
@@ -203,58 +305,56 @@ where
                 return Err(RuntimeError::EngineInvariant {
                     context: "a script's output",
                     message: format!(
-                        "script step {} was given its output's size, not the output",
-                        step.id
+                        "the script of {step_id} was given its output's size, not the output"
                     ),
                 });
             }
             ScriptEnding::Returned { output } => {
                 // The output counts only once every call the script started
                 // has settled.
-                if let Some(position) = outstanding(&made, recorded) {
+                if let Some(position) = outstanding(&made, &calls.recorded()?) {
                     break Err(format!(
                         "the script returned with call {position} outstanding; a script awaits every call it starts"
                     ));
                 }
                 // A reference it returns is its field's value, which no copy
                 // through the script carries.
-                break referenced(&ledger, output)?;
+                break referenced(calls.ledger(), output)?;
             }
             ScriptEnding::Waiting => {
                 if new.is_empty() && waits.is_empty() && reads.is_empty() {
-                    if let Some((position, requests)) = waiting.into_iter().next() {
-                        return Err(waiting_on(&step.id, position, requests));
+                    if let Some(waits) = waiting.into_iter().next() {
+                        return Ok(Driven::Waiting(waits));
                     }
                     break Err(
                         "the script waits on something that is not one of its calls".to_owned()
                     );
                 }
-                if calls > max_calls {
-                    break Err(format!(
-                        "the script reached its max_calls of {}",
-                        script.max_calls
-                    ));
+                if count > max {
+                    break Err(format!("the script reached its max_calls of {max_calls}"));
                 }
                 let positions = reads
                     .iter()
                     .chain(&new)
                     .map(|call| call.position)
                     .collect::<Vec<_>>();
-                match make_calls(&mut ledger, host, new, concurrency)? {
+                match make_calls(calls, host, new, concurrency)? {
                     Err(refusal) => break Err(refusal),
                     Ok(still) => waiting.extend(still),
                 }
-                let recorded = ledger.recorded()?;
-                let fresh = settlements(
-                    &ledger,
-                    positions
-                        .iter()
-                        .filter_map(|position| at(recorded, *position)),
-                )?;
+                let fresh = {
+                    let recorded = calls.recorded()?;
+                    settlements(
+                        calls,
+                        positions
+                            .iter()
+                            .filter_map(|position| at(&recorded, *position)),
+                    )?
+                };
                 if fresh.is_empty() {
                     // Every new call waits, so nothing can go further.
-                    if let Some((position, requests)) = waiting.into_iter().next() {
-                        return Err(waiting_on(&step.id, position, requests));
+                    if let Some(waits) = waiting.into_iter().next() {
+                        return Ok(Driven::Waiting(waits));
                     }
                     break Err("the script's calls settled to nothing".to_owned());
                 }
@@ -266,14 +366,58 @@ where
     // A script that ended without its output, by a throw, a rejection it
     // never handled, an early return or a limit, leaves nothing it started
     // running: what it left open is dropped, and an effect whose end isn't
-    // known holds the step until it settles. Only then does the step fail,
-    // with the script's own reason, which a replay reaches again.
+    // known holds the script until it settles. Only then does it fail, with
+    // its own reason, which a replay reaches again.
     if ended.is_err()
-        && let Some((position, requests)) = drop_open_calls(&mut ledger, host)?
+        && let Some(waits) = drop_open_calls(calls, host)?
     {
-        return Err(waiting_on(&step.id, position, requests));
+        return Ok(Driven::Waiting(waits));
     }
-    let recorded = ledger.recorded()?;
+    Ok(Driven::Ended(ended))
+}
+
+/// Where a script's run is sealed, what admitted it, and what it claims.
+struct Sealing<'r, A> {
+    runtime: &'r Runtime<A>,
+    workflow_dir: &'r Path,
+    workflow_name: &'r str,
+    step: &'r WorkflowStep,
+    attempt: u32,
+    authority: Option<&'r StepAuthorityContext>,
+    admission_refs: Vec<Reference>,
+    claim: Claim,
+}
+
+/// What a script's run claims of what it returned.
+enum Claim {
+    /// What its step declares.
+    Declared,
+    /// All of it: a turn's script call declares nothing, and what the script
+    /// returns is the call's result.
+    Returned,
+}
+
+/// Seal the run of a script that `ended` over `calls`, as `sealing` places
+/// it: its receipt names each call the script made that completed, in order.
+fn seal_script<A>(
+    calls: &ScriptCalls<'_, '_, A>,
+    sealing: Sealing<'_, A>,
+    ended: Result<serde_json::Value, String>,
+) -> Result<StepRun, RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let Sealing {
+        runtime,
+        workflow_dir,
+        workflow_name,
+        step,
+        attempt,
+        authority,
+        admission_refs,
+        claim,
+    } = sealing;
+    let recorded = calls.recorded()?;
     // What the script made is made from what its calls returned and what it
     // read.
     let read =
@@ -282,7 +426,7 @@ where
             CallOutcome::Read(artifact) => Some(&artifact.labels),
             _ => None,
         }));
-    let calls = recorded
+    let completed = recorded
         .iter()
         .filter_map(|call| match &call.outcome {
             CallOutcome::Completed(run) => Some(run.as_ref()),
@@ -297,16 +441,21 @@ where
         ),
         Err(message) => InvocationOutput::runtime_failure(JsonValue::Null, message, 0),
     };
-    let projection = build_step_output_projection(
-        step,
-        &output,
-        None,
-        None,
-        workflow_dir,
-        &super::verdict::Evaluating::Step(&|| {
-            super::verdict::evaluator(runtime, workflow_dir, step)
-        }),
-    )?;
+    let projection = match claim {
+        Claim::Returned if output.succeeded() => {
+            project_step_claim(output.value.as_object().cloned().unwrap_or_default(), None)
+        }
+        Claim::Declared | Claim::Returned => build_step_output_projection(
+            step,
+            &output,
+            None,
+            None,
+            workflow_dir,
+            &super::verdict::Evaluating::Step(&|| {
+                super::verdict::evaluator(runtime, workflow_dir, step)
+            }),
+        )?,
+    };
     let ephemeral_contract = build_ephemeral_step_output(step, &output, None, None);
     if output.succeeded() {
         output.observations.contract = method_contract_checks(
@@ -325,7 +474,7 @@ where
             step,
             attempt,
             skill_name: step.id.clone(),
-            authority: authority.as_ref(),
+            authority,
             admission_refs,
             ending: None,
             refusal: None,
@@ -335,15 +484,16 @@ where
             output,
             projection,
             ephemeral_contract,
-            // The step's receipt names each call the script made, in order.
-            receipt_lineage: StepReceiptLineage::of_turn(&calls),
+            // The receipt names each call the script made, in order.
+            receipt_lineage: StepReceiptLineage::of_turn(&completed),
             read,
         },
     )
 }
 
-/// A call that waits, at its position, with the requests it waits on.
-type Waiting = (u32, Vec<runx_contracts::ResolutionRequest>);
+/// A call that waits, by its index in its step, with the requests it waits
+/// on.
+type Waiting = (u32, Vec<ResolutionRequest>);
 
 /// Make each new call: admitted in position order under the driver, then run
 /// at most `concurrency` at once, apart from the driver where its host can
@@ -351,7 +501,7 @@ type Waiting = (u32, Vec<runx_contracts::ResolutionRequest>);
 /// finish. Return those that wait on a person or a child; a waiting call
 /// doesn't stop the next.
 fn make_calls<A>(
-    ledger: &mut CallLedger<'_, A>,
+    calls: &mut ScriptCalls<'_, '_, A>,
     host: &mut dyn Host,
     new: Vec<ScriptCall>,
     concurrency: usize,
@@ -364,7 +514,7 @@ where
     // any is admitted, so one it can't leaves none of them claimed.
     let mut made = Vec::with_capacity(new.len());
     for call in new {
-        match ledger_call(&call.target) {
+        match ledger_call(calls, &call.target) {
             Ok(Some((target, input, context))) => made.push((call, target, input, context)),
             Ok(None) => {
                 return Err(RuntimeError::EngineInvariant {
@@ -377,17 +527,16 @@ where
     }
     let mut admitted = Vec::new();
     for (call, target, input, context) in made {
-        match ledger.admit(
+        match calls.admit(
             host,
             call.position,
             target,
-            input,
-            context,
+            (input, context),
             reuse(&call.target),
         )? {
             Admission::Settled(result) => {
                 if let TurnCallOutcome::Pending { waiting: requests } = result.outcome {
-                    waiting.push((call.position, requests));
+                    waiting.push((result.index, requests));
                 }
             }
             Admission::Admitted(call) => admitted.push(*call),
@@ -408,6 +557,7 @@ where
         }
         Ok::<(), RuntimeError>(())
     };
+    let ledger = calls.ledger_mut();
     match detached {
         // Each call runs on a thread of its own with its own host.
         Some(hosts) => {
@@ -463,21 +613,21 @@ where
 /// Drop each call the script left open, and return the first that still
 /// waits on its effect's end, with what it waits on.
 fn drop_open_calls<A>(
-    ledger: &mut CallLedger<'_, A>,
+    calls: &mut ScriptCalls<'_, '_, A>,
     host: &mut dyn Host,
 ) -> Result<Option<Waiting>, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let open = ledger
+    let left = calls
         .recorded()?
         .iter()
-        .filter(|call| !settled(&call.outcome))
+        .filter(|call| open(&call.outcome))
         .map(|call| call.index)
         .collect::<Vec<_>>();
     let mut held = None;
-    for index in open {
-        let waiting = ledger.drop_open(host, index)?;
+    for index in left {
+        let waiting = calls.ledger_mut().drop_open(host, index)?;
         if held.is_none() && !waiting.is_empty() {
             held = Some((index, waiting));
         }
@@ -488,22 +638,23 @@ where
 /// Take each recorded call that hasn't settled further, and return those that
 /// still wait: a run paused on one goes on from it.
 fn further_open_calls<A>(
-    ledger: &mut CallLedger<'_, A>,
+    calls: &mut ScriptCalls<'_, '_, A>,
     host: &mut dyn Host,
     now: i64,
 ) -> Result<Vec<Waiting>, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let open = ledger
+    let left = calls
         .recorded()?
         .iter()
-        .filter(|call| !settled(&call.outcome))
+        .filter(|call| open(&call.outcome))
         .map(|call| (call.index, call.target.clone(), call.outcome.clone()))
         .collect::<Vec<_>>();
     let mut waiting = Vec::new();
+    let ledger = calls.ledger_mut();
     let step = ledger.step_address();
-    for (index, target, outcome) in open {
+    for (index, target, outcome) in left {
         // A call executing apart from this pass is its own.
         if host.executing(&step, index) {
             continue;
@@ -560,13 +711,13 @@ fn waiting_on(
     }
 }
 
-/// The recorded call at `position`. A step's calls are recorded in position
+/// The recorded call at `position` among a script's, which are in position
 /// order.
-fn at(recorded: &[RecordedCall], position: u32) -> Option<&RecordedCall> {
+fn at<'r>(recorded: &[&'r RecordedCall], position: u32) -> Option<&'r RecordedCall> {
     recorded
-        .binary_search_by_key(&position, |call| call.index)
+        .binary_search_by_key(&position, |call| call.position())
         .ok()
-        .and_then(|found| recorded.get(found))
+        .and_then(|found| recorded.get(found).copied())
 }
 
 /// The script's output, each reference it holds, at any depth, taking the
@@ -646,44 +797,29 @@ fn clock_reads(clock: &BTreeMap<u32, i64>) -> impl Iterator<Item = ScriptSettlem
     })
 }
 
-/// What `calls` settled to, in the order they settled, as the script's
-/// promises take it.
+/// What `made`, calls of the script, settled to, in the order they settled,
+/// as the script's promises take it.
 fn settlements<'r, A>(
-    ledger: &CallLedger<'_, A>,
-    calls: impl IntoIterator<Item = &'r RecordedCall>,
+    calls: &ScriptCalls<'_, '_, A>,
+    made: impl IntoIterator<Item = &'r RecordedCall>,
 ) -> Result<Vec<ScriptSettlement>, RuntimeError>
 where
     A: SkillAdapter,
 {
-    let mut settled = calls
+    let mut settled = made
         .into_iter()
-        .filter(|call| settled(&call.outcome))
+        .filter(|call| !open(&call.outcome))
         .collect::<Vec<_>>();
     settled.sort_by_key(|call| call.order);
     settled
         .into_iter()
         .map(|call| {
             Ok(ScriptSettlement {
-                position: call.index,
-                outcome: settlement(ledger, call)?,
+                position: call.position(),
+                outcome: settlement(calls.ledger(), call)?,
             })
         })
         .collect()
-}
-
-fn settled(outcome: &CallOutcome) -> bool {
-    matches!(
-        outcome,
-        CallOutcome::Completed(_)
-            | CallOutcome::Refused(_)
-            | CallOutcome::Declined(_)
-            | CallOutcome::Failed(_)
-            | CallOutcome::RetryDeclined
-            | CallOutcome::Cancelled
-            | CallOutcome::Waited(_)
-            | CallOutcome::Read(_)
-            | CallOutcome::TooLarge { .. }
-    )
 }
 
 /// What `call` settled to, as the script's promise takes it. A result the
@@ -706,7 +842,7 @@ where
             ScriptRejection::Refused,
             format!(
                 "call {} reads what's labelled local_only, and this step's host can't say its model runs on this machine",
-                call.index
+                call.position()
             ),
         ),
         CallOutcome::Completed(run) if run.outcome.succeeded() => {
@@ -813,12 +949,16 @@ fn rejected(reason: ScriptRejection, message: String) -> ScriptCallOutcome {
 /// Every call the pass made at a recorded position must be the call the
 /// record holds there: the same target and the same input, or a clock read
 /// of the same time. A mismatch is a failed recovery, and nothing acts on it.
-fn matches_record(
-    step_id: &str,
+fn matches_record<A>(
+    scripted: &ScriptCalls<'_, '_, A>,
     calls: &[ScriptCall],
-    recorded: &[RecordedCall],
+    recorded: &[&RecordedCall],
     clock: &BTreeMap<u32, i64>,
-) -> Result<(), RuntimeError> {
+) -> Result<(), RuntimeError>
+where
+    A: SkillAdapter,
+{
+    let step_id = scripted.ledger().scope().step_id;
     let digest = crate::execution::run_record::call_input_digest;
     for call in calls {
         let read = clock.get(&call.position);
@@ -843,7 +983,7 @@ fn matches_record(
         let Some(known) = at(recorded, call.position) else {
             continue;
         };
-        let same = match ledger_call(&call.target) {
+        let same = match ledger_call(scripted, &call.target) {
             Ok(Some((target, input, context))) => {
                 known.target == target
                     && digest(&known.input, &known.context)? == digest(&input, &context)?
@@ -862,11 +1002,11 @@ fn matches_record(
 }
 
 /// The first call the script made that the record doesn't show settled.
-fn outstanding(calls: &[ScriptCall], recorded: &[RecordedCall]) -> Option<u32> {
+fn outstanding(calls: &[ScriptCall], recorded: &[&RecordedCall]) -> Option<u32> {
     let settled = recorded
         .iter()
-        .filter(|known| settled(&known.outcome))
-        .map(|known| known.index)
+        .filter(|known| !open(&known.outcome))
+        .map(|known| known.position())
         .collect::<BTreeSet<_>>();
     calls
         .iter()
@@ -904,13 +1044,41 @@ fn diverged(step_id: &str, position: u32, why: &str) -> RuntimeError {
 /// A script's call as the ledger records it: what it names, its input, and
 /// the context a skill call gives its child. `None` for `ctx.now()`, which
 /// isn't a call the ledger makes; an error for a call the ledger can't name.
-fn ledger_call(
+/// A turn's script makes its turn's calls with `ctx.tool`, each by the name
+/// its turn offers it and with the input it takes there, so it makes exactly
+/// a call the turn could; a script step names what its step's `calls` list.
+fn ledger_call<A>(
+    calls: &ScriptCalls<'_, '_, A>,
     target: &ScriptCallTarget,
-) -> Result<Option<(CallTarget, JsonObject, Vec<ScriptContext>)>, String> {
+) -> Result<Option<(CallTarget, JsonObject, Vec<ScriptContext>)>, String>
+where
+    A: SkillAdapter,
+{
     let object = |inputs: &serde_json::Value| {
         serde_json::from_value::<JsonObject>(inputs.clone())
             .map_err(|error| format!("a call's inputs are a JSON object: {error}"))
     };
+    if let Some(named) = calls.named() {
+        match target {
+            ScriptCallTarget::Tool { name, inputs } => {
+                let target = named.get(name).cloned().ok_or_else(|| {
+                    format!(
+                        "this turn offers no call {name:?}; a script makes the turn's calls by the names the turn offers them"
+                    )
+                })?;
+                return Ok(Some((target, object(inputs)?, Vec::new())));
+            }
+            ScriptCallTarget::Skill { .. } | ScriptCallTarget::Operation { .. } => {
+                return Err(
+                    "a turn's script makes the turn's calls with ctx.tool, by the names the turn offers them"
+                        .to_owned(),
+                );
+            }
+            ScriptCallTarget::Wait { .. }
+            | ScriptCallTarget::Read { .. }
+            | ScriptCallTarget::Now { .. } => {}
+        }
+    }
     Ok(Some(match target {
         ScriptCallTarget::Skill {
             reference,

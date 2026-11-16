@@ -355,7 +355,7 @@ export type CallCostContract = {
   readonly settled_usd_micro?: number;
 };
 
-/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, and `ask` and `load` where its step allows them; a script is offered a tool, an operation or a skill its step's `calls` lists, `wait` and `read`. */
+/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, `ask` and `load` where its step allows them, and `script` where it offers a tool, an operation or a skill. A script step's script makes the calls its step's `calls` lists, and a turn's script the turn's tool calls, each by the name the turn offers it; both make `wait` and `read`. */
 export type CallTargetContract = {
   readonly kind: "tool";
   readonly tool: string;
@@ -372,6 +372,8 @@ export type CallTargetContract = {
   readonly kind: "ask";
 } | {
   readonly kind: "load";
+} | {
+  readonly kind: "script";
 } | {
   readonly kind: "wait";
   readonly until: number;
@@ -2766,6 +2768,12 @@ export type RunCallReuseContract = {
   readonly model?: string;
 };
 
+/** Where a call a turn's script made stands in that script: the script call, by its index in the turn's step, and the call's position among the calls the script made, which its replay matches it by. */
+export type RunCallScriptContract = {
+  readonly call: number;
+  readonly position: number;
+};
+
 /** Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed. */
 export type RunCloseContract = {
   readonly outcome: CloseOutcomeContract;
@@ -2843,6 +2851,8 @@ export type RunEventFactContract = {
   readonly outcome: RunCallOutcomeContract;
   /** What the call asked of reuse, and what it was answered. Absent when it asked for none. */
   readonly reuse?: RunCallReuseContract;
+  /** The script call of the turn that made it, and its position in that script. Absent on every other call. */
+  readonly script?: RunCallScriptContract;
   /** The standing approval that admitted it on the approval floor, when one did. */
   readonly standing?: StandingApprovalContract;
   readonly step_id: string;
@@ -2854,6 +2864,8 @@ export type RunEventFactContract = {
   readonly index: number;
   readonly kind: "clock";
   readonly millis: number;
+  /** The script call of the turn that read it, whose position `index` is; absent for a script step's own read. */
+  readonly script?: number;
   readonly step_id: string;
 } | {
   readonly kind: "sealed";

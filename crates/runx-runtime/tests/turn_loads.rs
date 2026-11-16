@@ -349,7 +349,7 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
     );
     assert_eq!(
         tool_names(&turn)?,
-        ["load", "skill__acme_echo__say"],
+        ["load", "skill__acme_echo__say", "script"],
         "the loaded method is a tool of the turn"
     );
 
@@ -776,7 +776,10 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
             .collect::<Vec<_>>(),
         [("say", false), ("shout", true)]
     );
-    assert_eq!(tool_names(&turn)?, ["load", "skill__acme_voice__shout"]);
+    assert_eq!(
+        tool_names(&turn)?,
+        ["load", "skill__acme_voice__shout", "script"]
+    );
     Ok(())
 }
 
@@ -1135,6 +1138,25 @@ fn loads_and_calls_store(project: &Project, session: PathBuf) -> TestResult {
     assert!(
         serde_json::to_string(&append)?.contains("a turn's own call never does"),
         "{append:?}"
+    );
+    // Nor does a script the turn runs: each call it makes is the turn's own.
+    let source = r#"export default async function (ctx) {
+  const append = { stream: "items", key: "k", expected_version: 0, type: "item.added", data: {} };
+  return ctx.tool("store__events_append", { input: append }).then(
+    () => ({ appended: true }),
+    (rejected) => ({ appended: false, message: rejected.message }),
+  );
+}
+"#;
+    let scripted = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({"source": source}))?,
+    )?;
+    assert!(
+        serde_json::to_string(&scripted)?.contains("a turn's own call never does"),
+        "{scripted:?}"
     );
     Ok(())
 }

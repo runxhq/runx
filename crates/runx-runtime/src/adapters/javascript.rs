@@ -268,6 +268,25 @@ impl JavaScriptAdapter {
         bundle::validated_script(script, package, env.get(WORKER_PATH_ENV).cloned())
     }
 
+    /// Prepare the one module a turn's script call gives, `source`, by the
+    /// name `module`: no package holds it, it imports nothing, and its
+    /// default export runs within the kernel's ceiling on a script's calls.
+    pub(crate) fn prepare_source(
+        &self,
+        module: &str,
+        source: &str,
+        env: &std::collections::BTreeMap<String, String>,
+    ) -> PreparedScript {
+        PreparedScript {
+            entry_module: module.to_owned(),
+            export_name: "default".to_owned(),
+            modules: std::collections::BTreeMap::from([(module.to_owned(), source.to_owned())]),
+            worker_path: env.get(WORKER_PATH_ENV).cloned(),
+            limits: runx_contracts::javascript_worker::InvocationLimits::default(),
+            max_calls: runx_contracts::javascript_worker::MAX_SCRIPT_CALLS,
+        }
+    }
+
     /// Run `prepared` from the beginning against what its calls `settled`,
     /// in the order they settled; a `ctx.now()` past the record reads `now`.
     /// The script comes back live, to take each further settlement where it

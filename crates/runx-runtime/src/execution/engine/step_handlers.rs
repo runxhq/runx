@@ -26,6 +26,7 @@ use runx_parser::{AskGate, AskReason, OutputArtifacts, StepKind, ToolTarget, Wor
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
+pub(super) use self::script::run_script_call;
 use self::verdict::Evaluating;
 use super::super::skill_context::load_context_skills;
 use super::super::workflow::{

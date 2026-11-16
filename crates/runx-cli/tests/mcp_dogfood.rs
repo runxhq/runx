@@ -658,6 +658,114 @@ fn runx_turn_serves_a_runs_open_turns_and_completes_one() -> Result<(), Box<dyn 
     Ok(())
 }
 
+/// A turn's script killed mid-way recovers from its record and makes no
+/// call twice: the host that died had run the script's second call and not
+/// recorded it, so the next host to open the turn drives the script again
+/// over its record, giving back the first call as it settled and running
+/// the second, a safe read, once to its record.
+#[test]
+fn a_turns_script_killed_mid_way_recovers_from_its_record() -> Result<(), Box<dyn std::error::Error>>
+{
+    let workspace = TestTempDir::new("runx-turn-script-crash")?;
+    let skill_dir = workspace.path().join("turn-demo");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: turn-demo\ndescription: Answers with what it digested.\n---\n# Turn demo\n\n## Agent task: answer\n\nDigest what you need, then answer.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [data.digest]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let receipts = workspace.path().join("receipts");
+    let started = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key")
+        .current_dir(workspace.path())
+        .env("RUNX_CWD", workspace.path())
+        .arg("skill")
+        .arg(&skill_dir)
+        .args(["--input", "question=what digests?", "--receipt-dir"])
+        .arg(&receipts)
+        .arg("--json")
+        .output()?;
+    let started: Value = serde_json::from_slice(&started.stdout)?;
+    let run_id = started["run_id"]
+        .as_str()
+        .ok_or("missing run_id")?
+        .to_owned();
+    let host = |crash: Option<&str>| -> Result<McpProcess, Box<dyn std::error::Error>> {
+        let mut command = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key");
+        command
+            .current_dir(workspace.path())
+            .env("RUNX_CWD", workspace.path())
+            .args(["mcp", "--run", run_id.as_str(), "--receipt-dir"])
+            .arg(&receipts);
+        if let Some(crash) = crash {
+            command.env("RUNX_CRASH_AT", crash);
+        }
+        let mut server = spawn_stdio(command)?;
+        write_frame(server.stdin_mut()?, &initialize_request(1))?;
+        server.read_response("initialize")?;
+        write_frame(server.stdin_mut()?, &initialized_notification())?;
+        Ok(server)
+    };
+    let source = "export default async function (ctx) {\n  const first = await ctx.tool(\"data_digest\", { value: \"first\", encoding: \"utf8_text\" });\n  const second = await ctx.tool(\"data_digest\", { value: \"second\", encoding: \"utf8_text\" });\n  return { digested: [Object.keys(first).length, Object.keys(second).length] };\n}\n";
+
+    // The script call is 0 and its calls 1 and 2: the host dies after call 2
+    // ran, before its record.
+    let mut dying = host(Some("after_execution@answer/2"))?;
+    write_frame(
+        dying.stdin_mut()?,
+        &request(
+            2,
+            "tools/call",
+            json!({"name": "turn_call", "arguments": {
+                "turn": "answer",
+                "tool": "script",
+                "input": {"source": source},
+            }}),
+        ),
+    )?;
+    assert!(dying.read_response("turn_call").is_err(), "the host died");
+    assert!(!dying.wait_exit()?.success());
+
+    let mut recovering = host(None)?;
+    write_frame(
+        recovering.stdin_mut()?,
+        &request(
+            3,
+            "tools/call",
+            json!({"name": "turn_status", "arguments": {"turn": "answer"}}),
+        ),
+    )?;
+    let status = recovering.read_response("turn_status")?;
+    let script = &status["result"]["structuredContent"]["calls"][0];
+    assert_eq!(script["outcome"]["status"], "completed", "{status}");
+    assert_eq!(
+        script["outcome"]["output"],
+        json!({"digested": [1, 1]}),
+        "{status}"
+    );
+    let history = isolated_runx_command_with_inherited_cwd("mcp-dogfood-test-key")
+        .current_dir(workspace.path())
+        .env("RUNX_CWD", workspace.path())
+        .args(["history", run_id.as_str(), "--json"])
+        .output()?;
+    let history: Value = serde_json::from_slice(&history.stdout)?;
+    let events = history["events"].as_array().ok_or("missing events")?;
+    for index in [1, 2] {
+        let completed = events
+            .iter()
+            .filter(|record| {
+                record["event"]["kind"] == "call"
+                    && record["event"]["index"] == index
+                    && record["event"]["outcome"]["status"] == "completed"
+            })
+            .count();
+        assert_eq!(completed, 1, "call {index} ran once: {history}");
+    }
+    Ok(())
+}
+
 /// A host's cancellation of a turn call (`notifications/cancelled`) stops it
 /// gracefully: the command it runs is terminated, the run records the call,
 /// and the turn's next call runs on the same connection. MCP sends no reply

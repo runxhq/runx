@@ -147,10 +147,13 @@ pub(crate) fn count_recorded_calls(
     attempt: u32,
     calls: &[&RecordedCall],
 ) -> Result<(), RuntimeError> {
+    // A script call's receipt holds those of the calls its script made,
+    // which are counted as the step's own.
     let completed = calls
         .iter()
-        .filter_map(|call| match &call.outcome {
-            CallOutcome::Completed(run) => Some(run.receipts()),
+        .filter_map(|call| match (&call.outcome, &call.target) {
+            (CallOutcome::Completed(_), CallTarget::Script) => Some(1),
+            (CallOutcome::Completed(run), _) => Some(run.receipts()),
             _ => None,
         })
         .sum();

@@ -317,6 +317,7 @@ fn project(
                 attempt: call.attempt,
                 turn: call.turn.map(|turn| turn.request_id.into()),
                 index: call.index,
+                script: call.script,
                 target: call.target,
                 input_digest: call_input_digest(&input, &context)?.into(),
                 call_id: call.call_id.map(Into::into),
@@ -330,6 +331,7 @@ fn project(
         RunEvent::Clock(read) => RunEventFact::Clock {
             step_id: read.step_id.into(),
             attempt: read.attempt,
+            script: read.script,
             index: read.index,
             millis: read.millis,
         },

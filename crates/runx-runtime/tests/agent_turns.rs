@@ -346,7 +346,7 @@ fn a_turn_shows_what_it_may_call_by_the_names_its_calls_take() -> TestResult {
     );
     assert_eq!(
         tool_names(&status),
-        ["data_digest", "skill__digest-child", "ask_human"]
+        ["data_digest", "skill__digest-child", "ask_human", "script"]
     );
     let digest = turn.call(
         TURN,
@@ -566,7 +566,7 @@ fn a_turn_inside_a_child_skill_is_worked_at_its_own_address() -> TestResult {
     let turn = paused.open()?;
     assert_eq!(
         tool_names(&turn.status(child_turn)?),
-        ["data_digest", "skill__digest-child", "ask_human"],
+        ["data_digest", "skill__digest-child", "ask_human", "script"],
         "the child's turn offers the child's limits"
     );
 
@@ -778,7 +778,7 @@ fn a_call_into_a_skill_whose_agent_shares_the_task_opens_a_turn_of_its_own() -> 
     let turn = paused.open()?;
     assert_eq!(
         tool_names(&turn.status(TURN)?),
-        ["skill__answer-child"],
+        ["skill__answer-child", "script"],
         "a turn may ask the human only when its skill declares asks"
     );
     let child = turn.call(TURN, "skill__answer-child", None, JsonObject::new())?;
@@ -3352,6 +3352,340 @@ fn an_unattended_edit_under_a_standing_approval_never_reads_a_credential() -> Te
         let said = serde_json::to_string(&read)?;
         assert!(said.contains("secret"), "refused as a secret: {said}");
         assert!(!said.contains("fixture-secret"), "{secret}: {said}");
+    }
+    Ok(())
+}
+
+/// Each call event of run `run_id`: its index, where a turn's script made it
+/// (the script call and the position there), its target, and how it stood.
+type CallEvent = (
+    u32,
+    Option<(u32, u32)>,
+    runx_contracts::CallTarget,
+    RunCallOutcome,
+);
+
+fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<CallEvent>> {
+    let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
+    Ok(read
+        .events
+        .into_iter()
+        .filter_map(|record| match record.event {
+            RunEventFact::Call {
+                index,
+                script,
+                target,
+                outcome,
+                ..
+            } => Some((
+                index,
+                script.map(|place| (place.call, place.position)),
+                target,
+                *outcome,
+            )),
+            _ => None,
+        })
+        .collect())
+}
+
+/// The calls of `events` a turn's script made: each one's index, the script
+/// call and its position there.
+fn scripted(events: &[CallEvent]) -> std::collections::BTreeSet<(u32, u32, u32)> {
+    events
+        .iter()
+        .filter_map(|(index, script, ..)| script.map(|(call, position)| (*index, call, position)))
+        .collect()
+}
+
+/// A turn's script makes the turn's calls by the names the turn offers them,
+/// each a call of the turn's step at an index of its own, linked to the
+/// script call and its position there, and the call settles with what the
+/// script returns. Its source is in the record before its first call
+/// (CON25), its host is shown the turn's own calls alone, and made again by
+/// its id it's the call already made. The turn's receipt names the script
+/// call, whose own receipt names the calls its script made. A script that
+/// imports is refused before anything runs.
+#[test]
+fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
+    let temp = tempdir()?;
+    let paused = Paused::start(temp.path(), write_turn_skill(temp.path())?, TURN)?;
+    let turn = paused.open()?;
+    let imports = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({
+            "source": "import helper from \"./helper.mjs\";\nexport default async () => helper();\n",
+        }))?,
+    )?;
+    assert!(
+        matches!(&imports.outcome, TurnCallOutcome::Refused { reason } if reason.as_str().contains("imports nothing")),
+        "{imports:?}"
+    );
+
+    let source = r#"export default async function (ctx, inputs) {
+  const digests = await Promise.all(
+    inputs.values.map((value) => ctx.tool("data_digest", { value, encoding: "utf8_text" })),
+  );
+  const child = await ctx.tool("skill__digest-child", { value: "child" });
+  return { digested: digests.length, child: Object.keys(child).length > 0 };
+}
+"#;
+    let made = input(serde_json::json!({"source": source, "inputs": {"values": ["a", "b"]}}))?;
+    let script = turn.call(TURN, "script", Some("digests"), made.clone())?;
+    let TurnCallOutcome::Completed {
+        output, receipt_id, ..
+    } = &script.outcome
+    else {
+        return Err(format!("the script completes: {script:?}").into());
+    };
+    assert_eq!(
+        serde_json::to_value(output)?,
+        serde_json::json!({"digested": 2, "child": true})
+    );
+    assert_eq!(statuses(&turn.status(TURN)?), ["refused", "completed"]);
+    let again = turn.call(TURN, "script", Some("digests"), made)?;
+    assert_eq!(again.outcome, script.outcome);
+    // A module with no callable default export fails its call, and the turn
+    // goes on.
+    let unexported = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({"source": "export const value = 1;\n"}))?,
+    )?;
+    assert!(
+        matches!(&unexported.outcome, TurnCallOutcome::Failed { reason, .. } if reason.as_str().contains("does not export callable")),
+        "{unexported:?}"
+    );
+
+    let events = call_events(&paused.root, &paused.run_id)?;
+    let first = events
+        .iter()
+        .position(|(index, ..)| *index == 1)
+        .ok_or("the script call is recorded")?;
+    assert!(
+        matches!(
+            &events[first],
+            (
+                1,
+                None,
+                runx_contracts::CallTarget::Script,
+                RunCallOutcome::Executing
+            )
+        ),
+        "{:?}",
+        events[first]
+    );
+    assert!(
+        events[..first]
+            .iter()
+            .all(|(_, script, ..)| script.is_none())
+    );
+    assert_eq!(
+        scripted(&events),
+        std::collections::BTreeSet::from([(2, 1, 0), (3, 1, 1), (4, 1, 2)])
+    );
+
+    let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "digested"}))?)?;
+    assert_eq!(
+        paused.sealed_step_children(&sealed)?,
+        1,
+        "the turn's receipt names its script call"
+    );
+    let receipt = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id.as_str())?;
+    assert_eq!(
+        receipt.lineage.children.len(),
+        3,
+        "the script call's receipt names the calls its script made"
+    );
+    Ok(())
+}
+
+/// A read-only turn's script writes nothing: each call it makes is admitted
+/// as the turn's own, so its write is refused as it's made, and the script
+/// catches the refusal (CON26). A script given no inputs runs on none.
+#[test]
+fn a_read_only_turns_script_writes_nothing() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let skill_dir = root.join("read-only-scripter");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: read-only-scripter\ndescription: Answers, offered a write.\n---\n# Read only scripter\n\n## Agent task: answer\n\nAnswer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        effects: none\n        calls:\n          tools: [fs.write]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let paused = Paused::start(root, skill_dir, TURN)?;
+    let turn = paused.open()?;
+    let source = r#"export default async function (ctx) {
+  return ctx.tool("fs_write", { path: "written.txt", contents: "written" }).then(
+    () => ({ wrote: true }),
+    (rejected) => ({ wrote: false, message: rejected.message }),
+  );
+}
+"#;
+    let called = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({"source": source}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &called.outcome else {
+        return Err(format!("the script completes: {called:?}").into());
+    };
+    assert_eq!(output.get("wrote"), Some(&JsonValue::Bool(false)));
+    assert!(
+        text(output, "message").is_some_and(
+            |message| message.contains("the run's effects are none, so it changes nothing")
+        ),
+        "{output:?}"
+    );
+    assert!(!root.join("written.txt").exists());
+    Ok(())
+}
+
+/// A script whose call waits on the person's approval waits with it, and
+/// the turn's own calls go on meanwhile at indexes of their own. Once it's
+/// approved the script drives again over its record: the call it made is
+/// taken further, never made again, its next call takes the step's next
+/// index, and the script settles once that one is approved too.
+#[test]
+fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    let started = start_bounded(
+        root,
+        write_develop_skill(root)?,
+        asking(serde_json::json!([]))?,
+    )?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let turn = opened(root, &started)?;
+    let source = r#"export default async function (ctx) {
+  await ctx.tool("fs_write", { path: "first.txt", contents: "one\n" });
+  await ctx.tool("fs_write", { path: "second.txt", contents: "two\n" });
+  return { wrote: 2 };
+}
+"#;
+    let script = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({"source": source}))?,
+    )?;
+    floor_gate(&script, "answer/1/tool")?;
+    let own = turn.call(
+        TURN,
+        "fs_write",
+        None,
+        input(serde_json::json!({"path": "own.txt", "contents": "own\n"}))?,
+    )?;
+    assert_eq!(own.index, 2);
+    floor_gate(&own, "answer/2/tool")?;
+    let approve = |address: &str| -> TestResult<RunResult> {
+        let mut approvals = serde_json::Map::new();
+        approvals.insert(address.to_owned(), serde_json::Value::Bool(true));
+        let bound = crate::support::bind_resume(
+            &env(root),
+            root,
+            &run_id,
+            serde_json::json!({"approvals": approvals}),
+        )?;
+        resume_document(root, &run_id, bound)
+    };
+
+    approve("answer/1/tool")?;
+    let status = turn.status(TURN)?;
+    floor_gate(&status.calls[0], "answer/3/tool")?;
+    assert!(root.join("first.txt").exists());
+    assert!(!root.join("second.txt").exists());
+
+    approve("answer/3/tool")?;
+    let status = turn.status(TURN)?;
+    let TurnCallOutcome::Completed { output, .. } = &status.calls[0].outcome else {
+        return Err(format!("the script completes once approved: {status:?}").into());
+    };
+    assert_eq!(
+        serde_json::to_value(output)?,
+        serde_json::json!({"wrote": 2})
+    );
+    assert_eq!(std::fs::read_to_string(root.join("second.txt"))?, "two\n");
+    assert!(
+        !root.join("own.txt").exists(),
+        "the turn's own call still waits on its approval"
+    );
+    let events = call_events(root, &run_id)?;
+    assert_eq!(
+        scripted(&events),
+        std::collections::BTreeSet::from([(1, 0, 0), (3, 0, 1)])
+    );
+    for index in [1, 3] {
+        assert_eq!(
+            events
+                .iter()
+                .filter(|(at, _, _, outcome)| *at == index
+                    && matches!(outcome, RunCallOutcome::Completed { .. }))
+                .count(),
+            1,
+            "call {index} ran once"
+        );
+    }
+    Ok(())
+}
+
+/// The edits a turn's script made are undone by naming its script call: its
+/// id names each edit its script made, and the inverse restores what each
+/// file held before them.
+#[test]
+fn a_turns_script_edits_are_undone_by_naming_its_call() -> TestResult {
+    let temp = tempdir()?;
+    let root = temp.path();
+    std::fs::write(root.join("kept.txt"), "before\n")?;
+    let skill_dir = root.join("script-editor");
+    crate::support::write_test_skill_package(
+        &skill_dir,
+        "---\nname: script-editor\ndescription: Edits files, and undoes them.\n---\n# Script editor\n\n## Agent task: answer\n\nEdit, then answer.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: answer\n        agent: answer\n        calls:\n          tools: [fs.write, fs.inverse]\n        inputs: $input\n        outputs:\n          answer: {type: string}\n",
+    )?;
+    let mut authority = bounded(None, None);
+    authority.effects = Effects::Allow;
+    authority.reach = Reach::Workspace;
+    let started = start_bounded(root, skill_dir, authority)?;
+    let run_id = text(object(&started.output)?, "run_id")
+        .ok_or("missing run_id")?
+        .to_owned();
+    let turn = opened(root, &started)?;
+    let source = r#"export default async function (ctx, inputs) {
+  await ctx.tool("fs_write", { path: "made.txt", contents: "made\n" });
+  await ctx.tool("fs_write", { path: "kept.txt", contents: "after\n", expected_digest: inputs.kept });
+  return { edited: 2 };
+}
+"#;
+    let edited = turn.call(
+        TURN,
+        "script",
+        Some("edits"),
+        input(serde_json::json!({
+            "source": source,
+            "inputs": {"kept": runx_contracts::sha256_prefixed(b"before\n")},
+        }))?,
+    )?;
+    assert!(completed(&edited), "{edited:?}");
+    assert_eq!(std::fs::read_to_string(root.join("kept.txt"))?, "after\n");
+
+    let undo = turn.call(
+        TURN,
+        "fs_inverse",
+        None,
+        input(serde_json::json!({"run_id": run_id, "call_ids": ["edits"]}))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &undo.outcome else {
+        return Err(format!("the inverse completes: {undo:?}").into());
+    };
+    let bundle = serde_json::to_string(output)?;
+    for held in ["made.txt", "kept.txt", "before\\n", r#""calls":["edits"]"#] {
+        assert!(bundle.contains(held), "{held} in {bundle}");
     }
     Ok(())
 }
