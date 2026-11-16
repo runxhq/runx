@@ -130,6 +130,7 @@ pub fn parse_output_contract(
 pub struct OutputValidationError {
     path: String,
     message: String,
+    rule: Option<String>,
 }
 
 impl OutputValidationError {
@@ -137,7 +138,18 @@ impl OutputValidationError {
         Self {
             path: path.into(),
             message: message.into(),
+            rule: None,
         }
+    }
+
+    /// The rule of the declared schema the value broke: the failed keyword's
+    /// place in the schema, ending with the field's name when a required one
+    /// is missing. It's the contract's own words, never the value's, so it
+    /// can be recorded where the value can't. `None` when the contract
+    /// itself couldn't be applied.
+    #[must_use]
+    pub fn rule(&self) -> Option<&str> {
+        self.rule.as_deref()
     }
 }
 
@@ -240,10 +252,18 @@ pub fn validate_output_schema_value(
     } else {
         first
     };
-    Err(OutputValidationError::new(
-        validation_error_path(&error),
-        error.masked().to_string(),
-    ))
+    let rule = match error.kind() {
+        ValidationErrorKind::Required { property } => property.as_str().map_or_else(
+            || error.schema_path().to_string(),
+            |property| format!("{}/{property}", error.schema_path()),
+        ),
+        _ => error.schema_path().to_string(),
+    };
+    Err(OutputValidationError {
+        path: validation_error_path(&error),
+        message: error.masked().to_string(),
+        rule: Some(rule),
+    })
 }
 
 fn object_schema() -> JsonValue {

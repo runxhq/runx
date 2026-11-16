@@ -23,7 +23,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use runx_contracts::{JsonValue, OutputField, SealReason, validate_output_value};
+use runx_contracts::{
+    JsonValue, OutputField, OutputValidationError, SealReason, validate_output_value,
+};
 
 use super::agent::{AgentExecutionTelemetry, AgentToolExecutionTrace};
 use super::agent_tool_definitions::AgentToolNameMap;
@@ -460,6 +462,7 @@ where
                         status: "failure".to_owned(),
                         receipt_id: None,
                         resolution_kind: None,
+                        rule: None,
                     });
                 }
                 transcript.push(AgentTurn::ToolResults(
@@ -486,6 +489,7 @@ where
                         status: "failure".to_owned(),
                         receipt_id: None,
                         resolution_kind: Some("output_contract_failed".to_owned()),
+                        rule: error.rule().map(str::to_owned),
                     });
                     results.push(AgentToolResult {
                         tool_use_id: use_.id.clone(),
@@ -530,6 +534,7 @@ where
                         status: "pending".to_owned(),
                         receipt_id: None,
                         resolution_kind: None,
+                        rule: None,
                     });
                     return Ok(AgentLoopEnd {
                         answer: None,
@@ -549,6 +554,7 @@ where
                         status: "failure".to_owned(),
                         receipt_id: None,
                         resolution_kind: None,
+                        rule: None,
                     });
                     return Err(AgentLoopFailure::new(
                         AgentLoopFailureReason::ToolExecutionFailed,
@@ -569,6 +575,7 @@ where
                 status: (if is_error { "failure" } else { "success" }).to_owned(),
                 receipt_id: None,
                 resolution_kind: None,
+                rule: None,
             });
             results.push(AgentToolResult {
                 tool_use_id: use_.id.clone(),
@@ -653,12 +660,14 @@ fn admit_batch<T: ToolExecutor + ?Sized>(
     })
 }
 
-fn validate_final_result(config: &AgentLoopConfig, value: &JsonValue) -> Result<(), String> {
+fn validate_final_result(
+    config: &AgentLoopConfig,
+    value: &JsonValue,
+) -> Result<(), OutputValidationError> {
     let Some(schema) = config.final_result_schema.as_ref() else {
-        return validate_output_value(config.final_result_output.as_ref(), value)
-            .map_err(|error| error.to_string());
+        return validate_output_value(config.final_result_output.as_ref(), value);
     };
-    runx_contracts::validate_output_schema_value(schema, value).map_err(|error| error.to_string())
+    runx_contracts::validate_output_schema_value(schema, value)
 }
 
 #[cfg(test)]
@@ -694,7 +703,15 @@ mod tests {
         )
         .err()
         .ok_or("missing nested field must fail")?;
-        assert!(error.starts_with("$.change_set.severity: \"severity\" is a required property"));
+        assert!(
+            error
+                .to_string()
+                .starts_with("$.change_set.severity: \"severity\" is a required property")
+        );
+        assert_eq!(
+            error.rule(),
+            Some("/properties/change_set/required/severity")
+        );
         Ok(())
     }
 
@@ -1192,6 +1209,20 @@ mod tests {
             .map_err(|error| error.to_string())?;
             assert!(end.answer.is_some());
             assert_eq!(end.telemetry.model_calls, Some(2));
+            // The trace keeps the rule the refused answer broke, and none
+            // of the answer.
+            let refused = end
+                .telemetry
+                .tool_executions
+                .as_deref()
+                .unwrap_or_default()
+                .first()
+                .ok_or("the refused answer left no trace")?;
+            assert_eq!(refused.rule.as_deref(), Some("/properties/draft/type"));
+            let projection =
+                serde_json::to_string(&end.telemetry.public_projection()).unwrap_or_default();
+            assert!(projection.contains("/properties/draft/type"));
+            assert!(!projection.contains("rejected-payload"));
         }
         Ok(())
     }

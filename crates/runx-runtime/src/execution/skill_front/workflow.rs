@@ -1433,6 +1433,7 @@ methods:
                         status: "success".to_owned(),
                         receipt_id: Some("rct_child".to_owned()),
                         resolution_kind: None,
+                        rule: None,
                     }]),
                 },
             );

@@ -72,6 +72,9 @@ pub struct AgentToolExecutionTrace {
     pub status: String,
     pub receipt_id: Option<String>,
     pub resolution_kind: Option<String>,
+    /// For a final result the output contract refused, the rule it broke,
+    /// in the contract's own words: the refused value never enters a trace.
+    pub rule: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -165,6 +168,9 @@ fn tool_execution_trace(trace: &AgentToolExecutionTrace) -> JsonValue {
             "resolutionKind".to_owned(),
             JsonValue::String(resolution_kind.clone()),
         );
+    }
+    if let Some(rule) = &trace.rule {
+        object.insert("rule".to_owned(), JsonValue::String(rule.clone()));
     }
     JsonValue::Object(object)
 }
