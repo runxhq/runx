@@ -64,11 +64,22 @@ fn a_moved_workspace_is_rebound_to_the_id_it_had() -> TestResult {
     fs::create_dir_all(before.join(".git"))?;
 
     let had = workspace_id(&before, &home)?;
+    let old = fs::canonicalize(&before)?.display().to_string();
     let after = root.join("after");
     fs::rename(&before, &after)?;
     // runx can't tell a move from a copy, so the moved workspace is minted anew.
     let fresh = workspace_id(&after, &home)?;
     assert_ne!(fresh, had);
+    // Its memory reads nothing until it has its id back, and inspection names
+    // the path it may have been moved from, which only the person can say.
+    let inspect = |cwd: &Path| runx(cwd, &home, &["skill", "inspect", "runx/memory#index"]);
+    let moved = inspect(&after)?.to_string();
+    assert!(
+        moved.contains(&format!(
+            "if this workspace was moved from {old}, which no longer exists, ask the person, and if it was, runx workspace rebind {old} gives it back its id"
+        )),
+        "{moved}"
+    );
 
     let rebound = runx(
         &after,
@@ -78,6 +89,12 @@ fn a_moved_workspace_is_rebound_to_the_id_it_had() -> TestResult {
     assert_eq!(rebound["id"], had.as_str(), "{rebound}");
     assert_eq!(rebound["replaced"], fresh.as_str(), "{rebound}");
     assert_eq!(workspace_id(&after, &home)?, had);
+    // A copy, its original still where it was, is named nothing to rebind.
+    let copy = root.join("copy");
+    write_workspace(&copy)?;
+    fs::create_dir_all(copy.join(".git"))?;
+    let copied = inspect(&copy)?.to_string();
+    assert!(!copied.contains("runx workspace rebind"), "{copied}");
 
     let listed = runx(&after, &home, &["workspace", "list"])?;
     let workspaces = listed["workspaces"]

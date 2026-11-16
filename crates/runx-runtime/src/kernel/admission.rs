@@ -414,9 +414,9 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
     // A store call reaching another package's stream, and every `private`
     // call, is made only under a term the host states (D21).
     let needs_term = if is_private(&connector) {
-        Some(format!(
-            "every {} call needs a term, and the run's authority states none for this instance: save one with a delegation on it for this workspace with runx authority save <name> <file> --standing, which every run here that states no authority starts with, or name a saved one with --authority <name>",
-            connector.name
+        Some(needs_a_term(
+            &connector,
+            &crate::paths::RunxPaths::resolve(evaluation.context.env, evaluation.context.cwd),
         ))
     } else {
         store_stream(evaluation, operation_spec)
@@ -1427,10 +1427,7 @@ fn readiness(
                     usage_approval = usage_approval_required(spec, money_limit, &limits);
                     let refused = delegated.uncovered(chain).or_else(|| {
                         (is_private(&connector) && !delegated.stated).then(|| {
-                            format!(
-                                "every {} call needs a term, and the run's authority states none for this instance: save one with a delegation on it for this workspace with runx authority save <name> <file> --standing, which every run here that states no authority starts with, or name a saved one with --authority <name>",
-                                connector.name
-                            )
+                            needs_a_term(&connector, &crate::paths::RunxPaths::resolve(env, cwd))
                         })
                     });
                     match refused {
@@ -2094,6 +2091,27 @@ fn leased_resource(
             },
         ))
     })())
+}
+
+/// Why a `private` call with no term is refused, and what gives it one: the
+/// workspace's id back, when the workspace may have been moved from a path
+/// this home knows that no longer exists, which only the person can say, or
+/// else a standing authority saved for this workspace.
+fn needs_a_term(connector: &LoadedConnector, paths: &crate::paths::RunxPaths) -> String {
+    let rebind = match crate::workspace_ids::gone(paths).as_slice() {
+        [] => String::new(),
+        [old] => format!(
+            "if this workspace was moved from {old}, which no longer exists, ask the person, and if it was, runx workspace rebind {old} gives it back its id, with its memory and standing authority; otherwise, "
+        ),
+        gone => format!(
+            "if this workspace was moved from one of [{}], which no longer exist, ask the person which, and runx workspace rebind <that path> gives it back its id, with its memory and standing authority; otherwise, ",
+            gone.join(", ")
+        ),
+    };
+    format!(
+        "every {} call needs a term, and the run's authority states none for this instance: {rebind}save one with a delegation on it for this workspace with runx authority save <name> <file> --standing, which every run here that states no authority starts with, or name a saved one with --authority <name>",
+        connector.name
+    )
 }
 
 /// The runtime's own connector for the person's own data, which every call

@@ -125,6 +125,29 @@ pub fn known_id(paths: &RunxPaths) -> Result<Option<String>, WorkspaceIdError> {
         .map(|entry| entry.id))
 }
 
+/// The paths this home has minted an id for that no longer exist, when runx
+/// runs in a workspace: where the workspace runx runs in may have been moved
+/// from, or a project since deleted, which only the person can tell. A home
+/// whose ids can't be read has none to name.
+#[must_use]
+pub fn gone(paths: &RunxPaths) -> Vec<String> {
+    if !paths.workspace_found() || paths.home_fell_back() {
+        return Vec::new();
+    }
+    read(&ids_file(paths))
+        .map(|ids| {
+            let mut gone = ids
+                .workspaces
+                .into_iter()
+                .map(|entry| entry.path)
+                .filter(|path| !Path::new(path).exists())
+                .collect::<Vec<_>>();
+            gone.sort();
+            gone
+        })
+        .unwrap_or_default()
+}
+
 /// Every workspace this runx home has minted an id for, by path.
 ///
 /// # Errors
