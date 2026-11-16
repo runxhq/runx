@@ -8,7 +8,7 @@
 //! turn ends when the host answers the act.
 
 use std::cell::{Cell, OnceCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
@@ -58,6 +58,10 @@ pub trait Turn {
 
     /// How each call the turn made so far ended.
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError>;
+
+    /// The calls script call `index` made, by their index in the step, which
+    /// a host reaches through it; none for any other call.
+    fn made_by(&self, index: u32) -> Result<Vec<u32>, RuntimeError>;
 
     /// The turn as its agent reads it, its act's context as an index.
     fn status(&self) -> Result<TurnStatus, RuntimeError> {
@@ -1148,7 +1152,7 @@ where
                             context: "driving a script call",
                             message: reason,
                         })?;
-                self.drive_script(host, made, &step.step)
+                self.drive_script(host, made, &step)
             }
             // The call asks again what it waits on, unchanged.
             CallOutcome::Pending(waiting) => {
@@ -1491,13 +1495,26 @@ where
             })
     }
 
-    /// The runs of the turn's own completed calls, in order: a script call's
-    /// run holds the receipts of the calls its script made.
+    /// The runs of the turn's completed calls, in order. A script call that
+    /// completed holds the receipts of the calls its script made; those of a
+    /// script that ended without its run, failed or cancelled, are the
+    /// turn's own, so each is in the tree once whatever the script came to.
     pub(super) fn completed(&self) -> Result<Vec<&StepRun>, RuntimeError> {
-        Ok(self
-            .recorded()?
+        let recorded = self.recorded()?;
+        let sealed = recorded
             .iter()
-            .filter(|call| call.script.is_none())
+            .filter(|call| {
+                call.target == CallTarget::Script
+                    && matches!(call.outcome, CallOutcome::Completed(_))
+            })
+            .map(|call| call.index)
+            .collect::<BTreeSet<_>>();
+        Ok(recorded
+            .iter()
+            .filter(|call| {
+                call.script
+                    .is_none_or(|place| !sealed.contains(&place.call))
+            })
             .filter_map(|call| match &call.outcome {
                 CallOutcome::Completed(run) => Some(run.as_ref()),
                 _ => None,
@@ -1616,12 +1633,12 @@ where
     /// stands executing while a call it made waits. Its calls run under it,
     /// so its host's cancel reaches each: a script cancelled goes no
     /// further, what it left open is dropped, and it settles `cancelled`
-    /// when none of its calls changed anything this drive.
+    /// when none of its calls changed anything, on this drive or before.
     fn drive_script(
         &mut self,
         host: &mut dyn Host,
         made: Made,
-        step: &WorkflowStep,
+        call: &CallStep,
     ) -> Result<TurnCallResult, RuntimeError> {
         let script =
             ScriptSource::of(&made.input).map_err(|reason| RuntimeError::EngineInvariant {
@@ -1629,6 +1646,8 @@ where
                 message: reason,
             })?;
         let index = made.index;
+        let changed_before = self.script_changed(index)?;
+        let step = &call.step;
         let stop = self.stop(index, step);
         if made.cancelled {
             self.scope
@@ -1644,7 +1663,7 @@ where
                 super::step_handlers::run_script_call(
                     ScriptCalls::of_call(self, index, named),
                     host,
-                    step,
+                    (step, &call.given),
                     &script.source,
                 )
             };
@@ -1653,7 +1672,7 @@ where
                 None => drive(),
             }
         };
-        let changed_nothing = stop.changed_nothing();
+        let changed_nothing = stop.changed_nothing() && !changed_before;
         let cancelled = stop.release() || crate::interrupt::caller_cancelled();
         let newly = cancelled && !made.cancelled;
         let made = Made {
@@ -1681,12 +1700,45 @@ where
                     CallOutcome::Cancelled
                 } else {
                     CallOutcome::Failed(
-                        "its host cancelled the script after a call it made changed something: each call's record holds what it did".to_owned(),
+                        "its host cancelled the script after a call it made may have changed something: each call's record holds what it did".to_owned(),
                     )
                 };
                 self.end_script(host, made, newly, ended)
             }
         }
+    }
+
+    /// Whether a call script call `index` made on an earlier drive may have
+    /// changed something: one that doesn't only read and got past its
+    /// admission.
+    fn script_changed(&self, index: u32) -> Result<bool, RuntimeError> {
+        let options = &self.scope.runtime.options;
+        for call in self
+            .recorded()?
+            .iter()
+            .filter(|call| call.script.is_some_and(|place| place.call == index))
+            .filter(|call| {
+                matches!(
+                    call.outcome,
+                    CallOutcome::Completed(_)
+                        | CallOutcome::Claimed(_)
+                        | CallOutcome::Child(_)
+                        | CallOutcome::Failed(_)
+                        | CallOutcome::RetryDeclined
+                )
+            })
+        {
+            let step = self.call_step(&Made::of(call)).map_err(|reason| {
+                RuntimeError::EngineInvariant {
+                    context: "reading what a script's calls did",
+                    message: reason,
+                }
+            })?;
+            if !super::only_reads(&step.step, self.scope.workflow_dir, &options.env) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// End script call `made`, which went no further, as `ended`: each call
@@ -1776,7 +1828,9 @@ where
     }
 
     /// Why the run's delegation refuses the child run a skill call would
-    /// start: one level too deep, or one more than the turn may start.
+    /// start: one level too deep, or one more than the turn may start. A
+    /// skill call admitted and not yet started counts as started, so calls
+    /// admitted together can't pass the bound before any child exists.
     fn child_refusal(&self) -> Result<Option<String>, RuntimeError> {
         let options = &self.scope.runtime.options;
         if let Some(reason) = super::child_depth_refusal(options) {
@@ -1794,10 +1848,13 @@ where
             if !matches!(call.target, CallTarget::Skill { .. }) {
                 continue;
             }
-            let child = options
-                .run
-                .child(&call_step_id(self.scope.step_id, call.index))?;
-            if child.load()?.is_some() {
+            if matches!(call.outcome, CallOutcome::Child(_))
+                || options
+                    .run
+                    .child(&call_step_id(self.scope.step_id, call.index))?
+                    .load()?
+                    .is_some()
+            {
                 started += 1;
             }
         }
@@ -2068,7 +2125,7 @@ where
         if made.target == CallTarget::Script {
             self.record(&made, CallOutcome::Executing, &[])?;
             return self
-                .drive_script(host, made, &call.step)
+                .drive_script(host, made, &call)
                 .map(|result| Admission::Settled(Box::new(result)));
         }
         let admitted = match super::floor::hold(
@@ -3403,6 +3460,16 @@ where
             .collect()
     }
 
+    fn made_by(&self, index: u32) -> Result<Vec<u32>, RuntimeError> {
+        Ok(self
+            .ledger
+            .recorded()?
+            .iter()
+            .filter(|call| call.script.is_some_and(|place| place.call == index))
+            .map(|call| call.index)
+            .collect())
+    }
+
     fn admit(
         &mut self,
         host: &mut dyn Host,
@@ -3727,7 +3794,7 @@ fn script_tool() -> Result<TurnTool, RuntimeError> {
     .map_err(|source| RuntimeError::json("describing a script", source))?;
     Ok(offered(
         "script",
-        "Run a JavaScript module you write, in one call, when ordering, fan-out, repetition or reuse helps: {source, inputs?}. Its default export is called as `async (ctx, inputs)`, and what it returns, a JSON object, is this call's result. `ctx.tool(name, input)` makes any of this turn's tool calls, by the tool's name here and with the input it takes here, and returns a promise of its result: each is admitted, approved and recorded as this turn's own call, and one that's refused or fails rejects with its reason. `ctx.now()` is the time. The module imports nothing and has no I/O of its own."
+        "Run a JavaScript module you write, in one call, when ordering, fan-out, repetition or reuse helps: {source, inputs?}. Its default export, `export default async function (ctx, inputs) { ... }`, is called with this call's `inputs`, and what it returns, a JSON object, is this call's result. `ctx.tool(name, input)` makes any of this turn's tool calls, by the tool's name here and with the input it takes here, and returns a promise of its result: each is admitted, approved and recorded as this turn's own call, and one that's refused or fails rejects with its reason. `ctx.now()` is the time. The module imports nothing and has no I/O of its own."
             .to_owned(),
         schema,
         CallTarget::Script,

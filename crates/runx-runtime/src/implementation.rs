@@ -1,9 +1,11 @@
 //! What a run is started by: the digest of the sources each binary was built
 //! from (reuse contract, `implementation`). The runtime's is made by its
 //! build script. The worker's is what the worker gives in its handshake, and
-//! a run has one only when its own method can run JavaScript: such a run
-//! starts its worker as it starts, so a runtime built beside the worker's
-//! sources refuses a worker that reports others before the run begins. A run
+//! a run has one only when its own method can run JavaScript: one whose
+//! steps run it starts its worker as it starts, so a runtime built beside the
+//! worker's sources refuses a worker that reports others before the run
+//! begins, and one whose turn may be offered `script` is bound to the worker
+//! this runtime was built beside, which the script's handshake proves. A run
 //! records its implementation when it starts, and a resume under another is
 //! refused, so a build of changed sources never replays old history; a run
 //! that runs no JavaScript is never tied to the worker's sources.
@@ -17,18 +19,40 @@ use runx_parser::{StepKind, ToolTarget, Workflow};
 use crate::RuntimeError;
 use crate::adapters::javascript::JavaScriptAdapter;
 
-/// Whether a run of `workflow` can run JavaScript itself: a script step, or
-/// a tool step on the worker. Nothing else reaches the worker. A catalog
-/// tool, by a step or by a call a step declares, is native or a manifest's
-/// process; an operation is its connector's; a skill step's child decides
-/// from its own method.
-pub(crate) fn runs_javascript(workflow: &Workflow) -> bool {
-    workflow.steps.iter().any(|step| {
-        matches!(
-            step.kind,
-            StepKind::Script(_) | StepKind::Tool(ToolTarget::Worker(_))
-        )
-    })
+/// How a run of `workflow` reaches the worker.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Worker {
+    /// Never: nothing it runs is JavaScript. A catalog tool, by a step or by
+    /// a call a step declares, is native or a manifest's process; an
+    /// operation is its connector's; a skill step's child decides from its
+    /// own method.
+    None,
+    /// Its own steps run JavaScript: a script step, or a tool step on the
+    /// worker. Its worker starts as it starts.
+    Runs,
+    /// A turn of it may be offered `script`: one that may call a tool, an
+    /// operation or a skill, its own or one a load binds. It's bound to the
+    /// worker this runtime was built beside, which its first script's
+    /// handshake proves, so a turn that writes none starts no worker.
+    Offered,
+}
+
+fn worker_of(workflow: &Workflow) -> Worker {
+    let mut reach = Worker::None;
+    for step in &workflow.steps {
+        match &step.kind {
+            StepKind::Script(_) | StepKind::Tool(ToolTarget::Worker(_)) => return Worker::Runs,
+            StepKind::Agent(agent)
+                if !agent.allowance.tools.is_empty()
+                    || !agent.allowance.operations.is_empty()
+                    || !agent.allowance.skills.is_empty() =>
+            {
+                reach = Worker::Offered;
+            }
+            _ => {}
+        }
+    }
+    reach
 }
 
 /// How a run starts: the implementation it records, and the refusal it
@@ -92,29 +116,33 @@ fn of_run(
     ))
 }
 
-/// The digest of the worker a run of `workflow` runs its JavaScript on,
+/// The digest of the worker a run of `workflow` runs its JavaScript on:
 /// started now on `javascript`'s session, which keeps it for the run's first
-/// call to it; none, and no worker started, for a run that runs none.
+/// call to it, when its steps run JavaScript; the one this runtime was built
+/// beside when a turn may be offered `script`; none, and no worker started,
+/// for a run that runs none.
 fn worker(
     workflow: &Workflow,
     javascript: &JavaScriptAdapter,
     env: &BTreeMap<String, String>,
 ) -> Result<Option<String>, RuntimeError> {
-    if !runs_javascript(workflow) {
-        return Ok(None);
+    match worker_of(workflow) {
+        Worker::None => Ok(None),
+        Worker::Runs => javascript.worker_digest(env).map(Some),
+        Worker::Offered => Ok(expected_worker().map(str::to_owned)),
     }
-    javascript.worker_digest(env).map(Some)
 }
 
 /// The implementation a run of `workflow` would record, decided without
 /// starting anything: this runtime, and the worker its sources were built
-/// beside when the run runs JavaScript. None when it runs JavaScript and
-/// this build doesn't know that worker's sources.
+/// beside when the run may run JavaScript. None when its steps run
+/// JavaScript and this build doesn't know that worker's sources.
 pub(crate) fn expected(workflow: &Workflow) -> Option<RunImplementation> {
-    if !runs_javascript(workflow) {
-        return Some(runtime_alone());
+    match worker_of(workflow) {
+        Worker::None => Some(runtime_alone()),
+        Worker::Runs => expected_worker().map(|worker| implementation(Some(worker.into()))),
+        Worker::Offered => Some(implementation(expected_worker().map(Into::into))),
     }
-    expected_worker().map(|worker| implementation(Some(worker.into())))
 }
 
 /// This runtime alone: the implementation of a run that runs no JavaScript

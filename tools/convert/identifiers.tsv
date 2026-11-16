@@ -1796,3 +1796,4 @@ frantic	operator-held	1	hold	operator-held	Frantic review abstention or operator
 frantic	unreadBinaryHolds	2	hold	unreadBinaryHolds	Frantic review abstention or operator custody, not a Runx lease: stays	runx/skills/frantic-operator/tools/frantic/auto-review-context/context.mjs
 runx-action	runner	5	runner	?	a bare word: code or prose, read in place	.github/workflows/smoke.yml README.md
 runx-action	$RUNNER_TEMP	4	runner	$RUNNER_TEMP	another runner: stays	.github/workflows/smoke.yml
+oss	a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record	1	hold	a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record	English, or a skill's own word: stays	crates/runx-runtime/tests/agent_turns.rs

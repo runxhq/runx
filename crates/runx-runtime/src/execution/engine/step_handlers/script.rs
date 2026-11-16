@@ -125,14 +125,16 @@ where
     )
 }
 
-/// Run a turn's script call, which runs as `step`, from `source` over what
-/// its record holds of `calls`, the calls it makes: its run, sealed once the
-/// script ends, or none while a call it made waits. Its calls run one at a
-/// time.
+/// Run a turn's script call, which runs as `step` and was `given` what its
+/// labels hold, from `source` over what its record holds of `calls`, the
+/// calls it makes: its run, sealed once the script ends, or none while a
+/// call it made waits. Its calls run one at a time. What it returns is
+/// labelled as any step's run is: by what it was given, what it read and
+/// what it made.
 pub(in crate::execution::engine) fn run_script_call<A>(
     mut calls: ScriptCalls<'_, '_, A>,
     host: &mut dyn Host,
-    step: &WorkflowStep,
+    (step, given): (&WorkflowStep, &ArtifactLabels),
     source: &str,
 ) -> Result<Option<StepRun>, RuntimeError>
 where
@@ -149,7 +151,15 @@ where
         Driven::Ended(ended) => ended,
         Driven::Waiting(_) => return Ok(None),
     };
-    seal_script(
+    // Its result is the call's output, an object as every call's is.
+    let ended = ended.and_then(|output| {
+        if output.is_object() {
+            Ok(output)
+        } else {
+            Err("a turn's script returns an object, the call's output".to_owned())
+        }
+    });
+    let mut run = seal_script(
         &calls,
         Sealing {
             runtime: scope.runtime,
@@ -162,8 +172,16 @@ where
             claim: Claim::Returned,
         },
         ended,
-    )
-    .map(Some)
+    )?;
+    run.labels = ArtifactLabels::derived_from([
+        given,
+        &run.labels,
+        &scope
+            .runtime
+            .local_artifacts
+            .labels_of(&JsonValue::Object(run.contract.clone())),
+    ]);
+    Ok(Some(run))
 }
 
 /// How a script's drive ended.
@@ -204,6 +222,10 @@ where
                 reason: "the run's clock reads no time for ctx.now()".to_owned(),
             })
     };
+    // An input past the inline bound reaches the script by reference, an
+    // array's item by item. It's given before any recorded call goes
+    // further, since a call may name what it was given.
+    let (given, references) = calls.give(inputs)?;
     // Calls that wait on a person, a child or a time. A waiting call never
     // stops the others: the script holds only once none can go further. A
     // wait this drive reaches at or after its `until` settles.
@@ -222,9 +244,6 @@ where
     }
     let mut settled = settlements(calls, calls.recorded()?)?;
     settled.extend(clock_reads(&calls.clock()?));
-    // An input past the inline bound reaches the script by reference, an
-    // array's item by item.
-    let (given, references) = calls.give(inputs)?;
     let (mut live, mut passed) =
         runtime
             .javascript

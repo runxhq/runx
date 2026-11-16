@@ -224,6 +224,23 @@ fn recorded_edits(
         }
         cursor = Some(page.cursor.as_str().to_owned());
     }
+    // Each id named is one call of the run, which a call a script made never
+    // carries: a script call's names its script's edits. Ids are a turn's,
+    // so two turns may each have made one.
+    let mut named = BTreeSet::new();
+    for id in latest
+        .values()
+        .filter(|call| call.script.is_none())
+        .filter_map(|call| call.call_id.as_deref())
+        .filter(|id| wanted.contains(id))
+    {
+        if !named.insert(id) {
+            return Err(refused(format!(
+                "run {} made more than one call {id}",
+                inputs.run_id
+            )));
+        }
+    }
     // The script calls named, by their step's attempt and index.
     let scripts = latest
         .iter()
@@ -237,7 +254,6 @@ fn recorded_edits(
         .collect::<BTreeMap<_, _>>();
     let artifacts = RunxPaths::resolve(env, workspace).artifacts();
     let mut edits = Vec::new();
-    let mut seen = BTreeSet::new();
     for ((step, attempt, index), call) in latest {
         let CallTarget::Tool { tool } = &call.target else {
             continue;
@@ -262,12 +278,6 @@ fn recorded_edits(
         // edits; a call named by its own id is one.
         if by_script.is_some() && (edit.is_none() || !completed) {
             continue;
-        }
-        if by_script.is_none() && !seen.insert(call_id.clone()) {
-            return Err(refused(format!(
-                "run {} made more than one call {call_id}",
-                inputs.run_id
-            )));
         }
         let Some((_, packet)) = edit else {
             return Err(refused(format!(

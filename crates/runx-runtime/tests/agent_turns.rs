@@ -1366,6 +1366,44 @@ fn a_delegation_bounds_the_child_runs_a_turn_starts() -> TestResult {
     Ok(())
 }
 
+/// Calls a script makes together are admitted before any child starts, and
+/// each admitted counts against the bound.
+#[test]
+fn a_script_starts_no_more_child_runs_than_its_turn_may() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_turn_skill(temp.path())?;
+    let started = start_bounded(temp.path(), skill_dir, bounded(Some(1), None))?;
+    let turn = opened(temp.path(), &started)?;
+    let source = r#"export default async function (ctx) {
+  const settled = await Promise.allSettled(
+    ["one", "two"].map((value) => ctx.tool("skill__digest-child", { value })),
+  );
+  return { settled: settled.map((each) => each.status), reason: settled[1].reason?.message ?? "" };
+}
+"#;
+    let script = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({ "source": source }))?,
+    )?;
+    let TurnCallOutcome::Completed { output, .. } = &script.outcome else {
+        return Err(format!("the script completes: {script:?}").into());
+    };
+    let output = serde_json::to_value(output)?;
+    assert_eq!(
+        output["settled"],
+        serde_json::json!(["fulfilled", "rejected"])
+    );
+    assert!(
+        output["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("at most 1 child runs")),
+        "{output}"
+    );
+    Ok(())
+}
+
 #[test]
 fn a_skill_call_that_starts_no_child_spends_no_fanout() -> TestResult {
     let temp = tempdir()?;
@@ -3458,6 +3496,17 @@ fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
         matches!(&unexported.outcome, TurnCallOutcome::Failed { reason, .. } if reason.as_str().contains("does not export callable")),
         "{unexported:?}"
     );
+    // What a script returns is its call's output, so it's an object.
+    let scalar = turn.call(
+        TURN,
+        "script",
+        None,
+        input(serde_json::json!({"source": "export default async function () { return 1; }\n"}))?,
+    )?;
+    assert!(
+        matches!(&scalar.outcome, TurnCallOutcome::Failed { reason, .. } if reason.as_str().contains("returns an object")),
+        "{scalar:?}"
+    );
 
     let events = call_events(&paused.root, &paused.run_id)?;
     let first = events
@@ -3490,8 +3539,8 @@ fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
     let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "digested"}))?)?;
     assert_eq!(
         paused.sealed_step_children(&sealed)?,
-        1,
-        "the turn's receipt names its script call"
+        2,
+        "the turn's receipt names each script call that ran, not the calls its script made"
     );
     let receipt = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id.as_str())?;
     assert_eq!(

@@ -978,7 +978,9 @@ fn native_read_is_seen(tool: &str) -> bool {
 fn call_is_seen(call: &super::run_record::RecordedCall) -> bool {
     match &call.target {
         runx_contracts::CallTarget::Tool { tool } => native_read_is_seen(tool.as_str()),
-        runx_contracts::CallTarget::Read { .. } => true,
+        // A turn's script computes over what its calls returned, and each
+        // call it made is one of its step's, checked as its own.
+        runx_contracts::CallTarget::Read { .. } | runx_contracts::CallTarget::Script => true,
         runx_contracts::CallTarget::Operation { .. } => matches!(
             &call.outcome,
             super::run_record::CallOutcome::Completed(run) if read_runx_made(run)

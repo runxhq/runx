@@ -928,9 +928,13 @@ impl RunHost {
         let address = turn.invocation().id.as_str().to_owned();
         let mut reached = Vec::new();
         for call in turn.calls()? {
+            // A script call leads where any call its script made does.
+            let made_by = turn.made_by(call.index)?;
             let leads = |host: &Self| {
                 host.leads_to_act(&waiting_of(&call.outcome))
-                    || host.leads_to_call(&format!("{address}/{}", call.index))
+                    || std::iter::once(call.index)
+                        .chain(made_by.iter().copied())
+                        .any(|index| host.leads_to_call(&format!("{address}/{index}")))
             };
             if let TurnCallOutcome::Pending { waiting } = &call.outcome
                 && !self.in_flight.contains(&(address.clone(), call.index))
@@ -962,10 +966,10 @@ impl RunHost {
     /// Whether this host brings something for a call that waits on
     /// `waiting`: an answer to one of them, an action on one of its turns, a
     /// script for one of its turns, or the managed agent for a turn. A call
-    /// that waits on nothing, a child run that sealed or never started, is
-    /// taken further by any host.
+    /// that waits on nothing, a child run that sealed or never started, or a
+    /// script's wait the clock has reached, is taken further by any host.
     fn reaches(&self, waiting: &[ResolutionRequest]) -> Result<bool, RuntimeError> {
-        if waiting.is_empty() {
+        if waiting.is_empty() || waiting.iter().any(wait_is_due) {
             return Ok(true);
         }
         for request in waiting {
@@ -1176,12 +1180,18 @@ fn is_due(due_at: Option<&str>) -> bool {
 
 /// Whether `request` is a script's wait the clock has reached.
 fn is_due_wait(request: &PendingRequest) -> bool {
-    let request = serde_json::to_value(&request.value).and_then(serde_json::from_value);
+    serde_json::to_value(&request.value)
+        .and_then(serde_json::from_value)
+        .is_ok_and(|request| wait_is_due(&request))
+}
+
+/// Whether `request` is a script's wait the clock has reached.
+fn wait_is_due(request: &ResolutionRequest) -> bool {
     match (
         request,
         crate::execution::engine::RunClock::System.now_millis(),
     ) {
-        (Ok(ResolutionRequest::Wait { until, .. }), Some(now)) => now >= until,
+        (ResolutionRequest::Wait { until, .. }, Some(now)) => now >= *until,
         _ => false,
     }
 }
