@@ -147,13 +147,10 @@ pub(crate) fn count_recorded_calls(
     attempt: u32,
     calls: &[&RecordedCall],
 ) -> Result<(), RuntimeError> {
-    // A script call's receipt holds those of the calls its script made,
-    // which are counted as the step's own.
     let completed = calls
         .iter()
-        .filter_map(|call| match (&call.outcome, &call.target) {
-            (CallOutcome::Completed(_), CallTarget::Script) => Some(1),
-            (CallOutcome::Completed(run), _) => Some(run.receipts()),
+        .filter_map(|call| match &call.outcome {
+            CallOutcome::Completed(run) => Some(run.receipts()),
             _ => None,
         })
         .sum();
@@ -168,6 +165,19 @@ pub(crate) fn count_recorded_calls(
                 count_recorded_tree(tally, &log.child(&call_step_id(step_id, call.index))?)?;
             }
             _ => continue,
+        }
+        // An open script call's calls are recorded under it, and count as
+        // its step's do.
+        if call.target == CallTarget::Script {
+            let under = call_step_id(step_id, call.index);
+            let made = log.calls(&under, attempt)?;
+            count_recorded_calls(
+                tally,
+                log,
+                &under,
+                attempt,
+                &made.iter().collect::<Vec<_>>(),
+            )?;
         }
         tally.count(call_key(log.run_id(), step_id, attempt, call.index), 1);
     }

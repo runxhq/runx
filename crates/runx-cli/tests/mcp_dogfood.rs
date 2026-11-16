@@ -708,11 +708,11 @@ fn a_turns_script_killed_mid_way_recovers_from_its_record() -> Result<(), Box<dy
         write_frame(server.stdin_mut()?, &initialized_notification())?;
         Ok(server)
     };
-    let source = "export default async function (ctx) {\n  const first = await ctx.tool(\"data_digest\", { value: \"first\", encoding: \"utf8_text\" });\n  const second = await ctx.tool(\"data_digest\", { value: \"second\", encoding: \"utf8_text\" });\n  return { digested: [Object.keys(first).length, Object.keys(second).length] };\n}\n";
+    let source = "export default async function (ctx) {\n  const first = await ctx.tool(\"data.digest\", { value: \"first\", encoding: \"utf8_text\" });\n  const second = await ctx.tool(\"data.digest\", { value: \"second\", encoding: \"utf8_text\" });\n  return { digested: [Object.keys(first).length, Object.keys(second).length] };\n}\n";
 
-    // The script call is 0 and its calls 1 and 2: the host dies after call 2
-    // ran, before its record.
-    let mut dying = host(Some("after_execution@answer/2"))?;
+    // The script call is 0 and its calls are under it, answer/0's 0 and 1:
+    // the host dies after its second ran, before its record.
+    let mut dying = host(Some("after_execution@answer/0/1"))?;
     write_frame(
         dying.stdin_mut()?,
         &request(
@@ -752,11 +752,12 @@ fn a_turns_script_killed_mid_way_recovers_from_its_record() -> Result<(), Box<dy
         .output()?;
     let history: Value = serde_json::from_slice(&history.stdout)?;
     let events = history["events"].as_array().ok_or("missing events")?;
-    for index in [1, 2] {
+    for index in [0, 1] {
         let completed = events
             .iter()
             .filter(|record| {
                 record["event"]["kind"] == "call"
+                    && record["event"]["step_id"] == "answer/0"
                     && record["event"]["index"] == index
                     && record["event"]["outcome"]["status"] == "completed"
             })

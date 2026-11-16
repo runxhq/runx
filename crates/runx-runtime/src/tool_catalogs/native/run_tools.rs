@@ -1,17 +1,16 @@
-//! `run.list`, `run.read` and `run.call`: the workspace's runs, read from
-//! their records, the tool forms of `runx history` and `runx history
-//! <run-id>`, and one call a run made, read whole.
+//! `run.list` and `run.read`: the workspace's runs, read from their records,
+//! the tool forms of `runx history` and `runx history <run-id>`.
 
 use runx_contracts::schema::BoundedVec;
 use runx_contracts::{
-    JsonNumber, JsonObject, JsonValue, RUN_LIST_MAX_RUNS, RunCall, RunList, RunListSchema, RunRead,
+    JsonNumber, JsonObject, JsonValue, RUN_LIST_MAX_RUNS, RunList, RunListSchema, RunRead,
 };
 use serde::{Deserialize, Serialize};
 
 use super::NativeInvocation;
 use super::capability::{NativeCapability, TypedNativeCapability};
 use crate::RuntimeError;
-use crate::execution::run_record::{RunFilter, list_runs, read_call, read_run};
+use crate::execution::run_record::{RunFilter, list_runs, read_run};
 use crate::{
     CapabilityApproval, CapabilityArtifacts, CapabilityDefinition, CapabilityEffect,
     CapabilityField, CapabilityInput, CapabilityOutput,
@@ -147,87 +146,7 @@ static READ: TypedNativeCapability<RunReadInput, RunReadOutput> = TypedNativeCap
     read,
 );
 
-/// One call a run made, by its address there, read whole: its whole input,
-/// how it ended, the turn that made it, and each call a turn's script call's
-/// script made. Without `run_id` it reads the run the call is made in, from
-/// its root, as `run.read` does.
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct RunCallInput {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    run_id: Option<String>,
-    call: String,
-}
-
-impl CapabilityInput for RunCallInput {}
-
-#[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
-#[serde(deny_unknown_fields)]
-struct RunCallOutput {
-    run_call: RunCall,
-}
-
-impl CapabilityOutput for RunCallOutput {}
-
-const CALL_FIELDS: &[CapabilityField] = &[
-    field(
-        "run_id",
-        "A run of this workspace; without it, the run the call is made in, from its root.",
-    ),
-    field(
-        "call",
-        "The call's address in its run, <step>/<index>, as run.read's events name it.",
-    ),
-];
-
-static CALL: TypedNativeCapability<RunCallInput, RunCallOutput> = TypedNativeCapability::new(
-    CapabilityDefinition {
-        id: "run.call",
-        source: "runx-runtime/runs",
-        summary: "Read one call a run made, whole: its input, how it ended, the turn that made it, and each call a turn's script call made.",
-        effect: CapabilityEffect::Read,
-        approval: CapabilityApproval::None,
-        artifacts: CapabilityArtifacts::Named {
-            output: "run_call",
-            packet: "runx.run_call.v1",
-        },
-        fields: CALL_FIELDS,
-    },
-    call,
-);
-
-pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&LIST, &READ, &CALL];
-
-fn call(invocation: &NativeInvocation<'_, RunCallInput>) -> Result<RunCallOutput, RuntimeError> {
-    let failed = |message: String| RuntimeError::SkillFailed {
-        skill_name: "run.call".to_owned(),
-        message,
-    };
-    let run_id = match (&invocation.inputs.run_id, invocation.call) {
-        (Some(run_id), _) => run_id.as_str(),
-        (None, Some(call)) => crate::execution::run_record::root_run_id(&call.run_id),
-        (None, None) => {
-            return Err(failed(
-                "run_id is required outside a run, which has no run of its own to read".to_owned(),
-            ));
-        }
-    };
-    let address = invocation.inputs.call.as_str();
-    let (step_id, index) = address
-        .rsplit_once('/')
-        .and_then(|(step, index)| Some((step, index.parse::<u32>().ok()?)))
-        .filter(|(step, _)| !step.is_empty())
-        .ok_or_else(|| failed(format!("call {address} is no <step>/<index>")))?;
-    let run_call = read_call(
-        invocation.env,
-        invocation.skill_directory,
-        run_id,
-        step_id,
-        index,
-    )
-    .map_err(|error| failed(error.to_string()))?;
-    Ok(RunCallOutput { run_call })
-}
+pub(super) const CAPABILITIES: &[&dyn NativeCapability] = &[&LIST, &READ];
 
 fn read(invocation: &NativeInvocation<'_, RunReadInput>) -> Result<RunReadOutput, RuntimeError> {
     let failed = |message: String| RuntimeError::SkillFailed {

@@ -138,6 +138,7 @@ where
         given,
         reconciliation,
         reused: None,
+        script: None,
     };
     match loaded_skill {
         Some(skill) => super::step_handlers::run_step_with_loaded_skill_inputs(request, skill),

@@ -290,20 +290,23 @@ four options, the recommended first; a question without options takes text.
 `script` takes `{source, inputs?}`: one ECMAScript module, which imports
 nothing, whose default export, `export default async function (ctx, inputs)`,
 runs and returns the call's result, an object; one that throws or returns
-anything else fails the call. It's offered
-wherever a turn offers a tool, an operation or a skill, and it reaches nothing
-the turn doesn't: `ctx.tool(name, input)` makes one of the turn's own calls,
-by the name `turn_status` lists it under and with the input it takes there,
-and `ctx.now()` reads the time. Its source and inputs are recorded before it
-runs, and each call it makes is a call of the turn's step, at an index of its
-own, admitted as the turn's own call, so a read-only turn's script writes
-nothing and its writes to store are refused as the turn's are. Each records
-the script call that made it and its place in the script, which a resumed
-script matches it by, so a crash or a wait never makes it twice. The script
-call waits on what its calls wait on, settles with what the script returns,
-and its receipt names each call it made; `turn_status` lists the turn's own
-calls, and a run's history every call. `fs.inverse` names a script call by its
-`call_id` to undo every edit its script made.
+anything else fails the call. It's offered wherever a turn offers a tool, an
+operation or a skill, and it reaches nothing the turn doesn't. A script makes
+its calls by their real names, as a package's script does:
+`ctx.tool("data.digest", input)`, `ctx.operation("<connector>/<operation>",
+input)` and `ctx.skill("<skill>#<method>", input)`, and the `script` tool
+lists each of the turn's calls by its real name beside the name the turn
+offers it under. `ctx.now()` reads the time. Its source and inputs are
+recorded before it runs, and its calls nest under it: each is recorded at the
+script call's address, `answer/0/<n>`, at its position in the script, and
+admitted as the turn's own call, so a read-only turn's script writes nothing
+and its writes to store are refused as the turn's are. A resumed script
+matches each by its position, so a crash or a wait never makes it twice. The
+script call waits on what its calls wait on, settles with what the script
+returns, and seals one receipt, whatever it ends as, naming each call it made
+that completed. `turn_status` lists the turn's own calls, and a run's history
+every call. `fs.inverse` names a call by its `call_id` to undo every edit made
+under it: its own, the calls its script made, or its child run's.
 Each call is admitted against the turn's allowance and the run's authority,
 executed, and recorded in the run; the turn's receipt names every call it made.
 A host pins its own `call_id` on a call, unique within the turn: a call made

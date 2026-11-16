@@ -1139,10 +1139,11 @@ fn loads_and_calls_store(project: &Project, session: PathBuf) -> TestResult {
         serde_json::to_string(&append)?.contains("a turn's own call never does"),
         "{append:?}"
     );
-    // Nor does a script the turn runs: each call it makes is the turn's own.
+    // Nor does a script the turn runs: each call it makes is the turn's own,
+    // by its real name.
     let source = r#"export default async function (ctx) {
   const append = { stream: "items", key: "k", expected_version: 0, type: "item.added", data: {} };
-  return ctx.tool("store__events_append", { input: append }).then(
+  return ctx.operation("store/events.append", append).then(
     () => ({ appended: true }),
     (rejected) => ({ appended: false, message: rejected.message }),
   );

@@ -225,10 +225,9 @@ pub use resume::{
     StandingCommands, StandingEdits, StandingOperations,
 };
 pub use run_read::{
-    RanOn, RecomputeReason, ReuseDecision, RunCall, RunCallOutcome, RunCallOutput, RunCallReuse,
-    RunCallSchema, RunCallScript, RunDriver, RunEventFact, RunEventRecord, RunHold,
-    RunImplementation, RunRead, RunReadSchema, RunReadSummary, RunScriptCall, RunState, TurnHost,
-    WaitedRequest,
+    RanOn, RecomputeReason, ReuseDecision, RunCallOutcome, RunCallOutput, RunCallReuse, RunDriver,
+    RunEventFact, RunEventRecord, RunHold, RunImplementation, RunRead, RunReadSchema,
+    RunReadSummary, RunState, TurnHost, WaitedRequest,
 };
 pub use schema_artifacts::{
     SchemaArtifact, generated_schema_artifacts, public_packet_artifact, schema_artifact,

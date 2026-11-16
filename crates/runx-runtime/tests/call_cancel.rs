@@ -293,15 +293,8 @@ fn a_cancelled_script_call_ends_the_read_it_has_in_flight() -> TestResult {
     let (on, off) = (pipe(&root.join("started"))?, pipe(&root.join("release"))?);
     let skill = asker(root, "          operations: [gate/gate.wait]\n")?;
     let (run_id, session) = open(root, skill)?;
-    let wait = session
-        .status(TURN)?
-        .tools
-        .into_iter()
-        .find(|tool| tool.name.as_str().contains("gate"))
-        .ok_or("the turn offers the gate's read")?
-        .name;
     let source = r#"export default async function (ctx, inputs) {
-  return ctx.tool(inputs.wait, { input: { started: inputs.started, release: inputs.release } }).then(
+  return ctx.operation("gate/gate.wait", { started: inputs.started, release: inputs.release }).then(
     () => ({ read: true }),
     (rejected) => ({ read: false, code: rejected.code }),
   );
@@ -310,7 +303,6 @@ fn a_cancelled_script_call_ends_the_read_it_has_in_flight() -> TestResult {
     let scripting = std::thread::spawn({
         let session = Arc::clone(&session);
         let call = input(serde_json::json!({"source": source, "inputs": {
-            "wait": wait.as_str(),
             "started": on.to_string_lossy(),
             "release": off.to_string_lossy(),
         }}))?;
@@ -320,12 +312,13 @@ fn a_cancelled_script_call_ends_the_read_it_has_in_flight() -> TestResult {
     assert_eq!(session.cancel("answer/0")?, CallCancel::SettlesAsItEnds);
     let script = scripting.join().map_err(|_| "the call panicked")??;
     assert_eq!(script.outcome, TurnCallOutcome::Cancelled, "{script:?}");
+    // The script call, then its read under it at answer/0's index 0.
     assert_eq!(
         calls(root, &run_id, &run_id)?,
         [
             (0, "executing", false),
-            (1, "claimed", false),
-            (1, "cancelled", true),
+            (0, "claimed", false),
+            (0, "cancelled", true),
             (0, "cancelled", true)
         ]
     );

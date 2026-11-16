@@ -56,7 +56,7 @@ mod read;
 
 pub(crate) use claim::retained_claim;
 pub use driver::{DriverLock, driven};
-pub use read::{read_call, read_run};
+pub use read::read_run;
 
 /// One event in a run's stream.
 #[derive(Debug, Serialize, Deserialize)]
@@ -288,10 +288,6 @@ struct CallEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     turn: Option<TurnRequestEvent>,
     index: u32,
-    /// The script call of the turn that made it, and its position in that
-    /// script, which the script's replay matches it by.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    script: Option<runx_contracts::RunCallScript>,
     /// The id its host pinned on the call, unique within its turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     call_id: Option<String>,
@@ -408,10 +404,6 @@ struct ConsumedEvent {
 struct ClockEvent {
     step_id: String,
     attempt: u32,
-    /// The script call of the turn that read it, whose position `index` is;
-    /// none for a script step's own read.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    script: Option<u32>,
     index: u32,
     /// Milliseconds since the epoch.
     millis: i64,
@@ -587,8 +579,6 @@ pub(crate) struct RecordedCall {
     pub step_id: String,
     pub attempt: u32,
     pub index: u32,
-    /// The script call of the turn that made it, and its position there.
-    pub script: Option<runx_contracts::RunCallScript>,
     pub call_id: Option<String>,
     pub target: CallTarget,
     pub input: JsonObject,
@@ -609,14 +599,6 @@ pub(crate) struct RecordedCall {
     pub reuse: Option<runx_contracts::RunCallReuse>,
     /// The reuse identity its child is indexed under, when it asked.
     pub reuse_identity: Option<String>,
-}
-
-impl RecordedCall {
-    /// Its position in the script that made it: its place in the turn's
-    /// script call that made it, or its index in a script step.
-    pub(crate) fn position(&self) -> u32 {
-        self.script.map_or(self.index, |place| place.position)
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -659,8 +641,6 @@ pub(crate) struct CallRecord<'a> {
     pub attempt: u32,
     pub turn: Option<&'a PendingRequest>,
     pub index: u32,
-    /// The script call of the turn that made it, and its position there.
-    pub script: Option<runx_contracts::RunCallScript>,
     pub call_id: Option<&'a str>,
     pub target: &'a CallTarget,
     pub input: &'a JsonObject,
@@ -824,8 +804,6 @@ pub enum RunRecordError {
     InvalidCursor,
     #[error("run {run_id} has no record in this workspace")]
     UnknownRun { run_id: String },
-    #[error("run {run_id} made no call {call}")]
-    UnknownCall { run_id: String, call: String },
 }
 
 /// The writer of one run's stream.
@@ -868,14 +846,10 @@ struct KeptCalls {
     written: u64,
     calls: Vec<RecordedCall>,
     waiting: BTreeMap<u32, WaitingCallEvent>,
-    clock: ClockReads,
+    clock: BTreeMap<u32, i64>,
     /// The place the step's next call event takes among its call events.
     order: u64,
 }
-
-/// What each script of a step read of the clock, by position: a script
-/// step's own reads under `None`, and a turn's script call's under its index.
-pub(crate) type ClockReads = BTreeMap<Option<u32>, BTreeMap<u32, i64>>;
 
 impl KeptCalls {
     /// The step's calls after `events`, its stream's next, which holds
@@ -897,10 +871,7 @@ impl KeptCalls {
                     self.order += 1;
                 }
                 RunEvent::Clock(read) => {
-                    self.clock
-                        .entry(read.script)
-                        .or_default()
-                        .insert(read.index, read.millis);
+                    self.clock.insert(read.index, read.millis);
                 }
                 _ => {
                     return Err(RunRecordError::Invalid {
@@ -916,7 +887,7 @@ impl KeptCalls {
     }
 
     /// The calls by index, and the clock reads.
-    fn read(&self) -> (Vec<RecordedCall>, ClockReads) {
+    fn read(&self) -> (Vec<RecordedCall>, BTreeMap<u32, i64>) {
         let mut calls = self.calls.clone();
         calls.sort_by_key(|call| call.index);
         (calls, self.clock.clone())
@@ -933,10 +904,20 @@ pub(crate) fn calls_key(run_id: &str, step_id: &str, attempt: u32) -> String {
 /// Whether `stream` holds the calls of one of run `run_id`'s steps.
 #[must_use]
 pub fn is_calls_stream_of(stream: &str, run_id: &str) -> bool {
-    stream
+    // A step's calls are `<step>@<attempt>`, and a script call's calls are
+    // `<step>/<index>@<attempt>`, under the call. A child run's are below its
+    // own id, a step and an index further down.
+    let Some((place, _attempt)) = stream
         .strip_prefix(run_id)
         .and_then(|rest| rest.strip_prefix('/'))
-        .is_some_and(|step| !step.contains('/') && step.contains('@'))
+        .and_then(|rest| rest.split_once('@'))
+    else {
+        return false;
+    };
+    match place.split_once('/') {
+        None => true,
+        Some((_, index)) => !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit()),
+    }
 }
 
 impl std::fmt::Debug for RunLog {
@@ -1249,14 +1230,14 @@ impl RunLog {
         Ok(self.step_calls(step_id, attempt)?.0)
     }
 
-    /// A step's calls, in order, and the clock reads its scripts recorded, by
+    /// A step's calls, in order, and the clock reads its script recorded, by
     /// position, as this driver last saw the run. A run another driver has
     /// advanced since is contended.
     pub(crate) fn step_calls(
         &self,
         step_id: &str,
         attempt: u32,
-    ) -> Result<(Vec<RecordedCall>, ClockReads), RunRecordError> {
+    ) -> Result<(Vec<RecordedCall>, BTreeMap<u32, i64>), RunRecordError> {
         if self.0.strict {
             let contended = || RunRecordError::Contended {
                 run_id: self.0.run_id.clone(),
@@ -1305,11 +1286,11 @@ impl RunLog {
     }
 
     /// Record what a script's `ctx.now()` read at position `index` of its
-    /// step, or of the turn's script call `script`: `millis` since the epoch.
+    /// step: `millis` since the epoch.
     pub(crate) fn record_clock(
         &self,
-        (step_id, attempt): (&str, u32),
-        script: Option<u32>,
+        step_id: &str,
+        attempt: u32,
         index: u32,
         millis: i64,
     ) -> Result<(), RunRecordError> {
@@ -1319,7 +1300,6 @@ impl RunLog {
                 RunEvent::Clock(Box::new(ClockEvent {
                     step_id: step_id.to_owned(),
                     attempt,
-                    script,
                     index,
                     millis,
                 })),
@@ -1835,7 +1815,6 @@ impl RunLog {
             attempt: call.attempt,
             turn: turn_event,
             index: call.index,
-            script: call.script,
             call_id: call.call_id.map(str::to_owned),
             target: call.target.clone(),
             input: input_digest,
@@ -2556,7 +2535,6 @@ fn recorded_call(
         step_id: call.step_id,
         attempt: call.attempt,
         index: call.index,
-        script: call.script,
         call_id: call.call_id,
         target: call.target,
         standing: call.standing,
@@ -2655,7 +2633,7 @@ pub(crate) fn local_request_id(address: &str) -> &str {
 
 /// The step a call runs as: `<turn step>/<index>`, so a child run it starts
 /// is `<run>/<turn step>/<index>`.
-pub(crate) fn call_step_id(turn_step: &str, index: u32) -> String {
+pub fn call_step_id(turn_step: &str, index: u32) -> String {
     format!("{turn_step}/{index}")
 }
 

@@ -942,8 +942,7 @@ pub(crate) fn eligible(
         if operation && !read_runx_made(step) {
             return Ok(false);
         }
-        let (calls, clocks) = log.step_calls(&step.step_id, step.attempt)?;
-        if !clocks.is_empty() || !calls.iter().all(call_is_seen) {
+        if !calls_are_seen(&log, &step.step_id, step.attempt)? {
             return Ok(false);
         }
     }
@@ -974,12 +973,35 @@ fn native_read_is_seen(tool: &str) -> bool {
         && !crate::tool_catalogs::native::runs_a_process(tool)
 }
 
-/// Whether runx sees all `call` did.
+/// Whether runx sees all the calls step `step_id`'s `attempt` made, and the
+/// calls under each of them a script made: none read the clock, and runx sees
+/// all each did.
+fn calls_are_seen(
+    log: &super::run_record::RunLog,
+    step_id: &str,
+    attempt: u32,
+) -> Result<bool, super::run_record::RunRecordError> {
+    let (calls, clocks) = log.step_calls(step_id, attempt)?;
+    if !clocks.is_empty() || !calls.iter().all(call_is_seen) {
+        return Ok(false);
+    }
+    for call in calls
+        .iter()
+        .filter(|call| call.target == runx_contracts::CallTarget::Script)
+    {
+        let under = super::run_record::call_step_id(step_id, call.index);
+        if !calls_are_seen(log, &under, attempt)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Whether runx sees all `call` did. A script call computes over what its
+/// calls returned, and those are read as its step's own.
 fn call_is_seen(call: &super::run_record::RecordedCall) -> bool {
     match &call.target {
         runx_contracts::CallTarget::Tool { tool } => native_read_is_seen(tool.as_str()),
-        // A turn's script computes over what its calls returned, and each
-        // call it made is one of its step's, checked as its own.
         runx_contracts::CallTarget::Read { .. } | runx_contracts::CallTarget::Script => true,
         runx_contracts::CallTarget::Operation { .. } => matches!(
             &call.outcome,
@@ -1201,7 +1223,6 @@ mod tests {
             step_id: "turn".to_owned(),
             attempt: 1,
             index: 0,
-            script: None,
             call_id: None,
             target,
             input: runx_contracts::JsonObject::new(),

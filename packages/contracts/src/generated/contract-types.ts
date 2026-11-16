@@ -355,7 +355,7 @@ export type CallCostContract = {
   readonly settled_usd_micro?: number;
 };
 
-/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, `ask` and `load` where its step allows them, and `script` where it offers a tool, an operation or a skill. A script step's script makes the calls its step's `calls` lists, and a turn's script the turn's tool calls, each by the name the turn offers it; both make `wait` and `read`. */
+/** What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, `ask` and `load` where its step allows them, and `script` where it offers a tool, an operation or a skill; a script is offered a tool, an operation or a skill its step's `calls` lists, `wait` and `read`. */
 export type CallTargetContract = {
   readonly kind: "tool";
   readonly tool: string;
@@ -2703,25 +2703,6 @@ export type ReuseDecisionContract = {
   readonly reason: RecomputeReasonContract;
 };
 
-/** One call a run made, read whole by its address (`run.call`): what it called, its whole input, how it ended, the turn it was made in, and, for a turn's script call, each call its script made, in position order. A run's read gives a call's input by its digest; this is where it's read whole, as Save as skill reads the script it keeps. */
-export type RunCallContract = {
-  /** `<step>/<index>` in its run. */
-  readonly address: string;
-  /** The step's attempt that made it: its latest holding the index. */
-  readonly attempt: number;
-  /** Each call its script made, a turn's script call's; none otherwise. */
-  readonly calls?: readonly RunScriptCallContract[];
-  readonly input: {
-    readonly [key: string]: unknown;
-  };
-  readonly outcome: RunCallOutcomeContract;
-  readonly run_id: string;
-  readonly schema: RunCallSchemaContract;
-  readonly target: CallTargetContract;
-  /** The request of the turn that made it, which holds the turn's task and what it was given. */
-  readonly turn?: ResolutionRequestContract;
-};
-
 /** How a call stood when this event recorded it. */
 export type RunCallOutcomeContract = {
   /** The call's output its record holds: every field but those `outputs` names. */
@@ -2785,14 +2766,6 @@ export type RunCallReuseContract = {
   readonly max_age_seconds: number;
   /** Only a result this model made, when the call named one. */
   readonly model?: string;
-};
-
-export type RunCallSchemaContract = "runx.run_call.v1";
-
-/** Where a call a turn's script made stands in that script: the script call, by its index in the turn's step, and the call's position among the calls the script made, which its replay matches it by. */
-export type RunCallScriptContract = {
-  readonly call: number;
-  readonly position: number;
 };
 
 /** Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed. */
@@ -2872,8 +2845,6 @@ export type RunEventFactContract = {
   readonly outcome: RunCallOutcomeContract;
   /** What the call asked of reuse, and what it was answered. Absent when it asked for none. */
   readonly reuse?: RunCallReuseContract;
-  /** The script call of the turn that made it, and its position in that script. Absent on every other call. */
-  readonly script?: RunCallScriptContract;
   /** The standing approval that admitted it on the approval floor, when one did. */
   readonly standing?: StandingApprovalContract;
   readonly step_id: string;
@@ -2885,8 +2856,6 @@ export type RunEventFactContract = {
   readonly index: number;
   readonly kind: "clock";
   readonly millis: number;
-  /** The script call of the turn that read it, whose position `index` is; absent for a script step's own read. */
-  readonly script?: number;
   readonly step_id: string;
 } | {
   readonly kind: "sealed";
@@ -3000,19 +2969,6 @@ export type RunReadSummaryContract = {
   readonly skill: string;
   readonly state: RunStateContract;
   readonly updated_at: string;
-};
-
-/** A call a turn's script made, as its script call's read gives it. */
-export type RunScriptCallContract = {
-  /** `<step>/<index>` in its run. */
-  readonly address: string;
-  readonly input: {
-    readonly [key: string]: unknown;
-  };
-  readonly outcome: RunCallOutcomeContract;
-  /** Its place among the calls the script made. */
-  readonly position: number;
-  readonly target: CallTargetContract;
 };
 
 /** Where a run stands, from its latest event alone. */

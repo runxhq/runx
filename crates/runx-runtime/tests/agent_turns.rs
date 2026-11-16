@@ -1376,7 +1376,7 @@ fn a_script_starts_no_more_child_runs_than_its_turn_may() -> TestResult {
     let turn = opened(temp.path(), &started)?;
     let source = r#"export default async function (ctx) {
   const settled = await Promise.allSettled(
-    ["one", "two"].map((value) => ctx.tool("skill__digest-child", { value })),
+    ["one", "two"].map((value) => ctx.skill("../digest-child", { value })),
   );
   return { settled: settled.map((each) => each.status), reason: settled[1].reason?.message ?? "" };
 }
@@ -3394,14 +3394,10 @@ fn an_unattended_edit_under_a_standing_approval_never_reads_a_credential() -> Te
     Ok(())
 }
 
-/// Each call event of run `run_id`: its index, where a turn's script made it
-/// (the script call and the position there), its target, and how it stood.
-type CallEvent = (
-    u32,
-    Option<(u32, u32)>,
-    runx_contracts::CallTarget,
-    RunCallOutcome,
-);
+/// Each call event of run `run_id`: the step it's a call of, a script call's
+/// address for a call its script made, its index there, its target, and how
+/// it stood.
+type CallEvent = (String, u32, runx_contracts::CallTarget, RunCallOutcome);
 
 fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<CallEvent>> {
     let read = runx_runtime::run_record::read_run(&env(root), root, run_id, None)?;
@@ -3410,35 +3406,30 @@ fn call_events(root: &Path, run_id: &str) -> TestResult<Vec<CallEvent>> {
         .into_iter()
         .filter_map(|record| match record.event {
             RunEventFact::Call {
+                step_id,
                 index,
-                script,
                 target,
                 outcome,
                 ..
-            } => Some((
-                index,
-                script.map(|place| (place.call, place.position)),
-                target,
-                *outcome,
-            )),
+            } => Some((step_id.as_str().to_owned(), index, target, *outcome)),
             _ => None,
         })
         .collect())
 }
 
-/// The calls of `events` a turn's script made: each one's index, the script
-/// call and its position there.
-fn scripted(events: &[CallEvent]) -> std::collections::BTreeSet<(u32, u32, u32)> {
+/// The calls of `events` a turn's script made: each one's script call's
+/// address and its index there.
+fn scripted(events: &[CallEvent]) -> std::collections::BTreeSet<(String, u32)> {
     events
         .iter()
-        .filter_map(|(index, script, ..)| script.map(|(call, position)| (*index, call, position)))
+        .filter(|(step, ..)| step.contains('/'))
+        .map(|(step, index, ..)| (step.clone(), *index))
         .collect()
 }
 
-/// A turn's script makes the turn's calls by the names the turn offers them,
-/// each a call of the turn's step at an index of its own, linked to the
-/// script call and its position there, and the call settles with what the
-/// script returns. Its source is in the record before its first call
+/// A turn's script makes the turn's calls by their real names, each recorded
+/// under the script call's address at its position, and the call settles
+/// with what the script returns. Its source is in the record before its first call
 /// (CON25), its host is shown the turn's own calls alone, and made again by
 /// its id it's the call already made. The turn's receipt names the script
 /// call, whose own receipt names the calls its script made. A script that
@@ -3463,9 +3454,9 @@ fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
 
     let source = r#"export default async function (ctx, inputs) {
   const digests = await Promise.all(
-    inputs.values.map((value) => ctx.tool("data_digest", { value, encoding: "utf8_text" })),
+    inputs.values.map((value) => ctx.tool("data.digest", { value, encoding: "utf8_text" })),
   );
-  const child = await ctx.tool("skill__digest-child", { value: "child" });
+  const child = await ctx.skill("../digest-child", { value: "child" });
   return { digested: digests.length, child: Object.keys(child).length > 0 };
 }
 "#;
@@ -3511,36 +3502,36 @@ fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
     let events = call_events(&paused.root, &paused.run_id)?;
     let first = events
         .iter()
-        .position(|(index, ..)| *index == 1)
+        .position(|(step, index, ..)| step == "answer" && *index == 1)
         .ok_or("the script call is recorded")?;
     assert!(
         matches!(
             &events[first],
             (
+                step,
                 1,
-                None,
                 runx_contracts::CallTarget::Script,
                 RunCallOutcome::Executing
-            )
+            ) if step == "answer"
         ),
         "{:?}",
         events[first]
     );
-    assert!(
-        events[..first]
-            .iter()
-            .all(|(_, script, ..)| script.is_none())
-    );
+    assert!(events[..first].iter().all(|(step, ..)| step == "answer"));
     assert_eq!(
         scripted(&events),
-        std::collections::BTreeSet::from([(2, 1, 0), (3, 1, 1), (4, 1, 2)])
+        std::collections::BTreeSet::from([
+            ("answer/1".to_owned(), 0),
+            ("answer/1".to_owned(), 1),
+            ("answer/1".to_owned(), 2),
+        ])
     );
 
     let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "digested"}))?)?;
     assert_eq!(
         paused.sealed_step_children(&sealed)?,
-        2,
-        "the turn's receipt names each script call that ran, not the calls its script made"
+        3,
+        "the turn's receipt names each script call that ran, failed or not, never the calls its script made"
     );
     let receipt = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id.as_str())?;
     assert_eq!(
@@ -3567,7 +3558,7 @@ fn a_read_only_turns_script_writes_nothing() -> TestResult {
     let paused = Paused::start(root, skill_dir, TURN)?;
     let turn = paused.open()?;
     let source = r#"export default async function (ctx) {
-  return ctx.tool("fs_write", { path: "written.txt", contents: "written" }).then(
+  return ctx.tool("fs.write", { path: "written.txt", contents: "written" }).then(
     () => ({ wrote: true }),
     (rejected) => ({ wrote: false, message: rejected.message }),
   );
@@ -3614,8 +3605,8 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
     // The first write's contents are an input past the inline bound, which
     // reaches the script by reference, and each drive gives it again.
     let source = r#"export default async function (ctx, inputs) {
-  await ctx.tool("fs_write", { path: "first.txt", contents: inputs.first });
-  await ctx.tool("fs_write", { path: "second.txt", contents: "two\n" });
+  await ctx.tool("fs.write", { path: "first.txt", contents: inputs.first });
+  await ctx.tool("fs.write", { path: "second.txt", contents: "two\n" });
   return { wrote: 2 };
 }
 "#;
@@ -3626,15 +3617,15 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
         None,
         input(serde_json::json!({"source": source, "inputs": {"first": first}}))?,
     )?;
-    floor_gate(&script, "answer/1/tool")?;
+    floor_gate(&script, "answer/0/0/tool")?;
     let own = turn.call(
         TURN,
         "fs_write",
         None,
         input(serde_json::json!({"path": "own.txt", "contents": "own\n"}))?,
     )?;
-    assert_eq!(own.index, 2);
-    floor_gate(&own, "answer/2/tool")?;
+    assert_eq!(own.index, 1);
+    floor_gate(&own, "answer/1/tool")?;
     let approve = |address: &str| -> TestResult<RunResult> {
         let mut approvals = serde_json::Map::new();
         approvals.insert(address.to_owned(), serde_json::Value::Bool(true));
@@ -3647,13 +3638,13 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
         resume_document(root, &run_id, bound)
     };
 
-    approve("answer/1/tool")?;
+    approve("answer/0/0/tool")?;
     let status = turn.status(TURN)?;
-    floor_gate(&status.calls[0], "answer/3/tool")?;
+    floor_gate(&status.calls[0], "answer/0/1/tool")?;
     assert_eq!(std::fs::read_to_string(root.join("first.txt"))?, first);
     assert!(!root.join("second.txt").exists());
 
-    approve("answer/3/tool")?;
+    approve("answer/0/1/tool")?;
     let status = turn.status(TURN)?;
     let TurnCallOutcome::Completed { output, .. } = &status.calls[0].outcome else {
         return Err(format!("the script completes once approved: {status:?}").into());
@@ -3670,13 +3661,14 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
     let events = call_events(root, &run_id)?;
     assert_eq!(
         scripted(&events),
-        std::collections::BTreeSet::from([(1, 0, 0), (3, 0, 1)])
+        std::collections::BTreeSet::from([("answer/0".to_owned(), 0), ("answer/0".to_owned(), 1)])
     );
-    for index in [1, 3] {
+    for index in [0, 1] {
         assert_eq!(
             events
                 .iter()
-                .filter(|(at, _, _, outcome)| *at == index
+                .filter(|(step, at, _, outcome)| step == "answer/0"
+                    && *at == index
                     && matches!(outcome, RunCallOutcome::Completed { .. }))
                 .count(),
             1,
@@ -3709,8 +3701,8 @@ fn a_turns_script_edits_are_undone_by_naming_its_call() -> TestResult {
         .to_owned();
     let turn = opened(root, &started)?;
     let source = r#"export default async function (ctx, inputs) {
-  await ctx.tool("fs_write", { path: "made.txt", contents: "made\n" });
-  await ctx.tool("fs_write", { path: "kept.txt", contents: "after\n", expected_digest: inputs.kept });
+  await ctx.tool("fs.write", { path: "made.txt", contents: "made\n" });
+  await ctx.tool("fs.write", { path: "kept.txt", contents: "after\n", expected_digest: inputs.kept });
   return { edited: 2 };
 }
 "#;

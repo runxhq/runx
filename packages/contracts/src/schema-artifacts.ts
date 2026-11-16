@@ -2130,7 +2130,7 @@ export const runxSchemaArtifacts = {
           },
           {
             "additionalProperties": false,
-            "description": "The call's input is `{source, inputs?}`: one ECMAScript module the turn wrote, whose default export runx runs on `inputs`. Each call it makes is a call of the turn's step, admitted as the turn's own, and its result is the call's.",
+            "description": "The call's input is `{source, inputs?}`: one ECMAScript module the turn wrote. runx writes it as a package whose one method runs it, with the turn's calls as its `calls`, and calls that method as the turn's own child run; its result is what the script returns.",
             "properties": {
               "kind": {
                 "const": "script",
@@ -2180,7 +2180,7 @@ export const runxSchemaArtifacts = {
             "type": "object"
           }
         ],
-        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, `ask` and `load` where its step allows them, and `script` where it offers a tool, an operation or a skill. A script step's script makes the calls its step's `calls` lists, and a turn's script the turn's tool calls, each by the name the turn offers it; both make `wait` and `read`.",
+        "description": "What a call names, a turn's or a script's, as its step's ledger admits and records it. A turn is offered a tool, an operation or a skill its allowance lists, `ask` and `load` where its step allows them, and `script` where it offers a tool, an operation or a skill; a script is offered a tool, an operation or a skill its step's `calls` lists, `wait` and `read`.",
         "title": "CallTarget"
       },
       "CatalogHit": {
@@ -8354,33 +8354,6 @@ export const runxSchemaArtifacts = {
         "title": "RunCallReuse",
         "type": "object"
       },
-      "RunCallSchema": {
-        "enum": [
-          "runx.run_call.v1"
-        ],
-        "title": "RunCallSchema",
-        "type": "string"
-      },
-      "RunCallScript": {
-        "additionalProperties": false,
-        "description": "Where a call a turn's script made stands in that script: the script call, by its index in the turn's step, and the call's position among the calls the script made, which its replay matches it by.",
-        "properties": {
-          "call": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "position": {
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "call",
-          "position"
-        ],
-        "title": "RunCallScript",
-        "type": "object"
-      },
       "RunClose": {
         "additionalProperties": false,
         "description": "Seal the run without continuing it: a person stopped it, or a new attempt replaced it. An effect the run left unconfirmed stays unconfirmed.",
@@ -8617,10 +8590,6 @@ export const runxSchemaArtifacts = {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallReuse",
                 "description": "What the call asked of reuse, and what it was answered. Absent when it asked for none."
               },
-              "script": {
-                "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallScript",
-                "description": "The script call of the turn that made it, and its position in that script. Absent on every other call."
-              },
               "standing": {
                 "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/StandingApproval",
                 "description": "The standing approval that admitted it on the approval floor, when one did."
@@ -8666,11 +8635,6 @@ export const runxSchemaArtifacts = {
                 "type": "string"
               },
               "millis": {
-                "type": "integer"
-              },
-              "script": {
-                "description": "The script call of the turn that read it, whose position `index` is; absent for a script step's own read.",
-                "minimum": 0,
                 "type": "integer"
               },
               "step_id": {
@@ -9028,41 +8992,6 @@ export const runxSchemaArtifacts = {
           "updated_at"
         ],
         "title": "RunReadSummary",
-        "type": "object"
-      },
-      "RunScriptCall": {
-        "additionalProperties": false,
-        "description": "A call a turn's script made, as its script call's read gives it.",
-        "properties": {
-          "address": {
-            "description": "`<step>/<index>` in its run.",
-            "minLength": 1,
-            "type": "string"
-          },
-          "input": {
-            "additionalProperties": {},
-            "type": "object"
-          },
-          "outcome": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
-          },
-          "position": {
-            "description": "Its place among the calls the script made.",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "target": {
-            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
-          }
-        },
-        "required": [
-          "position",
-          "address",
-          "target",
-          "input",
-          "outcome"
-        ],
-        "title": "RunScriptCall",
         "type": "object"
       },
       "RunState": {
@@ -13560,66 +13489,6 @@ export const runxSchemaArtifacts = {
     "title": "ResumeDocument",
     "type": "object",
     "x-runx-schema": "runx.resume.v1"
-  } as JsonSchema,
-  "run-call.schema.json": {
-    "$id": "https://schemas.runx.ai/runx/run-call/v1.json",
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "additionalProperties": false,
-    "description": "One call a run made, read whole by its address (`run.call`): what it called, its whole input, how it ended, the turn it was made in, and, for a turn's script call, each call its script made, in position order. A run's read gives a call's input by its digest; this is where it's read whole, as Save as skill reads the script it keeps.",
-    "properties": {
-      "address": {
-        "description": "`<step>/<index>` in its run.",
-        "minLength": 1,
-        "type": "string"
-      },
-      "attempt": {
-        "description": "The step's attempt that made it: its latest holding the index.",
-        "minimum": 0,
-        "type": "integer"
-      },
-      "calls": {
-        "description": "Each call its script made, a turn's script call's; none otherwise.",
-        "items": {
-          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunScriptCall"
-        },
-        "minItems": 1,
-        "type": "array"
-      },
-      "input": {
-        "additionalProperties": {},
-        "type": "object"
-      },
-      "outcome": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallOutcome"
-      },
-      "run_id": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "schema": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunCallSchema"
-      },
-      "target": {
-        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
-      },
-      "turn": {
-        "$ref": "https://schemas.runx.ai/runx/resolution-request/v1.json",
-        "description": "The request of the turn that made it, which holds the turn's task and what it was given."
-      }
-    },
-    "required": [
-      "schema",
-      "run_id",
-      "address",
-      "attempt",
-      "target",
-      "input",
-      "outcome"
-    ],
-    "title": "RunCall",
-    "type": "object",
-    "x-runx-packet": true,
-    "x-runx-schema": "runx.run_call.v1"
   } as JsonSchema,
   "run-context.schema.json": {
     "$id": "https://schemas.runx.ai/runx/control/run-context/v1.json",

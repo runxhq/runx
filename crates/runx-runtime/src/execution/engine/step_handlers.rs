@@ -26,7 +26,6 @@ use runx_parser::{AskGate, AskReason, OutputArtifacts, StepKind, ToolTarget, Wor
 
 use self::host_resolution::resolve_step_approval;
 pub(super) use self::load::resolve_loaded;
-pub(super) use self::script::run_script_call;
 use self::verdict::Evaluating;
 use super::super::skill_context::load_context_skills;
 use super::super::workflow::{
@@ -152,6 +151,9 @@ pub(super) struct StepRunRequest<'a, A> {
     /// The source a skill call that reused a result settles with, in place
     /// of the child run it would start (reuse, D32).
     pub(super) reused: Option<crate::execution::reuse::Source>,
+    /// A turn's script call's script, which its script step runs in place of
+    /// a package's module, over the turn's own calls.
+    pub(super) script: Option<&'a super::turn::TurnScript>,
 }
 
 struct StepHandlerCtx<'a, A> {
@@ -171,6 +173,7 @@ struct StepHandlerCtx<'a, A> {
     ask_reason: Option<String>,
     given: ArtifactLabels,
     reused: Option<crate::execution::reuse::Source>,
+    script: Option<&'a super::turn::TurnScript>,
 }
 
 struct RegularSkillSeal<'a, A> {
@@ -246,6 +249,7 @@ where
         given,
         reconciliation,
         reused,
+        script,
     } = request;
     // What the step was given, as reuse compares it (D32).
     let input_digest = super::input_digest::of(
@@ -305,6 +309,7 @@ where
         ask_reason,
         given,
         reused,
+        script,
     })?;
     drop(place);
     // What the step made is labelled by everything it was given, everything
@@ -1148,6 +1153,7 @@ where
         context_entries: _,
         given: _,
         reused: _,
+        script: _,
     } = request;
     let executable = match &step.kind {
         StepKind::Tool(ToolTarget::Worker(worker)) => Executable::Worker(worker.clone()),
@@ -1469,6 +1475,7 @@ where
         context_entries,
         given,
         reused: _,
+        script: _,
     } = request;
     let StepKind::Agent(agent) = &step.kind else {
         return Err(RuntimeError::StepFailed {
@@ -1613,6 +1620,7 @@ where
         context_entries: _,
         given,
         reused: _,
+        script: _,
     } = request;
     let tool = step
         .catalog_tool()

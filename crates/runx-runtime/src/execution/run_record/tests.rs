@@ -591,7 +591,6 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             attempt: 1,
             turn: Some(&turn),
             index,
-            script: None,
             call_id: None,
             target: &target,
             context: &[],
@@ -633,7 +632,6 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         attempt: 1,
         turn: Some(&turn),
         index: 1,
-        script: None,
         call_id: None,
         target: &target,
         context: &[],
@@ -666,7 +664,6 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         attempt: 1,
         turn: Some(&turn),
         index: 2,
-        script: None,
         call_id: None,
         target: &target,
         context: &[],
@@ -725,7 +722,6 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             attempt: 1,
             turn: Some(&child_turn),
             index: 0,
-            script: None,
             call_id: None,
             target: &CallTarget::Ask,
             context: &[],
@@ -750,7 +746,6 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         attempt: 1,
         turn: Some(&root_turn),
         index: 0,
-        script: None,
         call_id: None,
         target: &CallTarget::Skill {
             skill: "./report".into(),
@@ -1238,7 +1233,6 @@ fn a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn() {
                 attempt: 1,
                 turn: Some(&turn),
                 index,
-                script: None,
                 call_id: None,
                 target: &target,
                 context: &[],
@@ -1299,7 +1293,6 @@ fn turn_of_calls(store: &Arc<KernelStore>, run_id: &str, calls: u32) -> (RunLog,
                 attempt: 1,
                 turn: Some(&turn),
                 index,
-                script: None,
                 call_id: None,
                 target: &CallTarget::Tool {
                     tool: "data.digest".into(),
@@ -1457,7 +1450,6 @@ fn a_calls_reuse_decision_is_recorded_once_and_read_back() {
             attempt: 1,
             turn: None,
             index,
-            script: None,
             call_id: None,
             target: &target,
             context: &[],
@@ -1510,8 +1502,7 @@ fn a_run_syncs_only_where_it_reaches_the_world_or_answers_its_host() {
             counted
         };
         start(&log, &JsonObject::new());
-        log.record_clock(("read", 1), None, 0, 1_760_000_000_000)
-            .unwrap();
+        log.record_clock("read", 1, 0, 1_760_000_000_000).unwrap();
         let read = step("run_synced", "read");
         log.record_step(&read, &[]).unwrap();
         let progress = since();
@@ -1581,7 +1572,6 @@ fn a_calls_packet_is_written_once_its_artifact_which_the_record_names_and_replay
         attempt: 1,
         turn: None,
         index: 0,
-        script: None,
         call_id: None,
         target: &CallTarget::Tool {
             tool: "data.digest".into(),

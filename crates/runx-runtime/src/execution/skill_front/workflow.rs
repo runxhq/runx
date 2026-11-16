@@ -928,13 +928,9 @@ impl RunHost {
         let address = turn.invocation().id.as_str().to_owned();
         let mut reached = Vec::new();
         for call in turn.calls()? {
-            // A script call leads where any call its script made does.
-            let made_by = turn.made_by(call.index)?;
             let leads = |host: &Self| {
                 host.leads_to_act(&waiting_of(&call.outcome))
-                    || std::iter::once(call.index)
-                        .chain(made_by.iter().copied())
-                        .any(|index| host.leads_to_call(&format!("{address}/{index}")))
+                    || host.leads_to_call(&format!("{address}/{}", call.index))
             };
             if let TurnCallOutcome::Pending { waiting } = &call.outcome
                 && !self.in_flight.contains(&(address.clone(), call.index))

@@ -624,7 +624,6 @@ mod tests {
             attempt: 1,
             turn: Some(&turn),
             index: 0,
-            script: None,
             call_id: None,
             target: &CallTarget::Tool {
                 tool: "data.digest".into(),

@@ -17,8 +17,8 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     CallTarget, JsonObject, JsonValue, LoadedPackage, ResolutionRequest, ResolutionResponseActor,
-    RunCall, RunCallOutcome, RunCallSchema, RunEventFact, RunEventRecord, RunHold, RunRead,
-    RunReadSchema, RunReadSummary, RunScriptCall, WaitedRequest,
+    RunCallOutcome, RunEventFact, RunEventRecord, RunHold, RunRead, RunReadSchema, RunReadSummary,
+    WaitedRequest,
 };
 use serde::{Deserialize, Serialize};
 
@@ -115,95 +115,6 @@ pub fn read_run(
     })
 }
 
-/// Call `index` of step `step_id` in run `run_id` of the workspace at `cwd`,
-/// read whole: as the step's latest attempt holding it last recorded it,
-/// with the request of the turn that made it and, for a turn's script call,
-/// each call its script made, in position order.
-pub fn read_call(
-    env: &BTreeMap<String, String>,
-    cwd: &std::path::Path,
-    run_id: &str,
-    step_id: &str,
-    index: u32,
-) -> Result<RunCall, RunRecordError> {
-    let paths = RunxPaths::resolve(env, cwd);
-    let store = KernelStore::for_project(&paths)?;
-    let run_id = validate_run_id(run_id)?;
-    let address = format!("{step_id}/{index}");
-    let unknown = || RunRecordError::UnknownCall {
-        run_id: run_id.to_owned(),
-        call: address.clone(),
-    };
-    if !matches!(
-        store.first::<RunEvent>(run_id)?.map(|first| first.event),
-        Some(RunEvent::Started(_))
-    ) {
-        return Err(RunRecordError::UnknownRun {
-            run_id: run_id.to_owned(),
-        });
-    }
-    // Each attempt's calls are a stream of the run's tree; a call's latest
-    // event is how it stands.
-    let streams = format!("{run_id}/{step_id}@");
-    let mut calls = BTreeMap::<(u32, u32), super::CallEvent>::new();
-    let mut after = 0;
-    loop {
-        let page = store.tree_after::<RunEvent>(run_id, after, PAGE)?;
-        let Some(last) = page.last() else {
-            break;
-        };
-        after = last.sequence;
-        for event in page {
-            let ours = event
-                .key
-                .strip_prefix(&streams)
-                .is_some_and(|attempt| attempt.bytes().all(|byte| byte.is_ascii_digit()));
-            if let (true, RunEvent::Call(call)) = (ours, event.recorded.event) {
-                calls.insert((call.attempt, call.index), *call);
-            }
-        }
-    }
-    let attempt = calls
-        .keys()
-        .filter(|(_, at)| *at == index)
-        .map(|(attempt, _)| *attempt)
-        .max()
-        .ok_or_else(unknown)?;
-    let call = calls.remove(&(attempt, index)).ok_or_else(unknown)?;
-    let turn = call
-        .turn
-        .as_ref()
-        .map(|turn| store.blob_json::<ResolutionRequest>(&turn.request))
-        .transpose()?;
-    let mut made = calls
-        .into_iter()
-        .filter(|((at, _), made)| {
-            *at == attempt && made.script.is_some_and(|place| place.call == index)
-        })
-        .map(|(_, made)| {
-            Ok(RunScriptCall {
-                position: made.script.map_or(0, |place| place.position),
-                address: format!("{step_id}/{}", made.index).into(),
-                input: store.blob_json(&made.input)?,
-                target: made.target,
-                outcome: call_outcome(&store, made.outcome)?,
-            })
-        })
-        .collect::<Result<Vec<_>, RunRecordError>>()?;
-    made.sort_by_key(|made| made.position);
-    Ok(RunCall {
-        schema: RunCallSchema::V1,
-        run_id: run_id.into(),
-        address: address.as_str().into(),
-        attempt,
-        input: store.blob_json(&call.input)?,
-        target: call.target,
-        outcome: call_outcome(&store, call.outcome)?,
-        turn,
-        calls: made,
-    })
-}
-
 /// The read position: the run, and the last commit of its tree returned.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -262,6 +173,12 @@ fn project(
     stream: &str,
     recorded: Recorded<RunEvent>,
 ) -> Result<Option<RunEventRecord>, RunRecordError> {
+    let step =
+        |record: &str, receipt: &str| -> Result<(StepOutcome, NonEmptyString), RunRecordError> {
+            let status: StepStatus = store.blob_json(record)?;
+            let receipt: ReceiptId = store.blob_json(receipt)?;
+            Ok((status.outcome, receipt.id.into()))
+        };
     let event = match recorded.event {
         RunEvent::Started(started) => RunEventFact::Started {
             skill: started.skill.into(),
@@ -279,7 +196,7 @@ fn project(
             return Err(invalid(stream, "an evaluation inside a run".to_owned()));
         }
         RunEvent::Step(event) => {
-            let (outcome, receipt_id) = step_status(store, &event.record, &event.receipt)?;
+            let (outcome, receipt_id) = step(&event.record, &event.receipt)?;
             let CallOutput { contract } = store.blob_json(&event.record)?;
             let TurnStatements { model, usage, host } =
                 turn_statements(store, stream, &event.answers)?;
@@ -338,13 +255,68 @@ fn project(
                 CallTarget::Load => loaded(store, paths, stream, &call.outcome)?,
                 _ => None,
             };
-            let outcome = call_outcome(store, call.outcome)?;
+            let outcome = match call.outcome {
+                CallOutcomeEvent::Completed {
+                    record,
+                    receipt,
+                    outputs,
+                    ..
+                } => {
+                    let (outcome, receipt_id) = step(&record, &receipt)?;
+                    let CallOutput { mut contract } = store.blob_json(&record)?;
+                    // A field an artifact holds is the artifact's alone.
+                    for part in &outputs {
+                        contract.remove(part.output.as_str());
+                    }
+                    RunCallOutcome::Completed {
+                        succeeded: outcome.succeeded(),
+                        receipt_id,
+                        output: contract,
+                        outputs,
+                        reason: (!outcome.succeeded())
+                            .then(|| reason(outcome.failure_message().unwrap_or_default())),
+                    }
+                }
+                CallOutcomeEvent::Refused { reason: why } => RunCallOutcome::Refused {
+                    reason: reason(why),
+                },
+                CallOutcomeEvent::Declined { reason: why } => RunCallOutcome::Declined {
+                    reason: reason(why),
+                },
+                CallOutcomeEvent::Failed { reason: why } => RunCallOutcome::Failed {
+                    reason: reason(why),
+                },
+                CallOutcomeEvent::RetryDeclined => RunCallOutcome::Failed {
+                    reason: crate::execution::run_record::RETRY_DECLINED.into(),
+                },
+                CallOutcomeEvent::Pending {
+                    request_id, digest, ..
+                } => RunCallOutcome::Pending {
+                    address: request_id.into(),
+                    request_digest: digest.into(),
+                },
+                CallOutcomeEvent::Claimed {
+                    request_id, digest, ..
+                } => RunCallOutcome::Claimed {
+                    address: request_id.into(),
+                    request_digest: digest.into(),
+                },
+                CallOutcomeEvent::Executing => RunCallOutcome::Executing,
+                CallOutcomeEvent::Child { run_id } => RunCallOutcome::Child {
+                    run_id: run_id.into(),
+                },
+                CallOutcomeEvent::Cancelled => RunCallOutcome::Cancelled,
+                CallOutcomeEvent::Waited { at } => RunCallOutcome::Waited { at },
+                CallOutcomeEvent::Read { artifact } => RunCallOutcome::Read { artifact },
+                CallOutcomeEvent::TooLarge { size_bytes, bound } => {
+                    RunCallOutcome::TooLarge { size_bytes, bound }
+                }
+            };
             RunEventFact::Call {
                 step_id: call.step_id.into(),
                 attempt: call.attempt,
                 turn: call.turn.map(|turn| turn.request_id.into()),
                 index: call.index,
-                script: call.script,
                 target: call.target,
                 input_digest: call_input_digest(&input, &context)?.into(),
                 call_id: call.call_id.map(Into::into),
@@ -358,7 +330,6 @@ fn project(
         RunEvent::Clock(read) => RunEventFact::Clock {
             step_id: read.step_id.into(),
             attempt: read.attempt,
-            script: read.script,
             index: read.index,
             millis: read.millis,
         },
@@ -387,81 +358,6 @@ fn project(
         committed_at: recorded.committed_at.into(),
         event,
     }))
-}
-
-/// How a recorded call stands, as a host reads it.
-fn call_outcome(
-    store: &KernelStore,
-    outcome: CallOutcomeEvent,
-) -> Result<RunCallOutcome, RunRecordError> {
-    Ok(match outcome {
-        CallOutcomeEvent::Completed {
-            record,
-            receipt,
-            outputs,
-            ..
-        } => {
-            let (outcome, receipt_id) = step_status(store, &record, &receipt)?;
-            let CallOutput { mut contract } = store.blob_json(&record)?;
-            // A field an artifact holds is the artifact's alone.
-            for part in &outputs {
-                contract.remove(part.output.as_str());
-            }
-            RunCallOutcome::Completed {
-                succeeded: outcome.succeeded(),
-                receipt_id,
-                output: contract,
-                outputs,
-                reason: (!outcome.succeeded())
-                    .then(|| reason(outcome.failure_message().unwrap_or_default())),
-            }
-        }
-        CallOutcomeEvent::Refused { reason: why } => RunCallOutcome::Refused {
-            reason: reason(why),
-        },
-        CallOutcomeEvent::Declined { reason: why } => RunCallOutcome::Declined {
-            reason: reason(why),
-        },
-        CallOutcomeEvent::Failed { reason: why } => RunCallOutcome::Failed {
-            reason: reason(why),
-        },
-        CallOutcomeEvent::RetryDeclined => RunCallOutcome::Failed {
-            reason: crate::execution::run_record::RETRY_DECLINED.into(),
-        },
-        CallOutcomeEvent::Pending {
-            request_id, digest, ..
-        } => RunCallOutcome::Pending {
-            address: request_id.into(),
-            request_digest: digest.into(),
-        },
-        CallOutcomeEvent::Claimed {
-            request_id, digest, ..
-        } => RunCallOutcome::Claimed {
-            address: request_id.into(),
-            request_digest: digest.into(),
-        },
-        CallOutcomeEvent::Executing => RunCallOutcome::Executing,
-        CallOutcomeEvent::Child { run_id } => RunCallOutcome::Child {
-            run_id: run_id.into(),
-        },
-        CallOutcomeEvent::Cancelled => RunCallOutcome::Cancelled,
-        CallOutcomeEvent::Waited { at } => RunCallOutcome::Waited { at },
-        CallOutcomeEvent::Read { artifact } => RunCallOutcome::Read { artifact },
-        CallOutcomeEvent::TooLarge { size_bytes, bound } => {
-            RunCallOutcome::TooLarge { size_bytes, bound }
-        }
-    })
-}
-
-/// How the step a record names ended, and its receipt's id.
-fn step_status(
-    store: &KernelStore,
-    record: &str,
-    receipt: &str,
-) -> Result<(StepOutcome, NonEmptyString), RunRecordError> {
-    let status: StepStatus = store.blob_json(record)?;
-    let receipt: ReceiptId = store.blob_json(receipt)?;
-    Ok((status.outcome, receipt.id.into()))
 }
 
 /// A recorded reason, which is never empty on the wire.

@@ -8,7 +8,7 @@
 //! turn ends when the host answers the act.
 
 use std::cell::{Cell, OnceCell};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
@@ -17,7 +17,7 @@ use runx_contracts::schema::{NonEmptyString, RunxSchema};
 use runx_contracts::{
     AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, CallTarget, InputDefinition,
     JsonObject, JsonValue, LoadedPackage, ProjectBinding, ProvenanceEntry, Reference,
-    ReferenceType, ResolutionRequest, RunCallOutput, RunCallScript, TurnAllowance, TurnCallOutcome,
+    ReferenceType, ResolutionRequest, RunCallOutput, TurnAllowance, TurnCallOutcome,
     TurnCallResult, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage, TurnStatus, TurnTool,
     TurnView,
 };
@@ -27,8 +27,7 @@ use runx_parser::{
 };
 
 use super::super::run_record::{
-    Answer, CallOutcome, CallRecord, ClockReads, PendingRequest, RecordedCall, call_step_id,
-    request_digest,
+    Answer, CallOutcome, CallRecord, PendingRequest, RecordedCall, call_step_id, request_digest,
 };
 use super::super::workflow::{
     LoadedStepSkill, LoadedStepSkillPackage, StepSkillLoadOptions, load_step_skill, step_skill,
@@ -58,10 +57,6 @@ pub trait Turn {
 
     /// How each call the turn made so far ended.
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError>;
-
-    /// The calls script call `index` made, by their index in the step, which
-    /// a host reaches through it; none for any other call.
-    fn made_by(&self, index: u32) -> Result<Vec<u32>, RuntimeError>;
 
     /// The turn as its agent reads it, its act's context as an index.
     fn status(&self) -> Result<TurnStatus, RuntimeError> {
@@ -426,6 +421,7 @@ where
             given: call.given,
             reconciliation,
             reused: call.reused.clone(),
+            script: call.script.as_ref(),
         };
         let result = match target {
             CallTarget::Skill {
@@ -527,9 +523,15 @@ where
 /// recorded the same way whichever drives them, an agent's turn or a script.
 pub(super) struct CallLedger<'a, A> {
     scope: TurnScope<'a, A>,
-    /// The act of the turn that makes the calls, as the run records it; a
-    /// script's calls belong to no turn.
+    /// Who makes the calls: a turn's agent, or a script.
+    maker: Maker,
+    /// The act of the turn whose calls they are, as the run records it: an
+    /// agent's turn's, or the turn whose script call makes them. A script
+    /// step's calls are its package's and belong to no turn.
     turn: Option<PendingRequest>,
+    /// The loads the turn had bound when its script call was made, which its
+    /// script reaches as the turn does; a turn reads its own from its record.
+    loaded: Option<Vec<TurnLoad>>,
     /// What the run records of the step, read when first needed.
     record: OnceCell<StepRecord>,
     /// The place the step's next call event takes, once known.
@@ -539,26 +541,22 @@ pub(super) struct CallLedger<'a, A> {
     given: Vec<Artifact>,
 }
 
-/// What a run records of one step: its calls, in order, and each of its
-/// scripts' clock reads, by position.
-struct StepRecord {
-    calls: Vec<RecordedCall>,
-    clock: ClockReads,
+/// Who makes a ledger's calls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Maker {
+    /// A turn's agent, one call at a time through its host.
+    Agent,
+    /// A script: a script step's, or a turn's script call's. Its calls are
+    /// at its positions, and their results reach it by reference past the
+    /// inline bound.
+    Script,
 }
 
-/// The calls one script makes, among its step's, by their positions in the
-/// script: a script step's are its step's own, each at its position, and a
-/// turn's script call's are calls of the turn's step, each at an index of its
-/// own and linked to the script call and its position, so every reader of
-/// the step's calls reads each as the call it is, and only the script's
-/// replay reads the link.
-pub(super) struct ScriptCalls<'l, 'a, A> {
-    ledger: &'l mut CallLedger<'a, A>,
-    /// The turn's script call that makes them; none for a script step.
-    call: Option<u32>,
-    /// What a turn's script calls, by the names its turn offers them; a
-    /// script step names its step's `calls`.
-    named: Option<BTreeMap<String, CallTarget>>,
+/// What a run records of one step: its calls, in order, and its script's
+/// clock reads, by position.
+struct StepRecord {
+    calls: Vec<RecordedCall>,
+    clock: BTreeMap<u32, i64>,
 }
 
 /// The open turn of one agent step: the act it answers, and its calls.
@@ -572,8 +570,6 @@ pub(super) struct OpenTurn<'a, A> {
 #[derive(Clone)]
 struct Made {
     index: u32,
-    /// The script call of the turn that made it, and its position there.
-    script: Option<RunCallScript>,
     call_id: Option<String>,
     target: CallTarget,
     input: JsonObject,
@@ -598,7 +594,6 @@ impl Made {
     fn of(call: &RecordedCall) -> Self {
         Self {
             index: call.index,
-            script: call.script,
             call_id: call.call_id.clone(),
             target: call.target.clone(),
             input: call.input.clone(),
@@ -627,6 +622,18 @@ struct CallStep {
     context: Vec<runx_contracts::ContextEntry>,
     /// The source selected during admission, when this call reuses a result.
     reused: Option<crate::execution::reuse::Source>,
+    /// A script call's script, and the turn whose calls it makes.
+    script: Option<TurnScript>,
+}
+
+/// What a turn's script call runs: its source, the turn whose calls it
+/// makes, and the loads the turn had bound before it, which its calls reach
+/// as the turn's do.
+#[derive(Clone)]
+pub(super) struct TurnScript {
+    pub(super) source: String,
+    pub(super) turn: PendingRequest,
+    pub(super) loads: Vec<TurnLoad>,
 }
 
 /// An input given by reference to a packet the project holds: the artifact
@@ -805,19 +812,15 @@ fn script_context_entry(
     })
 }
 
-/// A script's wait at `index` of its step, and at `script` in a turn's script
-/// call, as its ledger records it.
-fn waiting(index: u32, script: Option<RunCallScript>, until: i64) -> Made {
-    bare(index, script, CallTarget::Wait { until })
+/// A script's wait at position `index`, as its ledger records it.
+fn waiting(index: u32, until: i64) -> Made {
+    script_call(index, CallTarget::Wait { until })
 }
 
-/// A call that names `target` at `index` of its step, and at `script` in a
-/// turn's script call, with nothing else: a script's wait or read, runx's
-/// own, or a call a turn describes before any is made.
-fn bare(index: u32, script: Option<RunCallScript>, target: CallTarget) -> Made {
+/// A call of runx's own a script made at position `index`, naming `target`.
+fn script_call(index: u32, target: CallTarget) -> Made {
     Made {
         index,
-        script,
         call_id: None,
         target,
         input: JsonObject::new(),
@@ -830,26 +833,6 @@ fn bare(index: u32, script: Option<RunCallScript>, target: CallTarget) -> Made {
     }
 }
 
-/// Whether a call that stands as `outcome` is open: it waits on its own ask,
-/// approval or wait, on its retry or its child, or it's executing.
-pub(super) fn open(outcome: &CallOutcome) -> bool {
-    match outcome {
-        CallOutcome::Pending(_)
-        | CallOutcome::Claimed(_)
-        | CallOutcome::Executing
-        | CallOutcome::Child(_) => true,
-        CallOutcome::Completed(_)
-        | CallOutcome::Refused(_)
-        | CallOutcome::Declined(_)
-        | CallOutcome::Failed(_)
-        | CallOutcome::RetryDeclined
-        | CallOutcome::Cancelled
-        | CallOutcome::Waited(_)
-        | CallOutcome::Read(_)
-        | CallOutcome::TooLarge { .. } => false,
-    }
-}
-
 /// How a call's step went.
 enum Ran {
     Settled(CallOutcome),
@@ -859,150 +842,6 @@ enum Ran {
     Unconfirmed,
     /// Its host cancelled it before it started, or while it only read.
     Cancelled,
-}
-
-impl<'l, 'a, A> ScriptCalls<'l, 'a, A>
-where
-    A: SkillAdapter,
-{
-    /// A script step's calls: its step's own.
-    pub(super) fn of_step(ledger: &'l mut CallLedger<'a, A>) -> Self {
-        Self {
-            ledger,
-            call: None,
-            named: None,
-        }
-    }
-
-    /// The calls turn's script call `call` makes, each one of `named`, the
-    /// calls its turn offers by name.
-    fn of_call(
-        ledger: &'l mut CallLedger<'a, A>,
-        call: u32,
-        named: BTreeMap<String, CallTarget>,
-    ) -> Self {
-        Self {
-            ledger,
-            call: Some(call),
-            named: Some(named),
-        }
-    }
-
-    /// What a turn's script calls, by the names its turn offers them; none
-    /// for a script step, which names its step's `calls`.
-    pub(super) fn named(&self) -> Option<&BTreeMap<String, CallTarget>> {
-        self.named.as_ref()
-    }
-
-    /// The step's ledger, which a recorded call is taken further through by
-    /// its index.
-    pub(super) fn ledger(&self) -> &CallLedger<'a, A> {
-        self.ledger
-    }
-
-    pub(super) fn ledger_mut(&mut self) -> &mut CallLedger<'a, A> {
-        self.ledger
-    }
-
-    /// Where the script's calls are labelled in its run: its step, or its
-    /// script call.
-    pub(super) fn label(&self) -> String {
-        match self.call {
-            None => self.ledger.scope.step_id.to_owned(),
-            Some(call) => call_step_id(self.ledger.scope.step_id, call),
-        }
-    }
-
-    /// The script's calls as the run records them, in position order.
-    pub(super) fn recorded(&self) -> Result<Vec<&RecordedCall>, RuntimeError> {
-        let mut calls = self
-            .ledger
-            .recorded()?
-            .iter()
-            .filter(|call| call.script.map(|place| place.call) == self.call)
-            .collect::<Vec<_>>();
-        calls.sort_by_key(|call| call.position());
-        Ok(calls)
-    }
-
-    /// What the script read of the clock, by position.
-    pub(super) fn clock(&self) -> Result<BTreeMap<u32, i64>, RuntimeError> {
-        Ok(self
-            .ledger
-            .clock()?
-            .get(&self.call)
-            .cloned()
-            .unwrap_or_default())
-    }
-
-    /// Record what the script read of the clock at `position`.
-    pub(super) fn record_clock(&mut self, position: u32, millis: i64) -> Result<(), RuntimeError> {
-        self.ledger.record_clock(self.call, position, millis)
-    }
-
-    /// The `inputs` the script is given, as it is given them.
-    pub(super) fn give(
-        &mut self,
-        inputs: &JsonObject,
-    ) -> Result<(JsonObject, Vec<ScriptInputReference>), RuntimeError> {
-        let at = self.label();
-        self.ledger.give(&at, inputs)
-    }
-
-    /// Record the script's wait at `position` until `until`.
-    pub(super) fn wait(
-        &mut self,
-        position: u32,
-        until: i64,
-    ) -> Result<ResolutionRequest, RuntimeError> {
-        let at = self.at(position)?;
-        self.ledger.wait(at.0, at.1, until)
-    }
-
-    /// Record the script's read at `position` of the reference `digest`.
-    pub(super) fn read(&mut self, position: u32, digest: &str) -> Result<(), RuntimeError> {
-        let at = self.at(position)?;
-        self.ledger.read(at.0, at.1, digest)
-    }
-
-    /// Admit the script's call at `position` under the driver, without
-    /// executing it.
-    pub(super) fn admit(
-        &mut self,
-        host: &mut dyn Host,
-        position: u32,
-        target: CallTarget,
-        (input, context): (JsonObject, Vec<ScriptContext>),
-        reuse: Option<runx_contracts::RunCallReuse>,
-    ) -> Result<Admission, RuntimeError> {
-        let at = self.at(position)?;
-        self.ledger
-            .admit_scripted(host, at, target, input, context, reuse)
-    }
-
-    /// The index in the step of the script's call at `position`, the one
-    /// recorded there or the step's next, and its link to the script call.
-    fn at(&self, position: u32) -> Result<(u32, Option<RunCallScript>), RuntimeError> {
-        let Some(call) = self.call else {
-            return Ok((position, None));
-        };
-        let place = RunCallScript { call, position };
-        let recorded = self.ledger.recorded()?;
-        let index = recorded
-            .iter()
-            .find(|known| known.script == Some(place))
-            .map_or_else(
-                || {
-                    recorded
-                        .iter()
-                        .map(|known| known.index + 1)
-                        .max()
-                        .unwrap_or(0)
-                },
-                |known| known.index,
-            );
-        Ok((index, Some(place)))
-    }
 }
 
 impl<'a, A> OpenTurn<'a, A>
@@ -1023,7 +862,9 @@ where
         Ok(Self {
             ledger: CallLedger {
                 scope,
+                maker: Maker::Agent,
                 turn: Some(pending_request(request)?),
+                loaded: None,
                 record: OnceCell::new(),
                 events: Cell::new(None),
                 given: Vec::new(),
@@ -1042,26 +883,41 @@ impl<'a, A> CallLedger<'a, A>
 where
     A: SkillAdapter,
 {
-    /// The calls of a step no turn drives: a script's.
+    /// The calls of a step no turn drives: a script step's.
     pub(super) fn of_step(scope: TurnScope<'a, A>) -> Self {
         Self {
             scope,
+            maker: Maker::Script,
             turn: None,
+            loaded: None,
             record: OnceCell::new(),
             events: Cell::new(None),
             given: Vec::new(),
         }
     }
 
-    /// The `inputs` a script is given, as it is given them: a field past the
+    /// The calls a turn's script call makes, at the call's address: the
+    /// turn's own, admitted as the turn admits its calls, reaching what the
+    /// turn reached with the loads it had bound by then.
+    pub(super) fn of_turn_script(scope: TurnScope<'a, A>, script: &TurnScript) -> Self {
+        Self {
+            scope,
+            maker: Maker::Script,
+            turn: Some(script.turn.clone()),
+            loaded: Some(script.loads.clone()),
+            record: OnceCell::new(),
+            events: Cell::new(None),
+            given: Vec::new(),
+        }
+    }
+
+    /// The step's `inputs` as its script is given them: a field past the
     /// inline bound by reference, and an array field past it item by item,
     /// each item by reference, every one an artifact of the run by its
-    /// content, labelled from `at`, the script's step or call, so each pass
-    /// and each recovery gives the same references. The rest is inline. The
-    /// script reads a reference with `ctx.read`.
-    fn give(
+    /// content, so each pass and each recovery gives the same references.
+    /// The rest is inline. The script reads a reference with `ctx.read`.
+    pub(super) fn give(
         &mut self,
-        at: &str,
         inputs: &JsonObject,
     ) -> Result<(JsonObject, Vec<ScriptInputReference>), RuntimeError> {
         let options = &self.scope.runtime.options;
@@ -1085,7 +941,7 @@ where
                 given.insert(field.clone(), value.clone());
                 continue;
             }
-            let label = format!("{at}-{field}");
+            let label = format!("{}-{field}", self.scope.step_id);
             match value {
                 JsonValue::Array(items) => {
                     given.insert(
@@ -1141,19 +997,6 @@ where
         };
         match call.outcome.clone() {
             CallOutcome::Child(_) => self.enter(host, call),
-            // A script left open drives again over its record: each call it
-            // made that settled is given back where it stands, and each that
-            // waits is taken further as any call is.
-            CallOutcome::Executing if call.target == CallTarget::Script => {
-                let made = Made::of(&call);
-                let step =
-                    self.call_step(&made)
-                        .map_err(|reason| RuntimeError::EngineInvariant {
-                            context: "driving a script call",
-                            message: reason,
-                        })?;
-                self.drive_script(host, made, &step)
-            }
             // The call asks again what it waits on, unchanged.
             CallOutcome::Pending(waiting) => {
                 self.run(AnsweringHost::new(host, Some(&waiting)), Made::of(&call))
@@ -1212,7 +1055,7 @@ where
             return Ok(None);
         }
         let made = Made::of(call);
-        let Ok(step) = self.call_step(&made) else {
+        let Ok(step) = self.call_step(made.index, &made.target, &made.input, &made.context) else {
             return Ok(None);
         };
         // The floor admitted it before its claim: it does again, or the call
@@ -1269,6 +1112,18 @@ where
             });
         };
         let ended = match &call.outcome {
+            // A script dropped drops what its calls left open, as a script
+            // step drops what its script left open; an effect whose end
+            // isn't known holds it until that settles.
+            CallOutcome::Pending(_) | CallOutcome::Executing
+                if call.target == CallTarget::Script =>
+            {
+                let held = self.drop_script_calls(host, index)?;
+                if !held.is_empty() {
+                    return Ok(held);
+                }
+                self.settled(Made::of(&call), CallOutcome::Cancelled, &[])?
+            }
             CallOutcome::Pending(_) | CallOutcome::Executing => {
                 self.settled(Made::of(&call), CallOutcome::Cancelled, &[])?
             }
@@ -1280,6 +1135,54 @@ where
             TurnCallOutcome::Pending { waiting } => waiting,
             _ => Vec::new(),
         })
+    }
+
+    /// Drop each call script call `index` left open, as its own ledger holds
+    /// them: what an effect whose end isn't known still waits on.
+    fn drop_script_calls(
+        &mut self,
+        host: &mut dyn Host,
+        index: u32,
+    ) -> Result<Vec<ResolutionRequest>, RuntimeError> {
+        let turn = self
+            .turn
+            .clone()
+            .ok_or_else(|| RuntimeError::EngineInvariant {
+                context: "dropping a script call",
+                message: "a script call is a turn's, and this ledger has no turn".to_owned(),
+            })?;
+        let script = TurnScript {
+            source: String::new(),
+            turn,
+            loads: self.loads_before(index)?,
+        };
+        let under = call_step_id(self.scope.step_id, index);
+        let mut calls = CallLedger::of_turn_script(
+            TurnScope {
+                step_id: &under,
+                ..self.scope
+            },
+            &script,
+        );
+        let left = calls
+            .recorded()?
+            .iter()
+            .filter(|call| {
+                matches!(
+                    call.outcome,
+                    CallOutcome::Pending(_)
+                        | CallOutcome::Claimed(_)
+                        | CallOutcome::Executing
+                        | CallOutcome::Child(_)
+                )
+            })
+            .map(|call| call.index)
+            .collect::<Vec<_>>();
+        let mut held = Vec::new();
+        for call in left {
+            held.extend(calls.drop_open(host, call)?);
+        }
+        Ok(held)
     }
 
     /// How call `index` stands as the run records it, taken no further.
@@ -1310,8 +1213,8 @@ where
         Ok(&self.step_record()?.calls)
     }
 
-    /// What the step's scripts read of the clock, by position.
-    fn clock(&self) -> Result<&ClockReads, RuntimeError> {
+    /// What the step's script read of the clock, by position.
+    pub(super) fn clock(&self) -> Result<&BTreeMap<u32, i64>, RuntimeError> {
         Ok(&self.step_record()?.clock)
     }
 
@@ -1339,14 +1242,12 @@ where
         Ok(self.record.get_or_init(|| StepRecord { calls, clock }))
     }
 
-    /// Record a script's wait, call `index` of the step at `script` in a
-    /// turn's script call, until `until`: a request the run waits on, runx's
-    /// own, until a drive at or after `until` settles it. The request's id is
-    /// the call's address.
-    fn wait(
+    /// Record the script's wait at position `index` until `until`: a request
+    /// the run waits on, runx's own, until a drive at or after `until`
+    /// settles it. The request's id is the call's address.
+    pub(super) fn wait(
         &mut self,
         index: u32,
-        script: Option<RunCallScript>,
         until: i64,
     ) -> Result<ResolutionRequest, RuntimeError> {
         let request = ResolutionRequest::Wait {
@@ -1354,39 +1255,28 @@ where
             until,
         };
         let pending = CallOutcome::Pending(pending_request(&request)?);
-        self.record(&waiting(index, script, until), pending, &[])?;
+        self.record(&waiting(index, until), pending, &[])?;
         Ok(request)
     }
 
-    /// Settle a script's wait, call `index`, at `at`, in milliseconds since
-    /// the epoch: what the wait returns.
+    /// Settle the script's wait at position `index` at `at`, in
+    /// milliseconds since the epoch: what the wait returns.
     pub(super) fn settle_wait(
         &mut self,
         index: u32,
         until: i64,
         at: i64,
     ) -> Result<(), RuntimeError> {
-        let script = self
-            .recorded()?
-            .iter()
-            .find(|call| call.index == index)
-            .and_then(|call| call.script);
-        self.record(&waiting(index, script, until), CallOutcome::Waited(at), &[])
+        self.record(&waiting(index, until), CallOutcome::Waited(at), &[])
             .map(drop)
     }
 
-    /// Record a script's read, call `index` of the step at `script` in a
-    /// turn's script call, of the reference whose artifact's digest is
-    /// `digest`: settled with its content when a call of the step returned it
-    /// and it fits the worker's input bound, refused as too large past the
-    /// bound, and refused when no call of the step returned it. Its outcome
-    /// is the read's settlement.
-    fn read(
-        &mut self,
-        index: u32,
-        script: Option<RunCallScript>,
-        digest: &str,
-    ) -> Result<(), RuntimeError> {
+    /// Record the script's read at position `index` of the reference whose
+    /// artifact's digest is `digest`: settled with its content when a call of
+    /// the step returned it and it fits the worker's input bound, refused as
+    /// too large past the bound, and refused when no call of the step
+    /// returned it. Its outcome is the read's settlement.
+    pub(super) fn read(&mut self, index: u32, digest: &str) -> Result<(), RuntimeError> {
         let held = self.reference_of(digest)?;
         let bound =
             u64::try_from(runx_contracts::javascript_worker::MAX_INPUT_BYTES).unwrap_or(u64::MAX);
@@ -1404,7 +1294,7 @@ where
         let target = CallTarget::Read {
             digest: digest.into(),
         };
-        self.record(&bare(index, script, target), outcome, &[])
+        self.record(&script_call(index, target), outcome, &[])
             .map(drop)
     }
 
@@ -1444,27 +1334,17 @@ where
             .map_err(|message| RuntimeError::effect_state("reading a call's output", message))
     }
 
-    /// Record what a script read of the clock at position `index`: the
-    /// step's own script's, or turn's script call `script`'s.
-    fn record_clock(
-        &mut self,
-        script: Option<u32>,
-        index: u32,
-        millis: i64,
-    ) -> Result<(), RuntimeError> {
+    /// Record what the step's script read of the clock at position `index`.
+    pub(super) fn record_clock(&mut self, index: u32, millis: i64) -> Result<(), RuntimeError> {
         self.step_record()?;
         self.scope.runtime.options.run.record_clock(
-            (self.scope.step_id, self.scope.attempt),
-            script,
+            self.scope.step_id,
+            self.scope.attempt,
             index,
             millis,
         )?;
         if let Some(record) = self.record.get_mut() {
-            record
-                .clock
-                .entry(script)
-                .or_default()
-                .insert(index, millis);
+            record.clock.insert(index, millis);
         }
         Ok(())
     }
@@ -1495,26 +1375,11 @@ where
             })
     }
 
-    /// The runs of the turn's completed calls, in order. A script call that
-    /// completed holds the receipts of the calls its script made; those of a
-    /// script that ended without its run, failed or cancelled, are the
-    /// turn's own, so each is in the tree once whatever the script came to.
+    /// The runs of the turn's completed calls, in order.
     pub(super) fn completed(&self) -> Result<Vec<&StepRun>, RuntimeError> {
-        let recorded = self.recorded()?;
-        let sealed = recorded
+        Ok(self
+            .recorded()?
             .iter()
-            .filter(|call| {
-                call.target == CallTarget::Script
-                    && matches!(call.outcome, CallOutcome::Completed(_))
-            })
-            .map(|call| call.index)
-            .collect::<BTreeSet<_>>();
-        Ok(recorded
-            .iter()
-            .filter(|call| {
-                call.script
-                    .is_none_or(|place| !sealed.contains(&place.call))
-            })
             .filter_map(|call| match &call.outcome {
                 CallOutcome::Completed(run) => Some(run.as_ref()),
                 _ => None,
@@ -1527,271 +1392,62 @@ where
         Ok(self
             .recorded()?
             .iter()
-            .find(|call| open(&call.outcome))
-            .map(|call| call.index))
+            .find_map(|call| match &call.outcome {
+                CallOutcome::Pending(_)
+                | CallOutcome::Claimed(_)
+                | CallOutcome::Executing
+                | CallOutcome::Child(_) => Some(call.index),
+                CallOutcome::Completed(_)
+                | CallOutcome::Refused(_)
+                | CallOutcome::Declined(_)
+                | CallOutcome::Failed(_)
+                | CallOutcome::RetryDeclined
+                | CallOutcome::Cancelled
+                | CallOutcome::Waited(_)
+                | CallOutcome::Read(_)
+                | CallOutcome::TooLarge { .. } => None,
+            }))
     }
 
-    /// The calls the turn offers its agent, named for MCP: one per
-    /// allowance entry and each call a load bound, `load` and `ask_human`
-    /// where its step allows them, and `script` where it offers a call a
-    /// script makes.
-    pub(super) fn offered(&self) -> Result<Vec<TurnTool>, RuntimeError> {
-        let allowance = self.scope.allowance;
-        let mut tools = Vec::new();
-        for tool in &allowance.tools {
-            tools.push(self.catalog_tool(tool)?);
-        }
-        if !allowance.operations.is_empty() {
-            let connectors = self.connector_scope()?;
-            for allowed in &allowance.operations {
-                tools.push(self.operation_tool(&connectors, allowed)?);
-            }
-        }
-        for skill in allowance.named_skills() {
-            tools.push(self.skill_tool(CallTarget::Skill {
-                skill: skill.clone(),
-                method: None,
-                bound: None,
-            })?);
-        }
-        if allowance.rules().next().is_some() {
-            tools.push(offered(
-                "load",
-                "Load a skill or connector the turn's catalog rules admit: {skill, method?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its methods, each with its purpose and inputs; it binds the method named, or the skill's only method, and with no method named a skill of several binds none, so read the manual and load again naming one. Each method or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier, or a project package that reaches a connector this turn does not, waits on the person's trust."
-                    .to_owned(),
-                load_schema()?,
-                CallTarget::Load,
-            ));
-        }
-        // What a load added, as it described it when it bound it: a package
-        // that changed since is refused at its call, never re-read here.
-        for load in self.loads()? {
-            tools.extend(load.tools.into_iter().filter(|tool| {
-                !matches!(&tool.target, CallTarget::Operation { requirement, operation }
-                if allowance.operations.iter().any(|allowed| {
-                    &allowed.requirement == requirement && &allowed.operation == operation
-                }))
-            }));
-        }
-        if allowance.asks {
-            tools.push(offered(
-                "ask_human",
-                "Ask the human: a yes or no on your reason, or one to three questions, each with up to four options (the recommended first) and free text where it allows. The call stays pending until they answer."
-                    .to_owned(),
-                ask_schema()?,
-                CallTarget::Ask,
-            ));
-        }
-        if self.offers_script()? {
-            tools.push(script_tool()?);
-        }
-        distinct_names(&mut tools);
-        Ok(tools)
-    }
-
-    /// Whether a script made `made`: a script step's call, or one a turn's
-    /// script call made.
-    fn scripted(&self, made: &Made) -> bool {
-        self.turn.is_none() || made.script.is_some()
-    }
-
-    /// Whether the turn offers a script: it's a turn's, and it offers a call
-    /// a script makes, a tool, an operation or a skill, its allowance's or
-    /// one a load bound. A script reaches nothing the turn doesn't.
+    /// Why the turn's allowance refuses `target`, if it does.
+    /// Whether the turn offers a script: it's an agent's turn, and it offers
+    /// a call a script makes, a tool, an operation or a skill, its
+    /// allowance's or one a load bound. A script reaches nothing the turn
+    /// doesn't.
     fn offers_script(&self) -> Result<bool, RuntimeError> {
         let allowance = self.scope.allowance;
-        Ok(self.turn.is_some()
+        Ok(self.maker == Maker::Agent
+            && self.turn.is_some()
             && (!allowance.tools.is_empty()
                 || !allowance.operations.is_empty()
                 || allowance.named_skills().next().is_some()
                 || self.loads()?.iter().any(|load| !load.tools.is_empty())))
     }
 
-    /// The calls a turn's script makes, by the names the turn offers them:
-    /// its tools, operations and skills. Asking the person and loading are
-    /// the turn's own.
-    fn scriptable(&self) -> Result<BTreeMap<String, CallTarget>, RuntimeError> {
-        Ok(self
-            .offered()?
-            .into_iter()
-            .filter(|tool| {
-                matches!(
-                    tool.target,
-                    CallTarget::Tool { .. }
-                        | CallTarget::Operation { .. }
-                        | CallTarget::Skill { .. }
-                )
-            })
-            .map(|tool| (tool.name.as_str().to_owned(), tool.target))
-            .collect())
-    }
-
-    /// Drive script call `made`, which runs as `step`, under `host`: from
-    /// the beginning over what its record holds, each call it makes admitted
-    /// and taken further as the turn's own. It settles with the script's
-    /// run, sealed with each completed call it made beneath its receipt, or
-    /// stands executing while a call it made waits. Its calls run under it,
-    /// so its host's cancel reaches each: a script cancelled goes no
-    /// further, what it left open is dropped, and it settles `cancelled`
-    /// when none of its calls changed anything, on this drive or before.
-    fn drive_script(
-        &mut self,
-        host: &mut dyn Host,
-        made: Made,
-        call: &CallStep,
-    ) -> Result<TurnCallResult, RuntimeError> {
-        let script =
-            ScriptSource::of(&made.input).map_err(|reason| RuntimeError::EngineInvariant {
-                context: "driving a script call",
-                message: reason,
-            })?;
-        let index = made.index;
-        let step = &call.step;
-        let stop = self.stop(index, step);
-        if made.cancelled {
-            self.scope
-                .runtime
-                .options
-                .call_stops
-                .cancel(&self.call_address(index));
-        }
-        let named = self.scriptable()?;
-        stop.start();
-        let run = {
-            let drive = || {
-                super::step_handlers::run_script_call(
-                    ScriptCalls::of_call(self, index, named),
-                    host,
-                    (step, &call.given),
-                    &script.source,
-                )
-            };
-            match stop.caller() {
-                Some(caller) => crate::interrupt::while_called(caller, drive),
-                None => drive(),
-            }
+    /// The call a script names by `target`, as the turn offers it: a skill's
+    /// method a load bound, which a script names `<skill>#<method>`, is
+    /// called as the load bound it.
+    pub(super) fn as_offered(&self, target: CallTarget) -> Result<CallTarget, RuntimeError> {
+        let CallTarget::Skill {
+            skill,
+            method: None,
+            bound: None,
+        } = &target
+        else {
+            return Ok(target);
         };
-        let changed_nothing = stop.changed_nothing();
-        let cancelled = stop.release() || crate::interrupt::caller_cancelled();
-        let newly = cancelled && !made.cancelled;
-        let made = Made {
-            cancelled: made.cancelled || cancelled,
-            ..made
-        };
-        let run = match run {
-            Ok(run) => run,
-            Err(error) if error.is_fatal_step_fault() => return Err(error),
-            // The worker refused the script or it failed there, or it went
-            // another way than its record: it goes no further, and fails
-            // with the reason.
-            Err(error) => {
-                return self.end_script(host, made, newly, CallOutcome::Failed(error.to_string()));
-            }
-        };
-        // A cancel settles it `cancelled` only when no call its script made,
-        // on this drive or an earlier one, may have changed anything. Read
-        // once the drive has given the script its inputs, which its calls may
-        // name.
-        let changed_nothing = changed_nothing && !(cancelled && self.script_changed(index)?);
-        match run {
-            Some(run) if !(cancelled && changed_nothing) => {
-                self.settled(made, CallOutcome::Completed(Box::new(run)), &[])
-            }
-            Some(_) => self.settled(made, CallOutcome::Cancelled, &[]),
-            None if !cancelled => self.still(made, CallOutcome::Executing, newly),
-            None => {
-                let ended = if changed_nothing {
-                    CallOutcome::Cancelled
-                } else {
-                    CallOutcome::Failed(
-                        "its host cancelled the script after a call it made may have changed something: each call's record holds what it did".to_owned(),
-                    )
-                };
-                self.end_script(host, made, newly, ended)
-            }
-        }
-    }
-
-    /// Whether a call script call `index` made may have changed something:
-    /// one that doesn't only read and got past its admission.
-    fn script_changed(&self, index: u32) -> Result<bool, RuntimeError> {
-        let options = &self.scope.runtime.options;
-        for call in self
-            .recorded()?
-            .iter()
-            .filter(|call| call.script.is_some_and(|place| place.call == index))
-            .filter(|call| {
-                matches!(
-                    call.outcome,
-                    CallOutcome::Completed(_)
-                        | CallOutcome::Claimed(_)
-                        | CallOutcome::Child(_)
-                        | CallOutcome::Failed(_)
-                        | CallOutcome::RetryDeclined
-                )
-            })
-        {
-            let step = self.call_step(&Made::of(call)).map_err(|reason| {
-                RuntimeError::EngineInvariant {
-                    context: "reading what a script's calls did",
-                    message: reason,
+        for load in self.loads()? {
+            for tool in load.tools {
+                if matches!(tool.target, CallTarget::Skill { bound: Some(_), .. })
+                    && script_name(&tool.target).as_deref() == Some(skill.as_str())
+                {
+                    return Ok(tool.target);
                 }
-            })?;
-            if !super::only_reads(&step.step, self.scope.workflow_dir, &options.env) {
-                return Ok(true);
             }
         }
-        Ok(false)
+        Ok(target)
     }
 
-    /// End script call `made`, which went no further, as `ended`: each call
-    /// it left open is dropped, as a script step drops what its script left
-    /// open, and an effect whose end isn't known keeps it open until that
-    /// settles.
-    fn end_script(
-        &mut self,
-        host: &mut dyn Host,
-        made: Made,
-        newly: bool,
-        ended: CallOutcome,
-    ) -> Result<TurnCallResult, RuntimeError> {
-        let left = self
-            .recorded()?
-            .iter()
-            .filter(|call| call.script.is_some_and(|place| place.call == made.index))
-            .filter(|call| open(&call.outcome))
-            .map(|call| call.index)
-            .collect::<Vec<_>>();
-        let mut held = false;
-        for call in left {
-            held |= !self.drop_open(host, call)?.is_empty();
-        }
-        if held {
-            return self.still(made, CallOutcome::Executing, newly);
-        }
-        self.settled(made, ended, &[])
-    }
-
-    /// What the calls script call `index` made wait on, in order.
-    fn script_waits(&self, index: u32) -> Result<Vec<ResolutionRequest>, RuntimeError> {
-        let mut waiting = Vec::new();
-        for call in self
-            .recorded()?
-            .iter()
-            .filter(|call| call.script.is_some_and(|place| place.call == index))
-            .filter(|call| open(&call.outcome))
-        {
-            if let TurnCallOutcome::Pending { waiting: requests } = self
-                .result(&Made::of(call), &call.outcome, &call.outputs)?
-                .outcome
-            {
-                waiting.extend(requests);
-            }
-        }
-        Ok(waiting)
-    }
-
-    /// Why the turn's allowance refuses `target`, if it does.
     fn refusal(&self, target: &CallTarget) -> Result<Option<String>, RuntimeError> {
         let allowance = &self.scope.allowance;
         let allowed =
@@ -1831,9 +1487,7 @@ where
     }
 
     /// Why the run's delegation refuses the child run a skill call would
-    /// start: one level too deep, or one more than the turn may start. A
-    /// skill call admitted and not yet started counts as started, so calls
-    /// admitted together can't pass the bound before any child exists.
+    /// start: one level too deep, or one more than the turn may start.
     fn child_refusal(&self) -> Result<Option<String>, RuntimeError> {
         let options = &self.scope.runtime.options;
         if let Some(reason) = super::child_depth_refusal(options) {
@@ -1846,15 +1500,41 @@ where
         else {
             return Ok(None);
         };
+        // The turn's skill calls are its own and its scripts' calls. One
+        // admitted and not yet started counts as started, so calls admitted
+        // together can't pass the bound before any child exists.
+        let turn_step = match (self.maker, &self.turn) {
+            (Maker::Script, Some(_)) => self
+                .scope
+                .step_id
+                .rsplit_once('/')
+                .map_or(self.scope.step_id, |(turn_step, _)| turn_step),
+            _ => self.scope.step_id,
+        };
+        let attempt = self.scope.attempt;
+        let own = options.run.calls(turn_step, attempt)?;
+        let mut calls = Vec::new();
+        for call in &own {
+            if call.target == CallTarget::Script {
+                calls.extend(
+                    options
+                        .run
+                        .calls(&call_step_id(turn_step, call.index), attempt)?
+                        .into_iter()
+                        .map(|made| (call_step_id(turn_step, call.index), made)),
+                );
+            }
+        }
+        calls.extend(own.into_iter().map(|call| (turn_step.to_owned(), call)));
         let mut started = 0_usize;
-        for call in self.recorded()? {
+        for (step, call) in calls {
             if !matches!(call.target, CallTarget::Skill { .. }) {
                 continue;
             }
             if matches!(call.outcome, CallOutcome::Child(_))
                 || options
                     .run
-                    .child(&call_step_id(self.scope.step_id, call.index))?
+                    .child(&call_step_id(&step, call.index))?
                     .load()?
                     .is_some()
             {
@@ -1881,14 +1561,13 @@ where
         }
     }
 
-    /// Admit a script's call `index` of the step, at `script` in a turn's
-    /// script call, under the driver, without executing it: it settles at
-    /// admission, or is claimed and comes back to execute, under the driver
-    /// or apart from it.
-    fn admit_scripted(
+    /// Admit call `index` under the driver, without executing it: it settles
+    /// at admission, or is claimed and comes back to execute, under the
+    /// driver or apart from it.
+    pub(super) fn admit(
         &mut self,
         host: &mut dyn Host,
-        (index, script): (u32, Option<RunCallScript>),
+        index: u32,
         target: CallTarget,
         input: JsonObject,
         context: Vec<ScriptContext>,
@@ -1898,7 +1577,6 @@ where
             &mut AnsweringHost::new(host, None),
             Made {
                 index,
-                script,
                 call_id: None,
                 target,
                 input,
@@ -2096,10 +1774,10 @@ where
             turn.settled(made, outcome, answers)
                 .map(|result| Admission::Settled(Box::new(result)))
         };
-        let call = match self
-            .refusal(&made.target)?
-            .map_or_else(|| self.call_step(&made), Err)
-        {
+        let call = match self.refusal(&made.target)?.map_or_else(
+            || self.call_step(made.index, &made.target, &made.input, &made.context),
+            Err,
+        ) {
             Ok(call) => call,
             Err(reason) => {
                 let answers = host.answers.clone();
@@ -2119,17 +1797,6 @@ where
                 return settled(self, made, refused, &answers);
             }
             Err(error) => return Err(error),
-        }
-        // A script is no effect of its own: each call it makes is admitted,
-        // held on the floor and claimed as the turn's own. Its source and
-        // inputs are its call's input, in the run's record before it runs
-        // (CON25), and it stands executing while it runs: every call it makes
-        // is recorded, so a crash runs it again with nobody asked.
-        if made.target == CallTarget::Script {
-            self.record(&made, CallOutcome::Executing, &[])?;
-            return self
-                .drive_script(host, made, &call)
-                .map(|result| Admission::Settled(Box::new(result)));
         }
         let admitted = match super::floor::hold(
             self.scope.runtime,
@@ -2190,14 +1857,19 @@ where
         let admitted_by = admitted.reference()?.into_iter().collect::<Vec<_>>();
         let held_by_effects = admitted == super::floor::Admitted::Held;
         let claim = match &made.target {
+            // A script stands executing while it runs: every call it makes is
+            // recorded under it, so a crash runs it again with nobody asked.
+            CallTarget::Script => CallOutcome::Executing,
             _ if super::reaches_world(&call.step.kind) => self.claim(made.index, &call.step)?,
             CallTarget::Skill { .. } if call.reused.is_none() => {
                 CallOutcome::Child(self.scope.runtime.options.run.child_id(&call.step.id))
             }
-            CallTarget::Wait { .. } | CallTarget::Read { .. } | CallTarget::Script => {
+            CallTarget::Wait { .. } | CallTarget::Read { .. } => {
                 return Err(RuntimeError::EngineInvariant {
                     context: "admitting a call",
-                    message: "a wait or a read is its script's ledger's to record, and a script is driven as it's admitted, never a call to run".to_owned(),
+                    message:
+                        "a wait or a read is its script's ledger's to record, never a call to run"
+                            .to_owned(),
                 });
             }
             // A call that reaches nothing holds no claim: it runs now, under
@@ -2388,7 +2060,7 @@ where
         }
         let executes = host.executes();
         let step = self
-            .call_step(&made)
+            .call_step(made.index, &made.target, &made.input, &made.context)
             .map_err(|reason| RuntimeError::EngineInvariant {
                 context: "entering a skill call",
                 message: reason,
@@ -2491,8 +2163,9 @@ where
     ) -> Result<Vec<RunCallOutput>, RuntimeError> {
         // A script's call holds a field of its result inline only up to the
         // bound, which its record keeps, so replay gives the same references.
-        let inline_bound = (self.scripted(made) && matches!(outcome, CallOutcome::Completed(_)))
-            .then_some(SCRIPT_INLINE_BYTES);
+        let inline_bound = (self.maker == Maker::Script
+            && matches!(outcome, CallOutcome::Completed(_)))
+        .then_some(SCRIPT_INLINE_BYTES);
         // A completed call's receipt is its tree's, and an open call keeps
         // its count until it seals; any other end seals none and gives the
         // count back.
@@ -2545,7 +2218,6 @@ where
             attempt: self.scope.attempt,
             turn: self.turn.as_ref(),
             index: made.index,
-            script: made.script,
             call_id: made.call_id.as_deref(),
             target: &made.target,
             input: &made.input,
@@ -2569,7 +2241,6 @@ where
             step_id,
             attempt,
             index: made.index,
-            script: made.script,
             call_id: made.call_id.clone(),
             target: made.target.clone(),
             input: made.input.clone(),
@@ -2650,11 +2321,13 @@ where
     fn durability_of(&self, made: &Made, outcome: &CallOutcome) -> Durability {
         let options = &self.scope.runtime.options;
         match outcome {
-            CallOutcome::Claimed(_) => self.call_step(made).map_or(Durability::Durable, |call| {
-                super::claim_durability(&call.step, self.scope.workflow_dir, &options.env)
-            }),
+            CallOutcome::Claimed(_) => self
+                .call_step(made.index, &made.target, &made.input, &made.context)
+                .map_or(Durability::Durable, |call| {
+                    super::claim_durability(&call.step, self.scope.workflow_dir, &options.env)
+                }),
             CallOutcome::Executing | CallOutcome::Child(_) => Durability::Ordered,
-            _ if self.turn.is_some() && self.scope.answers_each_call => Durability::Durable,
+            _ if self.maker == Maker::Agent && self.scope.answers_each_call => Durability::Durable,
             CallOutcome::Pending(_) if self.turn.is_some() && options.run.depth() == 0 => {
                 Durability::Durable
             }
@@ -2721,12 +2394,6 @@ where
                     waiting: vec![resolution_request(request)?],
                 }
             }
-            // A script waits on what the calls it made wait on.
-            CallOutcome::Executing if made.target == CallTarget::Script => {
-                TurnCallOutcome::Pending {
-                    waiting: self.script_waits(made.index)?,
-                }
-            }
             // A safe read in flight waits on nothing.
             CallOutcome::Executing => TurnCallOutcome::Pending {
                 waiting: Vec::new(),
@@ -2766,17 +2433,17 @@ where
 
     /// The step a call runs as, a skill call's act, and the inputs it gave
     /// by reference. A malformed call is refused before it runs.
-    fn call_step(&self, made: &Made) -> Result<CallStep, String> {
-        let Made {
-            index,
-            target,
-            input,
-            context,
-            ..
-        } = made;
-        let step_id = call_step_id(self.scope.step_id, *index);
+    fn call_step(
+        &self,
+        index: u32,
+        target: &CallTarget,
+        input: &JsonObject,
+        context: &[ScriptContext],
+    ) -> Result<CallStep, String> {
+        let step_id = call_step_id(self.scope.step_id, index);
         let mut inputs = input.clone();
         let mut act = None;
+        let mut script = None;
         let kind = match target {
             // A tool the turn lists resolves before its call runs.
             CallTarget::Tool { tool } => {
@@ -2835,12 +2502,25 @@ where
             CallTarget::Wait { .. } | CallTarget::Read { .. } => {
                 return Err("a wait or a read runs as no step".to_owned());
             }
-            // A script runs as a script step of the turn's own allowance,
-            // given its `inputs`; its source is its call's input, which the
-            // worker's rules hold as they hold a package's module.
+            // A script runs as a script step at the call's address, over the
+            // turn's own calls, on its `inputs`.
             CallTarget::Script => {
-                let script = ScriptSource::of(input)?;
-                inputs = script.inputs;
+                let ScriptSource {
+                    source,
+                    inputs: given,
+                } = ScriptSource::of(input)?;
+                inputs = given;
+                let turn = self
+                    .turn
+                    .clone()
+                    .ok_or("a script call is a turn's, and this ledger has no turn")?;
+                script = Some(TurnScript {
+                    source,
+                    turn,
+                    loads: self
+                        .loads_before(index)
+                        .map_err(|error| error.to_string())?,
+                });
                 StepKind::Script(runx_parser::ScriptStep {
                     module: SCRIPT_MODULE.to_owned(),
                     export: None,
@@ -2928,7 +2608,7 @@ where
                     .labels_of(&JsonValue::Object(input.clone())),
             ]),
         );
-        let fed = self.admit_references(&mut step, made)?;
+        let fed = self.admit_references(&mut step, target)?;
         let options = &self.scope.runtime.options;
         let created_at = match options
             .run
@@ -2957,6 +2637,7 @@ where
             given,
             context,
             reused: None,
+            script,
         })
     }
 
@@ -2968,12 +2649,15 @@ where
     /// input contract checks it as that input's packet. A packet a call of
     /// this turn returned is read as that call recorded it, and the input's
     /// provenance names the call.
-    fn admit_references(&self, step: &mut WorkflowStep, made: &Made) -> Result<Vec<Fed>, String> {
-        let target = &made.target;
+    fn admit_references(
+        &self,
+        step: &mut WorkflowStep,
+        target: &CallTarget,
+    ) -> Result<Vec<Fed>, String> {
         // A script's reference is one a call of its step returned it, given
         // to any input as that artifact's content, an operation's arguments
         // included.
-        let script = self.scripted(made);
+        let script = self.maker == Maker::Script;
         let mut fed = Vec::new();
         if script && matches!(target, CallTarget::Operation { .. }) {
             if let Some(JsonValue::Object(arguments)) = step.inputs.get_mut("inputs") {
@@ -2981,7 +2665,7 @@ where
                     if !crate::services::is_project_artifact(value) {
                         continue;
                     }
-                    let (content, given) = self.referenced(name, value, script)?;
+                    let (content, given) = self.referenced(name, value)?;
                     *value = content;
                     fed.push(given);
                 }
@@ -3023,7 +2707,7 @@ where
                 step.inputs.insert(name, value);
                 continue;
             }
-            let (value, given) = self.referenced(&name, &step.inputs[&name], script)?;
+            let (value, given) = self.referenced(&name, &step.inputs[&name])?;
             crate::input_contract::admit_input_value(declared_by, &name, input, &value)
                 .map_err(|error| error.to_string())?;
             step.inputs.insert(name, value);
@@ -3035,14 +2719,9 @@ where
     /// The content of the artifact the reference given as input `name`
     /// names, read from the project's artifact store, and how the call's
     /// receipt names it: the artifact a call of the turn or script recorded,
-    /// when one did. A `script` gives only those, or one of its own inputs it
+    /// when one did. A script gives only those, or one of its own inputs it
     /// was given by reference.
-    fn referenced(
-        &self,
-        name: &str,
-        value: &JsonValue,
-        script: bool,
-    ) -> Result<(JsonValue, Fed), String> {
+    fn referenced(&self, name: &str, value: &JsonValue) -> Result<(JsonValue, Fed), String> {
         let named = value
             .clone()
             .deserialize_into::<Artifact>()
@@ -3068,7 +2747,7 @@ where
             .given
             .iter()
             .find(|artifact| artifact.digest == named.digest);
-        if script && produced.is_none() && input.is_none() {
+        if self.maker == Maker::Script && produced.is_none() && input.is_none() {
             return Err(format!(
                 "input {name}: {} names no artifact a call of step {} returned",
                 named.digest, self.scope.step_id
@@ -3198,7 +2877,7 @@ where
         let describing =
             |reason: String| RuntimeError::effect_state("describing a child skill", reason);
         let call = self
-            .call_step(&bare(0, None, target.clone()))
+            .call_step(0, &target, &JsonObject::new(), &[])
             .map_err(describing)?;
         let loaded = load_step_skill(
             self.scope.workflow_dir,
@@ -3249,8 +2928,17 @@ where
 
     /// The loads this turn completed, in order.
     fn loads(&self) -> Result<Vec<TurnLoad>, RuntimeError> {
+        match &self.loaded {
+            Some(loaded) => Ok(loaded.clone()),
+            None => self.loads_before(u32::MAX),
+        }
+    }
+
+    /// The loads this turn completed before call `index`, in order.
+    fn loads_before(&self, index: u32) -> Result<Vec<TurnLoad>, RuntimeError> {
         self.recorded()?
             .iter()
+            .filter(|call| call.index < index)
             .filter(|call| call.target == CallTarget::Load)
             .filter_map(|call| match &call.outcome {
                 CallOutcome::Completed(run) if run.outcome.succeeded() => Some(run),
@@ -3447,30 +3135,73 @@ where
     }
 
     fn tools(&self) -> Result<Vec<TurnTool>, RuntimeError> {
-        self.ledger.offered()
+        let allowance = &self.ledger.scope.allowance;
+        let mut tools = Vec::new();
+        for tool in &allowance.tools {
+            tools.push(self.ledger.catalog_tool(tool)?);
+        }
+        if !allowance.operations.is_empty() {
+            let connectors = self.ledger.connector_scope()?;
+            for allowed in &allowance.operations {
+                tools.push(self.ledger.operation_tool(&connectors, allowed)?);
+            }
+        }
+        for skill in allowance.named_skills() {
+            tools.push(self.ledger.skill_tool(CallTarget::Skill {
+                skill: skill.clone(),
+                method: None,
+                bound: None,
+            })?);
+        }
+        if allowance.rules().next().is_some() {
+            tools.push(offered(
+                "load",
+                "Load a skill or connector the turn's catalog rules admit: {skill, method?}, or {connector} by name. A skill's load answers with its manual (how to use it) and its methods, each with its purpose and inputs; it binds the method named, or the skill's only method, and with no method named a skill of several binds none, so read the manual and load again naming one. Each method or operation a load binds is a tool of this turn from then on. Binding a package below the rule's trust tier, or a project package that reaches a connector this turn does not, waits on the person's trust."
+                    .to_owned(),
+                load_schema()?,
+                CallTarget::Load,
+            ));
+        }
+        // What a load added, as it described it when it bound it: a package
+        // that changed since is refused at its call, never re-read here.
+        for load in self.ledger.loads()? {
+            tools.extend(load.tools.into_iter().filter(|tool| {
+                !matches!(&tool.target, CallTarget::Operation { requirement, operation }
+                if allowance.operations.iter().any(|allowed| {
+                    &allowed.requirement == requirement && &allowed.operation == operation
+                }))
+            }));
+        }
+        if allowance.asks {
+            tools.push(offered(
+                "ask_human",
+                "Ask the human: a yes or no on your reason, or one to three questions, each with up to four options (the recommended first) and free text where it allows. The call stays pending until they answer."
+                    .to_owned(),
+                ask_schema()?,
+                CallTarget::Ask,
+            ));
+        }
+        distinct_names(&mut tools);
+        // A script makes the calls listed so far, by their real names.
+        if self.ledger.offers_script()? {
+            let scriptable = tools
+                .iter()
+                .filter_map(|tool| script_name(&tool.target).map(|name| (name, tool.name.as_str())))
+                .collect::<Vec<_>>();
+            tools.push(script_tool(&scriptable)?);
+        }
+        Ok(tools)
     }
 
     fn calls(&self) -> Result<Vec<TurnCallResult>, RuntimeError> {
-        // A script's calls are reached through the call that made them.
         self.ledger
             .recorded()?
             .iter()
-            .filter(|call| call.script.is_none())
             .map(|call| {
                 self.ledger
                     .result(&Made::of(call), &call.outcome, &call.outputs)
             })
             .collect()
-    }
-
-    fn made_by(&self, index: u32) -> Result<Vec<u32>, RuntimeError> {
-        Ok(self
-            .ledger
-            .recorded()?
-            .iter()
-            .filter(|call| call.script.is_some_and(|place| place.call == index))
-            .map(|call| call.index)
-            .collect())
     }
 
     fn admit(
@@ -3523,7 +3254,6 @@ where
             .unwrap_or(0);
         let made = Made {
             index,
-            script: None,
             call_id,
             target,
             input,
@@ -3782,9 +3512,30 @@ fn load_schema() -> Result<JsonObject, RuntimeError> {
     .map_err(|source| RuntimeError::json("describing a load", source))
 }
 
-/// The script call a turn offers: one module that makes the turn's calls,
-/// each by the name the turn offers it and with the input it takes there.
-fn script_tool() -> Result<TurnTool, RuntimeError> {
+/// The name a script makes `target` by, the call's real name: a catalog
+/// tool's, `<connector>/<operation>`, or `<skill>[#<method>]`. None for a call
+/// a script doesn't make.
+fn script_name(target: &CallTarget) -> Option<String> {
+    match target {
+        CallTarget::Tool { tool } => Some(tool.as_str().to_owned()),
+        CallTarget::Operation {
+            requirement,
+            operation,
+        } => Some(format!("{requirement}/{operation}")),
+        CallTarget::Skill {
+            skill,
+            method: Some(method),
+            ..
+        } => Some(format!("{skill}#{method}")),
+        CallTarget::Skill { skill, .. } => Some(skill.as_str().to_owned()),
+        _ => None,
+    }
+}
+
+/// The script call a turn offers: one module that makes the turn's calls by
+/// their real names, `scriptable` pairing each with the name it's offered
+/// under here.
+fn script_tool(scriptable: &[(String, &str)]) -> Result<TurnTool, RuntimeError> {
     let schema = serde_json::from_value(serde_json::json!({
         "type": "object",
         "additionalProperties": false,
@@ -3795,10 +3546,16 @@ fn script_tool() -> Result<TurnTool, RuntimeError> {
         "required": ["source"],
     }))
     .map_err(|source| RuntimeError::json("describing a script", source))?;
+    let calls = scriptable
+        .iter()
+        .map(|(name, offered)| format!("{name} ({offered})"))
+        .collect::<Vec<_>>()
+        .join(", ");
     Ok(offered(
         "script",
-        "Run a JavaScript module you write, in one call, when ordering, fan-out, repetition or reuse helps: {source, inputs?}. Its default export, `export default async function (ctx, inputs) { ... }`, is called with this call's `inputs`, and what it returns, a JSON object, is this call's result. `ctx.tool(name, input)` makes any of this turn's tool calls, by the tool's name here and with the input it takes here, and returns a promise of its result: each is admitted, approved and recorded as this turn's own call, and one that's refused or fails rejects with its reason. `ctx.now()` is the time. The module imports nothing and has no I/O of its own."
-            .to_owned(),
+        format!(
+            "Run a JavaScript module you write, in one call, when ordering, fan-out, repetition or reuse helps: {{source, inputs?}}. Its default export, `export default async function (ctx, inputs) {{ ... }}`, is called with `inputs`, and the object it returns is this call's result; one that throws, or returns anything else, fails the call. It makes this turn's calls by their real names, each admitted, approved and recorded as this turn's own: `ctx.tool(name, input)` for a tool, `ctx.operation(\"<connector>/<operation>\", input)`, `ctx.skill(\"<skill>#<method>\", input)`, each returning a promise of its result that rejects with the reason one is refused or fails. Its calls, by real name with the name offered here: {calls}. `ctx.now()` is the time. The module imports nothing and has no I/O of its own."
+        ),
         schema,
         CallTarget::Script,
     ))
