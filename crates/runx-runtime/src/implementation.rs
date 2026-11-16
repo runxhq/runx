@@ -33,7 +33,9 @@ enum Worker {
     /// A turn of it may be offered `script`: one that may call a tool, an
     /// operation or a skill, its own or one a load binds. It's bound to the
     /// worker this runtime was built beside, which its first script's
-    /// handshake proves, so a turn that writes none starts no worker.
+    /// handshake proves, so a turn that writes none starts no worker; a
+    /// runtime built without the worker's sources starts its worker to learn
+    /// it, as a run whose steps run JavaScript does.
     Offered,
 }
 
@@ -126,10 +128,10 @@ fn worker(
     javascript: &JavaScriptAdapter,
     env: &BTreeMap<String, String>,
 ) -> Result<Option<String>, RuntimeError> {
-    match worker_of(workflow) {
-        Worker::None => Ok(None),
-        Worker::Runs => javascript.worker_digest(env).map(Some),
-        Worker::Offered => Ok(expected_worker().map(str::to_owned)),
+    match (worker_of(workflow), expected_worker()) {
+        (Worker::None, _) => Ok(None),
+        (Worker::Offered, Some(worker)) => Ok(Some(worker.to_owned())),
+        (Worker::Runs | Worker::Offered, _) => javascript.worker_digest(env).map(Some),
     }
 }
 
@@ -140,8 +142,9 @@ fn worker(
 pub(crate) fn expected(workflow: &Workflow) -> Option<RunImplementation> {
     match worker_of(workflow) {
         Worker::None => Some(runtime_alone()),
-        Worker::Runs => expected_worker().map(|worker| implementation(Some(worker.into()))),
-        Worker::Offered => Some(implementation(expected_worker().map(Into::into))),
+        Worker::Runs | Worker::Offered => {
+            expected_worker().map(|worker| implementation(Some(worker.into())))
+        }
     }
 }
 

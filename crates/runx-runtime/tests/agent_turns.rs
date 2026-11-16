@@ -3611,17 +3611,20 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
         .ok_or("missing run_id")?
         .to_owned();
     let turn = opened(root, &started)?;
-    let source = r#"export default async function (ctx) {
-  await ctx.tool("fs_write", { path: "first.txt", contents: "one\n" });
+    // The first write's contents are an input past the inline bound, which
+    // reaches the script by reference, and each drive gives it again.
+    let source = r#"export default async function (ctx, inputs) {
+  await ctx.tool("fs_write", { path: "first.txt", contents: inputs.first });
   await ctx.tool("fs_write", { path: "second.txt", contents: "two\n" });
   return { wrote: 2 };
 }
 "#;
+    let first = "one\n".repeat(20_000);
     let script = turn.call(
         TURN,
         "script",
         None,
-        input(serde_json::json!({"source": source}))?,
+        input(serde_json::json!({"source": source, "inputs": {"first": first}}))?,
     )?;
     floor_gate(&script, "answer/1/tool")?;
     let own = turn.call(
@@ -3647,7 +3650,7 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
     approve("answer/1/tool")?;
     let status = turn.status(TURN)?;
     floor_gate(&status.calls[0], "answer/3/tool")?;
-    assert!(root.join("first.txt").exists());
+    assert_eq!(std::fs::read_to_string(root.join("first.txt"))?, first);
     assert!(!root.join("second.txt").exists());
 
     approve("answer/3/tool")?;

@@ -1646,7 +1646,6 @@ where
                 message: reason,
             })?;
         let index = made.index;
-        let changed_before = self.script_changed(index)?;
         let step = &call.step;
         let stop = self.stop(index, step);
         if made.cancelled {
@@ -1672,7 +1671,7 @@ where
                 None => drive(),
             }
         };
-        let changed_nothing = stop.changed_nothing() && !changed_before;
+        let changed_nothing = stop.changed_nothing();
         let cancelled = stop.release() || crate::interrupt::caller_cancelled();
         let newly = cancelled && !made.cancelled;
         let made = Made {
@@ -1689,6 +1688,11 @@ where
                 return self.end_script(host, made, newly, CallOutcome::Failed(error.to_string()));
             }
         };
+        // A cancel settles it `cancelled` only when no call its script made,
+        // on this drive or an earlier one, may have changed anything. Read
+        // once the drive has given the script its inputs, which its calls may
+        // name.
+        let changed_nothing = changed_nothing && !(cancelled && self.script_changed(index)?);
         match run {
             Some(run) if !(cancelled && changed_nothing) => {
                 self.settled(made, CallOutcome::Completed(Box::new(run)), &[])
@@ -1708,9 +1712,8 @@ where
         }
     }
 
-    /// Whether a call script call `index` made on an earlier drive may have
-    /// changed something: one that doesn't only read and got past its
-    /// admission.
+    /// Whether a call script call `index` made may have changed something:
+    /// one that doesn't only read and got past its admission.
     fn script_changed(&self, index: u32) -> Result<bool, RuntimeError> {
         let options = &self.scope.runtime.options;
         for call in self
