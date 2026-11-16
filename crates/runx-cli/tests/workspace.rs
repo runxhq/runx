@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+use serde_json::json;
+
 use crate::support::{isolated_runx_command_with_inherited_cwd, temp_root};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -102,6 +104,121 @@ fn a_moved_workspace_is_rebound_to_the_id_it_had() -> TestResult {
         .ok_or_else(|| format!("no workspaces: {listed}"))?;
     assert_eq!(workspaces.len(), 1, "{listed}");
     assert_eq!(workspaces[0]["id"], had.as_str());
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
+/// A workspace whose folder is gone for good is forgotten by the person,
+/// with what was kept under its id: its memory, its standing authority and
+/// the id itself, so no other workspace is offered it as a move. A folder
+/// still there, or a run, can't make the forget.
+#[test]
+fn a_gone_workspace_is_forgotten_with_what_was_kept_under_it() -> TestResult {
+    let root = temp_root("runx-workspace-forget");
+    let home = root.join("home");
+    let before = root.join("before");
+    write_workspace(&before)?;
+    fs::create_dir_all(before.join(".git"))?;
+    let had = workspace_id(&before, &home)?;
+    let old = fs::canonicalize(&before)?.display().to_string();
+
+    // The person's memory there, and their standing authority for it.
+    let term = json!({"delegations": [{"connector": "private", "terms": [{
+        "verbs": ["read", "write"],
+        "bounds": {
+            "operations": ["private/*"],
+            "scopes": ["store.read", "store.append"],
+            "targets": ["runx/memory/said:*", "runx/memory/observed:*"],
+            "packages": ["runx/memory"],
+        },
+    }]}]});
+    fs::write(before.join("standing.json"), term.to_string())?;
+    let saved = runx(
+        &before,
+        &home,
+        &["authority", "save", "mine", "standing.json", "--standing"],
+    )?;
+    assert_eq!(saved["standing"], true, "{saved}");
+    fs::write(
+        before.join("observe.json"),
+        json!({"level": "workspace", "text": "The release copy goes out on Fridays.", "summary": "Release copy on Fridays", "date": "2026-11-16", "sources": ["chat:release"]}).to_string(),
+    )?;
+    let kept = runx(
+        &before,
+        &home,
+        &["skill", "runx/memory#observe", "--inputs", "observe.json"],
+    )?;
+    assert_eq!(kept["outcome"], "completed", "{kept}");
+
+    let forget = |cwd: &Path, run_token: Option<&str>| -> std::io::Result<std::process::Output> {
+        let mut command = isolated_runx_command_with_inherited_cwd("workspace-ids");
+        command.current_dir(cwd).env("RUNX_HOME", &home).args([
+            "workspace",
+            "forget",
+            &old,
+            "--json",
+        ]);
+        if let Some(token) = run_token {
+            command.env("RUNX_WORKSPACE_LOCK_TOKEN", token);
+        }
+        command.output()
+    };
+    let refused = forget(&before, None)?;
+    assert!(
+        !refused.status.success()
+            && String::from_utf8_lossy(&refused.stdout).contains("still exists"),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+
+    fs::remove_dir_all(&before)?;
+    let other = root.join("other");
+    write_workspace(&other)?;
+    fs::create_dir_all(other.join(".git"))?;
+    let inspect = |cwd: &Path| runx(cwd, &home, &["skill", "inspect", "runx/memory#index"]);
+    let offered = inspect(&other)?.to_string();
+    assert!(
+        offered.contains(&format!(
+            "if it wasn't, runx workspace forget {old} removes that path and what was kept under it"
+        )),
+        "{offered}"
+    );
+    let in_a_run = forget(&other, Some("token"))?;
+    assert!(
+        !in_a_run.status.success()
+            && String::from_utf8_lossy(&in_a_run.stdout).contains("inside a runx run"),
+        "{}",
+        String::from_utf8_lossy(&in_a_run.stdout)
+    );
+
+    let forgotten = forget(&other, None)?;
+    let forgotten: serde_json::Value = serde_json::from_slice(&forgotten.stdout)?;
+    assert_eq!(forgotten["id"], had.as_str(), "{forgotten}");
+    assert_eq!(
+        forgotten["streams"],
+        json!([format!("runx/memory/observed:workspace:{had}")]),
+        "{forgotten}"
+    );
+    assert_eq!(
+        forgotten["authorities"],
+        json!([{"name": "mine", "removed": true}]),
+        "{forgotten}"
+    );
+    let store = rusqlite::Connection::open(home.join("private.sqlite"))?;
+    let naming: i64 = store.query_row(
+        "SELECT count(*) FROM store_events WHERE instr(stream, ?1) > 0",
+        [&had],
+        |row| row.get(0),
+    )?;
+    assert_eq!(naming, 0);
+    let listed = runx(&other, &home, &["workspace", "list"])?;
+    assert!(
+        !listed.to_string().contains(&had) && !listed.to_string().contains(&old),
+        "{listed}"
+    );
+    assert!(!inspect(&other)?.to_string().contains("runx workspace"));
+    let again = forget(&other, None)?;
+    assert!(!again.status.success(), "a forgotten workspace is gone");
     fs::remove_dir_all(root)?;
     Ok(())
 }

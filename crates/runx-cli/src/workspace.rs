@@ -2,18 +2,20 @@
 //! runs runx in, keyed by canonical path (memory.md). A step reads its run's
 //! as `$run.workspace_id`. runx can't tell a move from a copy, so a moved
 //! workspace is minted a new id, and `rebind` gives it back the one it had.
+//! `forget` removes a workspace whose folder is gone, with what was kept
+//! under its id: the person runs it, so it asks nothing, and a run can't.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use runx_runtime::WorkspaceEnv;
-use runx_runtime::workspace_ids::{self, Rebound, WorkspaceIdEntry};
+use runx_runtime::workspace_ids::{self, Forgotten, Rebound, WorkspaceIdEntry};
 use serde::Serialize;
 
 use crate::cli_args::{os_arg, split_flag};
 
-const USAGE: &str = "runx workspace list | rebind <old path>";
+const USAGE: &str = "runx workspace list | rebind <old path> | forget <old path>";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkspacePlan {
@@ -26,6 +28,10 @@ pub enum WorkspaceAction {
     List,
     /// Give the workspace runx runs in the id the workspace at `old` had.
     Rebind {
+        old: PathBuf,
+    },
+    /// Forget the workspace that was at `old`, whose folder is gone.
+    Forget {
         old: PathBuf,
     },
 }
@@ -51,6 +57,9 @@ pub fn parse_workspace_plan(args: &[OsString]) -> Result<WorkspacePlan, String> 
     let action = match (subcommand, positionals.as_slice()) {
         ("list", []) => WorkspaceAction::List,
         ("rebind", [old]) => WorkspaceAction::Rebind {
+            old: PathBuf::from(old),
+        },
+        ("forget", [old]) => WorkspaceAction::Forget {
             old: PathBuf::from(old),
         },
         _ => return Err(format!("usage: {USAGE}")),
@@ -105,7 +114,46 @@ fn execute(plan: &WorkspacePlan, workspace: &WorkspaceEnv) -> Result<String, Str
                 None => format!("{} is {} again\n", rebound.path, rebound.id),
             })
         }
+        WorkspaceAction::Forget { old } => {
+            let forgotten = workspace_ids::forget(paths, workspace.env(), old)
+                .map_err(|error| error.to_string())?;
+            if plan.json {
+                return render_json(&Output::Forget {
+                    forgotten: &ForgetOutput::from(&forgotten),
+                });
+            }
+            Ok(render_forgotten(&forgotten))
+        }
     }
+}
+
+/// A forget as a person reads it: the workspace, and each thing of it that's
+/// gone.
+fn render_forgotten(forgotten: &Forgotten) -> String {
+    let mut text = format!(
+        "{} ({}) is forgotten: runx no longer offers it as a move\n",
+        forgotten.path, forgotten.id
+    );
+    if forgotten.streams.is_empty() {
+        text.push_str("  no memory was kept under it\n");
+    }
+    for stream in &forgotten.streams {
+        text.push_str(&format!("  removed {stream}\n"));
+    }
+    for authority in &forgotten.authorities {
+        text.push_str(&if authority.removed {
+            format!(
+                "  removed the saved authority {}, which was for it alone\n",
+                authority.name
+            )
+        } else {
+            format!(
+                "  the saved authority {} is no longer for it\n",
+                authority.name
+            )
+        });
+    }
+    text
 }
 
 #[derive(Serialize)]
@@ -118,6 +166,44 @@ enum Output<'a> {
         #[serde(flatten)]
         rebound: &'a RebindOutput,
     },
+    Forget {
+        #[serde(flatten)]
+        forgotten: &'a ForgetOutput,
+    },
+}
+
+/// A forget as JSON: the workspace and its id, the streams removed, and each
+/// saved authority it was taken out of, `removed` when it was for it alone.
+#[derive(Serialize)]
+struct ForgetOutput {
+    path: String,
+    id: String,
+    streams: Vec<String>,
+    authorities: Vec<ForgottenAuthority>,
+}
+
+#[derive(Serialize)]
+struct ForgottenAuthority {
+    name: String,
+    removed: bool,
+}
+
+impl From<&Forgotten> for ForgetOutput {
+    fn from(forgotten: &Forgotten) -> Self {
+        Self {
+            path: forgotten.path.clone(),
+            id: forgotten.id.clone(),
+            streams: forgotten.streams.clone(),
+            authorities: forgotten
+                .authorities
+                .iter()
+                .map(|authority| ForgottenAuthority {
+                    name: authority.name.clone(),
+                    removed: authority.removed,
+                })
+                .collect(),
+        }
+    }
 }
 
 /// A rebind as JSON: the workspace, the id it has again, and the id it
@@ -172,12 +258,19 @@ mod tests {
                 old: PathBuf::from("../old")
             }
         );
+        assert_eq!(
+            plan(&["workspace", "forget", "../old"])?.action,
+            WorkspaceAction::Forget {
+                old: PathBuf::from("../old")
+            }
+        );
         for refused in [
             &["workspace"][..],
             &["workspace", "rebind"],
             &["workspace", "list", "extra"],
             &["workspace", "rebind", "a", "b"],
             &["workspace", "forget"],
+            &["workspace", "forget", "a", "--yes"],
             &["workspace", "list", "--force"],
         ] {
             assert!(plan(refused).is_err(), "{refused:?}");

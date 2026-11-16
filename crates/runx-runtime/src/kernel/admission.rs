@@ -2096,15 +2096,16 @@ fn leased_resource(
 /// Why a `private` call with no term is refused, and what gives it one: the
 /// workspace's id back, when the workspace may have been moved from a path
 /// this home knows that no longer exists, which only the person can say, or
-/// else a standing authority saved for this workspace.
+/// else a standing authority saved for this workspace. A gone path that
+/// wasn't this workspace's is the person's to forget.
 fn needs_a_term(connector: &LoadedConnector, paths: &crate::paths::RunxPaths) -> String {
     let rebind = match crate::workspace_ids::gone(paths).as_slice() {
         [] => String::new(),
         [old] => format!(
-            "if this workspace was moved from {old}, which no longer exists, ask the person, and if it was, runx workspace rebind {old} gives it back its id, with its memory and standing authority; otherwise, "
+            "if this workspace was moved from {old}, which no longer exists, ask the person, and if it was, runx workspace rebind {old} gives it back its id, with its memory and standing authority (if it wasn't, runx workspace forget {old} removes that path and what was kept under it); otherwise, "
         ),
         gone => format!(
-            "if this workspace was moved from one of [{}], which no longer exist, ask the person which, and runx workspace rebind <that path> gives it back its id, with its memory and standing authority; otherwise, ",
+            "if this workspace was moved from one of [{}], which no longer exist, ask the person which, and runx workspace rebind <that path> gives it back its id, with its memory and standing authority (runx workspace forget <path> removes one it wasn't moved from, and what was kept under it); otherwise, ",
             gone.join(", ")
         ),
     };

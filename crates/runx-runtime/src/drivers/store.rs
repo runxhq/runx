@@ -357,6 +357,16 @@ fn open(call: &AdmittedCall<'_>) -> Result<Box<dyn Backend>, StoreError> {
     }
 }
 
+/// Forget the person's data kept under a workspace's `id`: every stream of
+/// the `private` file at `path` that names it, as memory names a workspace's
+/// streams, removed whole. A file not made yet holds none.
+pub(crate) fn forget_private_streams(path: &Path, id: &str) -> Result<Vec<String>, StoreError> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    sqlite::Sqlite::open(path, Kind::Private)?.forget_streams_naming(id)
+}
+
 /// One event of a history a probe lays down: on a stream as it's stored,
 /// under its package, written by `writer_package`.
 #[cfg(feature = "probe-fixtures")]

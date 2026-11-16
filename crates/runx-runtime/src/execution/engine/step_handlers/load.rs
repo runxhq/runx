@@ -404,7 +404,7 @@ pub fn state_trust(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<StatedTrust>, String> {
-    if env.contains_key(crate::workspace_lock::RUNX_WORKSPACE_LOCK_TOKEN_ENV) {
+    if crate::workspace_lock::inside_a_run(env) {
         return Err(
             "runx trust is the person's statement, and this runs inside a runx run: run it yourself, outside any run"
                 .to_owned(),

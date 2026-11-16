@@ -176,14 +176,16 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "workspace",
-        top_level_usage: &["runx workspace list|rebind ... [-j|--json]"],
+        top_level_usage: &["runx workspace list|rebind|forget ... [-j|--json]"],
         usage: &[
             "runx workspace list [-j|--json]",
             "runx workspace rebind <old path> [-j|--json]",
+            "runx workspace forget <old path> [-j|--json]",
         ],
         notes: &[
             "Each workspace you run runx in is named by an id the runx home mints the first time a step reads $run.workspace_id there, keyed by where the workspace is: its path as its git repository's main checkout holds it, so every worktree of one clone is one workspace, and outside git its own path. A workspace is a directory with .git, pnpm-workspace.yaml, skills/ or connectors/; elsewhere a run reads a null workspace id. The id is never read from the workspace, so a repository can't name another workspace's memory, and a home that fell back to the workspace mints none.",
             "runx can't tell a move from a copy, so a moved workspace is minted a new id. `rebind <old path>`, run in the workspace where it is now, gives it back the id it had at the old path; the id minted for it here goes, and what was kept under that id stays under it. `list` shows each id and its path.",
+            "`forget <old path>` removes a workspace whose folder is gone for good, with what was kept under its id: every stream of the person's private store that names it, its memory among them, its id in each saved authority, removing one that was for it alone, and the id itself, so no workspace is offered it as a move again. It's the person's statement, so it asks nothing, and a run can't make it. A folder still there is refused.",
         ],
         options: &["-j, --json"],
     },

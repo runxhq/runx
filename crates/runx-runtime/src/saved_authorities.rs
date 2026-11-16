@@ -255,6 +255,53 @@ pub fn remove(paths: &RunxPaths, name: &str) -> Result<(), SavedAuthorityError> 
     })
 }
 
+/// What forgetting a workspace did to one saved authority: it's no longer for
+/// that workspace, and `removed` when it was for no other.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Narrowed {
+    pub name: String,
+    pub removed: bool,
+}
+
+/// Take the workspace `id` out of every saved authority, removing one that
+/// was for it alone, as forgetting a workspace does.
+///
+/// # Errors
+///
+/// Returns why the home's saved authorities can't be read or written.
+pub fn forget_workspace(paths: &RunxPaths, id: &str) -> Result<Vec<Narrowed>, SavedAuthorityError> {
+    let mut narrowed = Vec::new();
+    for (name, mut saved) in list(paths)? {
+        if !saved.workspaces.iter().any(|workspace| workspace == id) {
+            continue;
+        }
+        saved.workspaces.retain(|workspace| workspace != id);
+        let file = authority_file(paths, &name)?;
+        if saved.workspaces.is_empty() {
+            std::fs::remove_file(&file).map_err(|error| SavedAuthorityError::File {
+                path: file.display().to_string(),
+                fault: crate::private_file::io_fault(&error),
+            })?;
+        } else {
+            let bytes = serde_json::to_vec_pretty(&saved).map_err(|error| {
+                SavedAuthorityError::Malformed {
+                    path: file.display().to_string(),
+                    message: error.to_string(),
+                }
+            })?;
+            replace_private(&file, &bytes).map_err(|fault| SavedAuthorityError::File {
+                path: file.display().to_string(),
+                fault,
+            })?;
+        }
+        narrowed.push(Narrowed {
+            name,
+            removed: saved.workspaces.is_empty(),
+        });
+    }
+    Ok(narrowed)
+}
+
 /// The authority a run or a server named `name` starts with: saved in this
 /// home, for the workspace runx runs in.
 ///

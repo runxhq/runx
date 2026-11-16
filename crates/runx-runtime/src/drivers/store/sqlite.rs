@@ -148,6 +148,56 @@ impl Sqlite {
         Ok(store)
     }
 
+    /// Remove every stream that names `part` as one of its `:`-separated
+    /// parts, whole: its events, its keys and their search rows, in one
+    /// transaction. What's removed is overwritten and the log checkpointed,
+    /// so none of it stays in the file. The streams removed, in order.
+    pub(super) fn forget_streams_naming(&mut self, part: &str) -> Result<Vec<String>, StoreError> {
+        const NAMES: &str = "instr(':' || stream || ':', ':' || ?1 || ':') > 0";
+        let kind = self.kind;
+        self.connection
+            .pragma_update(None, "secure_delete", true)
+            .map_err(|error| database("overwriting what's removed", &error))?;
+        let _open = crate::work_counts::OpenTransaction::begin();
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| database("starting to forget", &error))?;
+        let streams = transaction
+            .prepare(&format!(
+                "SELECT DISTINCT stream FROM store_events WHERE {NAMES} ORDER BY stream"
+            ))
+            .and_then(|mut statement| {
+                statement
+                    .query_map(params![part], |row| row.get::<_, String>(0))?
+                    .collect::<rusqlite::Result<Vec<_>>>()
+            })
+            .map_err(|error| database("reading the streams to forget", &error))?;
+        if kind == Kind::Private {
+            transaction
+                .execute(
+                    &format!(
+                        "DELETE FROM store_search WHERE rowid IN (SELECT rowid FROM store_keys WHERE {NAMES})"
+                    ),
+                    params![part],
+                )
+                .map_err(|error| database("forgetting the search rows", &error))?;
+        }
+        for table in ["store_keys", "store_events"] {
+            transaction
+                .execute(&format!("DELETE FROM {table} WHERE {NAMES}"), params![part])
+                .map_err(|error| database("forgetting the streams", &error))?;
+        }
+        transaction
+            .commit()
+            .map_err(|error| database("committing what's forgotten", &error))?;
+        synced(&self.path);
+        self.connection
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+            .map_err(|error| database("checkpointing the log", &error))?;
+        Ok(streams)
+    }
+
     /// The value of `pragma` on this store's connection.
     #[cfg(test)]
     pub(super) fn pragma(&self, pragma: &str) -> i64 {

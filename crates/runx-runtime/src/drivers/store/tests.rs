@@ -1525,3 +1525,84 @@ fn a_sqlite_store_syncs_its_commits_and_checkpoints_with_the_full_flush() {
         }
     }
 }
+
+/// Forgetting a workspace removes every `private` stream that names its id
+/// as one of its parts, whole, with each key's search row, and nothing else:
+/// not the person's own streams, and not another workspace's whose id only
+/// begins the same way.
+#[test]
+fn forgetting_a_workspace_removes_the_streams_that_name_it_and_no_others() {
+    use super::Backend as _;
+    let root = tempfile::tempdir().unwrap();
+    let env = Test::private(root.path()).env;
+    let path = crate::paths::RunxPaths::resolve(&env, root.path()).private_store();
+    let gone = "ws_0a1b";
+    let kept = [
+        "said:personal".to_owned(),
+        "said:workspace:ws_0a1b2".to_owned(),
+    ];
+    let named = [
+        format!("said:workspace:{gone}"),
+        format!("observed:project:{gone}:site"),
+        format!("said:brand:{gone}:acme"),
+    ];
+    {
+        let mut store = super::sqlite::Sqlite::open(&path, super::Kind::Private).unwrap();
+        let data = JsonObject::from([("text".to_owned(), JsonValue::String("tea".to_owned()))]);
+        for stream in named.iter().chain(&kept) {
+            let append = super::request::Append {
+                at: super::request::Key { stream, key: "k" },
+                expected_version: 0,
+                idempotency_key: "k:0",
+                event_type: "memory.kept",
+                data: &data,
+                writer: super::model::Writer {
+                    package: OWNER.to_owned(),
+                    digest: format!("sha256:{}", "b".repeat(64)),
+                },
+                standing: false,
+                valid_until: None,
+                searchable: Some(vec!["text"]),
+            };
+            let appended = store.append(&append, "2026-01-01T00:00:00.000Z").unwrap();
+            assert!(matches!(appended, super::model::Appended::Committed { .. }));
+        }
+    }
+
+    let mut forgotten = super::forget_private_streams(&path, gone).unwrap();
+    forgotten.sort();
+    let mut expected = named.to_vec();
+    expected.sort();
+    assert_eq!(forgotten, expected);
+
+    let file = rusqlite::Connection::open(&path).unwrap();
+    let left = |table: &str| -> i64 {
+        file.query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
+            row.get(0)
+        })
+        .unwrap()
+    };
+    assert_eq!(left("store_events"), 2);
+    assert_eq!(left("store_keys"), 2);
+    assert_eq!(left("store_search"), 2);
+    let mut streams = file
+        .prepare("SELECT stream FROM store_keys ORDER BY stream")
+        .unwrap()
+        .query_map([], |row| row.get::<_, String>(0))
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap();
+    streams.sort();
+    assert_eq!(streams, kept.to_vec());
+    // Forgetting it again finds nothing, and a home with no file holds none.
+    assert!(
+        super::forget_private_streams(&path, gone)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        super::forget_private_streams(&root.path().join("none.sqlite"), gone)
+            .unwrap()
+            .is_empty()
+    );
+}

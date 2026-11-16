@@ -376,7 +376,9 @@ A step receives exactly what it binds. Its `inputs`, and an operation step's
   the one it had. A workspace whose runs have no term for the person's data
   is told so, and where this home knows a path that no longer exists, the
   refusal names it: if the workspace was moved from there, which only the
-  person can say, rebinding gives it back its memory and standing authority.
+  person can say, rebinding gives it back its memory and standing authority,
+  and if it wasn't, `runx workspace forget <old path>`, which the person runs,
+  removes that path and everything kept under its id.
 
 Paths are dotted, and a numeric segment indexes a list. A step's result is
 the values it declares: a reference reads an output's value, never the

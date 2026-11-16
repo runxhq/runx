@@ -8,7 +8,8 @@
 //!
 //! runx can't tell a move from a copy, so a moved workspace is minted a new id
 //! where it now is, and `runx workspace rebind <old path>` gives it back the
-//! id it had.
+//! id it had. A workspace whose folder is gone for good is forgotten with
+//! `runx workspace forget <old path>`, with what was kept under its id.
 
 use std::collections::BTreeMap;
 use std::fs::OpenOptions;
@@ -64,7 +65,9 @@ pub enum WorkspaceIdError {
         "runx has no workspace here: a workspace is a directory with .git, skills/ or connectors/, or one RUNX_CWD names"
     )]
     NoWorkspace,
-    #[error("{path} has no workspace id in this runx home, so there's nothing to rebind")]
+    #[error(
+        "{path} has no workspace id in this runx home; runx workspace list shows the ones it has"
+    )]
     NotKnown { path: String },
     #[error("{path} {fault}")]
     File {
@@ -205,6 +208,89 @@ pub fn rebind(paths: &RunxPaths, old: &Path) -> Result<Rebound, WorkspaceIdError
             },
             true,
         ))
+    })
+}
+
+/// What forgetting a gone workspace removed: its path and id, the streams of
+/// the person's private store that named the id, and each saved authority it
+/// was taken out of.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Forgotten {
+    pub path: String,
+    pub id: String,
+    pub streams: Vec<String>,
+    pub authorities: Vec<crate::saved_authorities::Narrowed>,
+}
+
+/// Why a workspace can't be forgotten.
+#[derive(Debug, Error)]
+pub enum ForgetError {
+    #[error(
+        "runx workspace forget is the person's statement, and this runs inside a runx run: run it yourself, outside any run"
+    )]
+    InsideRun,
+    #[error("{path} still exists, and runx forgets only a workspace whose folder is gone")]
+    StillThere { path: String },
+    #[error(transparent)]
+    Ids(#[from] WorkspaceIdError),
+    #[error(transparent)]
+    Authorities(#[from] crate::saved_authorities::SavedAuthorityError),
+    #[error("the private store {path} could not forget it: {message}")]
+    Store { path: String, message: String },
+}
+
+/// Forget the workspace that was at `old`, whose folder is gone: the
+/// person's data kept under its id in their private store, its id in every
+/// saved authority, removing one that was for it alone, and then its id, so
+/// nothing of it is left to offer as a move. Each part is removed before
+/// the id is, so a forget that stops partway is finished by running it
+/// again. It's the person's statement, so a run can't make it.
+///
+/// # Errors
+///
+/// Returns why it can't: inside a run, a home that fell back, no id for
+/// `old`, a folder still there, or a store or authority that can't be
+/// changed.
+pub fn forget(
+    paths: &RunxPaths,
+    env: &BTreeMap<String, String>,
+    old: &Path,
+) -> Result<Forgotten, ForgetError> {
+    if crate::workspace_lock::inside_a_run(env) {
+        return Err(ForgetError::InsideRun);
+    }
+    if paths.home_fell_back() {
+        return Err(WorkspaceIdError::HomeFellBack.into());
+    }
+    let old = old_path(paths, old);
+    let id = read(&ids_file(paths))?
+        .workspaces
+        .into_iter()
+        .find(|entry| entry.path == old)
+        .map(|entry| entry.id)
+        .ok_or_else(|| WorkspaceIdError::NotKnown { path: old.clone() })?;
+    if Path::new(&old).exists() {
+        return Err(ForgetError::StillThere { path: old });
+    }
+    let store = paths.private_store();
+    let streams = crate::drivers::store::forget_private_streams(&store, &id).map_err(|error| {
+        ForgetError::Store {
+            path: store.display().to_string(),
+            message: error.to_string(),
+        }
+    })?;
+    let authorities = crate::saved_authorities::forget_workspace(paths, &id)?;
+    with_ids(paths, |ids| {
+        let before = ids.workspaces.len();
+        ids.workspaces
+            .retain(|entry| !(entry.path == old && entry.id == id));
+        Ok(((), ids.workspaces.len() != before))
+    })?;
+    Ok(Forgotten {
+        path: old,
+        id,
+        streams,
+        authorities,
     })
 }
 

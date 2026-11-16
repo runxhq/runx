@@ -30,6 +30,13 @@ use crate::paths::RunxPaths;
 /// The variable a process run under a hold alone finds its token in.
 pub(crate) const RUNX_WORKSPACE_LOCK_TOKEN_ENV: &str = "RUNX_WORKSPACE_LOCK_TOKEN";
 
+/// Whether `env` is a process a runx run started: every one carries its
+/// run's lock token, so a command that is the person's own statement can
+/// refuse to be made by a run.
+pub(crate) fn inside_a_run(env: &std::collections::BTreeMap<String, String>) -> bool {
+    env.contains_key(RUNX_WORKSPACE_LOCK_TOKEN_ENV)
+}
+
 /// How a step takes the workspace's lock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum LockMode {
