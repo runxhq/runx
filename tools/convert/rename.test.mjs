@@ -537,12 +537,16 @@ test("Ausca's GPU job runner, its sandbox's and GitHub's runner limit stay, and 
   assert.equal(read(root, "docs/methods.md"), "The default method reads the catalog.\n");
 });
 
-// Cloud's pins, which every Cloud tree holds: the lease cipher's label and
-// the retired schemas' entries.
+// Cloud's pins, which every Cloud tree holds: the lease cipher's label, the
+// retired schemas' entries, 0099's test's stored version and the 0.11
+// version submission refuses.
 const cloudPin = {
   "packages/api/src/payments/leases-postgres.ts": 'export const label = "purchase-holdings";\n',
   "scripts/site-release.ts":
     'export const retired = {\n  "https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." },\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": {},\n};\n',
+  "packages/db/src/migrations.test.ts":
+    'const stored = { runner_names: ["main", "free"],\n  harness_cases: [{ name: "drafts", runner: "main", expected_status: "sealed" }, { name: "plain" }] };\nconst { harness_cases: _cases, ...summary } = stored;\nexport { summary };\n',
+  "packages/api/src/runs/submission.test.ts": String.raw`export const old = { profile_document: "skill: documents\nversion: \"1.0.0\"\nrunners:\n  main: {}\n" };` + "\n",
 };
 
 test("Cloud's spec renames as prose, its brand lowercased in a compound, a prompt and a quoted phrase too, and its canonical receipts, which OSS's generator writes with no old word, come out as they went in", (t) => {

@@ -181,16 +181,21 @@ test("Cargo's harness key in a bench or test table is Cargo's, and stays, as doe
   );
 });
 
-test("a signed receipt a document quotes is signed text the guard doesn't read, and the document's other words it does", (t) => {
+test("what the rename leaves as written the guard doesn't read, a signed block a document quotes, an applied migration and a pinned literal, and their files' other words it does", (t) => {
   const signed = '```json\n{\n  "uri": "runx:harness:provider-readback",\n  "runner": "default",\n  "signature": { "alg": "Ed25519", "value": "base64:8ZrB" }\n}\n```\n';
-  const root = tree(t, { "spec/spec.md": `# Spec\n\n${signed}\nThe harness checks it.\n\n\`\`\`json\n{ "runner": "default" }\n\`\`\`\n` });
-  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
+  const root = tree(t, {
+    "spec/spec.md": `# Spec\n\n${signed}\nThe harness checks it.\n\n\`\`\`json\n{ "runner": "default" }\n\`\`\`\n`,
+    "packages/db/migrations/0001_runs.sql": "create table runs (runner text not null);\n",
+    "scripts/site-release.ts": 'export const retired = {\n  "https://schemas.runx.ai/runx/control/harness-context/v1.json": {},\n};\n// The harness checks it.\n',
+  });
+  const run = spawnSync(process.execPath, [GUARD, "cloud", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
-    "spec/spec.md:11\tharness\tharness\tThe harness checks it.\n" +
+    "scripts/site-release.ts:4\tharness\tharness\t// The harness checks it.\n" +
+      "spec/spec.md:11\tharness\tharness\tThe harness checks it.\n" +
       'spec/spec.md:14\trunner\trunner\t{ "runner": "default" }\n' +
-      "stale: 1 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 1 files\n",
+      "stale: 1 uses of runner as a method, 2 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files\n",
   );
 });
 

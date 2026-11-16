@@ -9,11 +9,13 @@
 // It fails on any use of a retired word outside what may keep it, which the
 // rename reads too: a name the repo's rows of identifiers.tsv decide stays,
 // such as `$RUNNER_OS`, and a bare word one of words.mjs's stays keeps.
-// History documents and signed data can't truthfully change (§4.6), so they
-// aren't read, and generated files are as clean as the sources their
-// generators read. A path is read too: each file and folder whose own name
-// holds a retired word fails, but where a path stay in words.mjs keeps it, as
-// history documents keep theirs.
+// History, applied migrations among it, signed data and pinned literals
+// can't truthfully change (§4.6), so they aren't read, by words.mjs's one
+// definition of each, which the rename reads: a repo is clean exactly when
+// the rename finds nothing. Generated files are as clean as the sources
+// their generators read. A path is read too: each file and folder whose own
+// name holds a retired word fails, but where a path stay in words.mjs keeps
+// it, as history keeps its own.
 //
 //   node tools/convert/stale-words.mjs <repo> <root> [--list]
 
@@ -21,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { removedKeys } from "./removed-keys.mjs";
-import { SCOPES, brandRead, GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, fencedBlocks, pathStayFor, proseSites, retiredInPath, signedBlocks, stayFor, stringLiterals } from "./words.mjs";
+import { SCOPES, brandRead, GENERATED, HISTORY, LOCKFILE, PROSE_ONLY, SIGNED, SOURCE, bareWord, brandSites, fencedBlocks, keptSpans, pathStayFor, proseSites, retiredInPath, stayFor, stringLiterals } from "./words.mjs";
 
 // What the rename reads: everything but the converter, scafld's records, vendored copies and lockfiles.
 const NOT_OURS = /^tools\/convert\/|(^|\/)\.scafld\/|(^|\/)vendor\//;
@@ -93,9 +95,10 @@ function main([repo, root, ...rest]) {
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
     if (file.endsWith(".json") && SIGNED.test(text)) continue;
-    // A signed block a document quotes is signed text too.
-    const signed = signedBlocks(file, text);
-    const unsigned = (at) => !signed.some(([from, to]) => at >= from && at < to);
+    // What the rename leaves as written isn't read: a signed block a
+    // document quotes, and each literal the repo pins.
+    const kept = keptSpans(repo, file, text);
+    const unkept = (at) => !kept.some(([from, to]) => at >= from && at < to);
     // A prose-only word is stale where it's read as code or prose.
     const inProse = proseSites(file, text);
     const read = brandSites(file, text);
@@ -103,7 +106,7 @@ function main([repo, root, ...rest]) {
     const lines = text.split("\n");
     const lineOf = (at) => text.slice(0, at).split("\n").length;
     const literals = (code) => stringLiterals(code, file).map(({ pieces }) => [pieces[0][0], pieces.at(-1)[1]]);
-    for (const removed of inScope ? removedKeys(file, text, { fences: fencedBlocks, strings: literals }) : []) {
+    for (const removed of inScope ? removedKeys(file, text, { fences: fencedBlocks, strings: literals }).filter((one) => unkept(one.at)) : []) {
       const line = lineOf(removed.at);
       found.key += 1;
       byFile.set(file, (byFile.get(file) ?? 0) + 1);
@@ -115,7 +118,7 @@ function main([repo, root, ...rest]) {
       lineStart += line.length + 1;
       for (const match of line.matchAll(TOKEN)) {
         const token = match[0];
-        if (!unsigned(start + match.index)) continue;
+        if (!unkept(start + match.index)) continue;
         if (brandRead(token) !== undefined && read(start + match.index, token)) {
           found.brand += 1;
           byFile.set(file, (byFile.get(file) ?? 0) + 1);
@@ -133,7 +136,7 @@ function main([repo, root, ...rest]) {
       }
       for (const [word, pattern] of inScope ? [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT]] : []) {
         for (const match of line.matchAll(pattern)) {
-          if (!unsigned(start + match.index)) continue;
+          if (!unkept(start + match.index)) continue;
           if (word === "turn" && AGENT_WHO_ACTS.test(line.slice(0, match.index + match[0].length))) continue;
           found[word] += 1;
           byFile.set(file, (byFile.get(file) ?? 0) + 1);

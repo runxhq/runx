@@ -107,6 +107,55 @@ export function signedBlocks(file, text) {
   return file.endsWith(".md") ? fencedBlocks(text).filter(([from, to]) => SIGNED.test(text.slice(from, to))) : [];
 }
 
+// Literals whose exact bytes stored data or a past name depends on, in files
+// a token rename would otherwise change them in, each with its reason. The
+// rename masks each one while its file is renamed and refuses when one isn't
+// found, and the guard doesn't read them.
+export const PINNED = {
+  ausca: [
+    { file: "internal/adapters/catalog/release.go", literal: 'json:"runner"', why: "Ausca's catalog revision key: retained history decodes under it (§4.6)" },
+    { file: "internal/catalogcompiler/source.go", literal: 'yaml:"runner"', why: "Ausca's catalog source key, which compiles to the revision key" },
+    { file: "catalog/source/offers.yaml", literal: "runner:", why: "Ausca's catalog source key, which compiles to the revision key" },
+    { file: "internal/catalogcompiler/compiler_test.go", literal: "runner: ocr", why: "the compiler test's catalog source" },
+  ],
+  cloud: [
+    {
+      file: "packages/api/src/payments/leases-postgres.ts",
+      literal: '"purchase-holdings"',
+      why: "the lease cipher's key-derivation label: stored ciphertext opens only under these bytes",
+    },
+    // Retired schemas' entries, which the release check refuses by their
+    // published URLs: each URL, and the record of what took its place.
+    { file: "scripts/site-release.ts", literal: '"https://schemas.runx.ai/runx/control/harness-context/v1.json"', why: "a retired schema's URL, which the release check names to refuse it" },
+    {
+      file: "scripts/site-release.ts",
+      literal: '"https://schemas.runx.ai/runx/agent-act-invocation/v1.json": { retired_by: "a81bd78b80ee780cb1488b58f2eddccb8da918c7", why: "The agent act invocation is the turn invocation, runx/turn-invocation/v1." }',
+      why: "a retired schema's URL and its record of what replaced it, which name the old schema as published",
+    },
+    // 0099's test: a version and its listing as runx 0.11's ingest stored
+    // them, which the migration renames.
+    { file: "packages/db/src/migrations.test.ts", literal: 'runner_names: ["main", "free"]', why: "a stored version's 0.11 method names, which 0099 renames" },
+    { file: "packages/db/src/migrations.test.ts", literal: 'harness_cases: [{ name: "drafts", runner: "main", expected_status: "sealed" }, { name: "plain" }]', why: "a stored version's 0.11 test cases, which 0099 renames" },
+    { file: "packages/db/src/migrations.test.ts", literal: "harness_cases: _cases", why: "the listing's copy of the stored version, which holds no test cases" },
+    // A version published before 0.12, which submission refuses by name.
+    { file: "packages/api/src/runs/submission.test.ts", literal: String.raw`"skill: documents\nversion: \"1.0.0\"\nrunners:\n  main: {}\n"`, why: "a 0.11 run.yaml, which submission refuses as predating 0.12" },
+  ],
+};
+
+const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The spans of `file` the rename leaves as written and the guard doesn't
+ * read: each of its repo's pinned literals' every occurrence, and each
+ * signed block it quotes.
+ */
+export function keptSpans(repo, file, text) {
+  const pinned = (PINNED[repo] ?? [])
+    .filter((pin) => pin.file === file)
+    .flatMap((pin) => [...text.matchAll(new RegExp(escape(pin.literal), "g"))].map((m) => [m.index, m.index + pin.literal.length]));
+  return [...pinned, ...signedBlocks(file, text)];
+}
+
 /** Each fenced code block in a Markdown text: the span between its fences. */
 export function fencedBlocks(text) {
   return fences(text).map(({ from, to }) => [from, to]);
@@ -575,9 +624,18 @@ export const GENERATED = /^(schemas\/[^/]+\.schema\.json|docs\/api-surface\.md|p
 // element takes renames in the rules that style it.
 export const SOURCE = /\.(rs|ts|tsx|mts|mjs|js|cjs|astro|css|scss|json|ya?ml|toml|sql|rb|py|sh|md|go|mk)$|(^|\/)(Makefile|llms\.txt)$/;
 
-// What can't truthfully change (§4.6), in its text or its path: history
+// Applied migrations are history a database has already run, so they're never
+// edited or moved: a fresh database would build different names from the ones
+// production holds. A renamed name that also appears in one names something
+// stored (a table, column, index, constraint or stored value), so its row's
+// note starts "stored" and names the new migration that renames the stored
+// copy, or the row stays.
+export const MIGRATIONS = /(^|\/)(migrations|drizzle)\//;
+
+// What can't truthfully change (§4.6), in its text or its path, which the
+// rename and the guard both leave unread: applied migrations; history
 // documents; Ausca's catalog history, content-addressed immutable purchase
 // data, and its dated run-through records; and Cloud's copy of the CLI release
 // it adopted, as that release shipped, each file's digest in its release.json.
-// Signed data is found by its signature.
-export const HISTORY = /(^|\/)(release\/notes|plans\/(archive|evidence)|\.scafld\/specs\/archive|\.ai|mockups|proof)\/|^catalog\/history\/|^docs\/run-through-findings-[0-9-]+\.md$|^apps\/web\/src\/content\/release\//;
+// Signed data is found by its signature, and a pinned literal by its bytes.
+export const HISTORY = new RegExp(`${MIGRATIONS.source}|${/(^|\/)(release\/notes|plans\/(archive|evidence)|\.scafld\/specs\/archive|\.ai|mockups|proof)\/|^catalog\/history\/|^docs\/run-through-findings-[0-9-]+\.md$|^apps\/web\/src\/content\/release\//.source}`);
