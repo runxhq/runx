@@ -141,9 +141,9 @@ pub use capability::{
     CapabilityEffect, CapabilityField, CapabilityInput, CapabilityOutput, TypedCapability,
 };
 pub use config::{
-    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, DriveLimits, DriveSetting, MODEL_PROVIDERS,
-    ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile, RunxPublicConfig,
-    RunxSecretRecord, clear_runx_agent_dialect, clear_runx_agent_endpoint_url,
+    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, DriveLimits, DriveSetting, DriveThinking,
+    MODEL_PROVIDERS, ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile,
+    RunxPublicConfig, RunxSecretRecord, clear_runx_agent_dialect, clear_runx_agent_endpoint_url,
     clear_runx_agent_secret, clear_runx_drive_setting, load_runx_config_file,
     lookup_runx_config_value, mask_runx_config_file, model_provider, parse_config_key,
     update_runx_config_value, write_runx_config_file,

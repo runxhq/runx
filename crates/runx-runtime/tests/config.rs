@@ -213,6 +213,7 @@ fn config_loads_the_drive_key_from_its_one_source() -> Result<(), Box<dyn std::e
             api_key: Some(SecretString::new("sk-explicit")),
             endpoint_url: "https://api.openai.com/v1/responses".to_owned(),
             auth_mode: runx_runtime::DriveAuthMode::ApiKey,
+            thinking: runx_runtime::DriveThinking::Default,
             limits: DriveLimits::default(),
         })
     );
@@ -239,6 +240,7 @@ fn config_loads_the_drive_key_from_its_one_source() -> Result<(), Box<dyn std::e
             api_key: Some(SecretString::new("local-secret")),
             endpoint_url: "https://api.anthropic.com/v1/messages".to_owned(),
             auth_mode: runx_runtime::DriveAuthMode::ApiKey,
+            thinking: runx_runtime::DriveThinking::Default,
             limits: DriveLimits::default(),
         })
     );
@@ -489,6 +491,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
             api_key: None,
             endpoint_url: endpoint.to_owned(),
             auth_mode: DriveAuthMode::LocalNone,
+            thinking: runx_runtime::DriveThinking::Default,
             limits: DriveLimits::default(),
         })
     );

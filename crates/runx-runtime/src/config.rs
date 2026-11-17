@@ -59,6 +59,9 @@ pub struct RunxAgentConfig {
     pub endpoint_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_mode: Option<String>,
+    /// `off` asks the model not to reason before it answers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<String>,
     /// How many more times a transient model failure is asked again.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retries: Option<u32>,
@@ -104,6 +107,7 @@ pub enum ConfigKey {
     AgentSecret,
     AgentEndpointUrl,
     AgentAuthMode,
+    AgentThinking,
     Drive(DriveSetting),
 }
 
@@ -250,7 +254,33 @@ pub struct DriveConfig {
     pub api_key: Option<SecretString>,
     pub endpoint_url: String,
     pub auth_mode: DriveAuthMode,
+    pub thinking: DriveThinking,
     pub limits: DriveLimits,
+}
+
+/// Whether a driven turn's model reasons before it answers: as the model
+/// does by default, or `off`, which a chat-completions request asks of a
+/// model whose chat template takes it (Qwen's and other local models'), as
+/// `chat_template_kwargs.enable_thinking`. Sent only when off, since some
+/// providers refuse a field they don't know.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DriveThinking {
+    #[default]
+    Default,
+    Off,
+}
+
+impl DriveThinking {
+    pub fn parse(value: &str) -> Result<Self, ConfigError> {
+        match value.trim() {
+            "on" => Ok(Self::Default),
+            "off" => Ok(Self::Off),
+            _ => Err(ConfigError::InvalidAgentSetting {
+                key: "agent.thinking",
+                message: "expected on or off",
+            }),
+        }
+    }
 }
 
 /// How a driven turn holds up against its model, as the operator set it
@@ -362,6 +392,7 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
         "agent.secret" => Ok(ConfigKey::AgentSecret),
         "agent.endpoint_url" => Ok(ConfigKey::AgentEndpointUrl),
         "agent.auth_mode" => Ok(ConfigKey::AgentAuthMode),
+        "agent.thinking" => Ok(ConfigKey::AgentThinking),
         key => DriveSetting::ALL
             .into_iter()
             .find(|setting| setting.key() == key)
@@ -464,6 +495,12 @@ pub fn update_runx_config_value(
             agent.auth_mode = Some(value.to_owned());
             config.agent = Some(agent);
         }
+        ConfigKey::AgentThinking => {
+            DriveThinking::parse(value)?;
+            let mut agent = config.agent.unwrap_or_default();
+            agent.thinking = Some(value.trim().to_owned());
+            config.agent = Some(agent);
+        }
         ConfigKey::Drive(setting) => {
             let mut agent = config.agent.unwrap_or_default();
             setting.set(&mut agent, Some(setting.parse(value)?));
@@ -521,6 +558,7 @@ pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Opti
             .map(|name| name.as_str().to_owned()),
         ConfigKey::AgentEndpointUrl => config.agent.as_ref()?.endpoint_url.clone(),
         ConfigKey::AgentAuthMode => config.agent.as_ref()?.auth_mode.clone(),
+        ConfigKey::AgentThinking => config.agent.as_ref()?.thinking.clone(),
         ConfigKey::Drive(setting) => setting
             .get(config.agent.as_ref()?)
             .map(|value| value.to_string()),

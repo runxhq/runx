@@ -545,12 +545,10 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
             })?;
             Box::new(OpenAiResponsesCaller::new(transport, endpoint, key, model))
         }
-        ModelDialect::ChatCompletions => Box::new(ChatCompletionsCaller::new(
-            transport,
-            endpoint,
-            config.api_key.clone(),
-            model,
-        )),
+        ModelDialect::ChatCompletions => Box::new(
+            ChatCompletionsCaller::new(transport, endpoint, config.api_key.clone(), model)
+                .thinking(config.thinking),
+        ),
     })
 }
 
@@ -979,6 +977,7 @@ mod tests {
             api_key: None,
             endpoint_url: endpoint.to_owned(),
             auth_mode: crate::config::DriveAuthMode::ApiKey,
+            thinking: crate::config::DriveThinking::Default,
             limits: crate::config::DriveLimits::default(),
         };
         let mut envelope = prompt_envelope("Review", JsonObject::new(), Vec::new());

@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::config::{
-    ConfigError, DriveAuthMode, DriveConfig, DriveLimits, DriveSetting, ModelDialect,
-    RunxConfigFile, load_runx_config_file, model_provider, normalize_drive_provider,
+    ConfigError, DriveAuthMode, DriveConfig, DriveLimits, DriveSetting, DriveThinking,
+    ModelDialect, RunxConfigFile, load_runx_config_file, model_provider, normalize_drive_provider,
     validate_agent_endpoint_syntax,
 };
 use crate::credentials::SecretString;
@@ -241,6 +241,17 @@ pub fn load_drive_config(
         api_key: (!api_key.is_empty()).then(|| SecretString::new(api_key)),
         endpoint_url,
         auth_mode,
+        thinking: env
+            .get("RUNX_AGENT_THINKING")
+            .or_else(|| {
+                config
+                    .agent
+                    .as_ref()
+                    .and_then(|agent| agent.thinking.as_ref())
+            })
+            .map_or(Ok(DriveThinking::Default), |value| {
+                DriveThinking::parse(value)
+            })?,
         limits: drive_limits(env, &config)?,
     }))
 }

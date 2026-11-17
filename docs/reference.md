@@ -574,7 +574,12 @@ read from `RUNX_AGENT_<KEY>` over `runx config set`:
 - `agent.request_timeout_seconds` (default 180, 10 to 3,600): one request's
   time limit, which a slow local model may need raised;
 - `agent.rounds` (default 4): the rounds a driven turn has, which
-  `--drive-rounds` sets for one run. No other limit applies.
+  `--drive-rounds` sets for one run. No other limit applies;
+- `agent.thinking` (`on` or `off`, default `on`): `off` asks a
+  chat-completions model whose chat template takes it, such as Qwen and other
+  local models, not to reason before it answers
+  (`chat_template_kwargs.enable_thinking`). It's sent only when off, since
+  some providers refuse a field they don't know.
 
 Prepared context never asks for performative approval: it binds the selected
 skill, inputs, closure, and drift guards into the receipt. A

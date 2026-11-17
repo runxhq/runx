@@ -196,6 +196,7 @@ fn normalize_config_key(key: &str) -> &str {
         "secret" => "agent.secret",
         "endpoint-url" => "agent.endpoint_url",
         "auth-mode" => "agent.auth_mode",
+        "thinking" => "agent.thinking",
         "api-key" | "agent-key" => "agent.api_key",
         _ => key,
     }
@@ -331,6 +332,9 @@ fn flatten_config(config: &RunxConfigFile) -> Vec<(&'static str, String)> {
         }
         if let Some(auth_mode) = agent.auth_mode.as_deref() {
             rows.push(("agent.auth_mode", auth_mode));
+        }
+        if let Some(thinking) = agent.thinking.as_deref() {
+            rows.push(("agent.thinking", thinking));
         }
         if let Some(secret) = agent.secret.as_ref() {
             rows.push(("agent.secret", secret.as_str()));

@@ -2089,3 +2089,47 @@ fn a_driven_run_works_the_turns_its_script_opens_at_once_in_one_drive()
     assert_eq!(finish_server(server)?.len(), 3);
     Ok(())
 }
+
+/// With thinking off the request asks the model's chat template not to
+/// reason; by default it says nothing of it, since some providers refuse a
+/// field they don't know.
+#[test]
+fn thinking_off_asks_a_chat_template_not_to_reason() -> Result<(), Box<dyn std::error::Error>> {
+    use runx_runtime::adapters::agent_loop::{ModelAsk, ModelCaller as _};
+    for thinking in [
+        runx_runtime::DriveThinking::Off,
+        runx_runtime::DriveThinking::Default,
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+        let server = std::thread::spawn(move || -> io::Result<Value> {
+            let (mut stream, _) = listener.accept()?;
+            let request = runx_runtime::scripted_model::read_chat_request(&mut stream)?;
+            let body = json!({"choices":[{"finish_reason":"stop","message":{"content":"done"}}]});
+            runx_runtime::scripted_model::write_chat_response(&mut stream, &body)?;
+            Ok(request)
+        });
+        let model = ChatCompletionsCaller::new(
+            ReqwestHttpTransport::for_exact_loopback_agent(&endpoint)?,
+            endpoint,
+            None,
+            "fixture-model".to_owned(),
+        )
+        .thinking(thinking);
+        let tools = AgentToolNameMap::new(Vec::new())?;
+        let _reply = model.reply(
+            &tools,
+            &[AgentTurn::User("go".to_owned())],
+            &ModelAsk { output_tokens: 64 },
+        );
+        let request = server.join().map_err(|_| "server thread failed")??;
+        let asked = request.get("chat_template_kwargs").cloned();
+        match thinking {
+            runx_runtime::DriveThinking::Off => {
+                assert_eq!(asked, Some(json!({"enable_thinking": false})))
+            }
+            runx_runtime::DriveThinking::Default => assert_eq!(asked, None),
+        }
+    }
+    Ok(())
+}

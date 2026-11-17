@@ -18,6 +18,7 @@ pub struct ChatCompletionsCaller<T> {
     endpoint: String,
     api_key: Option<SecretString>,
     model: String,
+    thinking: crate::config::DriveThinking,
 }
 
 impl<T> ChatCompletionsCaller<T> {
@@ -32,7 +33,15 @@ impl<T> ChatCompletionsCaller<T> {
             endpoint,
             api_key,
             model,
+            thinking: crate::config::DriveThinking::Default,
         }
+    }
+
+    /// Whether the model reasons before it answers, as the operator set it.
+    #[must_use]
+    pub fn thinking(mut self, thinking: crate::config::DriveThinking) -> Self {
+        self.thinking = thinking;
+        self
     }
 
     fn messages_json(&self, transcript: &[AgentTurn]) -> Vec<WireValue> {
@@ -171,7 +180,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
         transcript: &[AgentTurn],
         ask: &ModelAsk,
     ) -> Result<ModelReply, RuntimeError> {
-        let body = json!({
+        let mut body = json!({
             "model":self.model,
             "messages":self.messages_json(transcript),
             "tools":Self::tools_json(tools),
@@ -179,6 +188,14 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
             // The current name; OpenAI's newer models refuse `max_tokens`.
             "max_completion_tokens":ask.output_tokens,
         });
+        if self.thinking == crate::config::DriveThinking::Off
+            && let Some(body) = body.as_object_mut()
+        {
+            body.insert(
+                "chat_template_kwargs".to_owned(),
+                json!({"enable_thinking": false}),
+            );
+        }
         let body = serde_json::to_string(&body)
             .map_err(|error| RuntimeError::json("serializing openai-compatible request", error))?;
         let mut headers = vec![RuntimeHttpHeader::new("content-type", "application/json")];
