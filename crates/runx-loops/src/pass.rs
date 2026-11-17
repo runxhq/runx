@@ -99,14 +99,19 @@ impl Loops {
         // A stopped or paused loop still settles what its runs finish with.
         self.settle_live(name, &mut state, now, &mut passed)?;
         self.settle_people(name, &mut state, now, &mut passed)?;
-        if state.status == Status::Running
-            && let Some(file) = state.active_file().transpose()?
-        {
-            self.fire(name, &mut state, &file, now)?;
-            if state.live.is_none() {
+        if let Some(file) = state.active_file().transpose()? {
+            let running = state.status == Status::Running;
+            if running {
+                self.fire(name, &mut state, &file, now)?;
+            }
+            // The person's "run now" or message wakes the loop whatever its
+            // state: their explicit act. The loop stays as it was.
+            if state.live.is_none() && (running || self.person_waiting(name, &state)?) {
                 self.wake(name, &mut state, &file, now, &mut passed)?;
             }
-            passed.next = self.next_due(name, &state, &file, now)?;
+            if running {
+                passed.next = self.next_due(name, &state, &file, now)?;
+            }
         }
         if let Some(Waiting::Until(at)) = passed.waiting {
             passed.next = Some(passed.next.map_or(at, |next| next.min(at)));
@@ -264,6 +269,17 @@ impl Loops {
         }
     }
 
+    /// Whether the person asked for a wake the loop hasn't answered, since
+    /// any batch that failed.
+    fn person_waiting(&self, name: &LoopName, state: &LoopState) -> Result<bool, LoopError> {
+        let file = state.active_file().transpose()?;
+        let limit = file.as_ref().map_or(100, |file| file.policy.batch);
+        Ok(self
+            .inbox_after(name, state.position, limit, u64::MAX)?
+            .iter()
+            .any(|(version, event)| is_persons(event) && Some(*version) > state.held_through))
+    }
+
     /// When something of the loop is next due.
     fn next_due(
         &self,
@@ -301,15 +317,20 @@ impl Loops {
         now: DateTime<Utc>,
         passed: &mut Passed,
     ) -> Result<(), LoopError> {
-        if state.retry_at.is_some_and(|retry| retry > now) {
-            return Ok(());
-        }
         let events = self.inbox_after(
             name,
             state.position,
             file.policy.batch,
             file.policy.batch_bytes,
         )?;
+        // A retry waits for its time, unless the person asked for a wake
+        // since the batch that failed.
+        let asked = events
+            .iter()
+            .any(|(version, event)| is_persons(event) && Some(*version) > state.held_through);
+        if !asked && state.retry_at.is_some_and(|retry| retry > now) {
+            return Ok(());
+        }
         let (Some((from, _)), Some((through, _))) = (events.first(), events.last()) else {
             return Ok(());
         };
@@ -640,7 +661,8 @@ impl Loops {
                 let outcome = read.run.outcome.unwrap_or(RunOutcome::Failed);
                 // Read from the record and the receipt alone, so a run whose
                 // skill changed since still settles.
-                let reason = self.seal_reason(read.run.receipt_id.as_ref().map(|id| id.as_str()))?;
+                let reason =
+                    self.seal_reason(read.run.receipt_id.as_ref().map(|id| id.as_str()))?;
                 let why = read.run.why.as_ref().map(|why| why.as_str().to_owned());
                 let label = outcome.label().to_owned();
                 let ending = match (outcome, reason.as_deref()) {
@@ -733,8 +755,9 @@ impl Loops {
         let mut cursor: Option<String> = None;
         let mut found = Value::Null;
         loop {
-            let page = runx_runtime::run_record::read_run(&self.env, &self.cwd, run, cursor.as_deref())
-                .map_err(|error| LoopError::Runtime(error.to_string()))?;
+            let page =
+                runx_runtime::run_record::read_run(&self.env, &self.cwd, run, cursor.as_deref())
+                    .map_err(|error| LoopError::Runtime(error.to_string()))?;
             for record in &page.events {
                 if record.stream.as_str() != run {
                     continue;
@@ -755,7 +778,11 @@ impl Loops {
             }
             cursor = Some(page.cursor.as_str().to_owned());
         }
-        Ok(if found.is_null() { Value::Null } else { json!({ "loop": found }) })
+        Ok(if found.is_null() {
+            Value::Null
+        } else {
+            json!({ "loop": found })
+        })
     }
 
     /// Whether unattended wakes have a zero-price model: a local one, which
@@ -1186,6 +1213,14 @@ impl Loops {
     pub(crate) fn skill_path(&self, calls: &Calls) -> Result<PathBuf, String> {
         self.bind(calls).map(|bound| bound.skill_path)
     }
+}
+
+/// Whether `event` is the person's own: their "run now" or a message.
+fn is_persons(event: &InboxEvent) -> bool {
+    matches!(
+        event,
+        InboxEvent::Manual { .. } | InboxEvent::Message { .. }
+    )
 }
 
 /// The inputs `method` of the package at `skill_path` declares.

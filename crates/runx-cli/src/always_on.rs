@@ -273,8 +273,17 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
             signal.notify_all();
         }
     });
+    let binary = Binary::now();
     loop {
         let next = pass_all(&dir);
+        // A new runx binary takes over between passes, so no wake runs on a
+        // half-upgraded runx; waiting runs are records it drives on.
+        if binary.changed() {
+            let _ = std::fs::remove_file(dir.join("state.json"));
+            log("a new runx binary is in place: starting it");
+            drop(lock);
+            return Err(binary.replace());
+        }
         let (state, signal) = &*bell;
         let mut held = state.lock().map_err(|_| "its bell broke".to_owned())?;
         if held.off {
@@ -298,6 +307,54 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
     let _ = std::fs::remove_file(dir.join("state.json"));
     log("off");
     Ok(String::new())
+}
+
+/// The runx binary this process runs, as it was on disk when it started.
+struct Binary {
+    path: Option<PathBuf>,
+    stamp: Option<(std::time::SystemTime, u64)>,
+}
+
+impl Binary {
+    fn stamp(path: &Path) -> Option<(std::time::SystemTime, u64)> {
+        let metadata = std::fs::metadata(path).ok()?;
+        Some((metadata.modified().ok()?, metadata.len()))
+    }
+
+    fn now() -> Self {
+        let path = std::env::current_exe().ok();
+        let stamp = path.as_deref().and_then(Self::stamp);
+        Self { path, stamp }
+    }
+
+    /// Whether the binary on disk is no longer the one this process runs.
+    fn changed(&self) -> bool {
+        match (&self.path, &self.stamp) {
+            (Some(path), Some(stamp)) => Self::stamp(path).is_some_and(|now| now != *stamp),
+            _ => false,
+        }
+    }
+
+    /// Run the new binary in this process's place, as `runx on --foreground`.
+    /// Returns only why it couldn't.
+    fn replace(&self) -> String {
+        let Some(path) = &self.path else {
+            return "runx can't find its own binary to start the new one".to_owned();
+        };
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt as _;
+            let error = std::process::Command::new(path)
+                .args(["on", "--foreground"])
+                .exec();
+            format!("starting the new runx: {error}")
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = path;
+            "runx can't take over in place here: run `runx off` and `runx on`".to_owned()
+        }
+    }
 }
 
 /// One pass over every loop of every workspace served, and the earliest time

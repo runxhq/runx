@@ -245,9 +245,11 @@ fn a_failing_wake_is_tried_again_on_the_ladder_and_pauses_after_three() -> TestR
     );
     // Not before its retry time.
     assert_eq!(loops.pass(&acme, start + Duration::seconds(30))?.woke, None);
+    // The person's "run now" since is their act, and wakes it at once.
+    loops.run_now(&acme, "person:kam")?;
     assert!(
         loops
-            .pass(&acme, start + Duration::minutes(2))?
+            .pass(&acme, start + Duration::seconds(40))?
             .woke
             .is_some()
     );
@@ -276,6 +278,7 @@ fn a_failing_wake_is_tried_again_on_the_ladder_and_pauses_after_three() -> TestR
         matches!(again.settled.as_slice(), [(_, Ending::Answered { .. })]),
         "{again:?}"
     );
-    assert_eq!(loops.state(&acme)?.position, 1);
+    // Both of the person's wakes are answered.
+    assert_eq!(loops.state(&acme)?.position, 2);
     Ok(())
 }
