@@ -4129,6 +4129,12 @@ fn a_read_fingerprints_the_credential_it_presented() {
 fn a_claim_is_made_after_approval_and_a_moved_record_refuses_the_write_unsent() -> Result<(), String>
 {
     let fixture = Fixture::new(&["channel.post", "channel.post.read"]);
+    // Another account the chat connector can be bound to.
+    fixture.list_grant(
+        "grant_chat_other",
+        "fixture/chat",
+        &["channel.post".to_owned(), "channel.post.read".to_owned()],
+    );
     let chain = [crate::identity::ChainLink {
         package: runx_contracts::PackagePattern::new("project:deals").ok_or("a package")?,
         owner: "project:deals".to_owned(),
@@ -4233,15 +4239,31 @@ fn a_claim_is_made_after_approval_and_a_moved_record_refuses_the_write_unsent() 
         Some(ResolutionResponseActor::Human),
     )?;
     execute_step("claimed_post", &current)?;
-    assert_eq!(
-        fixture
+    let sent = || -> Result<usize, String> {
+        Ok(fixture
             .provider
             .calls
             .lock()
             .map_err(|error| error.to_string())?
-            .len(),
-        1
+            .len())
+    };
+    assert_eq!(sent()?, 1);
+
+    // The connector rebound to another instance, the same decision is
+    // another act there: its claim finds the decision claimed, and nothing
+    // goes twice.
+    fixture.select_grant("grant_chat_other", "fixture/chat");
+    let (elsewhere, _) = prepared(
+        "claimed_post",
+        &claimed("post-2", 1)?,
+        Some(ResolutionResponseActor::Human),
+    )?;
+    let refused = execute_step("claimed_post", &elsewhere);
+    assert!(
+        matches!(&refused, Err(error) if error.contains("at version 2, not at version 1")),
+        "{refused:?}"
     );
+    assert_eq!(sent()?, 1, "nothing was sent on the other instance");
     assert_eq!(
         append(2, "moved-2")?,
         Some(3),

@@ -821,7 +821,10 @@ impl RuntimeEffect for OperationEffect {
             return Ok(());
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
-        if let Some(step) = claim::claim_step(request, target, &call)? {
+        let grounds = Grounds::of(request, target)?;
+        let authorized = admission::authorize(&self.evaluation(request, target, &call, &grounds))
+            .map_err(refused)?;
+        if let Some(step) = claim::claim_step(request, target, &call, authorized.intent())? {
             self.authorize(EffectStepRequest {
                 step: &step,
                 inputs: &step.inputs,
@@ -829,10 +832,7 @@ impl RuntimeEffect for OperationEffect {
                 ..request
             })?;
         }
-        let grounds = Grounds::of(request, target)?;
-        admission::authorize(&self.evaluation(request, target, &call, &grounds))
-            .map(|_| ())
-            .map_err(refused)
+        Ok(())
     }
 
     /// Compare a recorded read under today's authorized binding. Provider
@@ -949,14 +949,15 @@ impl RuntimeEffect for OperationEffect {
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
         let shape = call.shape().map_err(invalid)?;
-        // A claim is authorized first: admitting the write counts its uses.
-        let claim = self.claim(request, target, &call)?;
         let grounds = Grounds::of(request, target)?;
         let admitted = admission::admit(&self.evaluation(request, target, &call, &grounds))
             .map_err(refused)?;
-        if claim.is_some() && admitted.operation().access() != OperationAccess::Mutate {
+        if call.claim.is_some() && admitted.operation().access() != OperationAccess::Mutate {
             return Err(invalid("only a write claims a record before it acts"));
         }
+        // The claim is the write's act's: admitted under the write's instance
+        // and target, its uses counted beside the write's.
+        let claim = self.claim(request, target, &call, admitted.intent())?;
         let Grounds { lanes, scope, .. } = grounds;
         let verb = admitted.operation().verb.authority_verb();
         let target_ref = match call.act.as_ref().and_then(|act| act.target.as_ref()) {

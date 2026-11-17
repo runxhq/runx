@@ -8,15 +8,18 @@
 //! admitted as every store call is: its stream is the package's own, placed
 //! by the run's scope, its uses count against any bound on the run's store
 //! authority, it's kept in custody and run through the kernel's one path,
-//! and it settles with its write. Its key is the write's at the version
-//! decided at, so recovering a write whose claim landed takes the claim as
-//! made, and a decision made again at a new version is a new claim.
+//! and it settles with its write. Its key is the write's act, its operation
+//! on one instance's target under the caller's key, at the version decided
+//! at: recovering a write whose claim landed takes the claim as made, a
+//! decision made again at a new version is a new claim, and a decision
+//! already claimed is never carried out by another act, as one rebound to
+//! another instance would be.
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
 use runx_contracts::connector::{Implementation, OperationAccess, OperationName};
-use runx_contracts::{JsonObject, JsonValue};
+use runx_contracts::{JsonObject, JsonValue, OperationIntent};
 
 use super::call::OperationCall;
 use super::{AttemptPlan, OperationAdmission, OperationEffect, Tools, execute, invalid, state};
@@ -33,12 +36,14 @@ pub(crate) enum Refusal {
 }
 
 /// The step a claim runs as: the package's own `store/events.append` of the
-/// claim's event, under the write's key at the version decided at. None when
-/// the call claims nothing; only a step that names the store's append claims.
+/// claim's event, under the act of `write`, the call's authorized intent, at
+/// the version decided at. None when the call claims nothing; only a step
+/// that names the store's append claims.
 pub(super) fn claim_step(
     request: EffectStepRequest<'_>,
     target: &runx_parser::OperationStepTarget,
     call: &OperationCall,
+    write: &OperationIntent,
 ) -> Result<Option<runx_parser::WorkflowStep>, RuntimeEffectError> {
     let Some(claim) = &call.claim else {
         return Ok(None);
@@ -50,9 +55,7 @@ pub(super) fn claim_step(
             runx_parser::CLAIM_OPERATION
         ))
     })?;
-    let key = call
-        .idempotency_key
-        .as_deref()
+    let act = crate::kernel::custody::act(write)
         .ok_or_else(|| invalid("a claim is made by a write, under the write's key"))?;
     Ok(Some(runx_parser::WorkflowStep {
         id: format!("{}.claim", request.step.id),
@@ -70,7 +73,7 @@ pub(super) fn claim_step(
             ("inputs".to_owned(), JsonValue::Object(claim.inputs())),
             (
                 "idempotency_key".to_owned(),
-                JsonValue::String(format!("claim:{key}@{}", claim.expected_version)),
+                JsonValue::String(format!("claim:{act}@{}", claim.expected_version)),
             ),
         ]),
         bindings: Vec::new(),
@@ -93,8 +96,9 @@ impl OperationEffect {
         request: EffectStepRequest<'_>,
         target: &runx_parser::OperationStepTarget,
         call: &OperationCall,
+        write: &OperationIntent,
     ) -> Result<Option<Box<OperationAdmission>>, RuntimeEffectError> {
-        let Some(step) = claim_step(request, target, call)? else {
+        let Some(step) = claim_step(request, target, call, write)? else {
             return Ok(None);
         };
         // The package's own state is never held for a person, so the claim

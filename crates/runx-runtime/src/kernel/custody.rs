@@ -235,16 +235,9 @@ impl EffectCustody {
         intent_digest: &Digest,
         run_id: &str,
     ) -> Self {
-        let key = match &intent.request_key_digest {
-            Some(request_key) => named_act(
-                intent.connector.as_str(),
-                intent.operation.as_str(),
-                intent.instance_id.as_str(),
-                intent.target.as_str(),
-                request_key,
-            ),
-            None => sha256_prefixed(format!("read\0{run_id}\0{intent_digest}").as_bytes()),
-        };
+        let key = act(intent).unwrap_or_else(|| {
+            sha256_prefixed(format!("read\0{run_id}\0{intent_digest}").as_bytes())
+        });
         Self { store, key }
     }
 
@@ -610,16 +603,20 @@ impl Settlement {
     }
 }
 
-fn named_act(
-    connector: &str,
-    operation: &str,
-    instance_id: &str,
-    target: &str,
-    request_key: &Digest,
-) -> String {
-    sha256_prefixed(
-        format!("act\0{connector}\0{operation}\0{instance_id}\0{target}\0{request_key}").as_bytes(),
-    )
+/// The act a keyed `intent` performs: its operation on one instance's target
+/// under the caller's key. None for a call without a key, which names no act.
+pub(crate) fn act(intent: &OperationIntent) -> Option<String> {
+    let request_key = intent.request_key_digest.as_ref()?;
+    Some(sha256_prefixed(
+        format!(
+            "act\0{}\0{}\0{}\0{}\0{request_key}",
+            intent.connector.as_str(),
+            intent.operation.as_str(),
+            intent.instance_id.as_str(),
+            intent.target.as_str()
+        )
+        .as_bytes(),
+    ))
 }
 
 #[cfg(test)]
