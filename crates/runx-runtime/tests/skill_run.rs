@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use runx_contracts::JsonValue;
 use runx_receipts::ReceiptTreeConfig;
 use runx_runtime::{
-    LocalOrchestrator, LocalReceiptStore, ManagedAgentPolicy, RUNX_RECEIPT_DIR_ENV, ResumeRequest,
+    DrivePolicy, LocalOrchestrator, LocalReceiptStore, RUNX_RECEIPT_DIR_ENV, ResumeRequest,
     RunResult, SkillRunRequest,
 };
 use runx_runtime::{
@@ -132,7 +132,7 @@ fn native_skill_run_pauses_with_turn_request() -> Result<(), Box<dyn std::error:
         .collect(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "skill run result")?;
@@ -179,7 +179,7 @@ fn native_skill_run_pauses_with_turn_request() -> Result<(), Box<dyn std::error:
         .collect(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let other = object(&other.output, "second skill run result")?;
     assert_ne!(
@@ -192,7 +192,7 @@ fn native_skill_run_pauses_with_turn_request() -> Result<(), Box<dyn std::error:
 }
 
 #[test]
-fn configured_model_credentials_do_not_enable_managed_agent_without_run_consent()
+fn configured_model_credentials_do_not_enable_drive_without_run_consent()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = write_agent_task_skill(temp.path())?;
@@ -213,7 +213,7 @@ fn configured_model_credentials_do_not_enable_managed_agent_without_run_consent(
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "configured no-consent result")?;
@@ -244,7 +244,7 @@ fn native_agent_task_skill_run_infers_bundled_tool_roots() -> Result<(), Box<dyn
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "skill run result")?;
@@ -299,7 +299,7 @@ fn native_skill_run_resumes_and_seals_receipt() -> Result<(), Box<dyn std::error
             inputs: BTreeMap::new(),
             env: BTreeMap::new(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         }),
         answers,
     )?;
@@ -388,7 +388,7 @@ fn native_skill_run_treats_structured_stdout_as_claim_not_receipt_proof()
             inputs: BTreeMap::new(),
             env: BTreeMap::new(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         }),
         answers,
     )?;
@@ -452,7 +452,7 @@ fn native_skill_run_preserves_deferred_outcome() -> Result<(), Box<dyn std::erro
             inputs: BTreeMap::new(),
             env: BTreeMap::new(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         }),
         answers,
     )?;
@@ -503,7 +503,7 @@ fn native_skill_run_uses_runtime_receipt_path_resolution() -> Result<(), Box<dyn
             .into_iter()
             .collect(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         }),
         answers,
     )?;
@@ -569,7 +569,7 @@ methods:
         .into_iter()
         .collect(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "skill run result")?;
@@ -650,7 +650,7 @@ methods:
         inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("runx".to_owned()))]),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "javascript module result")?;
@@ -767,7 +767,7 @@ methods:
             inputs: BTreeMap::from([("shape".to_owned(), JsonValue::String(shape.to_owned()))]),
             env: path_env(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         })?;
         Ok(result.output)
     };
@@ -884,7 +884,7 @@ methods:
             inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("runx".to_owned()))]),
             env: path_env(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         })?;
         let output = object(&result.output, "the run's output")?;
         assert_eq!(
@@ -988,7 +988,7 @@ methods:
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     // The step's packet violation fails the step; the workflow seals that
@@ -1035,7 +1035,7 @@ fn native_skill_run_uses_production_receipt_signing_env() -> Result<(), Box<dyn 
             inputs: BTreeMap::new(),
             env: env.clone(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         }),
         answers,
     )?;
@@ -1083,7 +1083,7 @@ fn native_skill_run_signs_with_the_selected_home_key() -> Result<(), Box<dyn std
             inputs: BTreeMap::new(),
             env: env.clone(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         },
         answers,
     )?;
@@ -1163,7 +1163,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         inputs: inputs.clone(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&initial.output, "workflow skill run result")?;
@@ -1214,7 +1214,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         inputs: inputs.clone(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     });
     assert!(
         refused.is_err(),
@@ -1251,7 +1251,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         inputs: inputs.clone(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     }) {
         Ok(_) => return Err("a changed package must not continue the run".into()),
         Err(error) => error,
@@ -1287,7 +1287,7 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         inputs,
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&resumed.output, "resumed workflow skill run result")?;
@@ -1330,7 +1330,7 @@ fn native_workflow_transition_gate_allows_declared_agent_output()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let output = object(&initial.output, "gated workflow result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
@@ -1357,7 +1357,7 @@ fn native_workflow_transition_gate_allows_declared_agent_output()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&resumed.output, "resumed gated workflow result")?;
@@ -1389,7 +1389,7 @@ minimum_runx: 0.12.0
 methods:
   default:
     inputs:
-      repo_root:
+      evidence_root:
         type: string
         default: "."
         optional: true
@@ -1399,7 +1399,7 @@ methods:
       - id: approve
         ask: {gate: continuation, reason: Approve the continuation.}
         inputs:
-          repo_root: $input.repo_root
+          evidence_root: $input.evidence_root
 "#,
     )?;
     let receipt_dir = temp.path().join("receipts");
@@ -1417,12 +1417,12 @@ methods:
         inputs,
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     };
 
     let paused = run_skill(request(
         None,
-        BTreeMap::from([("repo_root".to_owned(), JsonValue::String(evidence_root))]),
+        BTreeMap::from([("evidence_root".to_owned(), JsonValue::String(evidence_root))]),
     ))?;
     assert_eq!(paused.status, runx_runtime::RunStatus::NeedsAgent);
     let answers = crate::support::bind_resume(
@@ -1455,7 +1455,7 @@ fn native_workflow_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let output = object(&initial.output, "gated workflow result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
@@ -1482,7 +1482,7 @@ fn native_workflow_guard_rejects_skill_claim_as_fact() -> Result<(), Box<dyn std
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let output = object(&blocked.output, "blocked workflow result")?;
     assert_eq!(string_field(output, "status"), Some("sealed"));
@@ -1528,7 +1528,7 @@ fn native_workflow_skill_run_pauses_and_resumes_nested_agent_skill()
         inputs: inputs.clone(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&initial.output, "nested agent workflow result")?;
@@ -1565,7 +1565,7 @@ fn native_workflow_skill_run_pauses_and_resumes_nested_agent_skill()
         inputs,
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&resumed.output, "resumed nested agent workflow result")?;
@@ -1629,7 +1629,7 @@ methods:
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "registry context workflow result")?;
@@ -1731,7 +1731,7 @@ fn run_context_entries_skill(
         inputs: BTreeMap::new(),
         env: path_env(),
         cwd: root.to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })
 }
 
@@ -1817,7 +1817,7 @@ fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
         ),
     )?;
 
-    // No managed agent works this run, so its host may run its model
+    // runx doesn't drive this run, so its host may run its model
     // anywhere.
     let result = run_context_entries_skill(temp.path(), skill_dir)?;
 
@@ -1880,7 +1880,7 @@ fn a_child_turn_of_the_hosts_package_is_given_its_shareable_context_and_none_kep
                 inputs: BTreeMap::new(),
                 env: path_env(),
                 cwd: temp.path().to_path_buf(),
-                managed_agent: Default::default(),
+                drive: Default::default(),
             });
             let result = run_skill(request.clone())?;
             if sharing == "local_only" {
@@ -2010,7 +2010,7 @@ fn a_turn_whose_host_may_run_its_model_elsewhere_is_refused_a_local_only_artifac
     let temp = tempdir()?;
     let skill_dir = write_artifact_input_skill(temp.path(), "local_only")?;
 
-    // No managed agent works this run, so its host may run its model
+    // runx doesn't drive this run, so its host may run its model
     // anywhere.
     let result = run_context_entries_skill(temp.path(), skill_dir)?;
 
@@ -2099,7 +2099,7 @@ fn a_page_a_tool_step_read_of_a_local_only_artifact_is_refused_to_a_remote_turn(
         let temp = tempdir()?;
         let skill_dir = write_local_only_page_skill(temp.path(), "", answer_inputs)?;
 
-        // No managed agent works this run, so its host may run its model
+        // runx doesn't drive this run, so its host may run its model
         // anywhere.
         let result = run_context_entries_skill(temp.path(), skill_dir)?;
 
@@ -2228,7 +2228,7 @@ fn an_output_naming_the_context_entry_packet_is_checked_against_it()
             inputs: BTreeMap::new(),
             env: path_env(),
             cwd: root.to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         })
     };
 
@@ -2299,7 +2299,7 @@ fn waiting_reason(root: &Path, skill_dir: PathBuf) -> Result<String, Box<dyn std
         inputs: BTreeMap::new(),
         env: path_env(),
         cwd: root.to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let output = object(&pending.output, "pending result")?;
     assert_eq!(
@@ -2369,7 +2369,7 @@ fn run_workspace_echo(
         inputs: BTreeMap::new(),
         env,
         cwd: cwd.to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     Ok(result.output)
 }
@@ -2470,7 +2470,7 @@ fn a_run_whose_runx_home_fell_back_reads_no_workspace_id_whatever_the_workspace_
                 inputs: BTreeMap::new(),
                 env,
                 cwd: workspace.clone(),
-                managed_agent: Default::default(),
+                drive: Default::default(),
             },
             None,
             None,
@@ -2554,7 +2554,7 @@ fn context_skill_refusal(
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: root.to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     }) {
         Ok(_) => Err("a refused context skill ran".into()),
         Err(error) => Ok(error.to_string()),
@@ -2593,7 +2593,7 @@ fn native_workflow_skill_run_executes_local_tool_step() -> Result<(), Box<dyn st
         inputs,
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "workflow tool result")?;
@@ -2632,7 +2632,7 @@ fn configured_model_credentials_do_not_enable_workflow_agent_without_run_consent
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "configured workflow no-consent result")?;
@@ -2676,7 +2676,7 @@ fn native_workflow_skill_run_resolves_agent_task_tool_output_context()
         inputs: BTreeMap::new(),
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let pending_output = object(&pending.output, "pending workflow agent artifact result")?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
@@ -2697,7 +2697,7 @@ fn native_workflow_skill_run_resolves_agent_task_tool_output_context()
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "workflow agent artifact result")?;
@@ -2742,7 +2742,7 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
             JsonValue::String("Workflow tool bug".to_owned()),
         ),
         (
-            "repo_root".to_owned(),
+            "evidence_root".to_owned(),
             JsonValue::String("/evidence/non-default".to_owned()),
         ),
     ]
@@ -2761,7 +2761,7 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         inputs: initial_inputs,
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let pending_output = object(&pending.output, "pending workflow input resume result")?;
     assert_eq!(string_field(pending_output, "status"), Some("needs_agent"));
@@ -2780,12 +2780,12 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         run_id: Some(run_id.clone()),
         answers: Some(answers.clone()),
         inputs: BTreeMap::from([(
-            "repo_root".to_owned(),
+            "evidence_root".to_owned(),
             JsonValue::String("/evidence/other".to_owned()),
         )]),
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     });
     assert!(changed.err().is_some_and(|error| {
         error
@@ -2805,7 +2805,7 @@ fn native_workflow_skill_resume_preserves_initial_inputs_for_later_tool_steps()
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "workflow input resume result")?;
@@ -2858,7 +2858,7 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
         inputs: BTreeMap::new(),
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let pending_output = object(
         &pending.output,
@@ -2884,7 +2884,7 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
         inputs: BTreeMap::new(),
         env: env.clone(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     }) else {
         return Err("an envelope-shaped agent answer must be refused".into());
     };
@@ -2906,7 +2906,7 @@ fn native_workflow_skill_run_refuses_agent_output_envelope_claim()
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let output = object(&reopened.output, "reopened agent turn")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
@@ -2972,7 +2972,7 @@ methods:
             inputs,
             env: BTreeMap::from([("RUNX_CWD".to_owned(), temp.path().display().to_string())]),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         });
         let result = LocalOrchestrator::default().run_skill_with_binding(
             &request,
@@ -3023,7 +3023,7 @@ fn native_workflow_skill_run_omits_missing_optional_workflow_input_references()
         inputs,
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "workflow optional JSON tool result")?;
@@ -3057,7 +3057,7 @@ fn native_workflow_skill_run_requires_declared_workflow_inputs()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     });
     let error = LocalOrchestrator::default()
         .run_skill_with_binding(&request, None, None, None)
@@ -3109,7 +3109,7 @@ fn native_workflow_skill_resume_applies_approval_before_completing_step()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let pending_output = object(&pending.output, "pending approval result")?;
     assert_eq!(
@@ -3133,7 +3133,7 @@ fn native_workflow_skill_resume_applies_approval_before_completing_step()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let resumed_output = object(&resumed.output, "resumed approval result")?;
     assert_eq!(string_field(resumed_output, "status"), Some("sealed"));
@@ -3169,7 +3169,7 @@ fn native_workflow_skill_resume_approves_only_what_the_run_waits_on()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     };
     let pending = run_skill(start.clone())?;
     assert_eq!(pending.status, runx_runtime::RunStatus::NeedsAgent);
@@ -3228,7 +3228,7 @@ fn native_workflow_skill_resume_rejects_agent_answer_for_approval()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let pending_output = object(&pending.output, "pending approval result")?;
     let run_id = string_field(pending_output, "run_id")
@@ -3248,7 +3248,7 @@ fn native_workflow_skill_resume_rejects_agent_answer_for_approval()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })
     .err()
     .ok_or("agent-authored approval must be rejected without sealing")?;
@@ -3292,7 +3292,7 @@ fn native_workflow_skill_run_uses_canonical_tool_root() -> Result<(), Box<dyn st
         inputs,
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "workflow tool result")?;
@@ -3329,7 +3329,7 @@ fn native_workflow_skill_run_merges_imported_workflow_skill_tool_roots()
         inputs,
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "nested workflow tool root result")?;
@@ -3418,7 +3418,7 @@ fn native_workflow_skill_run_executes_nested_process_tool_skill()
         inputs,
         env: path_env(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "nested workflow skill result")?;
@@ -3502,7 +3502,7 @@ fn native_workflow_skill_run_executes_nested_registry_skill()
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "nested registry skill result")?;
@@ -3660,7 +3660,7 @@ fn native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_no
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     }) {
         Ok(_) => return Err("nested registry skill unexpectedly succeeded".into()),
         Err(error) => error,
@@ -3700,7 +3700,7 @@ fn native_workflow_skill_run_does_not_rerun_final_step() -> Result<(), Box<dyn s
         inputs,
         env: path_env(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     };
     let result = run_skill(request.clone())?;
 
@@ -3799,7 +3799,7 @@ fn native_workflow_skill_run_executes_workflow_stage_process_tool_skill()
         inputs,
         env: path_env(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "stage workflow skill result")?;
@@ -3843,7 +3843,7 @@ fn native_workflow_skill_run_executes_nested_x_yaml_method_skill()
         inputs,
         env: path_env(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = object(&result.output, "nested run.yaml workflow skill result")?;
@@ -3873,7 +3873,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let output = object(&named_start.output, "named start")?;
     assert_eq!(string_field(output, "status"), Some("needs_agent"));
@@ -3891,7 +3891,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     }) {
         Ok(_) => return Err("answers without run-id should fail".into()),
         Err(error) => error,
@@ -3914,7 +3914,7 @@ fn native_skill_run_accepts_named_start_and_requires_identity_for_answers()
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })
     .err()
     .ok_or("an unadmitted run must not accept answers")?;
@@ -4329,7 +4329,7 @@ methods:
     inputs:
       thread_title:
         type: string
-      repo_root:
+      evidence_root:
         type: string
         default: .
         optional: true
@@ -4343,7 +4343,7 @@ methods:
       - id: echo
         tool: test.echo
         inputs:
-          message: $input.repo_root
+          message: $input.evidence_root
 "#,
     )?;
     Ok(skill_dir)
@@ -4914,7 +4914,7 @@ fn native_workflow_when_skips_unselected_branch() -> Result<(), Box<dyn std::err
         inputs: BTreeMap::new(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
     let output = object(&initial.output, "when workflow result")?;
     let run_id = string_field(output, "run_id").ok_or("missing run_id")?;
@@ -4939,7 +4939,7 @@ fn native_workflow_when_skips_unselected_branch() -> Result<(), Box<dyn std::err
             inputs: BTreeMap::new(),
             env: BTreeMap::new(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         })
     };
     let branched = answer(serde_json::json!({
@@ -5077,7 +5077,7 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
     crate::support::write_test_skill_package(
         &validator,
         "---\nname: validator\ndescription: Validates the candidate.\n---\n# Validator\n",
-        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          repo_root: .\n          skill_path: skills/candidate\n          allow_execute_test: true\n",
+        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          skill_path: skills/candidate\n          allow_execute_test: true\n",
     )?;
     let mut env = registry_env(&registry, temp.path())?;
     env.extend(path_env());
@@ -5095,7 +5095,7 @@ fn a_candidates_test_reads_its_registry_children_from_the_operators_registry()
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = serde_json::to_value(&result.output)?;
@@ -5159,7 +5159,7 @@ fn a_candidates_cases_come_out_one_by_one_and_a_process_runs_only_where_allowed(
     crate::support::write_test_skill_package(
         &validator,
         "---\nname: validator\ndescription: Validates the candidate.\n---\n# Validator\n",
-        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    inputs: {allow: {type: boolean}}\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          repo_root: .\n          skill_path: skills/candidate\n          allow_execute_test: $input.allow\n",
+        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    inputs: {allow: {type: boolean}}\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          skill_path: skills/candidate\n          allow_execute_test: $input.allow\n",
     )?;
     let validate = |allow: bool| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let result = run_skill(SkillRunRequest {
@@ -5174,7 +5174,7 @@ fn a_candidates_cases_come_out_one_by_one_and_a_process_runs_only_where_allowed(
             inputs: BTreeMap::from([("allow".to_owned(), JsonValue::Bool(allow))]),
             env: path_env(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         })?;
         let output = serde_json::to_value(&result.output)?;
         Ok(output["result"]["skill_validation"].clone())
@@ -5242,7 +5242,7 @@ fn a_registry_reference_validates_the_released_copy_without_adding_it_to_the_wor
     crate::support::write_test_skill_package(
         &validator,
         "---\nname: validator\ndescription: Validates the candidate.\n---\n# Validator\n",
-        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          repo_root: .\n          skill_path: acme/candidate@1.0.0\n          allow_execute_test: false\n",
+        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          skill_path: acme/candidate@1.0.0\n          allow_execute_test: false\n",
     )?;
     let mut env = env;
     env.extend(path_env());
@@ -5260,7 +5260,7 @@ fn a_registry_reference_validates_the_released_copy_without_adding_it_to_the_wor
         inputs: BTreeMap::new(),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     })?;
 
     let output = serde_json::to_value(&result.output)?;
@@ -5353,7 +5353,7 @@ fn a_second_driver_of_a_run_never_runs_its_step_again() -> Result<(), Box<dyn st
         inputs: BTreeMap::new(),
         env: BTreeMap::from([("PATH".to_owned(), "/usr/bin:/bin".to_owned())]),
         cwd: root.path().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     });
     let first_request = request.clone();
     // The first driver holds the test's own write end of the pipe until it
@@ -5411,7 +5411,7 @@ fn two_asks(root: &Path, run_id: &str) -> Result<PathBuf, Box<dyn std::error::Er
             inputs: BTreeMap::new(),
             env: BTreeMap::new(),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -5455,7 +5455,7 @@ fn resume_approving(
         receipt_dir: Some(root.join("receipts")),
         env: BTreeMap::new(),
         cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
+        drive: DrivePolicy::HostDriven,
         package_digest: None,
         closure_digest: None,
     })?)

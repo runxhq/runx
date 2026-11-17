@@ -28,8 +28,8 @@
       "command": "runx test examples/hello-workflow"
     },
     {
-      "path": "examples/managed-agent",
-      "command": "runx test examples/managed-agent"
+      "path": "examples/drive",
+      "command": "runx test examples/drive"
     }
   ],
   "fixture_support": []

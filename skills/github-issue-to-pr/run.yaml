@@ -127,21 +127,21 @@ methods:
       - id: status
         tool: git.status
         inputs:
-          repo_root: .
+          repository: .
         when:
           value: $steps.admit.admission.decision
           equals: ready
       - id: branch
         tool: git.current_branch
         inputs:
-          repo_root: .
+          repository: .
         when:
           value: $steps.admit.admission.decision
           equals: ready
       - id: head
         tool: git.log
         inputs:
-          repo_root: .
+          repository: .
           revision: HEAD
           max_count: 1
         when:
@@ -170,7 +170,7 @@ methods:
         inputs:
           receipt_path: $input.host_result.governance.receipt_path
           target: $input.host_result.commit
-          repo_root: $input.host_result.repo_root
+          repository: $input.host_result.checkout
       - id: finish-repository
         when:
           value: $steps.candidate.candidate.route

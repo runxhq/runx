@@ -6,8 +6,8 @@ use runx_contracts::{
     TurnCallOutcome, TurnCallResult, TurnStatus,
 };
 use runx_runtime::{
-    LocalOrchestrator, ManagedAgentPolicy, PackageTestRequest, ResumeRequest, RunResult,
-    SkillRunRequest, TurnRequest, TurnSession,
+    DrivePolicy, LocalOrchestrator, PackageTestRequest, ResumeRequest, RunResult, SkillRunRequest,
+    TurnRequest, TurnSession,
 };
 use tempfile::tempdir;
 
@@ -186,11 +186,7 @@ struct Paused {
 
 /// Start `skill_dir` with the question every test asks, however far it
 /// goes.
-fn begin(
-    root: &Path,
-    skill_dir: PathBuf,
-    managed_agent: ManagedAgentPolicy,
-) -> TestResult<RunResult> {
+fn begin(root: &Path, skill_dir: PathBuf, drive: DrivePolicy) -> TestResult<RunResult> {
     Ok(LocalOrchestrator::default().run_skill_with_binding(
         &SkillRunRequest {
             current_context: Vec::new(),
@@ -207,7 +203,7 @@ fn begin(
             )]),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent,
+            drive,
         },
         None,
         None,
@@ -218,16 +214,16 @@ fn begin(
 impl Paused {
     /// Start `skill_dir` and stop where it first waits, at `turn`.
     fn start(root: &Path, skill_dir: PathBuf, turn: &str) -> TestResult<Self> {
-        Self::start_with(root, skill_dir, turn, ManagedAgentPolicy::HostDriven)
+        Self::start_with(root, skill_dir, turn, DrivePolicy::HostDriven)
     }
 
     fn start_with(
         root: &Path,
         skill_dir: PathBuf,
         turn: &str,
-        managed_agent: ManagedAgentPolicy,
+        drive: DrivePolicy,
     ) -> TestResult<Self> {
-        let started = begin(root, skill_dir, managed_agent)?;
+        let started = begin(root, skill_dir, drive)?;
         assert_eq!(requests(&started)?, [turn]);
         Ok(Self {
             root: root.to_path_buf(),
@@ -248,14 +244,10 @@ impl Paused {
     }
 
     fn resume(&self, answers: serde_json::Value) -> TestResult<RunResult> {
-        self.resume_with(answers, ManagedAgentPolicy::HostDriven)
+        self.resume_with(answers, DrivePolicy::HostDriven)
     }
 
-    fn resume_with(
-        &self,
-        answers: serde_json::Value,
-        managed_agent: ManagedAgentPolicy,
-    ) -> TestResult<RunResult> {
+    fn resume_with(&self, answers: serde_json::Value, drive: DrivePolicy) -> TestResult<RunResult> {
         Ok(LocalOrchestrator::default().resume(&ResumeRequest {
             run_id: self.run_id.clone(),
             answers: crate::support::bind_resume(
@@ -267,7 +259,7 @@ impl Paused {
             receipt_dir: Some(self.receipts.clone()),
             env: env(&self.root),
             cwd: self.root.clone(),
-            managed_agent,
+            drive,
             package_digest: None,
             closure_digest: None,
         })?)
@@ -292,12 +284,12 @@ fn statuses(status: &TurnStatus) -> Vec<&'static str> {
         .calls
         .iter()
         .map(|call| match call.outcome {
-            TurnCallOutcome::Completed { .. } => "completed",
-            TurnCallOutcome::Failed { .. } => "failed",
-            TurnCallOutcome::Refused { .. } => "refused",
-            TurnCallOutcome::Declined { .. } => "declined",
-            TurnCallOutcome::Pending { .. } => "pending",
-            TurnCallOutcome::Cancelled => "cancelled",
+            runx_contracts::TurnCallViewOutcome::Completed { .. } => "completed",
+            runx_contracts::TurnCallViewOutcome::Failed { .. } => "failed",
+            runx_contracts::TurnCallViewOutcome::Refused { .. } => "refused",
+            runx_contracts::TurnCallViewOutcome::Declined { .. } => "declined",
+            runx_contracts::TurnCallViewOutcome::Pending { .. } => "pending",
+            runx_contracts::TurnCallViewOutcome::Cancelled => "cancelled",
         })
         .collect()
 }
@@ -394,7 +386,7 @@ fn a_bundled_skill_loads_by_its_name_wherever_it_is_materialized() -> TestResult
             inputs: BTreeMap::new(),
             env: env.clone(),
             cwd: root.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -699,7 +691,15 @@ fn a_turn_lists_its_tools_with_their_contracts() -> TestResult {
         )?)
     };
     assert!(schema("data_digest")?["properties"]["value"].is_object());
-    assert!(schema("skill__digest-child")?["properties"]["value"].is_object());
+    let child = schema("skill__digest-child")?;
+    assert!(child["properties"]["value"].is_object());
+    // The act an agent states says why it calls; the receipt a host states
+    // its act follows is never offered to it.
+    assert!(child["properties"]["act"]["properties"]["purpose"].is_object());
+    assert!(
+        child["properties"]["act"]["properties"]["previous"].is_null(),
+        "{child}"
+    );
     assert!(schema("ask_human")?["properties"]["reason"].is_object());
     Ok(())
 }
@@ -992,34 +992,31 @@ fn a_cancelled_nested_call_is_recorded_and_its_turn_goes_on() -> TestResult {
     Ok(())
 }
 
-// Only a build with the managed agent can be refused for using it.
+// Only a build with the drive can be refused for using it.
 #[cfg(feature = "agent")]
 #[test]
 fn a_run_keeps_the_driver_it_started_with() -> TestResult {
     let temp = tempdir()?;
     let skill_dir = write_turn_skill(temp.path())?;
-    // No model is configured, so the managed agent leaves the turn open.
+    // No model is configured, so the drive leaves the turn open.
     let managed = Paused::start_with(
         temp.path(),
         skill_dir.clone(),
         TURN,
-        ManagedAgentPolicy::inline(2)?,
+        DrivePolicy::inline(2)?,
     )?;
     let error = managed
         .open()
         .err()
         .ok_or("a host cannot work a managed run's turns")?;
-    assert!(
-        error.to_string().contains("driven by the managed agent"),
-        "{error}"
-    );
+    assert!(error.to_string().contains("runx drives run"), "{error}");
     assert_eq!(requests(&managed.resume(serde_json::json!({}))?)?, [TURN]);
 
     let attached = Paused::start(temp.path(), skill_dir, TURN)?;
     let error = attached
-        .resume_with(serde_json::json!({}), ManagedAgentPolicy::inline(2)?)
+        .resume_with(serde_json::json!({}), DrivePolicy::inline(2)?)
         .err()
-        .ok_or("the managed agent cannot work an attached run's turns")?;
+        .ok_or("runx cannot drive an attached run's turns")?;
     assert!(
         error
             .to_string()
@@ -1040,7 +1037,7 @@ fn a_resume_pinned_to_another_package_is_refused() -> TestResult {
             receipt_dir: Some(paused.receipts.clone()),
             env: env(temp.path()),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
             package_digest: Some("sha256:another".to_owned()),
             closure_digest: None,
         })
@@ -1321,7 +1318,7 @@ fn start_bounded(
             )]),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -1567,7 +1564,7 @@ fn run_page_fixture(
             inputs,
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -1791,8 +1788,7 @@ fn reach_workspace_keeps_a_turns_file_calls_inside_the_workspace_and_off_secrets
     let secret = read(serde_json::json!({ "path": ".env" }))?;
     assert!(!completed(&secret), "{secret:?}");
     let outside = read(serde_json::json!({
-        "repo_root": elsewhere.path().to_string_lossy(),
-        "path": "notes.md",
+        "path": elsewhere.path().join("notes.md").to_string_lossy(),
     }))?;
     assert!(!completed(&outside), "{outside:?}");
     let listed = turn.call(TURN, "fs_list", None, input(serde_json::json!({}))?)?;
@@ -1913,8 +1909,11 @@ fn asking(standing: serde_json::Value) -> TestResult<runx_runtime::RunAuthority>
 }
 
 /// The run's open floor approval at `address`: its gate.
-fn floor_gate(call: &TurnCallResult, address: &str) -> TestResult<runx_contracts::ApprovalGate> {
-    let TurnCallOutcome::Pending { waiting } = &call.outcome else {
+fn floor_gate(
+    call: &impl crate::support::Viewed,
+    address: &str,
+) -> TestResult<runx_contracts::ApprovalGate> {
+    let runx_contracts::TurnCallViewOutcome::Pending { waiting } = &call.viewed().outcome else {
         return Err(format!("the call waits on the person: {call:?}").into());
     };
     match waiting.as_slice() {
@@ -1936,7 +1935,7 @@ fn resume_document(
         receipt_dir: Some(root.join("receipts")),
         env: env(root),
         cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
+        drive: DrivePolicy::HostDriven,
         package_digest: None,
         closure_digest: None,
     })?)
@@ -2269,7 +2268,7 @@ fn an_agent_asks_the_person_questions_and_reads_their_answers() -> TestResult {
         .calls
         .try_into()
         .map_err(|_| "one call")?;
-    let TurnCallOutcome::Completed { output, .. } = &call.outcome else {
+    let runx_contracts::TurnCallViewOutcome::Completed { output, .. } = &call.outcome else {
         return Err(format!("the ask completed: {call:?}").into());
     };
     assert_eq!(
@@ -2461,7 +2460,7 @@ fn an_act_that_fails_says_why_and_its_skill_call_settles_failed() -> TestResult 
         .try_into()
         .map_err(|_| "one call")?;
     assert!(
-        matches!(&call.outcome, TurnCallOutcome::Failed { reason, .. } if reason.as_str().contains("the source is gone")),
+        matches!(&call.outcome, runx_contracts::TurnCallViewOutcome::Failed { reason, .. } if reason.as_str().contains("the source is gone")),
         "{call:?}"
     );
     let recorded = recorded_calls(&paused)?;
@@ -2642,7 +2641,7 @@ methods:
     let paused = Paused::start(temp.path(), parent, TURN)?;
     let turn = paused.open()?;
 
-    // This turn's host may run its model anywhere: no managed agent works it.
+    // This turn's host may run its model anywhere: runx doesn't drive it.
     // What it admits as local_only is refused to it, reference and all.
     let kept = turn.call(
         TURN,
@@ -2668,7 +2667,10 @@ methods:
         .find(|call| call.index == kept.index)
         .ok_or("the turn lists the call")?;
     assert!(
-        matches!(refused.outcome, TurnCallOutcome::Refused { .. }),
+        matches!(
+            refused.outcome,
+            runx_contracts::TurnCallViewOutcome::Refused { .. }
+        ),
         "{refused:?}"
     );
     // What the configured model may see is given.
@@ -3064,7 +3066,7 @@ methods:
           answer: {type: string}
 "#,
     )?;
-    let refused = begin(root, skill_dir, ManagedAgentPolicy::HostDriven)?;
+    let refused = begin(root, skill_dir, DrivePolicy::HostDriven)?;
     let output = object(&refused.output)?;
     assert_eq!(text(output, "outcome"), Some("blocked"), "{output:?}");
     let reason = output
@@ -3207,7 +3209,7 @@ methods:
             )]),
             env: budget_env.clone(),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -3266,7 +3268,7 @@ methods:
         receipt_dir: Some(receipts.clone()),
         env: budget_env.clone(),
         cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
+        drive: DrivePolicy::HostDriven,
         package_digest: None,
         closure_digest: None,
     })?;
@@ -3350,7 +3352,7 @@ methods:
                 inputs: BTreeMap::new(),
                 env: env(root),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             Some(method),
             None,
@@ -3501,18 +3503,27 @@ fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
     assert_eq!(statuses(&turn.status(TURN)?), ["refused", "completed"]);
     let again = turn.call(TURN, "script", Some("digests"), made)?;
     assert_eq!(again.outcome, script.outcome);
-    // A module with no callable default export fails its call, and the turn
+    // A module with no callable default export, or one that doesn't parse,
+    // fails its call, said once with how a script is written, and the turn
     // goes on.
-    let unexported = turn.call(
-        TURN,
-        "script",
-        None,
-        input(serde_json::json!({"source": "export const value = 1;\n"}))?,
-    )?;
-    assert!(
-        matches!(&unexported.outcome, TurnCallOutcome::Failed { reason, .. } if reason.as_str().contains("does not export callable")),
-        "{unexported:?}"
-    );
+    for source in [
+        "export const value = 1;\n",
+        "const value = await Promise.resolve(1);\nreturn { value };\n",
+    ] {
+        let rejected = turn.call(
+            TURN,
+            "script",
+            None,
+            input(serde_json::json!({"source": source}))?,
+        )?;
+        let TurnCallOutcome::Failed { reason, .. } = &rejected.outcome else {
+            return Err(format!("the script is refused: {rejected:?}").into());
+        };
+        assert!(
+            reason.as_str().ends_with("(the worker). Next: write the script as export default async function (ctx, inputs) { ... }, returning an object."),
+            "{reason}"
+        );
+    }
     // What a script returns is its call's output, so it's an object.
     let scalar = turn.call(
         TURN,
@@ -3556,7 +3567,7 @@ fn a_turns_script_makes_its_calls_and_settles_with_its_result() -> TestResult {
     let sealed = turn.complete(TURN, input(serde_json::json!({"answer": "digested"}))?)?;
     assert_eq!(
         paused.sealed_step_children(&sealed)?,
-        3,
+        4,
         "the turn's receipt names each script call that ran, failed or not, never the calls its script made"
     );
     let receipt = crate::support::read_test_signed_receipt(&paused.receipts, receipt_id.as_str())?;
@@ -3672,7 +3683,8 @@ fn a_scripts_held_write_waits_on_its_approval_and_goes_on_from_its_record() -> T
 
     approve("answer/0/1/tool")?;
     let status = turn.status(TURN)?;
-    let TurnCallOutcome::Completed { output, .. } = &status.calls[0].outcome else {
+    let runx_contracts::TurnCallViewOutcome::Completed { output, .. } = &status.calls[0].outcome
+    else {
         return Err(format!("the script completes once approved: {status:?}").into());
     };
     assert_eq!(

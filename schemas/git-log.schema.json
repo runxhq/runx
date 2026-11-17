@@ -12,7 +12,8 @@
       "minItems": 0,
       "type": "array"
     },
-    "repo_root": {
+    "repository": {
+      "description": "The repository read, from the workspace root, as the call named it.",
       "minLength": 1,
       "type": "string"
     },
@@ -25,7 +26,7 @@
     }
   },
   "required": [
-    "repo_root",
+    "repository",
     "revision",
     "commits",
     "truncated"

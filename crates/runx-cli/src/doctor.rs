@@ -13,8 +13,8 @@ use runx_runtime::{
     RUNX_RECEIPT_SIGN_ISSUER_TYPE_ENV, RUNX_RECEIPT_SIGN_KID_ENV,
     RUNX_RECEIPT_VERIFY_ED25519_PUBLIC_KEY_BASE64_ENV, RUNX_RECEIPT_VERIFY_ISSUER_TYPE_ENV,
     RUNX_RECEIPT_VERIFY_KID_ENV, ReceiptTrust, ReceiptTrustSource, RuntimeError, RunxPaths,
-    WorkspaceEnv, default_doctor_options, load_managed_agent_config, load_runx_config_file,
-    receipt_signer, receipt_trust, run_doctor,
+    WorkspaceEnv, default_doctor_options, load_drive_config, load_runx_config_file, receipt_signer,
+    receipt_trust, run_doctor,
 };
 
 use crate::router::{DoctorMode, DoctorPlan};
@@ -64,7 +64,7 @@ fn run_doctor_command(
 
     let root = resolve_doctor_root(plan, env, cwd);
     let mut report = run_doctor(&root, &default_doctor_options())?;
-    if let Some(diagnostic) = managed_agent_config_diagnostic(env, cwd) {
+    if let Some(diagnostic) = drive_config_diagnostic(env, cwd) {
         report.diagnostics.push(diagnostic);
     }
     report.summary = summary(&report.diagnostics);
@@ -89,10 +89,7 @@ fn run_doctor_command(
 
 // Function rationale: this builds one structured diagnostic packet
 // from env, config, and credential state so the evidence and repair stay together.
-fn managed_agent_config_diagnostic(
-    env: &BTreeMap<String, String>,
-    cwd: &Path,
-) -> Option<DoctorDiagnostic> {
+fn drive_config_diagnostic(env: &BTreeMap<String, String>, cwd: &Path) -> Option<DoctorDiagnostic> {
     let config_path = RunxPaths::resolve(env, cwd).config_file();
     let config = load_runx_config_file(&config_path);
     let mut evidence = JsonObject::new();
@@ -207,7 +204,7 @@ fn managed_agent_config_diagnostic(
         evidence.insert("config_error".to_owned(), JsonValue::String(error.clone()));
     }
 
-    let semantic_result = (config_error.is_none()).then(|| load_managed_agent_config(env, cwd));
+    let semantic_result = (config_error.is_none()).then(|| load_drive_config(env, cwd));
     let semantic_error = semantic_result
         .as_ref()
         .and_then(|result| result.as_ref().err())
@@ -246,20 +243,20 @@ fn managed_agent_config_diagnostic(
         DoctorDiagnosticSeverity::Info
     };
     let message = if let Some(error) = config_error {
-        format!("Managed-agent config could not be read: {error}.")
+        format!("Drive config could not be read: {error}.")
     } else if let Some(error) = semantic_error {
-        format!("Managed-agent config is invalid: {error}.")
+        format!("Drive config is invalid: {error}.")
     } else if complete {
-        "Managed-agent config is complete; agent-task methods can execute in-process.".to_owned()
+        "Drive config is complete; agent-task methods can execute in-process.".to_owned()
     } else {
-        "Managed-agent config is partial; set provider, model, and API key (a provider without a built-in profile also needs a dialect and an endpoint), or select local_none with an exact loopback endpoint. Otherwise agent-task methods may yield to the host or fail later.".to_owned()
+        "Drive config is partial; set provider, model, and API key (a provider without a built-in profile also needs a dialect and an endpoint), or select local_none with an exact loopback endpoint. Otherwise agent-task methods may yield to the host or fail later.".to_owned()
     };
 
     Some(DoctorDiagnostic {
         id: "runx.agent.config".to_owned(),
         instance_id: "runx:doctor:runx.agent.config".to_owned(),
         severity,
-        title: "Managed-agent config".to_owned(),
+        title: "Drive config".to_owned(),
         message,
         target: object([
             ("kind", string_value("config")),

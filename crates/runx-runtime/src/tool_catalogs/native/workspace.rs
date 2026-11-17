@@ -4,7 +4,7 @@ use crate::RuntimeError;
 
 use super::invalid_input;
 
-pub(crate) fn resolve_repo_root_for(
+pub(crate) fn resolve_root_for(
     tool: &str,
     requested: &str,
     env: &std::collections::BTreeMap<String, String>,
@@ -31,11 +31,11 @@ mod tests {
         )]);
 
         assert_eq!(
-            resolve_repo_root_for("fs.read", ".", &env, workspace.path(), inputs)?,
+            resolve_root_for("fs.read", ".", &env, workspace.path(), inputs)?,
             workspace.path().canonicalize()?
         );
         assert_eq!(
-            resolve_repo_root_for(
+            resolve_root_for(
                 "fs.read",
                 &external.path().to_string_lossy(),
                 &env,

@@ -35,9 +35,10 @@ methods:
         outputs:
           findings: { type: array, items: { type: object }, description: "Each check's finding with its evidence, or why it was dropped." }
       - id: propose
-        # A fix with its case for each kept diagnosis, through
-        # skill-lab#draft, proven to fail on the old revision and pass on
-        # the fix before the person is asked for the exact files.
+        # A fix with its case for each repair, a kept diagnosis or a wrong
+        # result the purpose-only reader found, through skill-lab#draft,
+        # proven to fail on the old revision and pass on the fix before the
+        # person is asked for the exact files.
         script: { module: reflect.mjs, export: propose }
         inputs: { survey: $steps.survey, findings: $steps.judge.findings }
         calls:
@@ -61,7 +62,7 @@ methods:
         outputs:
           promotion: { type: object, description: "promoted, each rule written into AGENTS.md word for word with its date and handle; or refused, why none was, when the file would pass the bound a turn reads whole; or declined, the person's reason." }
       - id: observe
-        # An observation for each kept diagnosis, with its sources, on the
+        # An observation for each repair, with its sources, on the
         # workspace's observed stream.
         script: { module: reflect.mjs, export: observe }
         inputs: { survey: $steps.survey, findings: $steps.judge.findings }
@@ -69,7 +70,7 @@ methods:
           skills: [runx/memory#observe]
         max_calls: 64
         outputs:
-          observed: { type: array, items: { type: object }, description: "Each diagnosis's observation by its handle." }
+          observed: { type: array, items: { type: object }, description: "Each repair's observation by its handle." }
       - id: decide
         tool: { module: reflect.mjs, export: assessments }
         inputs: { survey: $steps.survey, findings: $steps.judge.findings, proposals: $steps.propose.proposals, promoted: $steps.promote.promotion.promoted, observed: $steps.observe.observed }

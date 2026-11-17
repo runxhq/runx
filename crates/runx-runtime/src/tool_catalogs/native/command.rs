@@ -42,7 +42,7 @@ const OUTPUT_LIMIT_BYTES: usize = COMMAND_OUTPUT_MAX_BYTES as usize;
 struct PreparedCommand {
     command: String,
     args: Vec<String>,
-    repo_root: PathBuf,
+    workspace: PathBuf,
     cwd: PathBuf,
     cwd_relative: String,
     explicit_env: BTreeMap<String, String>,
@@ -133,7 +133,7 @@ fn execute(
         command: command.command.clone(),
         args: command.args.clone(),
         cwd: &command.cwd,
-        workspace_root: &command.repo_root,
+        workspace_root: &command.workspace,
         explicit_env: &command.explicit_env,
         base_env: invocation.env,
     })?;

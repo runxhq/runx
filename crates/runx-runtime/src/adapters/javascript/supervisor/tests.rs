@@ -145,6 +145,7 @@ fn a_worker_past_its_cpu_time_does_not_fail_a_healthy_sibling()
             WorkerInvocationResult::Failure {
                 ref message,
                 fate: runx_contracts::javascript_worker::WorkerFate::Discard,
+                ..
             } if message.contains("exceeded its 1 ms CPU time limit")
         ),
         "an invocation past its CPU time is a typed CPU-limit failure"
@@ -338,6 +339,7 @@ fn a_worker_blocked_on_its_pipe_is_discarded_as_unresponsive()
             WorkerInvocationResult::Failure {
                 ref message,
                 fate: WorkerFate::Discard,
+                ..
             } if message.contains("spent no CPU time and answered nothing for 60 s")
         ),
         "a blocked worker is discarded as unresponsive"

@@ -7,7 +7,6 @@ methods:
       - id: capture
         skill: ../..#capture
         inputs:
-          repo_root: fixtures/workspace
           source_paths:
             - skills/moltbook/run.yaml
           decomposition:

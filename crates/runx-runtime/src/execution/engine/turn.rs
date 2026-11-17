@@ -13,13 +13,13 @@ use std::path::Path;
 
 use runx_contracts::connector::{ConnectorBinding, OperationAccess, OperationName};
 use runx_contracts::javascript_worker::{ScriptContext, ScriptInputReference};
-use runx_contracts::schema::{NonEmptyString, RunxSchema};
+use runx_contracts::schema::NonEmptyString;
 use runx_contracts::{
     AllowedOperation, Artifact, ArtifactLabels, BoundClosure, CallAct, CallTarget, InputDefinition,
     JsonObject, JsonValue, LoadedPackage, ProjectBinding, ProvenanceEntry, Reference,
     ReferenceType, ResolutionRequest, RunCallOutput, TurnAllowance, TurnCallOutcome,
-    TurnCallResult, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage, TurnStatus, TurnTool,
-    TurnView,
+    TurnCallResult, TurnCallView, TurnInvocation, TurnLoad, TurnLocator, TurnReadPage, TurnStatus,
+    TurnTool, TurnView,
 };
 use runx_parser::{
     AskGate, AskReason, ConnectorRequirement, LoadStep, LoadTarget, OperationStepTarget,
@@ -63,7 +63,7 @@ pub trait Turn {
         Ok(TurnStatus {
             invocation: TurnView::from(self.invocation()),
             tools: self.tools()?,
-            calls: self.calls()?,
+            calls: self.calls()?.iter().map(TurnCallView::from).collect(),
         })
     }
 
@@ -97,7 +97,7 @@ pub trait Turn {
                 .calls()?
                 .into_iter()
                 .find(|call| call.index == *index)
-                .map(|call| JsonValue::from_serialize(&call))
+                .map(|call| JsonValue::from_serialize(&TurnCallView::from(&call)))
                 .transpose()
                 .map_err(|error| RuntimeError::effect_state("reading a call", error.to_string()))?,
         }
@@ -3572,7 +3572,7 @@ pub(super) fn operation_descriptor(
         required.push("amount");
     }
     // The act the call performs, as the agent states it: why it is made.
-    let act = JsonValue::from_serialize(&runx_contracts::CallAct::json_schema())
+    let act = JsonValue::from_serialize(&runx_contracts::CallAct::stated_schema())
         .map_err(|error| describing(error.to_string()))?;
     properties.push(("act", act));
     if declared.choose.is_some() {
@@ -3638,7 +3638,7 @@ pub(super) fn skill_descriptor(
     if let Some(JsonValue::Object(properties)) = input_schema.get_mut("properties") {
         properties.insert(
             "act".to_owned(),
-            JsonValue::from_serialize(&CallAct::json_schema())
+            JsonValue::from_serialize(&CallAct::stated_schema())
                 .map_err(|error| describing(error.to_string()))?,
         );
     }

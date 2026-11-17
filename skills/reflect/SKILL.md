@@ -54,9 +54,12 @@ then can't be met, and the mark it returns moves only past what it read.
   keeps a finding only when it cites evidence and every ref it cites is a
   sealed receipt or an event of that run. A finding that rests on anything else
   is dropped, and the check says why.
-- **`propose`** drafts a fix for each kept diagnosis through
-  `runx/skill-lab#draft`, whose own turns write the fix and its case. Code
-  keeps the draft only when it adds a case, names each case it changes or
+- **`propose`** drafts a fix for each repair through `runx/skill-lab#draft`:
+  each kept diagnosis, and each sampled success its purpose-only reader found
+  didn't do what its purpose asks, since a run that succeeded at the wrong
+  thing needs fixing as a failure does. `skill-lab`'s own turns write the fix
+  and its case. Code keeps the draft only when it adds a case, names each case
+  it changes or
   removes, and two candidate tests prove the new case: it fails on the
   package as the workspace holds it, with only the new case added, and passes
   on the whole change. Nothing is in the workspace until then. The change is
@@ -70,14 +73,15 @@ then can't be met, and the mark it returns moves only past what it read.
   exact file. A write that would take the file past 128 KiB, what reaches a
   turn whole, is refused, and the rule goes elsewhere. Reflection never
   commits: the person does.
-- **`observe`** keeps an observation for each kept diagnosis on the
+- **`observe`** keeps an observation for each repair on the
   workspace's `observed:` stream, its evidence as its sources and its run's
   date as its own. One memory already holds is that one.
 - **`decide`** answers every check with a `runx.verdict.v1` whose subject is
-  survey's window, and `verdict.decide` decides it by the one rule. A resistance
-  is met once it's kept, as a proven fix that was applied or as an
-  observation, and a rule once it's promoted: until then each is `not_met`,
-  saying what it lacks, a declined fix with the person's reason.
+  survey's window, and `verdict.decide` decides it by the one rule. A repair is
+  met once it's kept, as a proven fix that was applied or as an observation,
+  and a rule once it's promoted: until then each is `not_met`, saying what it
+  lacks, a declined fix with the person's reason. A sampled run that did what
+  its purpose asks is met, and one with no finding kept is unresolved.
 - **`keep`** closes each rule `AGENTS.md` holds at `HEAD` through
   `runx/memory#disable`, its reason naming the commit, so the person confirms
   the close at memory's own gate. A rule is held only where the file holds its
@@ -94,8 +98,7 @@ Reflection's term reads the workspace's memory, writes its `observed:`
 stream, and appends to its `said:workspace` stream only for memory's disable,
 which closes a rule the repository holds. It never reads or writes personal
 memory, and never keeps or corrects a person's words: it calls no
-`remember` or `correct`. A sampled run is met or not as its purpose-only reader found,
-  and unresolved when no finding was kept.
+`remember` or `correct`.
 
 ## Agent task: diagnose
 

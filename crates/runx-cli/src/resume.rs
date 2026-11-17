@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use runx_contracts::ResumeDocument;
-use runx_runtime::{ManagedAgentPolicy, ResumeRequest, WorkspaceEnv};
+use runx_runtime::{DrivePolicy, ResumeRequest, WorkspaceEnv};
 
-use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
+use crate::drive::{drive_policy, parse_boolean_flag, parse_drive_rounds};
 
 pub(crate) const ANSWER_DOCUMENT_EXAMPLE: &str =
     r#"{"answers":{"<request-id>":{"request_digest":"<request-digest>","value":{}}}}"#;
@@ -22,7 +22,7 @@ pub struct ResumePlan {
     pub expected_closure_digest: Option<String>,
     pub json: bool,
     pub diagnostics: bool,
-    pub managed_agent: ManagedAgentPolicy,
+    pub drive: DrivePolicy,
 }
 
 pub(crate) struct SkillResumeCommand<'a> {
@@ -41,8 +41,8 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
     let mut expected_closure_digest = None;
     let mut json = false;
     let mut diagnostics = false;
-    let mut managed_agent = false;
-    let mut managed_agent_rounds = None;
+    let mut drive = false;
+    let mut drive_rounds = None;
     let mut positionals = Vec::<OsString>::new();
     let mut index = 1;
     while index < args.len() {
@@ -61,16 +61,16 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
                 index += 1;
             }
             "--drive" => {
-                managed_agent = true;
+                drive = true;
                 index += 1;
             }
             value if value.starts_with("--drive=") => {
-                managed_agent =
+                drive =
                     parse_boolean_flag("resume", "--drive", value.trim_start_matches("--drive="))?;
                 index += 1;
             }
             value if value.starts_with("--drive-rounds=") => {
-                managed_agent_rounds = Some(parse_managed_agent_rounds(
+                drive_rounds = Some(parse_drive_rounds(
                     "resume",
                     value.trim_start_matches("--drive-rounds="),
                 )?);
@@ -78,7 +78,7 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
             }
             "--drive-rounds" => {
                 index += 1;
-                managed_agent_rounds = Some(parse_managed_agent_rounds(
+                drive_rounds = Some(parse_drive_rounds(
                     "resume",
                     args.get(index)
                         .and_then(|value| value.to_str())
@@ -160,7 +160,7 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
         expected_closure_digest,
         json,
         diagnostics,
-        managed_agent: managed_agent_policy("resume", managed_agent, managed_agent_rounds)?,
+        drive: drive_policy("resume", drive, drive_rounds)?,
     })
 }
 
@@ -200,7 +200,7 @@ pub fn run_native_resume_with_workspace(
         receipt_dir: plan.receipt_dir.clone(),
         env: workspace.env().clone(),
         cwd: workspace.cwd().to_path_buf(),
-        managed_agent: plan.managed_agent,
+        drive: plan.drive,
         package_digest: plan.expected_package_digest,
         closure_digest: plan.expected_closure_digest,
     });
@@ -299,7 +299,7 @@ mod tests {
     use super::{SkillResumeCommand, render_skill_resume_command};
 
     #[test]
-    fn resume_managed_agent_requires_fresh_explicit_consent() -> Result<(), String> {
+    fn resume_drive_requires_fresh_explicit_consent() -> Result<(), String> {
         let plan = super::parse_resume_plan(
             &[
                 "resume",
@@ -313,8 +313,8 @@ mod tests {
             .collect::<Vec<_>>(),
         )?;
         assert_eq!(
-            plan.managed_agent,
-            runx_runtime::ManagedAgentPolicy::Inline { max_rounds: 2 }
+            plan.drive,
+            runx_runtime::DrivePolicy::Inline { max_rounds: 2 }
         );
         Ok(())
     }

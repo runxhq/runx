@@ -144,8 +144,10 @@ fn capability_registry_owns_inspect_search_and_artifacts() {
     assert_eq!(super::execution_boundary("acme.lookup", &effects), None);
 }
 
+/// An input a tool doesn't take is refused by name, with what it takes,
+/// never dropped unread.
 #[test]
-fn capability_registry_dispatch_projects_only_declared_inputs() {
+fn capability_registry_dispatch_refuses_an_input_it_does_not_take() {
     let inputs = JsonObject::from([
         ("value".to_owned(), JsonValue::String("hello".to_owned())),
         ("undeclared".to_owned(), JsonValue::Bool(true)),
@@ -169,13 +171,16 @@ fn capability_registry_dispatch_projects_only_declared_inputs() {
         result.execution_boundary,
         runx_contracts::ExecutionBoundaryKind::NativeCapability
     );
-    let output = result
+    let refused = result
         .result
-        .expect("ambient workflow inputs must not enter the typed handler");
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
     assert!(
-        output
-            .as_object()
-            .is_some_and(|output| output.contains_key("digest_result"))
+        refused.starts_with(
+            "it takes no input undeclared (data.digest). Next: give it only its inputs: "
+        ),
+        "{refused}"
     );
 }
 

@@ -11,7 +11,7 @@ use runx_contracts::{
     TurnCallOutcome, TurnCallResult, TurnLoad,
 };
 use runx_runtime::{
-    LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
+    DrivePolicy, LocalOrchestrator, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
     TurnSession,
 };
 use tempfile::tempdir;
@@ -184,7 +184,7 @@ impl Project {
                 inputs: BTreeMap::new(),
                 env: self.env()?,
                 cwd: self.root.clone(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             None,
             None,
@@ -216,7 +216,7 @@ impl Project {
             receipt_dir: Some(self.root.join("receipts")),
             env,
             cwd: self.root.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
             package_digest: None,
             closure_digest: None,
         })?)
@@ -227,30 +227,34 @@ fn input(value: serde_json::Value) -> TestResult<JsonObject> {
     Ok(serde_json::from_value(value)?)
 }
 
-fn loaded(call: &TurnCallResult) -> TestResult<TurnLoad> {
-    let TurnCallOutcome::Completed { output, .. } = &call.outcome else {
+fn loaded(call: &impl crate::support::Viewed) -> TestResult<TurnLoad> {
+    let runx_contracts::TurnCallViewOutcome::Completed { output, .. } = &call.viewed().outcome
+    else {
         return Err(format!("the load completed: {call:?}").into());
     };
     Ok(JsonValue::Object(output.clone()).deserialize_into()?)
 }
 
-fn refused(call: &TurnCallResult) -> TestResult<String> {
-    match &call.outcome {
-        TurnCallOutcome::Refused { reason } => Ok(reason.as_str().to_owned()),
+fn refused(call: &impl crate::support::Viewed) -> TestResult<String> {
+    match &call.viewed().outcome {
+        runx_contracts::TurnCallViewOutcome::Refused { reason } => Ok(reason.as_str().to_owned()),
         _ => Err(format!("the call was refused: {call:?}").into()),
     }
 }
 
-fn declined(call: &TurnCallResult) -> TestResult<String> {
-    match &call.outcome {
-        TurnCallOutcome::Declined { reason } => Ok(reason.as_str().to_owned()),
+fn declined(call: &impl crate::support::Viewed) -> TestResult<String> {
+    match &call.viewed().outcome {
+        runx_contracts::TurnCallViewOutcome::Declined { reason } => Ok(reason.as_str().to_owned()),
         _ => Err(format!("the person declined the call: {call:?}").into()),
     }
 }
 
 /// The trust approval a pending load waits on, at `address`.
-fn trust_gate(call: &TurnCallResult, address: &str) -> TestResult<runx_contracts::ApprovalGate> {
-    let TurnCallOutcome::Pending { waiting } = &call.outcome else {
+fn trust_gate(
+    call: &impl crate::support::Viewed,
+    address: &str,
+) -> TestResult<runx_contracts::ApprovalGate> {
+    let runx_contracts::TurnCallViewOutcome::Pending { waiting } = &call.viewed().outcome else {
         return Err(format!("the load waits on the person: {call:?}").into());
     };
     match waiting.as_slice() {
@@ -1281,7 +1285,7 @@ fn revert(project: &Project, run_id: &str, call_ids: &[&str]) -> TestResult<RunR
             ]),
             env: project.env()?,
             cwd: project.root.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,

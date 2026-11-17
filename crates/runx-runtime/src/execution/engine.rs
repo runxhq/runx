@@ -916,7 +916,7 @@ fn sealing_stop(
             StopKind::Blocked,
         ),
         #[cfg(feature = "agent")]
-        RuntimeError::ManagedAgentResolution {
+        RuntimeError::DriveResolution {
             step_id, source, ..
         } => (step_id.clone(), Some(source.reason()), StopKind::Failed),
         error if error.is_fatal_step_fault() => return Ok(None),

@@ -1,6 +1,6 @@
 //! `runx secret`: the one place a secret the operator keeps in runx is set,
 //! listed, removed and read. A connector binding (`connector use --secret`),
-//! the managed agent (`config set agent.secret`) and a host (`secret read`)
+//! the drive (`config set agent.secret`) and a host (`secret read`)
 //! name a secret; none of them holds its value.
 
 use std::ffi::OsString;

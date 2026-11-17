@@ -71,16 +71,16 @@ fn native_filesystem_reads_from_explicit_absolute_roots() -> Result<(), Box<dyn 
     )?;
     let output = invoke(
         "fs.read",
-        JsonObject::from([
-            (
-                "repo_root".to_owned(),
-                JsonValue::String(external.path().to_string_lossy().into_owned()),
+        JsonObject::from([(
+            "path".to_owned(),
+            JsonValue::String(
+                external
+                    .path()
+                    .join("operator-context.txt")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
-            (
-                "path".to_owned(),
-                JsonValue::String("operator-context.txt".to_owned()),
-            ),
-        ]),
+        )]),
         workspace.path(),
         CredentialDelivery::none(),
     )?;

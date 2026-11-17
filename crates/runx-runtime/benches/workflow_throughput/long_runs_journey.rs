@@ -22,9 +22,9 @@ use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use runx_contracts::{JsonNumber, JsonObject, JsonValue, ResolutionRequest};
 use runx_runtime::work_counts::{WorkCounts, snapshot};
 use runx_runtime::{
-    CallCancel, ConnectorScope, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV, HttpMethod,
-    Instances, KernelStore, LoadedConnector, LocalOrchestrator, ManagedAgentPolicy,
-    OperationEffect, ResumeRequest, RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest,
+    CallCancel, ConnectorScope, DrivePolicy, HOSTED_API_BASE_URL_ENV, HOSTED_API_TOKEN_ENV,
+    HttpMethod, Instances, KernelStore, LoadedConnector, LocalOrchestrator, OperationEffect,
+    ResumeRequest, RuntimeEffectRegistry, RuntimeHttpError, RuntimeHttpRequest,
     RuntimeHttpResponse, RuntimeHttpTransport, RunxPaths, SkillRunRequest, TurnRequest,
 };
 use tempfile::TempDir;
@@ -286,7 +286,7 @@ impl Workspace {
                 inputs: serde_json::from_value(inputs)?,
                 env: self.env.clone(),
                 cwd: self.root().to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             Some(method),
             None,
@@ -399,7 +399,7 @@ impl Workspace {
             receipt_dir: Some(self.root().join("receipts")),
             env: self.env.clone(),
             cwd: self.root().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
             package_digest: None,
             closure_digest: None,
         })?)
@@ -464,7 +464,7 @@ impl Workspace {
                 inputs: BTreeMap::new(),
                 env: env.clone(),
                 cwd: self.root().to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             Some("answer"),
             None,

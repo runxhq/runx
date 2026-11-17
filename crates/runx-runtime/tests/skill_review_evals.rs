@@ -10,11 +10,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use runx_runtime::{LocalOrchestrator, ManagedAgentPolicy, RuntimeEffectRegistry, SkillRunRequest};
+use runx_runtime::{DrivePolicy, LocalOrchestrator, RuntimeEffectRegistry, SkillRunRequest};
 use serde_json::{Value, json};
 use tempfile::tempdir;
 
-use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+use runx_runtime::scripted_model::{ScriptedModel, drive_env, tool_call};
 
 use crate::registry_fixture::LoopbackRegistry;
 
@@ -79,7 +79,7 @@ fn eval_env(
     endpoint: &str,
 ) -> TestResult<BTreeMap<String, String>> {
     let mut env = workspace_env(root, registry)?;
-    env.extend(managed_agent_env(endpoint, "fixture-model"));
+    env.extend(drive_env(endpoint, "fixture-model"));
     crate::support::insert_test_signing_env(&mut env);
     Ok(env)
 }
@@ -129,7 +129,7 @@ fn review(
                 .collect::<Result<_, serde_json::Error>>()?,
             env,
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(4)?,
+            drive: DrivePolicy::inline(4)?,
         },
         Some(method),
         None,
@@ -246,13 +246,13 @@ fn a_trigger_run_measures_each_querys_rate_from_what_its_turns_loaded() -> TestR
     );
     assert_eq!(evidence["repeats"], 3, "{evidence}");
     assert_eq!(evidence["ran_on"], "local", "{evidence}");
-    // One host answered every turn, the managed agent through the scripted
+    // One host answered every turn, runx driving it through the scripted
     // provider, so its numbers are the evidence's one entry.
     let hosts = evidence["hosts"].as_array().ok_or("a host's numbers")?;
     assert_eq!(hosts.len(), 1, "{evidence}");
     assert_eq!(
         hosts[0]["host"],
-        json!({"kind": "managed_agent", "provider": "scripted"}),
+        json!({"kind": "drive", "provider": "scripted"}),
         "{evidence}"
     );
     assert_eq!(hosts[0]["models"], json!(["fixture-model"]), "{evidence}");

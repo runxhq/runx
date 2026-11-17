@@ -50,7 +50,7 @@ pub trait RuntimeEffect: Send + Sync {
     /// Native catalog contracts implemented by this effect family. Keeping the
     /// contract beside the effect prevents the generic runtime from acquiring
     /// provider- or domain-specific tool knowledge while still giving workflows,
-    /// managed agents, and operator discovery one typed catalog surface.
+    /// driven turns, and operator discovery one typed catalog surface.
     fn capabilities(&self) -> &'static [&'static dyn CapabilityContract] {
         &[]
     }

@@ -2,7 +2,6 @@ name: code-plan-runtime-context-regression
 method: code-plan-agent
 inputs:
   objective: Prove native catalog and agent output context reach validation intact.
-  repo_root: .
   run_context:
     regression: workflow-context-materialization
     sentinel: preserved-through-validation

@@ -26,8 +26,8 @@ no_skill, needs_core, or a blocked result instead of an adopted package.
 
 ## Source and destination
 
-The default method is adopt. Inputs are the actual objective, repo_root
-(default .), target_dir, and the appropriate source entry:
+The default method is adopt. Inputs are the actual objective, target_dir (a
+path from the workspace root), and the appropriate source entry:
 
 - adopt takes source_paths: repository-relative files including the upstream SKILL.md.
   Native fs.read_bundle captures their contents and digests; native metadata

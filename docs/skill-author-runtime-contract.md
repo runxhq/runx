@@ -155,7 +155,7 @@ streaming protocol behavior, use one declared trusted-host process tool; never
 add ambient filesystem access to a deterministic module or duplicate the
 runtime's hashing and page loop in package JavaScript.
 
-## Managed-agent tools
+## Drive tools
 
 An `agent` step's turn may call only what its step's `calls` names: `tools`,
 `operations` as `<connector>/<operation>`, and `skills` with `#method`. Naming a

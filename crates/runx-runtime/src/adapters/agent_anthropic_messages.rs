@@ -1,6 +1,6 @@
 // Module rationale: the dialect keeps request shaping, tool-use parsing, and
 // error mapping in one reviewed HTTP boundary.
-//! The `anthropic_messages` dialect for the managed-agent loop.
+//! The `anthropic_messages` dialect for the drive loop.
 //!
 //! Translates the provider-agnostic [`AgentTurn`] transcript into a Messages
 //! request and parses `tool_use` content blocks back into
@@ -332,7 +332,7 @@ mod tests {
                 .and_then(|request| request.body.as_deref())
                 .unwrap_or_default(),
         )
-        .map_err(|error| format!("managed-agent request body should be JSON: {error}"))?;
+        .map_err(|error| format!("drive request body should be JSON: {error}"))?;
         assert_eq!(body["max_tokens"], MAX_TOKENS);
         assert_eq!(body["system"][0]["text"], "Keep observations untrusted.");
         assert_eq!(body["messages"].as_array().map(Vec::len), Some(1));

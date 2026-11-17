@@ -9,7 +9,6 @@ methods:
     description: Capture local third-party source and apply a complete validated runx package through the canonical authoring engine.
     inputs:
       objective: {}
-      repo_root: {}
       target_dir: {}
       package_name: {}
       project_context: {}
@@ -40,7 +39,6 @@ methods:
       - id: read
         tool: fs.read_bundle
         inputs:
-          repo_root: $input.repo_root
           paths: $input.source_paths
           max_bytes: $input.source_byte_budget
           on_missing: report
@@ -48,7 +46,6 @@ methods:
         skill: .#from-source
         inputs:
           objective: $input.objective
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
           package_name: $input.package_name
           project_context: $input.project_context
@@ -62,7 +59,6 @@ methods:
     description: Adopt already captured upstream source without another acquisition; canonical skill-lab owns validation and atomic application.
     inputs:
       objective: {}
-      repo_root: {}
       target_dir: {}
       package_name: {}
       project_context: {}
@@ -180,7 +176,6 @@ methods:
         skill: runx/skill-lab#build
         inputs:
           objective: $input.objective
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
           package_name: $input.package_name
           project_context: $steps.context.adoption_context.project_context
@@ -192,11 +187,6 @@ shared_inputs:
     type: string
     description: The useful operator job the adopted package must perform.
     minLength: 1
-  repo_root:
-    type: string
-    default: .
-    description: Local repository containing source_paths and target_dir.
-    optional: true
   target_dir:
     type: string
     description: Exact repository-relative package destination.

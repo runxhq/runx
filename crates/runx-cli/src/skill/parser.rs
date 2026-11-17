@@ -9,7 +9,7 @@ use runx_runtime::WorkspaceEnv;
 use super::inputs::{CliInputs, parse_input_arg, parse_input_document_arg};
 use super::method_ref::MethodRef;
 use super::{SavedAuthority, SkillAction, SkillPlan};
-use crate::managed_agent::{managed_agent_policy, parse_boolean_flag, parse_managed_agent_rounds};
+use crate::drive::{drive_policy, parse_boolean_flag, parse_drive_rounds};
 
 pub fn parse_skill_plan(args: &[OsString]) -> Result<SkillPlan, String> {
     parse_skill_plan_inner(args)
@@ -89,8 +89,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
                 .to_owned(),
         );
     }
-    let managed_agent =
-        managed_agent_policy("skill", state.managed_agent, state.managed_agent_rounds)?;
+    let drive = drive_policy("skill", state.drive, state.drive_rounds)?;
 
     Ok(SkillPlan {
         action,
@@ -110,7 +109,7 @@ fn parse_skill_plan_inner(args: &[OsString]) -> Result<SkillPlan, String> {
         run_authority,
         authority,
         context: state.context,
-        managed_agent,
+        drive,
     })
 }
 
@@ -209,8 +208,8 @@ struct SkillParseState {
     authority: Option<String>,
     max_cost: Option<u64>,
     context: Option<Box<CallerContext>>,
-    managed_agent: bool,
-    managed_agent_rounds: Option<u32>,
+    drive: bool,
+    drive_rounds: Option<u32>,
 }
 
 fn reject_resolver_flags_for_skill_management_action(
@@ -397,22 +396,19 @@ fn parse_skill_arg(
         "--json" | "-j" => state.json = true,
         "--diagnostics" => state.diagnostics = true,
         value if value.starts_with("--drive=") => {
-            state.managed_agent =
+            state.drive =
                 parse_boolean_flag("skill", "--drive", value.trim_start_matches("--drive="))?;
         }
-        "--drive" => state.managed_agent = true,
+        "--drive" => state.drive = true,
         value if value.starts_with("--drive-rounds=") => {
-            state.managed_agent_rounds = Some(parse_managed_agent_rounds(
+            state.drive_rounds = Some(parse_drive_rounds(
                 "skill",
                 value.trim_start_matches("--drive-rounds="),
             )?);
         }
         "--drive-rounds" => {
             index += 1;
-            state.managed_agent_rounds = Some(parse_managed_agent_rounds(
-                "skill",
-                &string_arg(args, index)?,
-            )?);
+            state.drive_rounds = Some(parse_drive_rounds("skill", &string_arg(args, index)?)?);
         }
         value if value.starts_with('-') => {
             return Err(format!(
@@ -463,7 +459,7 @@ mod tests {
     use super::{SkillAction, SkillParseState};
 
     #[test]
-    fn managed_agent_requires_explicit_consent_and_binds_round_budget() -> Result<(), String> {
+    fn drive_requires_explicit_consent_and_binds_round_budget() -> Result<(), String> {
         let plan = super::parse_skill_plan(
             &["skill", "skills/release", "--drive", "--drive-rounds=3"]
                 .into_iter()
@@ -471,8 +467,8 @@ mod tests {
                 .collect::<Vec<_>>(),
         )?;
         assert_eq!(
-            plan.managed_agent,
-            runx_runtime::ManagedAgentPolicy::Inline { max_rounds: 3 }
+            plan.drive,
+            runx_runtime::DrivePolicy::Inline { max_rounds: 3 }
         );
 
         let Err(error) = super::parse_skill_plan(

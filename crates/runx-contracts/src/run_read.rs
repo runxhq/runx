@@ -84,7 +84,7 @@ impl RunState {
 }
 
 /// Who works a run's agent turns, fixed when it starts: the host it is
-/// attached to, or runx's managed agent.
+/// attached to, or runx, which drives them (`--drive`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RunDriver {
@@ -254,9 +254,9 @@ pub enum RanOn {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TurnHost {
-    /// runx's managed agent, through the provider it names. A `scripted`
+    /// runx, driving the turn through the provider it names. A `scripted`
     /// provider is a scripted model, never a real one.
-    ManagedAgent { provider: NonEmptyString },
+    Drive { provider: NonEmptyString },
     /// An MCP client attached to the run, by the name and version its
     /// `initialize` gave.
     McpClient {

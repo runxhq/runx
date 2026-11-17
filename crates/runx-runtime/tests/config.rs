@@ -4,10 +4,10 @@ use std::path::Path;
 
 use runx_contracts::connector::{SecretName, SecretReference};
 use runx_runtime::{
-    ConfigError, ConfigKey, ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect,
-    RunxAgentConfig, RunxConfigFile, RunxPaths, RunxSecretRecord, SecretString,
-    load_managed_agent_config, load_runx_config_file, lookup_runx_config_value,
-    mask_runx_config_file, secrets, update_runx_config_value, write_runx_config_file,
+    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, ModelDialect, RunxAgentConfig,
+    RunxConfigFile, RunxPaths, RunxSecretRecord, SecretString, load_drive_config,
+    load_runx_config_file, lookup_runx_config_value, mask_runx_config_file, secrets,
+    update_runx_config_value, write_runx_config_file,
 };
 use tempfile::tempdir;
 
@@ -196,8 +196,7 @@ fn a_corrupt_sealed_secret_is_reported_with_its_file() -> Result<(), Box<dyn std
 }
 
 #[test]
-fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dyn std::error::Error>>
-{
+fn config_loads_the_drive_key_from_its_one_source() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let explicit_env = env_map([
         ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
@@ -206,14 +205,14 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         ("RUNX_AGENT_API_KEY", "sk-explicit"),
     ]);
     assert_eq!(
-        load_managed_agent_config(&explicit_env, temp.path())?,
-        Some(ManagedAgentConfig {
+        load_drive_config(&explicit_env, temp.path())?,
+        Some(DriveConfig {
             provider: "openai".into(),
             dialect: ModelDialect::OpenAiResponses,
             model: "gpt-test".to_owned(),
             api_key: Some(SecretString::new("sk-explicit")),
             endpoint_url: "https://api.openai.com/v1/responses".to_owned(),
-            auth_mode: runx_runtime::ManagedAgentAuthMode::ApiKey,
+            auth_mode: runx_runtime::DriveAuthMode::ApiKey,
         })
     );
 
@@ -231,14 +230,14 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
     )?;
     let local_env = home_env(temp.path());
     assert_eq!(
-        load_managed_agent_config(&local_env, temp.path())?,
-        Some(ManagedAgentConfig {
+        load_drive_config(&local_env, temp.path())?,
+        Some(DriveConfig {
             provider: "anthropic".into(),
             dialect: ModelDialect::AnthropicMessages,
             model: "claude-test".to_owned(),
             api_key: Some(SecretString::new("local-secret")),
             endpoint_url: "https://api.anthropic.com/v1/messages".to_owned(),
-            auth_mode: runx_runtime::ManagedAgentAuthMode::ApiKey,
+            auth_mode: runx_runtime::DriveAuthMode::ApiKey,
         })
     );
 
@@ -248,7 +247,7 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
         ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
     ]);
-    let refused = load_managed_agent_config(&differing, temp.path())
+    let refused = load_drive_config(&differing, temp.path())
         .err()
         .ok_or("two differing keys were accepted")?;
     assert_eq!(
@@ -260,7 +259,7 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         ("ANTHROPIC_API_KEY", "local-secret"),
     ]);
     assert_eq!(
-        load_managed_agent_config(&agreeing, temp.path())?.and_then(|config| config.api_key),
+        load_drive_config(&agreeing, temp.path())?.and_then(|config| config.api_key),
         Some(SecretString::new("local-secret"))
     );
 
@@ -290,7 +289,7 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         ("RUNX_AGENT_MODEL", "claude-env"),
         ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
     ]);
-    let refused = load_managed_agent_config(&over_unreadable, unreadable_home.path())
+    let refused = load_drive_config(&over_unreadable, unreadable_home.path())
         .err()
         .ok_or("an unreadable secret was ignored")?
         .to_string();
@@ -306,14 +305,14 @@ fn config_loads_the_managed_agent_key_from_its_one_source() -> Result<(), Box<dy
         ("RUNX_AGENT_MODEL", "claude-env"),
         ("ANTHROPIC_API_KEY", "anthropic-env-secret"),
     ]);
-    let provider_config = load_managed_agent_config(&provider_env, keyless_home.path())?;
+    let provider_config = load_drive_config(&provider_env, keyless_home.path())?;
     let mut shadowed = provider_env.clone();
     shadowed.insert(
         "RUNX_ENV_FILE_DIFFERS".to_owned(),
         "ANTHROPIC_API_KEY".to_owned(),
     );
     assert_eq!(
-        load_managed_agent_config(&shadowed, keyless_home.path())
+        load_drive_config(&shadowed, keyless_home.path())
             .err()
             .ok_or("a key the environment and .env disagree on was accepted")?
             .to_string(),
@@ -331,7 +330,7 @@ fn providers_are_profiles_and_any_other_names_its_dialect_and_endpoint()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let home = temp.path().to_str().unwrap_or_default();
-    let gemini = load_managed_agent_config(
+    let gemini = load_drive_config(
         &env_map([
             ("RUNX_HOME", home),
             ("RUNX_AGENT_PROVIDER", "gemini"),
@@ -363,7 +362,7 @@ fn providers_are_profiles_and_any_other_names_its_dialect_and_endpoint()
                 .iter()
                 .map(|(key, value)| ((*key).to_owned(), (*value).to_owned())),
         );
-        load_managed_agent_config(&env, temp.path())
+        load_drive_config(&env, temp.path())
     };
     assert!(matches!(
         custom(&[]),
@@ -383,7 +382,7 @@ fn providers_are_profiles_and_any_other_names_its_dialect_and_endpoint()
     assert_eq!(gateway.dialect, ModelDialect::AnthropicMessages);
     assert_eq!(gateway.api_key, Some(SecretString::new("gateway-secret")));
     assert!(matches!(
-        load_managed_agent_config(
+        load_drive_config(
             &env_map([
                 ("RUNX_HOME", home),
                 ("RUNX_AGENT_PROVIDER", "openai"),
@@ -424,10 +423,7 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         ("RUNX_AGENT_MODEL", "claude-env"),
         ("RUNX_AGENT_API_KEY", "sk-explicit"),
     ]);
-    assert_eq!(
-        load_managed_agent_config(&blank_provider, temp.path())?,
-        None
-    );
+    assert_eq!(load_drive_config(&blank_provider, temp.path())?, None);
 
     // A blank model is no model, as a blank provider is no provider, and
     // runx names none of its own.
@@ -437,7 +433,7 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
         ("RUNX_AGENT_MODEL", ""),
     ]);
     assert!(matches!(
-        load_managed_agent_config(&blank_model, temp.path()),
+        load_drive_config(&blank_model, temp.path()),
         Err(ConfigError::InvalidAgentSetting {
             key: "agent.model",
             ..
@@ -454,7 +450,7 @@ fn config_matches_blank_env_overlay_edges() -> Result<(), Box<dyn std::error::Er
     // A blank variable is no key; the provider's own variable and the
     // agent's secret are then two that differ.
     assert_eq!(
-        load_managed_agent_config(&blank_generic_key, temp.path())
+        load_drive_config(&blank_generic_key, temp.path())
             .err()
             .ok_or("two differing keys were accepted")?
             .to_string(),
@@ -483,14 +479,14 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
     write_runx_config_file(&config_path, &config)?;
     let env = home_env(temp.path());
     assert_eq!(
-        load_managed_agent_config(&env, temp.path())?,
-        Some(ManagedAgentConfig {
+        load_drive_config(&env, temp.path())?,
+        Some(DriveConfig {
             provider: "local".into(),
             dialect: ModelDialect::ChatCompletions,
             model: "qwen2.5".to_owned(),
             api_key: None,
             endpoint_url: endpoint.to_owned(),
-            auth_mode: ManagedAgentAuthMode::LocalNone,
+            auth_mode: DriveAuthMode::LocalNone,
         })
     );
 
@@ -501,7 +497,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         ("RUNX_AGENT_AUTH_MODE", "local_none"),
     ]);
     assert_eq!(
-        load_managed_agent_config(&local_override, temp.path())?
+        load_drive_config(&local_override, temp.path())?
             .ok_or("missing local model")?
             .api_key,
         None
@@ -518,7 +514,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         }
         write_runx_config_file(&config_path, &incomplete)?;
         assert!(matches!(
-            load_managed_agent_config(&env, temp.path()),
+            load_drive_config(&env, temp.path()),
             Err(ConfigError::InvalidAgentSetting { key, .. }) if key == expected_key
         ));
     }
@@ -535,7 +531,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         Some("typo".to_owned())
     );
     assert!(matches!(
-        load_managed_agent_config(&env, temp.path()),
+        load_drive_config(&env, temp.path()),
         Err(ConfigError::InvalidAgentSetting {
             key: "agent.auth_mode",
             ..
@@ -550,7 +546,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
     ));
     let repaired = update_runx_config_value(invalid, ConfigKey::AgentAuthMode, "local_none")?;
     write_runx_config_file(&config_path, &repaired)?;
-    assert!(load_managed_agent_config(&env, temp.path())?.is_some());
+    assert!(load_drive_config(&env, temp.path())?.is_some());
 
     for forbidden in [
         "http://localhost:18081/v1/chat/completions",
@@ -566,7 +562,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
         ]);
         assert!(
             matches!(
-                load_managed_agent_config(&env, temp.path()),
+                load_drive_config(&env, temp.path()),
                 Err(ConfigError::InvalidAgentSetting {
                     key: "agent.endpoint_url",
                     ..
@@ -608,16 +604,16 @@ fn a_model_key_held_by_a_manager_is_one_source_among_the_others()
     };
 
     assert_eq!(
-        load_managed_agent_config(&with(""), temp.path())?.and_then(|config| config.api_key),
+        load_drive_config(&with(""), temp.path())?.and_then(|config| config.api_key),
         Some(SecretString::new("key-from-the-manager"))
     );
     assert_eq!(
-        load_managed_agent_config(&with("key-from-the-manager"), temp.path())?
+        load_drive_config(&with("key-from-the-manager"), temp.path())?
             .and_then(|config| config.api_key),
         Some(SecretString::new("key-from-the-manager"))
     );
     assert_eq!(
-        load_managed_agent_config(&with("another-key"), temp.path())
+        load_drive_config(&with("another-key"), temp.path())
             .err()
             .ok_or("two differing keys were accepted")?
             .to_string(),
@@ -625,7 +621,7 @@ fn a_model_key_held_by_a_manager_is_one_source_among_the_others()
     );
     fs::remove_file(&held)?;
     assert!(
-        load_managed_agent_config(&with(""), temp.path())
+        load_drive_config(&with(""), temp.path())
             .err()
             .is_some_and(|error| error
                 .to_string()
@@ -638,7 +634,7 @@ fn a_model_key_held_by_a_manager_is_one_source_among_the_others()
 fn a_model_key_variable_holding_a_reference_is_refused_not_sent()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
-    let refused = load_managed_agent_config(
+    let refused = load_drive_config(
         &env_map([
             ("RUNX_HOME", temp.path().to_str().unwrap_or_default()),
             ("RUNX_AGENT_PROVIDER", "anthropic"),
@@ -659,7 +655,7 @@ fn a_model_key_variable_holding_a_reference_is_refused_not_sent()
 }
 
 /// Write `config` to the home at `home`, keep `value` as the secret `agent`
-/// there, and name it as the managed agent's key.
+/// there, and name it as the drive's key.
 fn agent_key(
     home: &Path,
     config: RunxConfigFile,

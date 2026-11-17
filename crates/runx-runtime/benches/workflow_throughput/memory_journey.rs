@@ -386,7 +386,7 @@ impl Memory {
             inputs: serde_json::from_value(inputs)?,
             env: self.env.clone(),
             cwd: self.directory.path().to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         };
         let orchestrator = runx_runtime::LocalOrchestrator::with_effects_and_environment(
             runx_runtime::RuntimeEffectRegistry::local()?,

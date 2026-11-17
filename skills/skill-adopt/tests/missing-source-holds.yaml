@@ -2,7 +2,6 @@ name: missing-source-holds-before-authoring
 method: adopt
 inputs:
   objective: Adopt this captured decision-note procedure as a runnable local runx package.
-  repo_root: .
   target_dir: .runx-tmp/skill-adopt-fixtures/missing-source-holds/fixture-decision-note
   source_paths:
     - missing/SKILL.md

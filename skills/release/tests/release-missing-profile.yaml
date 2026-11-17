@@ -15,7 +15,7 @@ expect:
           publish_intent:
             command: node
             args: [./provider.mjs, publish]
-            cwd: .
+            cwd: .runx/cache/test/release-fixture-project
             timeout_ms: 10000
             env_names:
               - RUNX_RELEASE_CHANNEL

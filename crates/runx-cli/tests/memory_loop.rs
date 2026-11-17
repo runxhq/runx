@@ -5,7 +5,7 @@
 //! a native read. The test requests that read so exposure is mandatory.
 
 use crate::memory::{Memory, said};
-use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, memory_reader, tool_call};
+use runx_runtime::scripted_model::{ScriptedModel, drive_env, memory_reader, tool_call};
 use runx_runtime::{
     HttpMethod, ReqwestHttpTransport, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport,
 };
@@ -424,7 +424,7 @@ fn run_loop(real: bool) -> TestResult {
     } else {
         ScriptedModel::serve(loop_reader)?
     };
-    let mut env = managed_agent_env(
+    let mut env = drive_env(
         reader.endpoint(),
         if real {
             "qwen3-8b-32k"

@@ -1388,6 +1388,7 @@ pub(crate) fn execute(
             }
         } else {
             RuntimeError::ProviderEffectUnknown {
+                step_id: step_id.to_owned(),
                 plan_digest: intent_digest.clone(),
                 idempotency_key: provider_key.clone().unwrap_or_default(),
                 reason,

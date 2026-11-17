@@ -43,6 +43,20 @@ impl CallAct {
         "form", "purpose", "reason", "target", "decision", "previous",
     ];
 
+    /// The act as an agent states it beside a call's inputs: every field but
+    /// `previous`, the receipt a host states its act follows, which an agent
+    /// never sees (rule 1).
+    pub fn stated_schema() -> serde_json::Value {
+        let mut schema = <Self as RunxSchema>::json_schema();
+        if let Some(properties) = schema
+            .get_mut("properties")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            properties.remove("previous");
+        }
+        schema
+    }
+
     /// Read an act from its JSON form, refusing anything outside its shape.
     pub fn parse(value: &crate::JsonValue) -> Result<Self, String> {
         let act: Self = value

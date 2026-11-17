@@ -279,8 +279,14 @@ read cold. The brief holds nothing runx keeps for itself: no digest, run id,
 path on disk or governance text. A field of the answer that can hold one value
 only is runx's to state, so it isn't offered, and runx states it before it
 checks the answer. When runx drives a turn with `--drive`, it is the turn's
-host, and its model reads the same brief, the project's instructions included,
-within each file's sharing. `turn_read {turn, locator, offset?, limit?}`
+host, and its model reads the same brief, the project's instructions included.
+Each project file is named from the workspace root, as its tools name files
+(`../AGENTS.md` for a directory above it), and a file two names reach, such
+as a `CLAUDE.md` linked to its `AGENTS.md`, is read once. The project's files
+instruct whatever agent works in it, so they reach the configured model, as
+`CLAUDE.md` reaches Claude Code's; `RUNX_PROFILE_SHARING=local_only` keeps
+them on this machine, and a model served elsewhere is then refused by the
+file's name. `turn_read {turn, locator, offset?, limit?}`
 reads an entry by its locator (`current:<n>`, `historical:<n>`), an input of
 the act as `input:<name>`, or a call of the turn as `call:<index>`: a string
 as it is, anything else as JSON, a page of at most 32,000 characters with the
@@ -504,9 +510,9 @@ zero. A call whose operation quotes a charge needs a stated limit: in a run
 with none it's refused as `cost_limit_exceeded`, saying how to state one. A
 charge with no quote can't be counted by a limit, so with none it waits on the
 person's approval of that exact call, unless a use bound on its term covers
-it. Scoped use limits and charge custody hold either way. A run started with `--drive` is worked by the
-managed agent: `runx mcp --run` refuses it, and `--drive` cannot take
-over a run its host drives. The managed agent works every turn the run opens
+it. Scoped use limits and charge custody hold either way. runx drives the turns of a run started with
+`--drive`: `runx mcp --run` refuses it, and `--drive` cannot take
+over a run its host drives. runx drives every turn the run opens
 in the same drive, and the turns of calls a script runs at once are worked at
 once, up to the script's and the run's concurrency.
 
@@ -522,7 +528,7 @@ child package, or runtime closure cannot merge incompatible checkpoint history.
 
 Execution ceilings remain owned by the capability they constrain rather than
 being flattened into one misleading global number: a provider operation request
-timeout, a managed-agent request timeout, a native command argument budget, and
+timeout, a drive request timeout, a native command argument budget, and
 a file-bundle budget are different contracts. Their constants use capability-qualified names. Limits
 that are selectable per invocation or materially shape a sealed execution are
 typed at the invocation boundary. An invocation that hits one fails, and its
@@ -537,8 +543,8 @@ reject exact secret-field names before the data can enter receipts. That check
 is not a general text heuristic and never removes URLs or unrelated operator
 diagnostics.
 
-With `agent.provider`, `agent.model` and a key configured, the CLI can resolve
-managed agent work directly. Deterministic tools, approvals, and required human
+With `agent.provider`, `agent.model` and a key configured, runx can drive a
+run's turns itself with `--drive`. Deterministic tools, approvals, and required human
 inputs keep their existing local behavior. `anthropic`, `openai` and `gemini`
 are built-in providers, each reading its own key variable when `agent.secret`
 is unset; `openai` speaks OpenAI's Responses API. runx names no model of its
@@ -1224,7 +1230,7 @@ Reusable runx mechanics and security boundaries belong in the native Rust tool
 catalog. Skills should compose those native tools instead of shipping request,
 filesystem, Git, hashing, packet, approval, credential, or receipt wrappers.
 Use `runx tool inspect <name> --json` to inspect the contract that both workflows
-and managed agents execute.
+and driven turns execute.
 
 The repository-level tool package shape remains for a genuinely separate
 executable or protocol boundary that should be callable as a tool:
@@ -1315,7 +1321,7 @@ the runtime reads it from there, never from a registry during execution. A
 registry skill is installed only as its registry signed it, and is read only
 once its `signature.json` verifies at the version the ref pins; its provenance
 is what that signature states: its skill id, version and digests. Context
-skills are bounded, digest-labeled, and presented to managed agents as
+skills are bounded, digest-labeled, and presented to a driven turn's model as
 untrusted advisory data.
 
 Skill steps can execute registry skills too, naming the method with `#`:
@@ -1444,11 +1450,16 @@ Pass a test's path instead when intentionally replaying one test:
 runx test ./examples/hello-world/tests/hello-world-smoke.yaml --json
 ```
 
-A test names the `method` it runs, the package's default when absent, and
+A test names the `method` it runs, the package's default when absent,
 `package: fixtures/<dir>` when it runs a small fixture package under
-`fixtures/` instead, such as one composing this skill with others. Everything
+`fixtures/` instead, such as one composing this skill with others, and
+`workspace: fixtures/<dir>` when it runs in a staged fixture directory as its
+workspace root, a workspace laid out as a project's. Everything
 under `fixtures/` is staged whole into each test's workspace, with
-`fixtures/bin/` executable.
+`fixtures/bin/` executable. A test's paths are read as a run's are, from its
+workspace root, so `fixtures/notes.md` in a test names the staged copy, a
+file of that workspace. A file of the package the skill reads in any
+workspace is `$package/<path>`, in a test and a run alike.
 
 Use `expect.output` to assert the method's public result. Object subsets allow
 additional fields; arrays must have the same length and order, and each object

@@ -167,10 +167,10 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx secret read <name>",
         ],
         notes: &[
-            "The one place a secret is kept: by name in the runx home, sealed there, or read through a secrets manager by reference. A connector binds one with `runx connector use <connector> --secret <name>`, the managed agent names one with `runx config set agent.secret <name>`, and a program reads one with `runx secret read <name>`. Setting a secret again serves everything that names it from its next call.",
+            "The one place a secret is kept: by name in the runx home, sealed there, or read through a secrets manager by reference. A connector binds one with `runx connector use <connector> --secret <name>`, the drive names one with `runx config set agent.secret <name>`, and a program reads one with `runx secret read <name>`. Setting a secret again serves everything that names it from its next call.",
             "`set` asks for the value without echo at a terminal, or reads it from stdin when piped; never from an argument. `--from <reference>` keeps it in a secrets manager instead: op://<vault>/<item>[/<section>]/<field>, aws-sm://<name or ARN>[#field], aws-ps://<parameter>[#field], vault://<mount>/<path>[#field], keychain://<service>/<account> or file:///<path>[#field]. runx reads it once to prove access and pin where it lives (a 1Password account, an ARN, a Vault address), and through the manager's own CLI and your sign-in on every use; the home keeps the reference, never the value.",
             "`list` shows each secret's name and where its value is, never the value. `rm` removes one; whatever still names it refuses until it is set again. `read` prints the value, as `gh auth token` and `op read` print theirs, for a program you run.",
-            "A variable set in the environment or the workspace .env needs no secret and no setup: a connector whose credential it holds runs as it with no instance selected, reading it on every call, and the managed agent reads its provider's variable.",
+            "A variable set in the environment or the workspace .env needs no secret and no setup: a connector whose credential it holds runs as it with no instance selected, reading it on every call, and the drive reads its provider's variable.",
         ],
         options: &["--from reference", "-j, --json"],
     },

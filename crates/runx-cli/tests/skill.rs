@@ -421,7 +421,7 @@ fn workflow_action_approval_yields_one_operator_resolution()
                 root.join("home").to_string_lossy().into_owned(),
             )]),
             cwd: root,
-            managed_agent: runx_runtime::ManagedAgentPolicy::HostDriven,
+            drive: runx_runtime::DrivePolicy::HostDriven,
         },
         Some("approval-workflow"),
         None,

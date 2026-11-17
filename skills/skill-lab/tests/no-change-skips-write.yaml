@@ -2,7 +2,6 @@ name: skill-lab-no-change-skips-write
 method: improve
 inputs:
   objective: Decide whether weak evidence warrants a package change
-  repo_root: .
   target_dir: skills/not-present
   failure_packet:
     verdict: blocked

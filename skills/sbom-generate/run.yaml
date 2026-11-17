@@ -8,11 +8,6 @@ methods:
   generate:
     description: Generate a CycloneDX document and reusable inventory from one admitted local lockfile.
     inputs:
-      repo_root:
-        type: string
-        description: Authorized workspace root.
-        default: .
-        optional: true
       path:
         type: string
         description: Workspace-relative lockfile path.
@@ -47,7 +42,6 @@ methods:
       - id: inventory
         skill: .#inventory-file
         inputs:
-          repo_root: $input.repo_root
           path: $input.path
           max_bytes: $input.max_bytes
           lockfile_type: $input.lockfile_type
@@ -59,11 +53,6 @@ methods:
   inventory-file:
     description: Admit and normalize one local lockfile without generating a second inventory in downstream audits.
     inputs:
-      repo_root:
-        type: string
-        description: Authorized workspace root.
-        default: .
-        optional: true
       path:
         type: string
         description: Workspace-relative lockfile path.
@@ -96,7 +85,6 @@ methods:
       - id: admit
         tool: artifact.admit
         inputs:
-          repo_root: $input.repo_root
           path: $input.path
           media_type: text/plain
       - id: read
@@ -246,11 +234,6 @@ methods:
       path:
         type: string
         description: New workspace-relative output filename, normally sbom.cdx.json.
-      repo_root:
-        type: string
-        description: Authorized workspace root.
-        default: .
-        optional: true
     result_from:
       - write
     steps:
@@ -265,7 +248,6 @@ methods:
       - id: write
         tool: fs.write
         inputs:
-          repo_root: $input.repo_root
           path: $input.path
           contents: $steps.render.contents
           create: true

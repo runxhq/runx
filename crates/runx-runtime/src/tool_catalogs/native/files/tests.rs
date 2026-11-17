@@ -214,9 +214,13 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
             let protected = root.join(&path);
             fs::create_dir_all(protected.parent().ok_or("missing parent")?)?;
             fs::write(&protected, "protected")?;
-            let repo_root = root.to_string_lossy().into_owned();
+            // A path is from the workspace root, or absolute elsewhere.
+            let path = if root == workspace.path() {
+                path
+            } else {
+                protected.to_string_lossy().into_owned()
+            };
             let write_inputs = fixture_input::<FileWriteInput>(JsonObject::from([
-                ("repo_root".to_owned(), JsonValue::String(repo_root.clone())),
                 ("path".to_owned(), JsonValue::String(path.clone())),
                 (
                     "contents".to_owned(),
@@ -260,7 +264,6 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                 ),
             ] {
                 let bundle_inputs = fixture_input::<FileApplyBundleInput>(JsonObject::from([
-                    ("repo_root".to_owned(), JsonValue::String(repo_root.clone())),
                     ("writes".to_owned(), JsonValue::Array(writes)),
                     ("deletes".to_owned(), JsonValue::Array(deletes)),
                 ]))?;
@@ -341,10 +344,6 @@ fn file_tool_cannot_replace_lock_while_a_receipt_write_waits()
     let delivery = CredentialDelivery::none();
     let effects = RuntimeEffectRegistry::default();
     let inputs = fixture_input::<FileApplyBundleInput>(JsonObject::from([
-        (
-            "repo_root".to_owned(),
-            JsonValue::String(workspace.path().to_string_lossy().into_owned()),
-        ),
         ("writes".to_owned(), JsonValue::Array(Vec::new())),
         (
             "deletes".to_owned(),

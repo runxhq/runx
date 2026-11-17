@@ -23,7 +23,7 @@ has already collected the text. `source_id` identifies that document or capture;
 it does not trigger a network request or prove the URL is current.
 
 `from-file` accepts the same fields except `content`, plus a workspace-relative
-`path` and optional `repo_root` and `max_bytes`. A path is from the caller
+`path` and an optional `max_bytes`. A path is from the caller
 workspace's root, and `$package/<path>` names a file this package carries. It
 uses native `artifact.admit` and
 `artifact.read` under `fs.read` authority. It requires the complete document in

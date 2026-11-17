@@ -1,6 +1,6 @@
 ---
-name: managed-agent-intake
-description: Managed-agent front example; a governed agent step that drafts a triage summary.
+name: drive-intake
+description: Drive front example; a governed agent step that drafts a triage summary.
 ---
 # Triage intake
 

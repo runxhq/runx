@@ -9,7 +9,7 @@ const fixtureRoot = path.join(workspaceRoot, "fixtures", "doctor");
 const check = process.argv.includes("--check");
 const runx = process.env.RUNX_RUST_CLI_BIN
   ?? path.join(workspaceRoot, "crates", "target", "debug", process.platform === "win32" ? "runx.exe" : "runx");
-const managedAgentEnvNames = [
+const driveEnvNames = [
   "RUNX_AGENT_PROVIDER",
   "RUNX_AGENT_MODEL",
   "RUNX_AGENT_API_KEY",
@@ -150,7 +150,7 @@ async function runDoctorFixture(fixtureCase: DoctorFixtureCase): Promise<unknown
     RUNX_CWD: workspacePath,
     RUNX_HOME: path.join(workspaceRoot, "tmp", "doctor-fixtures", fixtureCase.name, "runx-home"),
   };
-  for (const envName of managedAgentEnvNames) {
+  for (const envName of driveEnvNames) {
     delete env[envName];
   }
   const result = spawnSync(runx, ["doctor", "--json"], {

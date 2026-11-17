@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use runx_contracts::{GitBranch, GitDiff, GitStatus};
 
-use super::{NativeInvocation, invalid_input, non_empty, resolve_repo_root_for, root_name};
+use super::{NativeInvocation, invalid_input, non_empty, resolve_root_for, root_name};
 use crate::RuntimeError;
 
 mod capability;
@@ -38,9 +38,9 @@ fn blob_digest(
 }
 
 fn current_branch(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitBranch, RuntimeError> {
-    let root = resolve_repo_root_for(
+    let root = resolve_root_for(
         CURRENT_BRANCH,
-        &invocation.inputs.repo_root,
+        &invocation.inputs.repository,
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
@@ -54,7 +54,7 @@ fn current_branch(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitBran
         if !head.status.success() {
             return Err(invalid_input(
                 CURRENT_BRANCH,
-                "repo_root must be a Git repository with a readable HEAD",
+                "repository must be a Git repository with a readable HEAD",
             ));
         }
         (output_text(CURRENT_BRANCH, invocation, head)?, true)
@@ -67,16 +67,16 @@ fn current_branch(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitBran
     }
 
     Ok(GitBranch {
-        repo_root: root_name(CURRENT_BRANCH, &invocation.inputs.repo_root)?,
+        repository: root_name(CURRENT_BRANCH, &invocation.inputs.repository)?,
         branch,
         detached,
     })
 }
 
 fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatus, RuntimeError> {
-    let root = resolve_repo_root_for(
+    let root = resolve_root_for(
         STATUS,
-        &invocation.inputs.repo_root,
+        &invocation.inputs.repository,
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
@@ -86,7 +86,7 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatus, Runt
     if !outcome.status.success() {
         return Err(invalid_input(
             STATUS,
-            "repo_root must be a readable Git working tree",
+            "repository must be a readable Git working tree",
         ));
     }
     let output = output_text(STATUS, invocation, outcome)?;
@@ -106,7 +106,7 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatus, Runt
         _ => (None, Vec::new()),
     };
     Ok(GitStatus {
-        repo_root: root_name(STATUS, &invocation.inputs.repo_root)?,
+        repository: root_name(STATUS, &invocation.inputs.repository)?,
         clean: entries.is_empty(),
         entries,
         branch,
@@ -116,9 +116,9 @@ fn status(invocation: &NativeInvocation<'_, GitInput>) -> Result<GitStatus, Runt
 fn diff_name_only(
     invocation: &NativeInvocation<'_, GitDiffInput>,
 ) -> Result<GitDiff, RuntimeError> {
-    let root = resolve_repo_root_for(
+    let root = resolve_root_for(
         DIFF_NAME_ONLY,
-        &invocation.inputs.repo_root,
+        &invocation.inputs.repository,
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
@@ -158,7 +158,7 @@ fn diff_name_only(
         .map(str::to_owned)
         .collect();
     Ok(GitDiff {
-        repo_root: root_name(DIFF_NAME_ONLY, &invocation.inputs.repo_root)?,
+        repository: root_name(DIFF_NAME_ONLY, &invocation.inputs.repository)?,
         base: non_empty(DIFF_NAME_ONLY, "base", base.to_owned())?,
         files,
     })

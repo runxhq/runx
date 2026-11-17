@@ -36,7 +36,7 @@ pub(super) fn normalize_child_path(value: &str) -> Result<PathBuf, RuntimeError>
             | Component::RootDir
             | Component::Prefix(_) => {
                 return Err(invalid_skill_change(
-                    "target_dir must stay inside repo_root",
+                    "target_dir must stay inside the workspace",
                 ));
             }
         }
@@ -109,15 +109,15 @@ pub(super) fn reject_secret_material(
     Ok(())
 }
 
-/// The prefixes every connector the workspace at `repo_root` can reach
+/// The prefixes every connector the workspace at `workspace` can reach
 /// declares for its secrets: what a skill there could be handed.
 pub(super) fn declared_secret_prefixes(
-    repo_root: &Path,
+    workspace: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<BTreeSet<String>, RuntimeError> {
     crate::kernel::connectors::ConnectorScope::in_project(
-        repo_root,
-        &crate::paths::RunxPaths::resolve(env, repo_root),
+        workspace,
+        &crate::paths::RunxPaths::resolve(env, workspace),
     )
     .and_then(|scope| scope.credential_prefixes())
     .map_err(|error| invalid_skill_change(error.to_string()))
@@ -171,7 +171,7 @@ pub(super) fn display_relative(path: &Path) -> String {
         .join("/")
 }
 
-pub(super) fn unique_stage_root(repo_root: &Path, target: &Path) -> PathBuf {
+pub(super) fn unique_stage_root(workspace: &Path, target: &Path) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_nanos());
@@ -188,7 +188,7 @@ pub(super) fn unique_stage_root(repo_root: &Path, target: &Path) -> PathBuf {
     target
         .parent()
         .filter(|parent| parent.is_dir())
-        .unwrap_or(repo_root)
+        .unwrap_or(workspace)
         .join(stage_name)
 }
 

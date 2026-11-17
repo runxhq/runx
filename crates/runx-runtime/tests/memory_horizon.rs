@@ -27,9 +27,9 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use runx_runtime::probe_fixtures::HistoryEvent;
-use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, memory_reader};
+use runx_runtime::scripted_model::{ScriptedModel, drive_env, memory_reader};
 use runx_runtime::{
-    HttpMethod, LocalOrchestrator, ManagedAgentPolicy, ReqwestHttpTransport, RuntimeEffectRegistry,
+    DrivePolicy, HttpMethod, LocalOrchestrator, ReqwestHttpTransport, RuntimeEffectRegistry,
     RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport, SkillRunRequest,
 };
 use serde_json::{Value, json};
@@ -327,7 +327,7 @@ impl Workspace {
             ),
         ]);
         if model == SCRIPTED {
-            env.extend(managed_agent_env(endpoint, "scripted-reader"));
+            env.extend(drive_env(endpoint, "scripted-reader"));
         } else {
             env.extend([
                 (
@@ -606,7 +606,7 @@ impl Workspace {
                 inputs: serde_json::from_value(inputs)?,
                 env: self.env.clone(),
                 cwd: self.directory.path().to_path_buf(),
-                managed_agent: ManagedAgentPolicy::inline(8)?,
+                drive: DrivePolicy::inline(8)?,
             },
             Some(method),
             None,

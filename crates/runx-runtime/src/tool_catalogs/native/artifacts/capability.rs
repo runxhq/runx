@@ -12,7 +12,6 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ArtifactAdmitInput {
-    pub(super) repo_root: String,
     pub(super) path: String,
     pub(super) media_type: String,
     pub(super) labels: ArtifactLabels,
@@ -28,7 +27,6 @@ impl CapabilityInput for ArtifactAdmitInput {
                     JsonValue::String("configured_model".to_owned()),
                 )])),
             ),
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             (
                 "media_type".to_owned(),
                 JsonValue::String("application/octet-stream".to_owned()),
@@ -68,12 +66,8 @@ impl CapabilityOutput for ArtifactPage {}
 
 const ADMIT_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative root containing the immutable source file, or $package for the skill's own package.",
-    },
-    CapabilityField {
         name: "path",
-        description: "Contained relative source path, or $package/<path> for a file of the skill's own package; it is never returned in the artifact reference.",
+        description: "The source file: from the workspace root, $package/<path> for a file of the skill's own package, or an absolute path the run's reach admits; it is never returned in the artifact reference.",
     },
     CapabilityField {
         name: "media_type",

@@ -349,13 +349,26 @@ pub(crate) fn package_path(path: &str) -> Option<&str> {
     }
 }
 
-/// A root and a path below it, where the path may name its package's file
-/// by [`PACKAGE_BASE`]: such a path is read from the package, whatever root
-/// was named.
+/// The root a path is read under and the path below it. A path is from the
+/// workspace root, `root`; one beginning [`PACKAGE_BASE`] names its
+/// package's file; and an absolute one names a file elsewhere, another
+/// repository's among them, under its own directory, which the run's reach
+/// admits or refuses as it would that directory.
 pub(crate) fn rooted<'a>(root: &'a str, path: &'a str) -> (&'a str, &'a str) {
     match package_path(path) {
         Some("") => (PACKAGE_BASE, "."),
         Some(rest) => (PACKAGE_BASE, rest),
+        None if Path::new(path).is_absolute() => {
+            let trimmed = match path.trim_end_matches('/') {
+                "" => "/",
+                trimmed => trimmed,
+            };
+            match trimmed.rfind('/') {
+                Some(0) if trimmed.len() > 1 => ("/", &trimmed[1..]),
+                Some(at) if at > 0 => (&trimmed[..at], &trimmed[at + 1..]),
+                _ => (trimmed, "."),
+            }
+        }
         None => (root, path),
     }
 }

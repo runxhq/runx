@@ -21,7 +21,7 @@ pub mod agent_openai_responses;
 pub mod agent_tool_definitions;
 
 #[cfg(feature = "agent")]
-pub(crate) mod managed_agent;
+pub(crate) mod drive;
 
 #[cfg(feature = "mcp")]
 pub mod mcp;

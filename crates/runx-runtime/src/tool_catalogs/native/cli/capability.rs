@@ -11,7 +11,6 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct CaptureHelpInput {
-    pub(super) repo_root: String,
     pub(super) command: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) args: Vec<String>,
@@ -22,7 +21,6 @@ pub(super) struct CaptureHelpInput {
 impl CapabilityInput for CaptureHelpInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             (
                 "help_flag".to_owned(),
                 JsonValue::String("--help".to_owned()),
@@ -33,10 +31,6 @@ impl CapabilityInput for CaptureHelpInput {
 }
 
 const FIELDS: &[CapabilityField] = &[
-    CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative project root.",
-    },
     CapabilityField {
         name: "command",
         description: "Exact executable name or path; no shell expansion is performed.",
@@ -51,7 +45,7 @@ const FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "cwd",
-        description: "Working directory relative to the project root.",
+        description: "The directory it runs in, from the workspace root; the workspace itself by default.",
     },
 ];
 

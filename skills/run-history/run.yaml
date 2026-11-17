@@ -158,8 +158,7 @@ methods:
           value: $steps.prepare.history_context.path
           equals: live
         tool: runx.skill.inspect
-        inputs:
-          repo_root: .
+        inputs: {}
       - id: finalize-live
         when:
           value: $steps.prepare.history_context.path

@@ -9,7 +9,7 @@ set -eu
 
 receipt_path=$1
 target=$2
-repo_root=$3
+repository=$3
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -17,11 +17,11 @@ fail() {
 }
 
 cd "${RUNX_CWD:-.}"
-root=$(cd "$repo_root" 2>/dev/null && pwd -P) || fail "repo_root is not a directory"
+root=$(cd "$repository" 2>/dev/null && pwd -P) || fail "repository is not a directory"
 directory=$(cd "$root" && cd "$(dirname "$receipt_path")" 2>/dev/null && pwd -P) ||
   fail "receipt_path is not within a directory"
 receipt="$directory/$(basename "$receipt_path")"
-case "$receipt" in "$root"/*) ;; *) fail "receipt_path must be within repo_root" ;; esac
+case "$receipt" in "$root"/*) ;; *) fail "receipt_path must be within repository" ;; esac
 [ -f "$receipt" ] || fail "receipt_path is not a file"
 
 if command -v sha256sum >/dev/null 2>&1; then

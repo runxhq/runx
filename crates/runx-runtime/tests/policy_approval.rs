@@ -13,7 +13,7 @@ const CREATED_AT: &str = "2026-08-27T00:00:00Z";
 fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
 -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
-    let workflow = policy_write_workflow(workspace.path(), true)?;
+    let workflow = policy_write_workflow(true)?;
     let runtime = runtime(workspace.path(), "run_explicit_guard")?;
     let mut host = ApprovalHost::new(true);
 
@@ -49,7 +49,7 @@ fn explicit_approval_guard_binds_its_receipt_to_the_governed_step()
 fn scoped_write_does_not_invent_approval_and_an_explicit_declined_guard_still_blocks()
 -> Result<(), Box<dyn std::error::Error>> {
     let routine_workspace = tempfile::tempdir()?;
-    let routine_workflow = policy_write_workflow(routine_workspace.path(), false)?;
+    let routine_workflow = policy_write_workflow(false)?;
     runtime(routine_workspace.path(), "run_routine_write")?.run_workflow_with_host(
         routine_workspace.path(),
         routine_workflow,
@@ -61,7 +61,7 @@ fn scoped_write_does_not_invent_approval_and_an_explicit_declined_guard_still_bl
     );
 
     let guarded_workspace = tempfile::tempdir()?;
-    let guarded_workflow = policy_write_workflow(guarded_workspace.path(), true)?;
+    let guarded_workflow = policy_write_workflow(true)?;
     let error = match runtime(guarded_workspace.path(), "run_guarded_write")?
         .run_workflow_with_host(
             guarded_workspace.path(),
@@ -95,7 +95,7 @@ fn parent_approval_binds_the_composite_step_without_becoming_child_authority()
         child.join("SKILL.md"),
         "---\nname: child-policy-write\ndescription: nested policy fixture\n---\n# Child\n",
     )?;
-    let child_run_yaml = child_policy_run_yaml(workspace.path());
+    let child_run_yaml = child_policy_run_yaml();
     std::fs::write(child.join("run.yaml"), &child_run_yaml)?;
     let parent = crate::support::run_yaml_workflow(
         "parent-policy-write",
@@ -155,10 +155,9 @@ methods:
 }
 
 /// The child package's `run.yaml`: one method, `write`, that writes
-/// `nested.txt` into `workspace`.
-fn child_policy_run_yaml(workspace: &std::path::Path) -> String {
-    format!(
-        r#"minimum_runx: 0.12.0
+/// `nested.txt` into the run's workspace.
+fn child_policy_run_yaml() -> String {
+    r#"minimum_runx: 0.12.0
 methods:
   write:
     result_from: [write]
@@ -166,16 +165,13 @@ methods:
       - id: write
         tool: fs.write
         inputs:
-          repo_root: {root:?}
           path: nested.txt
           contents: nested
-"#,
-        root = workspace.to_string_lossy()
-    )
+"#
+    .to_owned()
 }
 
 fn policy_write_workflow(
-    workspace: &std::path::Path,
     with_guard: bool,
 ) -> Result<runx_parser::Workflow, Box<dyn std::error::Error>> {
     let guard = if with_guard {
@@ -196,11 +192,9 @@ methods:
       - id: write
 {guard}        tool: fs.write
         inputs:
-          repo_root: {root:?}
           path: approved.txt
           contents: approved
-"#,
-            root = workspace.to_string_lossy()
+"#
         ),
     )
 }
@@ -209,8 +203,12 @@ fn runtime(
     workspace: &std::path::Path,
     run_id: &str,
 ) -> Result<Runtime<ProcessToolAdapter>, Box<dyn std::error::Error>> {
+    // The workspace its writes are from, as every path is.
     let mut options = crate::support::fixture_runtime_options(
-        BTreeMap::new(),
+        BTreeMap::from([(
+            "RUNX_CWD".to_owned(),
+            workspace.to_string_lossy().into_owned(),
+        )]),
         crate::support::run_in(workspace, run_id)?,
     )?;
     options.clock = runx_runtime::RunClock::Fixed(CREATED_AT.to_owned());

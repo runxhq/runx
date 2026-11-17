@@ -1,7 +1,8 @@
 name: code-plan-skill-package-requires-skill-lab
+# It runs in the fixture workspace, a project laid out with its own skills.
+workspace: fixtures/workspace
 inputs:
   objective: Add a new runx operator skill.
-  repo_root: fixtures/workspace
 host:
   answers:
     draft:

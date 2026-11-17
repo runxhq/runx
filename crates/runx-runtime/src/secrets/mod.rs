@@ -1,7 +1,7 @@
 //! The secrets the operator keeps in runx: each a name in the runx home that
 //! holds one value, sealed here or read through a secrets manager by
 //! reference. `runx secret` sets, lists, removes and reads them; a connector
-//! binding, the managed agent and a host each name one. This module is the
+//! binding, the drive and a host each name one. This module is the
 //! only writer and the only reader of a value.
 
 pub(crate) mod reference;

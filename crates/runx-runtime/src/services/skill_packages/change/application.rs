@@ -190,7 +190,7 @@ fn validation_checks(test_status: &str) -> Vec<SkillValidationCheck> {
 }
 
 pub(super) fn validate_stable_target(
-    repo_root: &Path,
+    workspace: &Path,
     target: &Path,
     target_dir: &str,
     snapshot: &PackageSnapshot,
@@ -200,7 +200,7 @@ pub(super) fn validate_stable_target(
 ) -> Result<SkillValidationResult, RuntimeError> {
     let metrics = package_metrics(snapshot);
     let checks = validate_candidate(
-        repo_root,
+        workspace,
         target,
         env,
         effects,

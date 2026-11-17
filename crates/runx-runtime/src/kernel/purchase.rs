@@ -306,7 +306,7 @@ pub(crate) fn buy(call: &PurchaseCall<'_>, host: &mut dyn Host) -> Result<Bought
         // An attempt may have paid: only Cloud's answer under its key settles it.
         let session = client
             .session(call.env, call.cwd)
-            .map_err(|reason| unknown(&pending, reason))?;
+            .map_err(|reason| unknown(call.step_id, &pending, reason))?;
         return recover(call, &route, &session, &store, &custody, &key, &pending);
     }
 
@@ -501,7 +501,7 @@ fn recover(
     pending: &Pending,
 ) -> Result<Bought, RuntimeError> {
     if pending.instance_binding != session.identity_binding() {
-        return Err(unknown(pending,
+        return Err(unknown(call.step_id, pending,
             "the current account and endpoint do not match the recorded purchase binding; the original attempt remains unresolved".to_owned()));
     }
     let mut sent = None;
@@ -532,6 +532,7 @@ fn recover(
     }
     let Some(sent) = sent else {
         return Err(unknown(
+            call.step_id,
             pending,
             "the attempt records no decision to send it again with".to_owned(),
         ));
@@ -752,6 +753,7 @@ fn held(
         return state(error);
     }
     RuntimeError::ProviderEffectUnknown {
+        step_id: call.step_id.to_owned(),
         plan_digest: call.paid.target(),
         idempotency_key: sent.idempotency_key.clone(),
         reason,
@@ -1170,8 +1172,9 @@ fn refused(code: impl Into<String>, reason: impl Into<String>) -> Bought {
     }
 }
 
-fn unknown(pending: &Pending, reason: String) -> RuntimeError {
+fn unknown(step_id: &str, pending: &Pending, reason: String) -> RuntimeError {
     RuntimeError::ProviderEffectUnknown {
+        step_id: step_id.to_owned(),
         plan_digest: pending.intent_digest.clone(),
         idempotency_key: pending.idempotency_key.clone(),
         reason,

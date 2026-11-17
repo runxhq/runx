@@ -782,6 +782,125 @@ pub enum TurnCallOutcome {
     Cancelled,
 }
 
+/// A call of a turn as its agent reads it (rule 1): what it called, how it
+/// ended and what it returned, with its receipt, which a later call reads it
+/// by as it does an artifact by its ref, and without what runx keeps for
+/// itself: the input's digest, a skill's bound closure, or an artifact's
+/// digest and place on disk. A host proving its record of a call reads its
+/// [`TurnCallResult`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnCallView {
+    /// The call's place in the turn, from 0: `turn_read` reads it whole as
+    /// `call:<index>`.
+    pub index: u32,
+    pub target: CallTarget,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub call_id: Option<NonEmptyString>,
+    pub outcome: TurnCallViewOutcome,
+}
+
+/// How a call ended, as its agent reads it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum TurnCallViewOutcome {
+    /// The call ran and succeeded.
+    Completed {
+        output: JsonObject,
+        /// The receipt that proves it, which a receipt tool reads.
+        receipt_id: NonEmptyString,
+        /// Each packet output as an artifact, by output name: a reference a
+        /// later call passes in place of the packet.
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        artifacts: BTreeMap<String, TurnArtifactView>,
+    },
+    /// The call ran and failed, with its receipt when it ran; or it failed
+    /// before it could run.
+    Failed {
+        reason: NonEmptyString,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        receipt_id: Option<NonEmptyString>,
+    },
+    /// Admission refused the call; nothing ran.
+    Refused { reason: NonEmptyString },
+    /// A person declined its approval; nothing ran.
+    Declined { reason: NonEmptyString },
+    /// The call has not settled; `waiting` is what it waits on.
+    Pending { waiting: Vec<ResolutionRequest> },
+    /// Its host cancelled it: nothing it did is in effect.
+    Cancelled,
+}
+
+/// An artifact a call made, as its agent reads it: the reference a later
+/// call passes, what it is and how large.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TurnArtifactView {
+    #[serde(rename = "ref")]
+    pub reference: NonEmptyString,
+    pub media_type: NonEmptyString,
+    pub size_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<NonEmptyString>,
+}
+
+impl From<&TurnCallResult> for TurnCallView {
+    fn from(call: &TurnCallResult) -> Self {
+        let target = match &call.target {
+            CallTarget::Skill { skill, method, .. } => CallTarget::Skill {
+                skill: skill.clone(),
+                method: method.clone(),
+                bound: None,
+            },
+            target => target.clone(),
+        };
+        let outcome = match &call.outcome {
+            TurnCallOutcome::Completed {
+                output,
+                receipt_id,
+                artifacts,
+            } => TurnCallViewOutcome::Completed {
+                output: output.clone(),
+                receipt_id: receipt_id.clone(),
+                artifacts: artifacts
+                    .iter()
+                    .map(|(name, artifact)| {
+                        (
+                            name.clone(),
+                            TurnArtifactView {
+                                reference: artifact.reference.clone(),
+                                media_type: artifact.media_type.clone(),
+                                size_bytes: artifact.size_bytes,
+                                summary: artifact.summary.clone(),
+                            },
+                        )
+                    })
+                    .collect(),
+            },
+            TurnCallOutcome::Failed { reason, receipt_id } => TurnCallViewOutcome::Failed {
+                reason: reason.clone(),
+                receipt_id: receipt_id.clone(),
+            },
+            TurnCallOutcome::Refused { reason } => TurnCallViewOutcome::Refused {
+                reason: reason.clone(),
+            },
+            TurnCallOutcome::Declined { reason } => TurnCallViewOutcome::Declined {
+                reason: reason.clone(),
+            },
+            TurnCallOutcome::Pending { waiting } => TurnCallViewOutcome::Pending {
+                waiting: waiting.clone(),
+            },
+            TurnCallOutcome::Cancelled => TurnCallViewOutcome::Cancelled,
+        };
+        Self {
+            index: call.index,
+            target,
+            call_id: call.call_id.clone(),
+            outcome,
+        }
+    }
+}
+
 /// One call an open turn offers its agent: an allowance entry, named for
 /// MCP, with the input it takes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
@@ -804,7 +923,7 @@ pub struct TurnTool {
 pub struct TurnStatus {
     pub invocation: TurnView,
     pub tools: Vec<TurnTool>,
-    pub calls: Vec<TurnCallResult>,
+    pub calls: Vec<TurnCallView>,
 }
 
 /// A turn as its agent reads it. What the act allows it shows

@@ -20,11 +20,11 @@ pub(super) struct InlineCandidateStage {
 
 impl InlineCandidateStage {
     pub(super) fn prepare(
-        repo_root: &Path,
+        workspace: &Path,
         files: &[JsonValue],
         env: &BTreeMap<String, String>,
     ) -> Result<Self, RuntimeError> {
-        let root = unique_stage_root(repo_root, &repo_root.join(".runx-inline-skill"));
+        let root = unique_stage_root(workspace, &workspace.join(".runx-inline-skill"));
         let stage = Self {
             root: root.clone(),
             skill_dir: root,
@@ -36,7 +36,7 @@ impl InlineCandidateStage {
             )
         })?;
         let writes =
-            admit_inline_candidate_files(files, &declared_secret_prefixes(repo_root, env)?)?;
+            admit_inline_candidate_files(files, &declared_secret_prefixes(workspace, env)?)?;
         apply_text_bundle(
             "runx.skill.validate",
             &stage.skill_dir,
@@ -116,8 +116,8 @@ pub(super) struct ValidationReceiptStage {
 }
 
 impl ValidationReceiptStage {
-    pub(super) fn prepare(repo_root: &Path) -> Result<Self, RuntimeError> {
-        let root = unique_stage_root(repo_root, &repo_root.join(".runx-validation"));
+    pub(super) fn prepare(workspace: &Path) -> Result<Self, RuntimeError> {
+        let root = unique_stage_root(workspace, &workspace.join(".runx-validation"));
         let receipt_dir = root.join("receipts");
         fs::create_dir_all(&receipt_dir).map_err(|source| {
             RuntimeError::io(
@@ -158,7 +158,7 @@ const REGISTRY_SELECTION_ENV: [&str; 4] = [
 /// a home and project directory of its own under `scratch`, and the registry
 /// its operator selects.
 pub(super) fn isolated_test_env(
-    repo_root: &Path,
+    workspace: &Path,
     env: &BTreeMap<String, String>,
     scratch: &Path,
 ) -> BTreeMap<String, String> {
@@ -181,10 +181,10 @@ pub(super) fn isolated_test_env(
     }
     isolated.insert(
         crate::paths::RUNX_CWD_ENV.to_owned(),
-        repo_root.to_string_lossy().into_owned(),
+        workspace.to_string_lossy().into_owned(),
     );
     crate::paths::isolate(&mut isolated, scratch);
-    let tools = repo_root.join("tools");
+    let tools = workspace.join("tools");
     if tools.is_dir()
         && let Ok(value) = std::env::join_paths([tools])
     {
@@ -204,11 +204,11 @@ pub(super) struct CandidateStage {
 
 impl CandidateStage {
     pub(super) fn prepare(
-        repo_root: &Path,
+        workspace: &Path,
         target: &Path,
         bundle: &TextBundle,
     ) -> Result<Self, RuntimeError> {
-        let root = unique_stage_root(repo_root, target);
+        let root = unique_stage_root(workspace, target);
         let skill_dir = root.clone();
         let snapshot = package_snapshot(target)?;
         let stage = Self {
@@ -223,7 +223,7 @@ impl CandidateStage {
             )
         })?;
         copy_snapshot(&stage.skill_dir, snapshot)?;
-        let staged = rebase_bundle(repo_root, target, bundle)?;
+        let staged = rebase_bundle(workspace, target, bundle)?;
         apply_text_bundle(
             "runx.skill.apply",
             &stage.skill_dir,
@@ -264,12 +264,12 @@ fn copy_snapshot(skill_dir: &Path, snapshot: PackageSnapshot) -> Result<(), Runt
 }
 
 fn rebase_bundle(
-    repo_root: &Path,
+    workspace: &Path,
     target: &Path,
     bundle: &TextBundle,
 ) -> Result<TextBundle, RuntimeError> {
     let target_prefix = target
-        .strip_prefix(repo_root)
+        .strip_prefix(workspace)
         .map_err(|_| invalid_skill_change("target directory escaped repo root"))?;
     let prefix = format!("{}/", display_relative(target_prefix));
     let writes = bundle

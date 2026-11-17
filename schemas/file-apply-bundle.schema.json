@@ -19,10 +19,6 @@
       "minimum": 1,
       "type": "integer"
     },
-    "repo_root": {
-      "minLength": 1,
-      "type": "string"
-    },
     "write_count": {
       "minimum": 0,
       "type": "integer"
@@ -35,7 +31,6 @@
     }
   },
   "required": [
-    "repo_root",
     "write_count",
     "delete_count",
     "writes",

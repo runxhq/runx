@@ -1,4 +1,4 @@
-//! The managed agent's telemetry and its sanitized failures.
+//! A driven turn's telemetry and its sanitized failures.
 
 use runx_contracts::{JsonObject, JsonValue, SealReason};
 
@@ -55,20 +55,35 @@ pub struct AgentToolExecutionTrace {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ManagedAgentError {
+pub struct DriveError {
     reason: SealReason,
     sanitized_message: String,
+    next: Option<String>,
     telemetry: Option<Box<AgentExecutionTelemetry>>,
 }
 
-impl ManagedAgentError {
+impl DriveError {
     #[must_use]
     pub fn sanitized(message: impl Into<String>) -> Self {
         Self {
-            reason: SealReason::ManagedAgentResolutionFailed,
+            reason: SealReason::DriveResolutionFailed,
             sanitized_message: message.into(),
+            next: None,
             telemetry: None,
         }
+    }
+
+    /// The failure, saying what to do about it.
+    #[must_use]
+    pub fn next(mut self, next: impl Into<String>) -> Self {
+        self.next = Some(next.into());
+        self
+    }
+
+    /// What to do about it, when it says.
+    #[must_use]
+    pub fn next_step(&self) -> Option<&str> {
+        self.next.as_deref()
     }
 
     #[must_use]
@@ -80,11 +95,12 @@ impl ManagedAgentError {
         Self {
             reason,
             sanitized_message: sanitized_message.into(),
+            next: None,
             telemetry: Some(Box::new(telemetry)),
         }
     }
 
-    /// Why the managed agent stopped, as the receipt seals it.
+    /// Why the driven turn stopped, as the receipt seals it.
     #[must_use]
     pub const fn reason(&self) -> SealReason {
         self.reason
@@ -95,20 +111,17 @@ impl ManagedAgentError {
         self.telemetry.as_deref()
     }
 
+    /// The record a failed turn keeps: its code, the seal reason, its
+    /// sentence, and its usage, the same as a turn that answered.
     #[must_use]
     pub(crate) fn public_failure_projection(&self) -> JsonObject {
         let mut projection = JsonObject::from([
             (
-                "schema".to_owned(),
-                JsonValue::String("runx.managed_agent_failure.v1".to_owned()),
-            ),
-            ("status".to_owned(), JsonValue::String("failed".to_owned())),
-            (
-                "reason".to_owned(),
+                "code".to_owned(),
                 JsonValue::String(self.reason.label().to_owned()),
             ),
             (
-                "message".to_owned(),
+                "reason".to_owned(),
                 JsonValue::String(self.sanitized_message.clone()),
             ),
         ]);
@@ -123,10 +136,10 @@ impl ManagedAgentError {
     }
 }
 
-impl std::fmt::Display for ManagedAgentError {
+impl std::fmt::Display for DriveError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(&self.sanitized_message)
     }
 }
 
-impl std::error::Error for ManagedAgentError {}
+impl std::error::Error for DriveError {}

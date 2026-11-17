@@ -6,7 +6,7 @@ use std::time::Duration;
 use runx_contracts::schema::{BoundedVec, NonEmptyString};
 use runx_contracts::{CLI_HELP_MAX_ARGS, CliHelp, CliHelpFlag};
 
-use super::{NativeInvocation, invalid_input, resolve_repo_root_for};
+use super::{NativeInvocation, invalid_input, resolve_root_for};
 use crate::{CapabilityOutput, RuntimeError};
 
 mod capability;
@@ -26,9 +26,9 @@ impl CapabilityOutput for CliHelp {}
 fn capture_help(
     invocation: &NativeInvocation<'_, CaptureHelpInput>,
 ) -> Result<CliHelp, RuntimeError> {
-    let root = resolve_repo_root_for(
+    let root = resolve_root_for(
         TOOL,
-        &invocation.inputs.repo_root,
+        ".",
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
@@ -127,14 +127,17 @@ fn arguments(
 fn working_directory(requested: &str, root: &Path) -> Result<std::path::PathBuf, RuntimeError> {
     let requested = Path::new(requested);
     if requested.is_absolute() {
-        return Err(invalid_input(TOOL, "cwd must be relative to repo_root"));
+        return Err(invalid_input(
+            TOOL,
+            "cwd is a path from the workspace root, never absolute",
+        ));
     }
     let cwd = std::fs::canonicalize(root.join(requested))
         .map_err(|source| RuntimeError::io("resolving CLI help cwd", source))?;
     if !cwd.is_dir() || (cwd != root && !cwd.starts_with(root)) {
         return Err(invalid_input(
             TOOL,
-            "cwd must resolve to a directory inside repo_root",
+            "cwd must be a directory inside the workspace",
         ));
     }
     Ok(cwd)

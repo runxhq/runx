@@ -8,7 +8,6 @@ methods:
         skill: ../..#design
         inputs:
           objective: Add a governed release-notes skill
-          repo_root: .
           target_dir: skills/release-notes
           project_context: runx OSS first-party catalog
       - id: digest

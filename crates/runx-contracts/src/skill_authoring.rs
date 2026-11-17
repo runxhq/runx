@@ -235,23 +235,126 @@ pub struct SkillValidation {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.skill_lab.authoring_context.v1")]
 pub struct SkillAuthoringContext {
-    pub repo_root: NonEmptyString,
-    /// The target package, relative to `repo_root`; null when none was named.
+    /// The target package, from the workspace root; null when none was named.
     pub target_dir: Option<NonEmptyString>,
     pub target_exists: bool,
     /// The digest a change to the target binds to.
     pub base_digest: Digest,
-    /// The target's files, from `repo_root`, as the read tools and a change
-    /// name them.
+    /// The target's files, from the workspace root, as the read tools and a
+    /// change name them.
     pub target_files: Vec<SkillPackageFile>,
     pub target_metrics: SkillPackageMetrics,
     /// The existing target's inspection, or why it would not inspect; null
     /// when the target does not exist.
     pub target_inspection: Option<JsonObject>,
-    /// Where catalog skills live, relative to `repo_root`.
+    /// Where catalog skills live, from the workspace root.
     pub catalog_root: NonEmptyString,
     pub catalog_skills: Vec<SkillCatalogEntry>,
     pub core_tools: Vec<SkillCatalogEntry>,
+}
+
+/// What a skill's author is given of the workspace (rule 1): the target's
+/// files and what inspecting it found, and what it can reuse, with nothing
+/// runx keeps for itself, no digest, closure or path on disk. The record a
+/// change binds to is the [`SkillAuthoringContext`] it is made from.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkillAuthoringBrief {
+    /// The target package, from the workspace root; null when none was named.
+    pub target_dir: Option<NonEmptyString>,
+    pub target_exists: bool,
+    /// The target's files, as the read tools and a change name them.
+    pub target_files: Vec<SkillPackageFile>,
+    pub target_metrics: SkillPackageMetrics,
+    /// What inspecting the existing target found, or why it would not
+    /// inspect; absent when the target does not exist.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<SkillTargetBrief>,
+    /// Where catalog skills live.
+    pub catalog_root: NonEmptyString,
+    pub catalog_skills: Vec<SkillCatalogEntry>,
+    pub core_tools: Vec<SkillCatalogEntry>,
+}
+
+/// The existing target as its author reads it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(tag = "status", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SkillTargetBrief {
+    /// It inspects: what it is and what each method takes and returns.
+    Ok {
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        version: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        catalog: Option<crate::SkillCatalog>,
+        methods: Vec<SkillMethodBrief>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        eval_queries: Vec<crate::package_evals::EvalQuery>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        evals: Vec<crate::package_evals::PackageEval>,
+    },
+    /// It would not inspect, and why.
+    Invalid { error: String },
+}
+
+/// One method of the target as its author reads it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkillMethodBrief {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Its inputs as one JSON schema, with the method's examples.
+    pub input_schema: JsonObject,
+    pub outputs: Vec<crate::InspectedOutput>,
+}
+
+impl From<&SkillAuthoringContext> for SkillAuthoringBrief {
+    fn from(context: &SkillAuthoringContext) -> Self {
+        let target = context.target_inspection.as_ref().map(|inspection| {
+            match crate::JsonValue::Object(inspection.clone())
+                .deserialize_into::<crate::SkillInspection>()
+            {
+                Ok(inspected) => SkillTargetBrief::Ok {
+                    name: inspected.name,
+                    description: inspected.description,
+                    version: inspected.version,
+                    catalog: inspected.catalog,
+                    methods: inspected
+                        .method_inspections
+                        .into_iter()
+                        .map(|entry| SkillMethodBrief {
+                            name: entry.method.name,
+                            description: entry.method.description,
+                            input_schema: entry.method.input_schema,
+                            outputs: entry.method.outputs,
+                        })
+                        .collect(),
+                    eval_queries: inspected.eval_queries,
+                    evals: inspected.evals,
+                },
+                Err(_) => SkillTargetBrief::Invalid {
+                    error: inspection
+                        .get("error")
+                        .and_then(crate::JsonValue::as_str)
+                        .unwrap_or("it does not inspect")
+                        .to_owned(),
+                },
+            }
+        });
+        Self {
+            target_dir: context.target_dir.clone(),
+            target_exists: context.target_exists,
+            target_files: context.target_files.clone(),
+            target_metrics: context.target_metrics.clone(),
+            target,
+            catalog_root: context.catalog_root.clone(),
+            catalog_skills: context.catalog_skills.clone(),
+            core_tools: context.core_tools.clone(),
+        }
+    }
 }
 
 /// One file of a skill package.

@@ -12,7 +12,7 @@ use runx_runtime::adapters::agent_loop::{
 };
 use runx_runtime::adapters::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use runx_runtime::{
-    LocalOrchestrator, ManagedAgentPolicy, ReqwestHttpTransport, RuntimeError, SkillRunRequest,
+    DrivePolicy, LocalOrchestrator, ReqwestHttpTransport, RuntimeError, SkillRunRequest,
 };
 use serde_json::{Value, json};
 use tempfile::tempdir;
@@ -216,8 +216,7 @@ fn openai_batch_with_late_unknown_tool_executes_nothing() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn std::error::Error>>
-{
+fn a_driven_turn_executes_a_governed_tool_round_trip() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = temp.path().join("skill");
     fs::create_dir_all(&skill_dir)?;
@@ -270,7 +269,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -286,7 +285,7 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
     assert_eq!(
         step.lineage.children.len(),
         1,
-        "the managed agent's call is recorded and sealed under its turn"
+        "the driven turn's call is recorded and sealed under its turn"
     );
     let requests = finish_server(server)?;
     assert_eq!(requests.len(), 2);
@@ -305,11 +304,23 @@ fn managed_agent_step_executes_governed_tool_round_trip() -> Result<(), Box<dyn 
             ),
         "the step must replay the actual native digest result"
     );
+    // What the call returned reaches the model without what runx keeps for
+    // itself: no input digest or bound closure.
+    let replayed = requests[1]["messages"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|message| message["role"] == "tool")
+        .and_then(|message| message["content"].as_str())
+        .ok_or("the call's result is replayed")?;
+    for kept in ["input_digest", "package_digest", "closure_digest"] {
+        assert!(!replayed.contains(kept), "{kept} in {replayed}");
+    }
     Ok(())
 }
 
 /// A one-turn skill whose turn requires `requirement` of its agent harness,
-/// worked by the managed agent at `endpoint`.
+/// driven by runx with the model at `endpoint`.
 fn run_requiring(
     root: &std::path::Path,
     requirement: &str,
@@ -355,7 +366,7 @@ fn run_requiring(
             inputs: BTreeMap::new(),
             env,
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -364,12 +375,12 @@ fn run_requiring(
     Ok(serde_json::to_value(&result.output)?)
 }
 
-/// The managed agent starts each turn from its act alone, so it meets a
+/// A driven turn starts from its act alone, so it meets a
 /// fresh context and says so, and it has no tools of its own and no second
 /// reviewer, so a turn requiring either ends failed, naming the requirement,
 /// before any model is called.
 #[test]
-fn the_managed_agent_meets_a_fresh_context_and_refuses_what_it_cannot()
+fn a_driven_turn_meets_a_fresh_context_and_refuses_what_it_cannot()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     // Nothing listens here, so a model call would fail at once, not hang.
@@ -407,7 +418,7 @@ fn the_managed_agent_meets_a_fresh_context_and_refuses_what_it_cannot()
 }
 
 #[test]
-fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance()
+fn a_driven_turn_calls_the_method_it_loads_and_reads_its_manual_as_guidance()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let child_dir = temp.path().join("skills").join("child");
@@ -470,7 +481,7 @@ fn the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance(
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(4)?,
+            drive: DrivePolicy::inline(4)?,
         },
         None,
         None,
@@ -639,7 +650,7 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
             inputs: BTreeMap::new(),
             env: env.clone(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -688,7 +699,7 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
     );
     assert_eq!(
         step["host"],
-        json!({"kind": "managed_agent", "provider": "scripted"}),
+        json!({"kind": "drive", "provider": "scripted"}),
         "{step}"
     );
     // Where it ran is recorded as it started, and read from the record.
@@ -714,7 +725,7 @@ fn a_run_reads_back_the_package_a_load_bound_and_the_model_its_turn_stated()
 }
 
 #[test]
-fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
+fn a_driven_turn_reads_the_memory_its_run_is_given_by_locator()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = temp.path().join("skill");
@@ -733,7 +744,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
         temp.path().join("MEMORY.md"),
         "Ambient memory runx never reads.\n",
     )?;
-    // Kept on this machine: the managed agent's model is served from a
+    // Kept on this machine: the driven turn's model is served from a
     // loopback endpoint, so it may read it.
     let memory: runx_contracts::ContextEntry = serde_json::from_value(json!({
         "schema": "runx.context_entry.v1",
@@ -795,7 +806,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -841,7 +852,7 @@ fn a_managed_agent_reads_the_memory_its_run_is_given_by_locator()
 #[test]
 fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
 -> Result<(), Box<dyn std::error::Error>> {
-    use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+    use runx_runtime::scripted_model::{ScriptedModel, drive_env, tool_call};
     let temp = tempdir()?;
     let skill = temp.path().join("reader");
     crate::support::write_test_skill_package(
@@ -907,7 +918,7 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
         "RUNX_HOME".to_owned(),
         temp.path().join("home").display().to_string(),
     )]);
-    env.extend(managed_agent_env(model.endpoint(), "reader"));
+    env.extend(drive_env(model.endpoint(), "reader"));
     crate::support::insert_test_signing_env(&mut env);
     let document = format!("{}end", "café🧭".repeat(13_000));
     let result = LocalOrchestrator::default().run_skill_with_binding(
@@ -923,7 +934,7 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
             inputs: BTreeMap::from([("document".to_owned(), JsonValue::String(document.clone()))]),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(12)?,
+            drive: DrivePolicy::inline(12)?,
         },
         None,
         None,
@@ -973,7 +984,7 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
 }
 
 #[test]
-fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact()
+fn a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_artifact()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let skill_dir = temp.path().join("skill");
@@ -1036,7 +1047,7 @@ fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact()
             inputs: BTreeMap::from([("source".to_owned(), artifact)]),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -1050,7 +1061,7 @@ fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact()
 }
 
 #[test]
-fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
+fn a_driven_turn_at_a_loopback_endpoint_reads_a_local_only_artifact()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
@@ -1123,7 +1134,7 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(4)?,
+            drive: DrivePolicy::inline(4)?,
         },
         None,
         None,
@@ -1137,7 +1148,7 @@ fn a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact()
 }
 
 #[test]
-fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_read()
+fn a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_read()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     fs::write(temp.path().join("kept.txt"), "kept on this machine")?;
@@ -1190,7 +1201,7 @@ fn a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -1257,31 +1268,29 @@ fn what_a_loopback_turn_stores_of_a_local_only_page_is_local_only_and_refused_to
         ("RUNX_AGENT_ENDPOINT_URL".to_owned(), endpoint),
     ]);
     crate::support::insert_test_signing_env(&mut env);
-    let request = |skill_path: std::path::PathBuf,
-                   inputs: BTreeMap<String, JsonValue>,
-                   env,
-                   managed_agent| {
-        SkillRunRequest {
-            current_context: Vec::new(),
-            historical_context: Vec::new(),
-            run_authority: None,
-            act: None,
-            skill_path,
-            receipt_dir: Some(temp.path().join("receipts")),
-            run_id: None,
-            answers: None,
-            inputs,
-            env,
-            cwd: temp.path().to_path_buf(),
-            managed_agent,
-        }
-    };
+    let request =
+        |skill_path: std::path::PathBuf, inputs: BTreeMap<String, JsonValue>, env, drive| {
+            SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path,
+                receipt_dir: Some(temp.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs,
+                env,
+                cwd: temp.path().to_path_buf(),
+                drive,
+            }
+        };
     let result = LocalOrchestrator::default().run_skill_with_binding(
         &request(
             skill_dir,
             BTreeMap::new(),
             env.clone(),
-            ManagedAgentPolicy::inline(5)?,
+            DrivePolicy::inline(5)?,
         ),
         None,
         None,
@@ -1333,7 +1342,7 @@ fn what_a_loopback_turn_stores_of_a_local_only_page_is_local_only_and_refused_to
             later,
             BTreeMap::from([("notes".to_owned(), serde_json::from_value(artifact)?)]),
             remote,
-            ManagedAgentPolicy::default(),
+            DrivePolicy::default(),
         ),
         None,
         None,
@@ -1405,7 +1414,7 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -1427,7 +1436,7 @@ fn a_managed_turn_that_fails_still_names_the_calls_it_made()
 }
 
 #[test]
-fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
+fn a_child_whose_driven_turn_fails_stops_its_parent_for_the_same_reason()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let child_dir = temp.path().join("agent-child");
@@ -1450,7 +1459,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
         parent_dir.join("run.yaml"),
         "minimum_runx: 0.12.0\nmethods:\n  default:\n    steps:\n      - id: invoke\n        skill: ../agent-child\n",
     )?;
-    // The model stops without finalizing, so the child's managed agent fails.
+    // The model stops without finalizing, so the child's driven turn fails.
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
     let server = std::thread::spawn(move || {
@@ -1487,7 +1496,7 @@ fn a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason()
             inputs: BTreeMap::new(),
             env: env.clone(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -1595,7 +1604,7 @@ fn a_script_calls_read_keeps_the_labels_of_what_its_turn_saw_before_it()
             inputs: BTreeMap::new(),
             env: env.clone(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(5)?,
+            drive: DrivePolicy::inline(5)?,
         },
         None,
         None,
@@ -1636,7 +1645,7 @@ fn a_script_calls_read_keeps_the_labels_of_what_its_turn_saw_before_it()
 }
 
 #[test]
-fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
+fn runx_drives_the_turn_its_own_call_opens_in_a_child_skill()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let child_dir = temp.path().join("child");
@@ -1701,7 +1710,7 @@ fn the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill()
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -1799,7 +1808,7 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
             inputs: BTreeMap::new(),
             env: env.clone(),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,
@@ -1840,7 +1849,7 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
         receipt_dir: Some(receipts),
         env,
         cwd: temp.path().to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(3)?,
+        drive: DrivePolicy::inline(3)?,
         package_digest: None,
         closure_digest: None,
     })?;
@@ -1851,15 +1860,14 @@ fn a_managed_run_paused_inside_a_child_turn_goes_on_once_the_human_answers()
     Ok(())
 }
 
-/// A turn runx's managed agent worked, from a fresh context and stating the
+/// A turn runx drove, from a fresh context and stating the
 /// model that answered, leaves its run an eligible source, whose reads this
 /// run may make and whose turn would be asked what it was: a later call
 /// that asks the same is reused from it without asking the model again, as
 /// is one that names the model that answered. One that names another model
 /// recomputes as other model, and asks it (reuse.md, D2, checks 1 to 3).
 #[test]
-fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
--> Result<(), Box<dyn std::error::Error>> {
+fn a_turn_runx_drove_leaves_an_eligible_source() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
     let child = temp.path().join("answer-child");
     fs::create_dir_all(&child)?;
@@ -1931,7 +1939,7 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
                 inputs,
                 env: env.clone(),
                 cwd: temp.path().to_path_buf(),
-                managed_agent: ManagedAgentPolicy::inline(3)?,
+                drive: DrivePolicy::inline(3)?,
             },
             None,
             None,
@@ -1985,7 +1993,7 @@ fn a_turn_runxs_managed_agent_worked_leaves_an_eligible_source()
     Ok(())
 }
 
-/// A run the managed agent drives works every turn it opens on its first
+/// A run runx drives works every turn it opens on its first
 /// drive, those of calls a script runs at once included. The model answers
 /// none of the three turns until all three have asked it, so the run seals
 /// only when they're worked at once, up to the script's concurrency.
@@ -2043,7 +2051,7 @@ fn a_driven_run_works_the_turns_its_script_opens_at_once_in_one_drive()
         "RUNX_HOME".to_owned(),
         temp.path().join("home").to_string_lossy().into_owned(),
     )]);
-    env.extend(runx_runtime::scripted_model::managed_agent_env(
+    env.extend(runx_runtime::scripted_model::drive_env(
         &endpoint,
         "fixture-model",
     ));
@@ -2061,7 +2069,7 @@ fn a_driven_run_works_the_turns_its_script_opens_at_once_in_one_drive()
             inputs: BTreeMap::new(),
             env,
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(3)?,
+            drive: DrivePolicy::inline(3)?,
         },
         None,
         None,

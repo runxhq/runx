@@ -92,8 +92,8 @@ pub type DetachedAnswers =
 pub struct DetachedHost {
     answers: Arc<Mutex<DetachedAnswers>>,
     #[cfg(feature = "agent")]
-    managed: Option<Arc<crate::adapters::managed_agent::ManagedAgent>>,
-    /// The answers its managed agent gave the call's turns, by address.
+    managed: Option<Arc<crate::adapters::drive::Drive>>,
+    /// The answers the drive gave the call's turns, by address.
     given: BTreeMap<String, JsonValue>,
     reported: Vec<ExecutionEvent>,
     logged: Vec<String>,
@@ -112,13 +112,10 @@ impl DetachedHost {
         }
     }
 
-    /// This host with the managed agent its run consents to, which works
+    /// This host with the drive its run consents to, which works
     /// the turns of the call it serves.
     #[cfg(feature = "agent")]
-    pub(crate) fn worked_by(
-        self,
-        managed: Option<Arc<crate::adapters::managed_agent::ManagedAgent>>,
-    ) -> Self {
+    pub(crate) fn worked_by(self, managed: Option<Arc<crate::adapters::drive::Drive>>) -> Self {
         Self { managed, ..self }
     }
 
@@ -168,7 +165,7 @@ impl Host for DetachedHost {
     }
 
     /// A call of the call this host serves runs apart from it on the same
-    /// answers and the same managed agent, and what it reports comes back to
+    /// answers and the same drive, and what it reports comes back to
     /// this host.
     fn detached(&self) -> Option<DetachedHost> {
         Some(Self {
@@ -181,7 +178,7 @@ impl Host for DetachedHost {
         })
     }
 
-    /// The managed agent, when the run consents to one, works a turn once
+    /// The drive, when the run consents to one, works a turn once
     /// nothing in it waits on a human.
     fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
         #[cfg(feature = "agent")]
@@ -196,7 +193,7 @@ impl Host for DetachedHost {
         Ok(())
     }
 
-    /// Only a managed agent at a loopback endpoint is known to run here.
+    /// Only a drive at a loopback endpoint is known to run here.
     fn reads_local_only(&self) -> bool {
         #[cfg(feature = "agent")]
         {

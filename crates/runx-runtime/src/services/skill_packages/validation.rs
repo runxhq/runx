@@ -38,7 +38,7 @@ impl CandidateValidation {
 /// A candidate's inspection and its test, each case run in the candidate's
 /// isolated home, a process only where `processes` lets it run.
 pub(super) fn validate_candidate(
-    repo_root: &Path,
+    workspace: &Path,
     candidate: &Path,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
@@ -56,7 +56,7 @@ pub(super) fn validate_candidate(
                 .and_then(serde_json::from_value::<JsonObject>)
                 .map_err(|error| invalid_skill_change(format!("skill inspection failed: {error}")))
         })?;
-    let test = run_candidate_test(repo_root, candidate, processes, env, effects)?;
+    let test = run_candidate_test(workspace, candidate, processes, env, effects)?;
     Ok(CandidateValidation { inspect, test })
 }
 
@@ -145,16 +145,16 @@ impl Authored {
 }
 
 fn run_candidate_test(
-    repo_root: &Path,
+    workspace: &Path,
     candidate: &Path,
     processes: TestProcesses,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<PackageTestReport, RuntimeError> {
-    let receipt_stage = ValidationReceiptStage::prepare(repo_root)?;
-    let mut test_env = isolated_test_env(repo_root, env, receipt_stage.root());
+    let receipt_stage = ValidationReceiptStage::prepare(workspace)?;
+    let mut test_env = isolated_test_env(workspace, env, receipt_stage.root());
     crate::services::merge_inferred_tool_roots(&mut test_env, candidate);
-    install_candidate_closure(repo_root, candidate, &test_env)?;
+    install_candidate_closure(workspace, candidate, &test_env)?;
     crate::orchestrator::LocalOrchestrator::with_effects_and_environment(effects.clone(), test_env)
         .run_package_test(&crate::orchestrator::PackageTestRequest {
             skill_path: candidate.to_path_buf(),
@@ -169,7 +169,7 @@ fn run_candidate_test(
 /// installed, verified, into the candidate's own project, where its test
 /// reads them. A candidate naming none reads nothing.
 fn install_candidate_closure(
-    repo_root: &Path,
+    workspace: &Path,
     candidate: &Path,
     env: &BTreeMap<String, String>,
 ) -> Result<(), RuntimeError> {
@@ -177,7 +177,7 @@ fn install_candidate_closure(
     let request = crate::registry::RegistryPublishPackageRequest {
         subject: &subject,
         env,
-        cwd: repo_root,
+        cwd: workspace,
     };
     let unbound = |error: String| {
         invalid_skill_change(format!("binding the candidate's registry closure: {error}"))
@@ -197,25 +197,25 @@ fn install_candidate_closure(
 }
 
 pub(crate) fn validate_skill_package(
-    repo_root: &Path,
+    workspace: &Path,
     requested_path: &str,
     candidate_files: Option<&[JsonValue]>,
     allow_execute_test: bool,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<SkillValidation, RuntimeError> {
-    let repo_root = canonical_directory(repo_root, "skill workspace")?;
+    let workspace = canonical_directory(workspace, "skill workspace")?;
     let stage = candidate_files
-        .map(|files| InlineCandidateStage::prepare(&repo_root, files, env))
+        .map(|files| InlineCandidateStage::prepare(&workspace, files, env))
         .transpose()?;
-    let candidate_path = resolve_candidate_path(&repo_root, requested_path, stage.as_ref())?;
+    let candidate_path = resolve_candidate_path(&workspace, requested_path, stage.as_ref())?;
     let resolved_path = if stage.is_some() {
         "inline-candidate".to_owned()
     } else {
-        display_repo_path(&repo_root, &candidate_path)
+        display_repo_path(&workspace, &candidate_path)
     };
     Ok(validate_package_at(
-        &repo_root,
+        &workspace,
         &candidate_path,
         requested_path,
         &resolved_path,
@@ -235,16 +235,16 @@ pub(crate) fn validate_skill_package(
 ///
 /// Returns why the reference doesn't resolve to a released copy.
 pub(crate) fn validate_registry_package(
-    repo_root: &Path,
+    workspace: &Path,
     reference: &str,
     allow_execute_test: bool,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<SkillValidation, RuntimeError> {
-    let repo_root = canonical_directory(repo_root, "skill workspace")?;
+    let workspace = canonical_directory(workspace, "skill workspace")?;
     let resolved = crate::registry::resolve::resolve_skill_ref_details(
         Path::new(reference),
-        &repo_root,
+        &workspace,
         crate::registry::resolve::SkillResolverOptions {
             env,
             registry: None,
@@ -270,7 +270,7 @@ pub(crate) fn validate_registry_package(
         resolved.runnable_path.clone()
     };
     Ok(validate_package_at(
-        &repo_root,
+        &workspace,
         &package,
         reference,
         &released,
@@ -280,11 +280,11 @@ pub(crate) fn validate_registry_package(
     ))
 }
 
-/// The package at `candidate`, validated for the workspace at `repo_root`:
+/// The package at `candidate`, validated for the workspace at `workspace`:
 /// its inspection, and its test, each case that reaches a process refused unless
 /// the caller allows processes.
 fn validate_package_at(
-    repo_root: &Path,
+    workspace: &Path,
     candidate: &Path,
     requested_path: &str,
     resolved_path: &str,
@@ -306,7 +306,7 @@ fn validate_package_at(
                 source,
             })
     });
-    let result = validate_candidate(repo_root, candidate, env, effects, processes, None);
+    let result = validate_candidate(workspace, candidate, env, effects, processes, None);
     validation_result_report(requested_path, resolved_path, inspected, result)
 }
 
@@ -356,7 +356,7 @@ fn failed_inspection(inspected: Result<JsonObject, crate::SkillInspectionError>)
 }
 
 fn resolve_candidate_path(
-    repo_root: &Path,
+    workspace: &Path,
     requested_path: &str,
     stage: Option<&InlineCandidateStage>,
 ) -> Result<std::path::PathBuf, RuntimeError> {
@@ -367,7 +367,7 @@ fn resolve_candidate_path(
     let unresolved = if requested.is_absolute() {
         requested.to_path_buf()
     } else {
-        repo_root.join(requested)
+        workspace.join(requested)
     };
     let resolved = fs::canonicalize(&unresolved).map_err(|source| {
         RuntimeError::io(
@@ -375,7 +375,7 @@ fn resolve_candidate_path(
             source,
         )
     })?;
-    if resolved != repo_root && !resolved.starts_with(repo_root) {
+    if resolved != workspace && !resolved.starts_with(workspace) {
         return Err(invalid_skill_change(
             "skill candidate must stay inside the workspace",
         ));

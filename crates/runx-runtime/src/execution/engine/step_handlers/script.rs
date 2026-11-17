@@ -106,14 +106,14 @@ where
         script.concurrency,
     ))
     .unwrap_or(1);
-    let ended = match drive(
+    let driven = match drive(
         &mut ledger,
         host,
         &prepared,
         &inputs,
         (script.max_calls, concurrency),
     ) {
-        Ok(ended) => ended,
+        Ok(ended) => Ok(ended),
         // A wait holds the step where it stands, and a stop or a fault is
         // the run's, not the script's.
         Err(error)
@@ -126,27 +126,30 @@ where
         }
         // The worker refused the script or failed under it, or it went
         // another way than its record: it goes no further, and its step
-        // fails with the reason, sealed with every call it made.
+        // fails with that failure, said once, sealed with every call it made.
         Err(error) => {
             if let Some((position, requests)) = drop_open_calls(&mut ledger, host)? {
                 return Err(waiting_on(&step.id, position, requests));
             }
-            Err(error.to_string())
+            Err(error.failure())
         }
     };
-    // A turn's script declares no contract: what it returns, an object, is
-    // its call's result.
-    let ended = match turn_script {
-        Some(_) => ended.and_then(|output| {
-            if output.is_object() {
-                Ok(output)
-            } else {
-                Err("a turn's script returns an object, its call's result".to_owned())
-            }
-        }),
-        None => ended,
-    };
     let recorded = ledger.recorded()?;
+    let ended = match driven {
+        // A turn's script declares no contract: what it returns, an object,
+        // is its call's result.
+        Ok(Ok(output)) if turn_script.is_some() && !output.is_object() => Err(crate::Failure::new(
+            "the script",
+            "a turn's script returns an object, its call's result",
+        )
+        .next("return an object, such as { result }")),
+        Ok(Ok(output)) => Ok(output),
+        // A script that ends on a call's failure passes that failure on,
+        // said where its call made it; any other end is the script's own.
+        Ok(Err(message)) => Err(passed_on(recorded, ledger.step_id(), &message)
+            .unwrap_or_else(|| crate::Failure::new("the script", message))),
+        Err(failure) => Err(failure),
+    };
     // What the script made is made from what its calls returned and what it
     // read.
     let read =
@@ -168,14 +171,7 @@ where
                 .map_err(|source| RuntimeError::json("reading a script's output", source))?,
             0,
         ),
-        // A script that ends on a call's failure passes that failure on,
-        // said where its call made it; any other end is the script's own.
-        Err(message) => InvocationOutput::runtime_failure(
-            JsonValue::Null,
-            passed_on(recorded, ledger.step_id(), &message)
-                .unwrap_or_else(|| crate::Failure::new("the script", message)),
-            0,
-        ),
+        Err(failure) => InvocationOutput::runtime_failure(JsonValue::Null, failure, 0),
     };
     let projection = match turn_script {
         Some(_) if output.succeeded() => {

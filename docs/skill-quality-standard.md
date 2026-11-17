@@ -59,7 +59,7 @@ Proof must match the claim:
 
 | Archetype | Minimum proof |
 |---|---|
-| Operation | A no-managed-agent fixture or bounded live trial crosses the claimed boundary and verifies runtime or provider readback. |
+| Operation | A no-drive fixture or bounded live trial crosses the claimed boundary and verifies runtime or provider readback. |
 | Workflow | A realistic path reaches each consequential gate and terminal state; deterministic stages use real fixtures, while supplied agent answers may prove the declared artifact contract. |
 | Artifact | A realistic source packet produces schema-valid output with provenance, and a forward test or evaluator checks usefulness for its named consumer. |
 | Builder | A fixture produces a valid package, policy, test, or change artifact and runs the native validator that would accept it. |

@@ -422,7 +422,7 @@ fn mcp_server_missing_required_skill_input_refuses_without_false_continuation()
 
 #[test]
 #[cfg(feature = "mcp")]
-fn mcp_server_never_treats_configured_model_credentials_as_managed_agent_consent()
+fn mcp_server_never_treats_configured_model_credentials_as_drive_consent()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut execution = mcp_server_execution_options(None)?;
     execution.env.extend([

@@ -38,6 +38,9 @@ const EXECUTION_CLOSURE = /(?<![A-Za-z])execution[ _-]?[Cc]losures?(?![a-z])|Exe
 // An agent's unit of work is its turn; an act is what a call is told to do.
 // A count of acts beside an agent, as a summary prints it, is a count of turns.
 const AGENT_ACT = /(?<![A-Za-z])agent[ _-]acts?(?![a-z])|(?<![a-z])Agent[ _-]?[Aa]cts?(?![a-z])|(?<![A-Za-z])[Aa]gent: (?:\{\}|\d+) act(?:s|\(s\))?(?![a-z])/g;
+// runx driving a turn itself is the drive, and its turn a driven turn (Kam,
+// 17 November): "managed agent" in any case or joining is the old name.
+const MANAGED_AGENT = /(?<![A-Za-z])[Mm]anaged[ _-]?[Aa]gents?(?![a-z])|(?<![A-Z])MANAGED_AGENTS?(?![A-Z])/g;
 // "An agent acts" is an agent who acts: after a determiner of one, acts is
 // the verb, which the rename leaves as written.
 const AGENT_WHO_ACTS = /\b(?:an?|each|every|this|that|one|another|no)\s+agent acts$/i;
@@ -90,7 +93,7 @@ function main([repo, root, ...rest]) {
   // its scope holds runx's words, and for the brand everywhere, as the rename
   // renames it.
   const scope = SCOPES[repo] ?? /(?:)/;
-  const found = { runner: 0, harness: 0, graph: 0, closure: 0, turn: 0, brand: 0, key: 0, path: 0 };
+  const found = { runner: 0, harness: 0, graph: 0, closure: 0, turn: 0, drive: 0, brand: 0, key: 0, path: 0 };
   const byFile = new Map();
   for (const file of files(root)) {
     const text = readFileSync(path.join(root, file), "utf8");
@@ -134,7 +137,7 @@ function main([repo, root, ...rest]) {
           if (list) process.stdout.write(`${file}:${index + 1}\t${word}\t${token}\t${line.trim().slice(0, 160)}\n`);
         }
       }
-      for (const [word, pattern] of inScope ? [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT]] : []) {
+      for (const [word, pattern] of inScope ? [["closure", EXECUTION_CLOSURE], ["turn", AGENT_ACT], ["drive", MANAGED_AGENT]] : []) {
         for (const match of line.matchAll(pattern)) {
           if (!unkept(start + match.index)) continue;
           if (word === "turn" && AGENT_WHO_ACTS.test(line.slice(0, match.index + match[0].length))) continue;
@@ -149,8 +152,8 @@ function main([repo, root, ...rest]) {
     found.path += 1;
     if (list) process.stdout.write(`${stale.path}\tpath\t${stale.word}\t${stale.name}\n`);
   }
-  const total = found.runner + found.harness + found.graph + found.closure + found.turn + found.brand + found.key + found.path;
-  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose, ${found.closure} of execution closure, which is closure, ${found.turn} of agent act, which is a turn, ${found.brand} of Runx, which is runx, ${found.key} of a key the format removes and ${found.path} paths holding a retired word, in ${byFile.size} files\n`);
+  const total = found.runner + found.harness + found.graph + found.closure + found.turn + found.drive + found.brand + found.key + found.path;
+  process.stdout.write(`${total === 0 ? "clean" : "stale"}: ${found.runner} uses of runner as a method, ${found.harness} of harness as a test or run, ${found.graph} of graph as a workflow in prose, ${found.closure} of execution closure, which is closure, ${found.turn} of agent act, which is a turn, ${found.drive} of managed agent, which is the drive, ${found.brand} of Runx, which is runx, ${found.key} of a key the format removes and ${found.path} paths holding a retired word, in ${byFile.size} files\n`);
   return total === 0 ? 0 : 1;
 }
 

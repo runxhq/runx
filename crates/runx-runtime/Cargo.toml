@@ -30,7 +30,7 @@ crash-points = []
 # build that ships has it.
 probe-fixtures = []
 # A scripted model on a loopback port, speaking chat completions as a local
-# model server does, for the managed agent's tests and probes. Only tests and
+# model server does, for the drive's tests and probes. Only tests and
 # benches enable it, so no build that ships has it.
 scripted-model = []
 mcp = ["dep:rmcp", "rmcp/transport-streamable-http-client-reqwest", "dep:sse-stream", "dep:bytes", "dep:http-body-util", "tokio/process", "tokio/io-util", "tokio/sync"]

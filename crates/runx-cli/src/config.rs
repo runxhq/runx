@@ -273,7 +273,7 @@ fn execute_config_plan(
 }
 
 /// The settings whose absence means something: the provider's own profile,
-/// or a managed agent that names no key.
+/// or a drive whose model names no key.
 const UNSET_ONLY: &str = "runx config unset clears only endpoint-url, dialect or secret; set another value with runx config set";
 
 fn required_key(plan: &ConfigPlan) -> Result<&str, ConfigCliError> {

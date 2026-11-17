@@ -243,6 +243,7 @@ fn runtime_effect_error(step: &WorkflowStep, source: RuntimeEffectError) -> Runt
             message,
             ..
         } => RuntimeError::ProviderEffectUnknown {
+            step_id: step.id.clone(),
             plan_digest,
             idempotency_key,
             reason: message,

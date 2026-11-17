@@ -1,8 +1,9 @@
 name: code-plan-ready-from-issue-intake
+# It runs in the fixture workspace, a project laid out with its own skills.
+workspace: fixtures/workspace
 inputs:
   objective: Roll out abandoned cart recovery across api and app.
   project_context: Example product workspace
-  repo_root: fixtures/workspace
   change_set:
     change_set_id: change_set_abandoned_cart_982
     thread_locator: support://request/982

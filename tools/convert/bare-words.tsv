@@ -61,7 +61,6 @@ oss	crates/runx-contracts/src/purchase.rs	holds	leases	\bpub $	^:	PurchaseRead's
 oss	crates/runx-contracts/examples/runx-purchase-fixtures.rs	holds	leases	"$	^":	PurchaseRead's leases, in the fixture it writes
 oss	crates/runx-runtime/src/kernel/purchase/tests.rs	holds	leases	remove\("$	^"\)	PurchaseRead's leases, removed from a read to test its absence
 oss	*	max-cost	max-spend	--$		the CLI's --max-spend (cli.md); the max-cost of prose stays
-oss	*	managed-agent	drive	--$		the CLI's --drive (cli.md); a managed agent, the thing, keeps its name
 oss	*	managed-agent-rounds	drive-rounds	--$		the CLI's --drive-rounds (cli.md)
 oss	crates/runx-runtime/src/kernel/purchase/tests.rs	holds	leases	\bpurchase\.$		PurchaseRead's leases, read from a purchase
 oss	README.md	graph	workflow	^A $	^ is what unfolds\.	the README's tagline is prose, in a text block

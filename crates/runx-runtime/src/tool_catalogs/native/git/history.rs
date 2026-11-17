@@ -10,7 +10,7 @@ use runx_contracts::{GIT_LOG_MAX_COMMITS, GitCommit, GitLog, GitPatch, GitShow};
 
 use super::capability::{GitLogInput, GitPatchInput, GitShowInput};
 use super::{
-    NativeInvocation, git_env, invalid_input, non_empty, output_bounded, resolve_repo_root_for,
+    NativeInvocation, git_env, invalid_input, non_empty, output_bounded, resolve_root_for,
     root_name, run_git_limited, validate_revision,
 };
 use crate::RuntimeError;
@@ -26,7 +26,7 @@ const FIELD: char = '\u{1f}';
 
 pub(super) fn log(invocation: &NativeInvocation<'_, GitLogInput>) -> Result<GitLog, RuntimeError> {
     let inputs = invocation.inputs;
-    let root = repo_root(LOG, &inputs.repo_root, invocation)?;
+    let root = repository(LOG, &inputs.repository, invocation)?;
     validate_revision(LOG, "revision", &inputs.revision)?;
     if inputs.max_count == 0 || inputs.max_count > MAX_LOG_COUNT {
         return Err(invalid_input(
@@ -75,7 +75,7 @@ pub(super) fn log(invocation: &NativeInvocation<'_, GitLogInput>) -> Result<GitL
         commits.pop();
     }
     Ok(GitLog {
-        repo_root: root_name(LOG, &invocation.inputs.repo_root)?,
+        repository: root_name(LOG, &invocation.inputs.repository)?,
         revision: non_empty(LOG, "revision", inputs.revision.clone())?,
         commits: BoundedVec::new(commits).ok_or_else(|| {
             invalid_input(
@@ -106,7 +106,7 @@ pub(super) fn show(
     invocation: &NativeInvocation<'_, GitShowInput>,
 ) -> Result<GitShow, RuntimeError> {
     let inputs = invocation.inputs;
-    let root = repo_root(SHOW, &inputs.repo_root, invocation)?;
+    let root = repository(SHOW, &inputs.repository, invocation)?;
     validate_revision(SHOW, "revision", &inputs.revision)?;
     if let Some(path) = &inputs.path {
         validate_paths(SHOW, std::slice::from_ref(path))?;
@@ -119,7 +119,7 @@ pub(super) fn show(
         let (text, truncated) = run(SHOW, &root, &["show", "--no-color", &object], invocation)?;
         let path = non_empty(SHOW, "path", path.clone())?;
         return Ok(GitShow {
-            repo_root: root_name(SHOW, &invocation.inputs.repo_root)?,
+            repository: root_name(SHOW, &invocation.inputs.repository)?,
             revision: non_empty(SHOW, "revision", inputs.revision.clone())?,
             path: Some(path.clone()),
             text,
@@ -170,7 +170,7 @@ pub(super) fn show(
         run(SHOW, &root, &args, invocation)?
     };
     Ok(GitShow {
-        repo_root: root_name(SHOW, &invocation.inputs.repo_root)?,
+        repository: root_name(SHOW, &invocation.inputs.repository)?,
         revision: non_empty(SHOW, "revision", inputs.revision.clone())?,
         path: None,
         text: format!("{header}{patch}"),
@@ -184,7 +184,7 @@ pub(super) fn diff(
     invocation: &NativeInvocation<'_, GitPatchInput>,
 ) -> Result<GitPatch, RuntimeError> {
     let inputs = invocation.inputs;
-    let root = repo_root(PATCH, &inputs.repo_root, invocation)?;
+    let root = repository(PATCH, &inputs.repository, invocation)?;
     validate_revision(PATCH, "base", &inputs.base)?;
     if let Some(head) = &inputs.head {
         validate_revision(PATCH, "head", head)?;
@@ -224,7 +224,7 @@ pub(super) fn diff(
         run(PATCH, &root, &args, invocation)?
     };
     Ok(GitPatch {
-        repo_root: root_name(PATCH, &invocation.inputs.repo_root)?,
+        repository: root_name(PATCH, &invocation.inputs.repository)?,
         base: non_empty(PATCH, "base", inputs.base.clone())?,
         head: inputs
             .head
@@ -238,12 +238,12 @@ pub(super) fn diff(
     })
 }
 
-fn repo_root<I>(
+fn repository<I>(
     tool: &str,
     requested: &str,
     invocation: &NativeInvocation<'_, I>,
 ) -> Result<std::path::PathBuf, RuntimeError> {
-    resolve_repo_root_for(
+    resolve_root_for(
         tool,
         requested,
         invocation.env,

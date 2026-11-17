@@ -7,9 +7,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use runx_contracts::{JsonObject, JsonValue, RunCallOutcome, RunEventFact};
-use runx_runtime::{
-    LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest,
-};
+use runx_runtime::{DrivePolicy, LocalOrchestrator, ResumeRequest, RunResult, SkillRunRequest};
 use tempfile::tempdir;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -182,7 +180,7 @@ fn run_under(
             inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("hello".to_owned()))]),
             env: env.clone(),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -207,7 +205,7 @@ fn resume_under(
         receipt_dir: Some(root.join("receipts")),
         env,
         cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
+        drive: DrivePolicy::HostDriven,
         package_digest: None,
         closure_digest: None,
     })?)
@@ -751,7 +749,7 @@ fn reads_that_settle_together_reach_a_live_script_in_bounded_frames() -> TestRes
             inputs: BTreeMap::from([("items".to_owned(), JsonValue::Array(items))]),
             env: env(temp.path()),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -810,7 +808,7 @@ fn what_a_script_reads_and_lets_go_is_collected_before_it_fills_the_worker() -> 
             inputs: BTreeMap::from([("items".to_owned(), JsonValue::Array(items))]),
             env: env(temp.path()),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -2158,7 +2156,7 @@ const KEPT: &str = "the gate code is 4417";
 
 /// A skill that admits `kept.txt` as `local_only`, runs the script step
 /// `prepare` declared by `prepare`, and gives the agent step `answer` what
-/// `answer_inputs` names. No managed agent works its runs, so their host
+/// `answer_inputs` names. runx drives none of its runs, so their host
 /// can't say its model runs on this machine.
 fn write_local_only_skill(
     root: &Path,
@@ -2714,7 +2712,7 @@ fn run_nested(root: &Path, skill_dir: PathBuf, depth: Option<u32>) -> TestResult
             inputs: BTreeMap::new(),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -2929,7 +2927,7 @@ fn a_child_that_settles_after_a_resume_is_indexed() -> TestResult {
 }
 
 /// Run `skill_dir` under runx's managed driver, whose turns only runx's
-/// managed agent works, on the kernel's local effects.
+/// runx drives, on the kernel's local effects.
 fn run_managed(root: &Path, skill_dir: PathBuf) -> TestResult<RunResult> {
     run_managed_under(root, skill_dir, None)
 }
@@ -2967,7 +2965,7 @@ fn run_managed_in(
             inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("hello".to_owned()))]),
             env,
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(2)?,
+            drive: DrivePolicy::inline(2)?,
         },
         None,
         None,
@@ -3342,7 +3340,7 @@ fn a_source_whose_root_is_gone_recomputes_as_changed() -> TestResult {
     crate::support::write_test_skill_package(
         &temp.path().join("sub-child"),
         "---\nname: sub-child\ndescription: Reads a file under sub.\n---\n# Sub child\n\nRead it.\n",
-        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        tool: fs.read\n        inputs: {repo_root: sub, path: notes.txt}\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      value: {type: string}\n    steps:\n      - id: read\n        tool: fs.read\n        inputs: {path: sub/notes.txt}\n",
     )?;
     let skill_dir = write_reusing_parent(temp.path(), "sub-child")?;
     let ran = run_managed(temp.path(), skill_dir.clone())?;
@@ -3744,7 +3742,7 @@ fn native_history_reads_are_compared_again_for_fixed_steps_and_calls() -> TestRe
 #[test]
 fn a_managed_child_reuses_its_result_under_identical_explicit_context() -> TestResult {
     use runx_contracts::ReuseDecision;
-    use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+    use runx_runtime::scripted_model::{ScriptedModel, drive_env, tool_call};
     let temp = tempdir()?;
     crate::support::write_test_skill_package(
         &temp.path().join("context-child"),
@@ -3772,7 +3770,7 @@ fn a_managed_child_reuses_its_result_under_identical_explicit_context() -> TestR
         )
     })?;
     let mut environment = env(temp.path());
-    environment.extend(managed_agent_env(model.endpoint(), "context-reader"));
+    environment.extend(drive_env(model.endpoint(), "context-reader"));
     let ran = run_managed_in(temp.path(), parent, None, environment)?;
     let requests = model.finish()?;
     assert_eq!(
@@ -3935,7 +3933,7 @@ operations:
                 )]),
                 env: environment,
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::inline(2)?,
+                drive: DrivePolicy::inline(2)?,
             },
             None,
             None,
@@ -4096,7 +4094,7 @@ fn a_scripts_calls_share_the_runs_money_limit() -> TestResult {
             inputs: BTreeMap::from([("value".to_owned(), JsonValue::String("hello".to_owned()))]),
             env: env(temp.path()),
             cwd: temp.path().to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -4431,7 +4429,7 @@ operations:
                 )]),
                 env: env(root),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::inline(2)?,
+                drive: DrivePolicy::inline(2)?,
             },
             None,
             None,
@@ -4764,7 +4762,7 @@ fn a_failed_morning_continues_from_its_positions_and_a_rotated_token_keeps_them(
                 ]),
                 env: environment,
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             Some("follow"),
             None,

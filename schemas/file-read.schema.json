@@ -23,10 +23,6 @@
       "minLength": 1,
       "type": "string"
     },
-    "repo_root": {
-      "minLength": 1,
-      "type": "string"
-    },
     "start_line": {
       "description": "The first line read, counting from 1.",
       "minimum": 1,
@@ -44,7 +40,6 @@
   },
   "required": [
     "path",
-    "repo_root",
     "contents",
     "bytes",
     "truncated",

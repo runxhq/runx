@@ -1,4 +1,4 @@
-//! The managed agent's configuration, resolved for one run: its settings
+//! The drive's configuration, resolved for one run: its settings
 //! from the environment over the home's config file, and its key from the
 //! one place that holds it, the secret `agent.secret` names or a variable.
 
@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::config::{
-    ConfigError, ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect, load_runx_config_file,
-    model_provider, normalize_managed_agent_provider, validate_agent_endpoint_syntax,
+    ConfigError, DriveAuthMode, DriveConfig, ModelDialect, load_runx_config_file, model_provider,
+    normalize_drive_provider, validate_agent_endpoint_syntax,
 };
 use crate::credentials::SecretString;
 use crate::paths::RunxPaths;
@@ -46,10 +46,10 @@ fn accepts_provider(
     }
 }
 
-pub fn load_managed_agent_config(
+pub fn load_drive_config(
     env: &BTreeMap<String, String>,
     cwd: &Path,
-) -> Result<Option<ManagedAgentConfig>, ConfigError> {
+) -> Result<Option<DriveConfig>, ConfigError> {
     let paths = RunxPaths::resolve(env, cwd);
     let config = load_runx_config_file(&paths.config_file())?;
     let auth_mode = env
@@ -60,8 +60,8 @@ pub fn load_managed_agent_config(
                 .as_ref()
                 .and_then(|agent| agent.auth_mode.as_ref())
         })
-        .map_or(Ok(ManagedAgentAuthMode::ApiKey), |value| {
-            ManagedAgentAuthMode::parse(value)
+        .map_or(Ok(DriveAuthMode::ApiKey), |value| {
+            DriveAuthMode::parse(value)
         })?;
     let endpoint_url = env
         .get("RUNX_AGENT_ENDPOINT_URL")
@@ -84,9 +84,9 @@ pub fn load_managed_agent_config(
                 .as_ref()
                 .and_then(|agent| agent.provider.as_ref())
         })
-        .and_then(|value| normalize_managed_agent_provider(value));
+        .and_then(|value| normalize_drive_provider(value));
     let Some(provider) = provider else {
-        if auth_mode == ManagedAgentAuthMode::LocalNone {
+        if auth_mode == DriveAuthMode::LocalNone {
             return Err(ConfigError::InvalidAgentSetting {
                 key: "agent.provider",
                 message: "local_none requires a provider",
@@ -159,7 +159,7 @@ pub fn load_managed_agent_config(
             keys.push((name.to_owned(), value.to_owned()));
         }
     }
-    if auth_mode == ManagedAgentAuthMode::ApiKey
+    if auth_mode == DriveAuthMode::ApiKey
         && let Some(secret) = config
             .agent
             .as_ref()
@@ -192,7 +192,7 @@ pub fn load_managed_agent_config(
         }
     };
     match auth_mode {
-        ManagedAgentAuthMode::ApiKey => {
+        DriveAuthMode::ApiKey => {
             if endpoint_url
                 .as_deref()
                 .is_some_and(|endpoint| !endpoint.starts_with("https://"))
@@ -206,7 +206,7 @@ pub fn load_managed_agent_config(
                 return Ok(None);
             }
         }
-        ManagedAgentAuthMode::LocalNone => {
+        DriveAuthMode::LocalNone => {
             if dialect != ModelDialect::ChatCompletions || !api_key.is_empty() {
                 return Err(ConfigError::InvalidAgentSetting {
                     key: "agent.auth_mode",
@@ -233,7 +233,7 @@ pub fn load_managed_agent_config(
             key: "agent.endpoint_url",
             message: "a provider runx has no profile for needs a dialect and an endpoint",
         })?;
-    Ok(Some(ManagedAgentConfig {
+    Ok(Some(DriveConfig {
         provider,
         dialect,
         model,

@@ -16,16 +16,11 @@
       "minLength": 1,
       "type": "string"
     },
-    "repo_root": {
-      "minLength": 1,
-      "type": "string"
-    },
     "truncated": {
       "type": "boolean"
     }
   },
   "required": [
-    "repo_root",
     "path",
     "entries",
     "truncated"

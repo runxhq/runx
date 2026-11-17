@@ -84,7 +84,7 @@ stable-id readback before a terminal effect claim. A scoped grant is sufficient
 for routine bounded writes. The keyless NWS lane is the reference read shape;
 Nitrosend is the reference credentialed account-operation shape.
 
-Managed-agent execution is optional infrastructure, not an admission category. Turns yield `needs_agent` by default. In-process execution requires per-run `--drive` consent and a visible round budget; configured credentials are availability, not consent.
+Drive execution is optional infrastructure, not an admission category. Turns yield `needs_agent` by default. In-process execution requires per-run `--drive` consent and a visible round budget; configured credentials are availability, not consent.
 Prepared context remains digest-bound and drift-checked for every run, but it
 is evidence rather than an approval gate. A separate human decision belongs to
 exactly one action owner: the native effect when it requests approval, or an

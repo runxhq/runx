@@ -1,6 +1,6 @@
 //! A scripted model on a loopback port: it speaks chat completions with no
 //! key, as a local model server does, and answers each request with what a
-//! test's or a bench's responder makes of it. It proves the managed agent's
+//! test's or a bench's responder makes of it. It proves the drive's
 //! machinery with no spend, and it's scripted, never a real model. Only tests
 //! and benches enable `scripted-model`, so no build that ships has it.
 
@@ -139,10 +139,10 @@ pub fn tool_call(id: &str, name: &str, arguments: &Value) -> Value {
     }]}}]})
 }
 
-/// The managed agent's settings for a scripted model at `endpoint`, named
+/// The drive's settings for a scripted model at `endpoint`, named
 /// `model`, served keyless from this machine.
 #[must_use]
-pub fn managed_agent_env(endpoint: &str, model: &str) -> Vec<(String, String)> {
+pub fn drive_env(endpoint: &str, model: &str) -> Vec<(String, String)> {
     vec![
         (
             "RUNX_AGENT_PROVIDER".to_owned(),

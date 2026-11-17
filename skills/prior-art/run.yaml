@@ -34,11 +34,6 @@ shared_inputs:
       type: string
       minLength: 1
     optional: true
-  repo_root:
-    type: string
-    default: .
-    description: Workspace root used for native catalog and bounded file inspection.
-    optional: true
   snapshot:
     packet: runx.artifact.v1
     description: Exact native project artifact descriptor returned by capture; analysis reads only its retained catalog and complete source bundle.
@@ -52,7 +47,6 @@ methods:
       audience: {}
       artifact_contract: {}
       source_paths: {}
-      repo_root: {}
     examples:
       - objective: Check whether this repository already has a retry helper before adding one.
     result_from: [analyze]
@@ -62,7 +56,6 @@ methods:
         inputs:
           decomposition: $input.decomposition
           source_paths: $input.source_paths
-          repo_root: $input.repo_root
       - id: analyze
         skill: .#analyze
         inputs:
@@ -77,7 +70,6 @@ methods:
     inputs:
       decomposition: {}
       source_paths: {}
-      repo_root: {}
     result_from: [store]
     steps:
       - id: plan
@@ -92,12 +84,10 @@ methods:
           limits: {type: object}
       - id: catalog
         tool: runx.skill.inspect
-        inputs:
-          repo_root: $input.repo_root
+        inputs: {}
       - id: read
         tool: fs.read_bundle
         inputs:
-          repo_root: $input.repo_root
           max_bytes: 262144
           on_missing: report
           paths: $steps.plan.paths
@@ -272,7 +262,6 @@ methods:
           artifact_contract: $input.artifact_contract
           evidence_index: $steps.index.evidence_index
           source_paths: $steps.decode.source_paths
-          repo_root: $steps.decode.file_read_bundle.repo_root
           inspected_bundle: $steps.decode.file_read_bundle
       - id: validate
         inputs:

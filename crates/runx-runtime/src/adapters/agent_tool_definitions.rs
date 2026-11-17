@@ -28,10 +28,10 @@ impl AgentToolNameMap {
                     .bytes()
                     .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
             {
-                return Err("managed agent tool name is not valid on the model wire");
+                return Err("a driven turn's tool name is not valid on the model wire");
             }
             if real_by_wire.insert(wire, definition.name.clone()).is_some() {
-                return Err("managed agent tool names collide on the model wire");
+                return Err("a driven turn's tool names collide on the model wire");
             }
         }
         Ok(Self {

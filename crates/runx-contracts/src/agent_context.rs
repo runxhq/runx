@@ -124,7 +124,7 @@ pub struct ProvenanceEntry {
 #[serde(deny_unknown_fields)]
 pub struct ProfileFile {
     pub sharing: ContextSharing,
-    pub root_path: NonEmptyString,
+    /// From the workspace root, as its tools name files (rule 2).
     pub path: NonEmptyString,
     pub digest: NonEmptyString,
     pub content: String,
@@ -190,7 +190,7 @@ pub struct AgentContextEnvelope {
     pub output: Option<BTreeMap<String, OutputField>>,
     /// Exact root JSON Schema for the final result, including any declared
     /// packet contract. `output` remains the concise field index used by hosts;
-    /// this schema is the validator offered to managed agents.
+    /// this schema is the validator offered to a driven turn's model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<JsonValue>,
     pub trust_boundary: NonEmptyString,

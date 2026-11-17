@@ -14,7 +14,6 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileReadInput {
-    pub(super) repo_root: String,
     pub(super) path: String,
     pub(super) start_line: u64,
     pub(super) line_count: u64,
@@ -24,7 +23,6 @@ pub(super) struct FileReadInput {
 impl CapabilityInput for FileReadInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             (
                 "start_line".to_owned(),
                 JsonValue::Number(JsonNumber::U64(1)),
@@ -44,7 +42,6 @@ impl CapabilityInput for FileReadInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileReadBundleInput {
-    pub(super) repo_root: String,
     pub(super) paths: Vec<String>,
     pub(super) max_bytes: u64,
     pub(super) on_missing: String,
@@ -53,7 +50,6 @@ pub(super) struct FileReadBundleInput {
 impl CapabilityInput for FileReadBundleInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             (
                 "max_bytes".to_owned(),
                 JsonValue::Number(JsonNumber::U64(8 * 1024 * 1024)),
@@ -69,7 +65,6 @@ impl CapabilityInput for FileReadBundleInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileWriteInput {
-    pub(super) repo_root: String,
     pub(super) path: String,
     pub(super) contents: String,
     /// The digest of the content it replaces, as a read returned it.
@@ -82,14 +77,13 @@ pub(super) struct FileWriteInput {
 
 impl CapabilityInput for FileWriteInput {
     fn defaults() -> JsonObject {
-        JsonObject::from([("repo_root".to_owned(), JsonValue::String(".".to_owned()))])
+        JsonObject::new()
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileApplyBundleInput {
-    pub(super) repo_root: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) writes: Vec<FileBundleWrite>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -98,7 +92,7 @@ pub(super) struct FileApplyBundleInput {
 
 impl CapabilityInput for FileApplyBundleInput {
     fn defaults() -> JsonObject {
-        JsonObject::from([("repo_root".to_owned(), JsonValue::String(".".to_owned()))])
+        JsonObject::new()
     }
 }
 
@@ -124,21 +118,19 @@ pub(super) struct TextReplacement {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileEditInput {
-    pub(super) repo_root: String,
     pub(super) path: String,
     pub(super) edits: Vec<TextReplacement>,
 }
 
 impl CapabilityInput for FileEditInput {
     fn defaults() -> JsonObject {
-        JsonObject::from([("repo_root".to_owned(), JsonValue::String(".".to_owned()))])
+        JsonObject::new()
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileListInput {
-    pub(super) repo_root: String,
     pub(super) path: String,
     pub(super) depth: u64,
     pub(super) max_entries: u64,
@@ -147,7 +139,6 @@ pub(super) struct FileListInput {
 impl CapabilityInput for FileListInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             ("path".to_owned(), JsonValue::String(".".to_owned())),
             ("depth".to_owned(), JsonValue::Number(JsonNumber::U64(2))),
             (
@@ -161,7 +152,6 @@ impl CapabilityInput for FileListInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileSearchInput {
-    pub(super) repo_root: String,
     pub(super) path: String,
     pub(super) pattern: String,
     pub(super) regex: bool,
@@ -175,7 +165,6 @@ pub(super) struct FileSearchInput {
 impl CapabilityInput for FileSearchInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             ("path".to_owned(), JsonValue::String(".".to_owned())),
             ("regex".to_owned(), JsonValue::Bool(false)),
             ("case_sensitive".to_owned(), JsonValue::Bool(true)),
@@ -192,10 +181,9 @@ impl CapabilityInput for FileSearchInput {
 }
 
 const LIST_FIELDS: &[CapabilityField] = &[
-    root_field(),
     CapabilityField {
         name: "path",
-        description: "Directory to list, relative to the resolved trusted root.",
+        description: "Directory to list: from the workspace root, $package/<path> in the skill's own package, or an absolute path the run's reach admits.",
     },
     CapabilityField {
         name: "depth",
@@ -208,10 +196,9 @@ const LIST_FIELDS: &[CapabilityField] = &[
 ];
 
 const SEARCH_FIELDS: &[CapabilityField] = &[
-    root_field(),
     CapabilityField {
         name: "path",
-        description: "Directory to search under, or one file to search, relative to the resolved trusted root.",
+        description: "Directory to search under, or one file to search: from the workspace root, $package/<path> in the skill's own package, or an absolute path the run's reach admits.",
     },
     CapabilityField {
         name: "pattern",
@@ -227,7 +214,7 @@ const SEARCH_FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "glob",
-        description: "Optional glob a file's root-relative path must match, such as **/*.rs.",
+        description: "Optional glob a file's path must match, such as **/*.rs, from the directory its path is read under: the workspace root, the package's, or an absolute path's parent.",
     },
     CapabilityField {
         name: "max_results",
@@ -240,10 +227,9 @@ const SEARCH_FIELDS: &[CapabilityField] = &[
 ];
 
 const READ_FIELDS: &[CapabilityField] = &[
-    root_field(),
     CapabilityField {
         name: "path",
-        description: "UTF-8 file path relative to the resolved trusted root.",
+        description: "UTF-8 file path: from the workspace root, $package/<path> for a file of the skill's own package, or an absolute path the run's reach admits.",
     },
     CapabilityField {
         name: "start_line",
@@ -260,10 +246,9 @@ const READ_FIELDS: &[CapabilityField] = &[
 ];
 
 const READ_BUNDLE_FIELDS: &[CapabilityField] = &[
-    root_field(),
     CapabilityField {
         name: "paths",
-        description: "Up to sixteen distinct relative UTF-8 file paths.",
+        description: "Up to sixteen distinct UTF-8 file paths, each from the workspace root, $package/<path>, or an absolute path the run's reach admits.",
     },
     CapabilityField {
         name: "max_bytes",
@@ -276,10 +261,9 @@ const READ_BUNDLE_FIELDS: &[CapabilityField] = &[
 ];
 
 const WRITE_FIELDS: &[CapabilityField] = &[
-    root_field(),
     CapabilityField {
         name: "path",
-        description: "UTF-8 file path relative to the resolved trusted root.",
+        description: "UTF-8 file path: from the workspace root, $package/<path> for a file of the skill's own package, or an absolute path the run's reach admits.",
     },
     CapabilityField {
         name: "contents",
@@ -296,10 +280,9 @@ const WRITE_FIELDS: &[CapabilityField] = &[
 ];
 
 const EDIT_FIELDS: &[CapabilityField] = &[
-    root_field(),
     CapabilityField {
         name: "path",
-        description: "UTF-8 file path relative to the resolved trusted root; the file must exist.",
+        description: "UTF-8 file path from the workspace root; the file must exist.",
     },
     CapabilityField {
         name: "edits",
@@ -308,23 +291,15 @@ const EDIT_FIELDS: &[CapabilityField] = &[
 ];
 
 const APPLY_FIELDS: &[CapabilityField] = &[
-    root_field(),
     CapabilityField {
         name: "writes",
-        description: "Bounded array of relative-path UTF-8 text writes, each with the expected_digest of what it replaces or create for a new file.",
+        description: "Bounded array of UTF-8 text writes, each path from the workspace root, each with the expected_digest of what it replaces or create for a new file.",
     },
     CapabilityField {
         name: "deletes",
-        description: "Bounded array of relative file paths to delete, each a path or {path, expected_digest}.",
+        description: "Bounded array of file paths to delete, from the workspace root, each a path or {path, expected_digest}.",
     },
 ];
-
-const fn root_field() -> CapabilityField {
-    CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative project root, or $package for the skill's own package; the runtime owns the workspace boundary. A path beginning $package/ names a file of the skill's own package.",
-    }
-}
 
 static READ: TypedNativeCapability<FileReadInput, FileRead> = TypedNativeCapability::new(
     CapabilityDefinition {

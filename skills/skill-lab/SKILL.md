@@ -226,10 +226,9 @@ authoring.
   construct a valid call without reading source or fixtures, understand a
   path-specific rejection, and continue from the resulting context. Exercise
   every materially different method; a default-only export cannot certify a
-  multi-method skill. For an existing target, use
-  `authoring_context.target_inspection` as the canonical method-contract and
-  closure evidence. An `invalid` inspection is repair context, not
-  permission to guess: read the declared target files, correct the owning
+  multi-method skill. For an existing target, use `authoring_brief.target`
+  as the canonical method contract: what each method takes and returns. An
+  `invalid` target is repair context, not permission to guess: read the declared target files, correct the owning
   contract, and validate the complete candidate.
 - Design evidence admission around the operator's job, not the first provider
   implementation. When analysis is useful over local admitted files or
@@ -291,8 +290,12 @@ authoring.
 - Each test is one `tests/<name>.yaml`: its `name`, the `method` it runs, its
   `inputs`, what answers the run under `host` (agent `answers` by request id,
   `turns` worked call by call, `approvals`), exactly what it reaches under
-  `providers` (`http`, `mcp`, `processes`, `hosted`), and its `expect`. Data a
-  test reads lives under `fixtures/`, which runx stages whole into the isolated
+  `providers` (`http`, `mcp`, `processes`, `hosted`), and its `expect`: its
+  `status` (`sealed`, `failure`, `needs_agent`, `needs_approval`,
+  `policy_denied`, `declined` or `escalated`), the `steps` that ran, the
+  method's result under `output` and a step's under `step_outputs.<id>`, each
+  as `exact` or `subset`, and `absent`, the JSON pointers a subset must not
+  hold. Data a test reads lives under `fixtures/`, which runx stages whole into the isolated
   test workspace, with `fixtures/bin/` executable; a test that composes skills
   uses a small fixture package there, named by the test's `package`. Do not
   turn `fixtures/` into a second source tree or include unconsumed helpers.
@@ -507,9 +510,8 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
 - `package_name` (optional, build, design and save): the name a new package takes, its
   `SKILL.md` frontmatter `name`, even when the target directory has a
   different basename.
-- `repo_root` (optional): workspace root; defaults to the caller workspace.
-- `target_dir` (required): repo-relative package directory; a design writes
-  nothing there.
+- `target_dir` (required): the package directory, a path from the workspace
+  root; a design writes nothing there.
 - `project_context` (optional): product, repository, and operator constraints.
 - `receipt_id`, `receipt_summary`, `test_output`, `failure_packet` (improve and draft):
   failure evidence, including the stable packet from `diagnose-skill-run`.
@@ -524,9 +526,9 @@ Read the target package and the catalog, decide, and return one
 the capability runx lacks; its `writes` are the smallest complete set of whole
 files and its `deletes` the files the change removes. Only a `write` carries
 writes or deletes. Every path is named from the workspace root, as
-`authoring_context.target_files` lists them and the read tools take them:
-`<target_dir>/SKILL.md`. Never copy or calculate a digest: native bind binds
-the draft to the package you inspected.
+`authoring_brief.target_files` lists them and the read tools take them:
+`<target_dir>/SKILL.md`. Native bind binds the draft to the package you
+inspected.
 
 The decision fits the method. A `build` creates a package where none stands, or
 finds the work `no_skill` or `needs_core`. An `improve` changes the package that
@@ -557,7 +559,7 @@ turn's request as one that should select it and two nearby skills' requests as
 ones that shouldn't, and `evals/evals.json` with the saved method run on the
 recorded inputs.
 
-Inspect the target in one bounded pass: read the files `authoring_context`
+Inspect the target in one bounded pass: read the files `authoring_brief`
 lists together with `fs.read_bundle`, rather than one at a time, and don't
 reread files already in context. Once the evidence is sufficient, return the
 draft rather than spending the remaining rounds on optional discovery.

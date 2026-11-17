@@ -1,4 +1,4 @@
-use runx_runtime::{DEFAULT_MANAGED_AGENT_MAX_ROUNDS, ManagedAgentPolicy};
+use runx_runtime::{DEFAULT_DRIVE_MAX_ROUNDS, DrivePolicy};
 
 pub(crate) fn parse_boolean_flag(command: &str, flag: &str, value: &str) -> Result<bool, String> {
     match value.trim().to_ascii_lowercase().as_str() {
@@ -8,24 +8,24 @@ pub(crate) fn parse_boolean_flag(command: &str, flag: &str, value: &str) -> Resu
     }
 }
 
-pub(crate) fn parse_managed_agent_rounds(command: &str, value: &str) -> Result<u32, String> {
+pub(crate) fn parse_drive_rounds(command: &str, value: &str) -> Result<u32, String> {
     value
         .trim()
         .parse::<u32>()
         .map_err(|_| format!("runx {command} --drive-rounds expects a positive integer"))
 }
 
-pub(crate) fn managed_agent_policy(
+pub(crate) fn drive_policy(
     command: &str,
     enabled: bool,
     max_rounds: Option<u32>,
-) -> Result<ManagedAgentPolicy, String> {
+) -> Result<DrivePolicy, String> {
     if !enabled {
         if max_rounds.is_some() {
             return Err(format!("runx {command} --drive-rounds requires --drive"));
         }
-        return Ok(ManagedAgentPolicy::HostDriven);
+        return Ok(DrivePolicy::HostDriven);
     }
-    ManagedAgentPolicy::inline(max_rounds.unwrap_or(DEFAULT_MANAGED_AGENT_MAX_ROUNDS))
+    DrivePolicy::inline(max_rounds.unwrap_or(DEFAULT_DRIVE_MAX_ROUNDS))
         .map_err(|error| format!("runx {command} {error}"))
 }

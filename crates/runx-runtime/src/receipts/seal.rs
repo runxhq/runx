@@ -190,58 +190,60 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
     Ok(receipt)
 }
 
-/// Why a failed step failed: the record the runtime kept of its failure, its
-/// code, reason, whether a retry is offered and its own fields, or where it
-/// kept none, what the step's diagnostics say. Each source has already
-/// recorded a never-persist value by its digest and removed a presented
-/// credential.
+/// Why a failed step failed: its failure as the layer that decided it said
+/// it, with the code, whether a retry is offered and the fields of the record
+/// the runtime kept of it, or where it kept none, what the step's diagnostics
+/// say. Each source has already recorded a never-persist value by its digest
+/// and removed a presented credential.
 fn seal_failure(output: &InvocationOutput) -> SealFailure {
-    const UNSTATED: &str = "the step failed with no diagnostic output";
-    let diagnosed = || output.failure_message().and_then(NonEmptyString::new);
-    let Some(record) = &output.observations.failure else {
-        let (code, fields) = match &output.diagnostics {
-            crate::adapter::InvocationDiagnostics::Process { exit_code, .. } => (
-                "process_failed",
-                exit_code
-                    .map(|code| {
-                        JsonObject::from([(
-                            "exit_code".to_owned(),
-                            JsonValue::Number(runx_contracts::JsonNumber::I64(i64::from(code))),
-                        )])
-                    })
-                    .unwrap_or_default(),
-            ),
-            crate::adapter::InvocationDiagnostics::Runtime { .. } => {
-                ("runtime_error", JsonObject::new())
-            }
-        };
-        return SealFailure {
-            code: code.into(),
-            reason: diagnosed().unwrap_or_else(|| UNSTATED.into()),
-            retryable: false,
-            fields,
-        };
-    };
-    let text = |name: &str| {
-        record
-            .get(name)
-            .and_then(JsonValue::as_str)
-            .and_then(NonEmptyString::new)
+    let failure = output
+        .failure("its process")
+        .unwrap_or_else(|| crate::Failure::new("runx", "the step failed and said nothing of why"));
+    let text = |value: &str| NonEmptyString::new(value.trim());
+    let record = output.observations.failure.as_ref();
+    let (code, fields) = match (record, &output.diagnostics) {
+        (Some(record), _) => (
+            record
+                .get("code")
+                .and_then(JsonValue::as_str)
+                .and_then(text)
+                .unwrap_or_else(|| "runtime_error".into()),
+            record
+                .iter()
+                .filter(|(name, _)| {
+                    !matches!(name.as_str(), "code" | "reason" | "message" | "retryable")
+                })
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect(),
+        ),
+        (None, crate::adapter::InvocationDiagnostics::Process { exit_code, .. }) => (
+            "process_failed".into(),
+            exit_code
+                .map(|code| {
+                    JsonObject::from([(
+                        "exit_code".to_owned(),
+                        JsonValue::Number(runx_contracts::JsonNumber::I64(i64::from(code))),
+                    )])
+                })
+                .unwrap_or_default(),
+        ),
+        (None, crate::adapter::InvocationDiagnostics::Runtime { .. }) => {
+            ("runtime_error".into(), JsonObject::new())
+        }
     };
     SealFailure {
-        code: text("code").unwrap_or_else(|| "runtime_error".into()),
-        reason: text("reason")
-            .or_else(|| text("message"))
-            .or_else(diagnosed)
-            .unwrap_or_else(|| UNSTATED.into()),
-        retryable: record.get("retryable") == Some(&JsonValue::Bool(true)),
-        fields: record
+        code,
+        decided_by: text(&failure.decided_by).unwrap_or_else(|| "runx".into()),
+        at: failure
+            .at
             .iter()
-            .filter(|(name, _)| {
-                !matches!(name.as_str(), "code" | "reason" | "message" | "retryable")
-            })
-            .map(|(name, value)| (name.clone(), value.clone()))
+            .filter_map(|segment| text(segment))
             .collect(),
+        reason: text(&failure.reason).unwrap_or_else(|| "it failed and said nothing of why".into()),
+        next: failure.next.as_deref().and_then(text),
+        retryable: record.and_then(|record| record.get("retryable"))
+            == Some(&JsonValue::Bool(true)),
+        fields,
     }
 }
 

@@ -60,8 +60,9 @@ const INSTRUCTION_FILES: &[&str] = &["AGENTS.md", "CLAUDE.md"];
 /// The project's instructions (agent-sessions §3): each `AGENTS.md` and
 /// `CLAUDE.md` from the repository root that contains the workspace down to
 /// the workspace, in that order. These are the only files runx reads above
-/// the workspace. Each is bounded, and one that is a link leaving its
-/// directory is refused.
+/// the workspace. Each is bounded, one that is a link leaving its directory is
+/// refused, and a file two names reach, such as a `CLAUDE.md` linked to its
+/// `AGENTS.md`, is read once.
 fn project_instructions(request: &SkillInvocation) -> Result<Vec<ProfileFile>, RuntimeError> {
     let paths = crate::RunxPaths::resolve(&request.env, &request.skill_directory);
     let workspace =
@@ -76,6 +77,7 @@ fn project_instructions(request: &SkillInvocation) -> Result<Vec<ProfileFile>, R
         .take_while(|directory| directory.starts_with(&root))
         .collect::<Vec<_>>();
     directories.reverse();
+    let mut read = BTreeSet::new();
     let mut instructions = Vec::new();
     for directory in directories {
         for name in INSTRUCTION_FILES {
@@ -85,30 +87,22 @@ fn project_instructions(request: &SkillInvocation) -> Result<Vec<ProfileFile>, R
             };
             if metadata.file_type().is_symlink() {
                 let target = fs::canonicalize(&path).map_err(|error| {
-                    RuntimeError::io(format!("resolving {}", path.display()), error)
+                    RuntimeError::io(format!("resolving {}", named(request, &path)), error)
                 })?;
                 if target.parent() != Some(directory) {
                     return Err(RuntimeError::failed(
                         "the context profile",
                         format!(
                             "{} links outside its directory, so it is not read as the project's instructions",
-                            path.display()
+                            named(request, &path)
                         ),
                     ));
                 }
             }
-            if !path.is_file() {
+            if !path.is_file() || !read.insert(fs::canonicalize(&path).unwrap_or(path.clone())) {
                 continue;
             }
-            let mut profile = read_profile_file(request, &path)?;
-            profile.root_path = root.to_string_lossy().into_owned().into();
-            profile.path = path
-                .strip_prefix(&root)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .into_owned()
-                .into();
-            instructions.push(profile);
+            instructions.push(read_profile_file(request, &path)?);
         }
     }
     Ok(instructions)
@@ -143,40 +137,74 @@ fn profile_candidates(request: &SkillInvocation, file_name: &str) -> Vec<PathBuf
     candidates
 }
 
+/// A project file's path as every party names it (rule 2): from the
+/// workspace root, `$package/<path>` in the skill's own package outside it,
+/// and `../` for a directory above it, where a repository's instructions are.
+fn named(request: &SkillInvocation, path: &Path) -> String {
+    let paths = crate::RunxPaths::resolve(&request.env, &request.skill_directory);
+    let canonical = |path: &Path| fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    // The file by its own name, a link as itself, in its canonical directory.
+    let path = match (path.parent(), path.file_name()) {
+        (Some(directory), Some(name)) => canonical(directory).join(name),
+        _ => path.to_path_buf(),
+    };
+    let workspace = canonical(paths.workspace());
+    let slashed = |relative: &Path| relative.to_string_lossy().replace('\\', "/");
+    if let Ok(relative) = path.strip_prefix(&workspace) {
+        return slashed(relative);
+    }
+    if let Ok(relative) = path.strip_prefix(canonical(&request.skill_directory)) {
+        return format!("{}/{}", crate::services::PACKAGE_BASE, slashed(relative));
+    }
+    let common = workspace
+        .ancestors()
+        .find(|ancestor| path.starts_with(ancestor))
+        .unwrap_or(Path::new("/"));
+    let up = workspace.components().count() - common.components().count();
+    format!(
+        "{}{}",
+        "../".repeat(up),
+        slashed(path.strip_prefix(common).unwrap_or(&path))
+    )
+}
+
+/// Who a project file may be sent to. The project's files instruct whatever
+/// agent works in it, so they reach the configured model, as `CLAUDE.md`
+/// reaches Claude Code's; `RUNX_PROFILE_SHARING=local_only` keeps them on this
+/// machine.
+fn profile_sharing(
+    request: &SkillInvocation,
+) -> Result<runx_contracts::ContextSharing, RuntimeError> {
+    match request.env.get("RUNX_PROFILE_SHARING").map(String::as_str) {
+        None | Some("configured_model") => Ok(runx_contracts::ContextSharing::ConfiguredModel),
+        Some("local_only") => Ok(runx_contracts::ContextSharing::LocalOnly),
+        Some(other) => Err(RuntimeError::Failed(Box::new(
+            crate::Failure::new(
+                "the context profile",
+                format!("RUNX_PROFILE_SHARING is {other}, which names no sharing"),
+            )
+            .next("set it to configured_model or local_only, or leave it unset"),
+        ))),
+    }
+}
+
 fn read_profile_file(request: &SkillInvocation, path: &Path) -> Result<ProfileFile, RuntimeError> {
-    let file = fs::File::open(path)
-        .map_err(|error| RuntimeError::io(format!("reading {}", path.display()), error))?;
+    let name = named(request, path);
+    let file =
+        fs::File::open(path).map_err(|error| RuntimeError::io(format!("reading {name}"), error))?;
     let mut content = String::new();
     file.take(MAX_PROFILE_BYTES as u64 + 1)
         .read_to_string(&mut content)
-        .map_err(|error| RuntimeError::io("reading context profile", error))?;
+        .map_err(|error| RuntimeError::io(format!("reading {name}"), error))?;
     if content.len() > MAX_PROFILE_BYTES {
         return Err(RuntimeError::failed(
             "the context profile",
-            "context profile exceeds 128 KiB".to_owned(),
+            format!("{name} is past 128 KiB, the most a turn is given of one file"),
         ));
     }
-    let sharing = match request.env.get("RUNX_PROFILE_SHARING").map(String::as_str) {
-        None | Some("local_only") => runx_contracts::ContextSharing::LocalOnly,
-        Some("configured_model") => runx_contracts::ContextSharing::ConfiguredModel,
-        _ => {
-            return Err(RuntimeError::failed(
-                "the context profile",
-                "invalid context profile sharing policy".to_owned(),
-            ));
-        }
-    };
-    let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let root = canonical.parent().unwrap_or_else(|| Path::new("."));
-    let relative = canonical
-        .strip_prefix(root)
-        .unwrap_or(&canonical)
-        .to_string_lossy()
-        .into_owned();
     Ok(ProfileFile {
-        sharing,
-        root_path: root.to_string_lossy().into_owned().into(),
-        path: relative.into(),
+        sharing: profile_sharing(request)?,
+        path: name.into(),
         digest: sha256_prefixed(content.as_bytes()).into(),
         content,
     })

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use runx_runtime::orchestrator::{LocalOrchestrator, ManagedAgentPolicy, SkillRunRequest};
+use runx_runtime::orchestrator::{DrivePolicy, LocalOrchestrator, SkillRunRequest};
 use tempfile::tempdir;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -90,7 +90,7 @@ fn run(
             inputs: serde_json::from_value(inputs)?,
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         Some(method),
         None,
@@ -124,7 +124,7 @@ fn answer(
         receipt_dir: Some(root.join("receipts")),
         env: env(root),
         cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
+        drive: DrivePolicy::HostDriven,
         package_digest: None,
         closure_digest: None,
     })?;
@@ -299,7 +299,7 @@ fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> Tes
 }
 
 /// `reflect#reflect` in the workspace at `root`, its turns worked by the
-/// scripted model at `endpoint`, as runx's managed agent drives them.
+/// scripted model at `endpoint`, as runx drives them.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflect(root: &Path, endpoint: &str) -> TestResult<serde_json::Value> {
     reflect_as(root, endpoint, "nightly")
@@ -309,7 +309,7 @@ fn reflect(root: &Path, endpoint: &str) -> TestResult<serde_json::Value> {
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflect_as(root: &Path, endpoint: &str, reader: &str) -> TestResult<serde_json::Value> {
     let mut environment = env(root);
-    environment.extend(runx_runtime::scripted_model::managed_agent_env(
+    environment.extend(runx_runtime::scripted_model::drive_env(
         endpoint,
         "fixture-model",
     ));
@@ -332,7 +332,7 @@ fn reflect_as(root: &Path, endpoint: &str, reader: &str) -> TestResult<serde_jso
             )?,
             env: environment,
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::inline(4)?,
+            drive: DrivePolicy::inline(4)?,
         },
         Some("reflect"),
         None,
@@ -358,14 +358,16 @@ fn turn_inputs(request: &serde_json::Value) -> serde_json::Value {
         .unwrap_or_default()
 }
 
-/// Read-only reflection on scripted answers: each resistance is diagnosed
-/// and each sampled success asked the purpose-only question, each a fresh
-/// turn. A diagnosis citing what the record doesn't hold is dropped. The
-/// window is decided by the one rule: what nothing has kept yet is not met,
-/// and the loop repeats exactly.
+/// Reflection on scripted answers: each resistance is diagnosed and each
+/// sampled success asked the purpose-only question, each a fresh turn. A
+/// diagnosis citing what the record doesn't hold is dropped. A success that
+/// did the wrong thing is repaired as a failure is: its fix is drafted, and it
+/// is kept as an observation. The window is decided by the one rule: what
+/// nothing has kept yet is not met, and the loop repeats exactly.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 #[test]
-fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestResult {
+fn reflection_judges_the_window_repairs_a_wrong_result_and_drops_a_finding_the_record_lacks()
+-> TestResult {
     let temp = tempdir()?;
     let root = temp.path();
     record(root)?;
@@ -407,7 +409,26 @@ fn reflection_judges_the_window_and_drops_a_finding_the_record_lacks() -> TestRe
         finding(&resistance("declined_ask"))["finding"].is_object(),
         "{first}"
     );
-    assert_eq!(finding("sampled_1")["finding"]["met"], true, "{first}");
+    assert_eq!(finding("sampled_1")["finding"]["met"], false, "{first}");
+    // The wrong result went the way a failure goes: a fix was drafted, and it
+    // was kept as an observation.
+    assert!(
+        first["result"]["proposals"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|entry| entry["criterion"] == "sampled_1"
+                && entry["dropped"] == "the draft changes nothing"),
+        "{first}"
+    );
+    assert!(
+        first["result"]["observed"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|entry| entry["criterion"] == "sampled_1" && entry["handle"].is_string()),
+        "{first}"
+    );
 
     let verdict = &first["result"]["verdict"];
     assert_eq!(verdict["verdict"], "not_met", "{verdict}");
@@ -478,15 +499,16 @@ fn fixed_greet() -> serde_json::Value {
 enum Diagnoses {
     /// Each cites its own evidence, in the same words every time.
     Faithful,
-    /// The stopped run's cites a receipt no record holds.
+    /// The stopped run's cites a receipt no record holds, and the sampled
+    /// success is found to have done the wrong thing.
     MisdirectTheStoppedRun,
     /// Each is put in words of its own, as a model's are.
     Reworded,
 }
 
 /// The scripted model a whole reflection runs on: each diagnosis as
-/// `diagnoses` gives it, each sampled run did what its purpose asks, and
-/// skill-lab writes the fix and its case for the stopped run.
+/// `diagnoses` gives it, each sampled run did what its purpose asks unless
+/// misdirected, and skill-lab writes the fix and its case for the stopped run.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflection_model(
     diagnoses: Diagnoses,
@@ -534,6 +556,11 @@ fn reflection_model(
             }}));
         }
         let address = inputs["run"]["events"][0]["address"].clone();
+        if diagnoses == Diagnoses::MisdirectTheStoppedRun {
+            return complete(
+                serde_json::json!({"finding": {"met": false, "summary": "It digested one name, where the purpose asks it to greet the team.", "evidence": [address]}}),
+            );
+        }
         complete(
             serde_json::json!({"finding": {"met": true, "summary": "It did what its purpose asks.", "evidence": [address]}}),
         )
@@ -550,7 +577,7 @@ fn decide_change(
     decision: serde_json::Value,
 ) -> TestResult<serde_json::Value> {
     let mut environment = env(root);
-    environment.extend(runx_runtime::scripted_model::managed_agent_env(
+    environment.extend(runx_runtime::scripted_model::drive_env(
         endpoint,
         "fixture-model",
     ));
@@ -577,7 +604,7 @@ fn decide_change(
         receipt_dir: Some(root.join("receipts")),
         env: environment,
         cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::inline(4)?,
+        drive: DrivePolicy::inline(4)?,
         package_digest: None,
         closure_digest: None,
     })?;
@@ -822,7 +849,7 @@ fn reflection_reads_no_personal_memory_and_never_keeps_or_corrects_a_persons_wor
     let widened = serde_json::json!({"delegations": [{"connector": "private", "terms": [{"verbs": ["read", "write"],
         "bounds": {"operations": ["private/*"], "scopes": ["store.read", "store.append"], "targets": everything, "packages": ["project:reflect", "runx/memory"]}}]}]});
     let mut environment = env(root);
-    environment.extend(runx_runtime::scripted_model::managed_agent_env(
+    environment.extend(runx_runtime::scripted_model::drive_env(
         &endpoint,
         "fixture-model",
     ));
@@ -848,7 +875,7 @@ fn reflection_reads_no_personal_memory_and_never_keeps_or_corrects_a_persons_wor
                 )?,
                 env: environment.clone(),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::inline(4)?,
+                drive: DrivePolicy::inline(4)?,
             },
             Some("reflect"),
             None,

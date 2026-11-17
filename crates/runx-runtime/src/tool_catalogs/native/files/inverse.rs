@@ -88,13 +88,18 @@ fn inverse(
         }
     }
     let root = root.ok_or_else(|| refused("the calls changed nothing".to_owned()))?;
-    let repo_root = root
+    // Each file named from the workspace root, as every file tool names it.
+    let base = root
         .strip_prefix(&workspace)
-        .map(|relative| match relative.to_string_lossy().into_owned() {
-            relative if relative.is_empty() => ".".to_owned(),
-            relative => relative,
-        })
+        .map(|relative| relative.to_string_lossy().replace('\\', "/"))
         .map_err(|_| refused(format!("{} lies outside the workspace", root.display())))?;
+    let from_workspace = |path: String| {
+        if base.is_empty() {
+            path
+        } else {
+            format!("{base}/{path}")
+        }
+    };
     let named = |value: String, what: &str| {
         NonEmptyString::new(value)
             .ok_or_else(|| refused(format!("an edit recorded an empty {what}")))
@@ -121,10 +126,10 @@ fn inverse(
                     .map_err(|_| refused(format!("{path} held content that is not text")))?,
                 create: now.is_none(),
                 expected_digest: now,
-                path: named(path, "path")?,
+                path: named(from_workspace(path), "path")?,
             }),
             (None, Some(digest)) => deletes.push(FileBoundDelete {
-                path: named(path, "path")?,
+                path: named(from_workspace(path), "path")?,
                 expected_digest: digest,
             }),
             (None, None) => {}
@@ -142,7 +147,6 @@ fn inverse(
         .map(|call_id| named(call_id, "call id"))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(FileInverseBundle {
-        repo_root: named(repo_root, "root")?,
         writes,
         deletes,
         calls: NonEmptyVec::new(calls)

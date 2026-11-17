@@ -15,7 +15,7 @@ pub(super) fn prepare(
 ) -> Result<PreparedCommand, RuntimeError> {
     let inputs = invocation.inputs;
     let Argv {
-        repo_root,
+        workspace,
         command,
         args,
         cwd,
@@ -25,7 +25,7 @@ pub(super) fn prepare(
         TOOL,
         invocation,
         ArgvRequest {
-            repo_root: &inputs.repo_root,
+            workspace: ".",
             command: &inputs.command,
             args: &inputs.args,
             cwd: &inputs.cwd,
@@ -50,7 +50,7 @@ pub(super) fn prepare(
     Ok(PreparedCommand {
         command,
         args,
-        repo_root,
+        workspace,
         cwd,
         cwd_relative,
         explicit_env,

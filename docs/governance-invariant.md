@@ -41,7 +41,7 @@ Execution truth is lane-specific:
 - native capabilities enforce their own typed scope and effect contract;
 - deterministic JavaScript receives an in-memory module bundle, JSON,
   declared non-secret environment, fixed limits, and no host APIs;
-- managed agent work records a remote-provider boundary;
+- a driven turn records a remote-provider boundary;
 - CLI tools, local MCP servers, and process protocols are trusted host code.
 
 For host processes runx controls exact argv, cwd, delivered environment,

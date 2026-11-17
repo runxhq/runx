@@ -44,7 +44,7 @@ fn run(root: &Path, skill: &Path) -> TestResult<Value> {
             inputs: BTreeMap::new(),
             env,
             cwd: root.to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         },
         None,
         None,

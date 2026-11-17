@@ -7,7 +7,6 @@ use super::types::{
     McpServerToolBehavior, McpToolResult, McpTurnRuns,
 };
 use crate::RuntimeError;
-use runx_contracts::schema::RunxSchema;
 use runx_contracts::{CallAct, JsonObject, JsonValue};
 
 impl McpServerOptions {
@@ -146,7 +145,7 @@ fn skill_inputs_to_json_schema(
     method: &runx_parser::SkillMethodDefinition,
 ) -> Result<JsonObject, RuntimeError> {
     let mut schema = method.input_schema();
-    let act = JsonValue::from_serialize(&CallAct::json_schema()).map_err(|error| {
+    let act = JsonValue::from_serialize(&CallAct::stated_schema()).map_err(|error| {
         RuntimeError::EngineInvariant {
             context: "describing a skill tool",
             message: error.to_string(),
@@ -193,7 +192,7 @@ pub(super) fn execute_mcp_server_skill(
         inputs,
         env: execution.env,
         cwd: workspace.cwd().to_path_buf(),
-        managed_agent: Default::default(),
+        drive: Default::default(),
     };
     let result = match crate::execution::orchestrator::LocalOrchestrator::with_effects(effects)
         .run_skill_with_services(

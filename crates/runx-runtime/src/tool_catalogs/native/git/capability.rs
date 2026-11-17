@@ -14,26 +14,26 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct GitInput {
-    pub(super) repo_root: String,
+    pub(super) repository: String,
 }
 
 impl CapabilityInput for GitInput {
     fn defaults() -> JsonObject {
-        JsonObject::from([("repo_root".to_owned(), JsonValue::String(".".to_owned()))])
+        JsonObject::from([("repository".to_owned(), JsonValue::String(".".to_owned()))])
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct GitDiffInput {
-    pub(super) repo_root: String,
+    pub(super) repository: String,
     pub(super) base: String,
 }
 
 impl CapabilityInput for GitDiffInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
+            ("repository".to_owned(), JsonValue::String(".".to_owned())),
             ("base".to_owned(), JsonValue::String("HEAD".to_owned())),
         ])
     }
@@ -65,7 +65,7 @@ impl CapabilityOutput for GitBlobDigestOutput {}
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct GitLogInput {
-    pub(super) repo_root: String,
+    pub(super) repository: String,
     pub(super) revision: String,
     pub(super) max_count: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -77,7 +77,7 @@ pub(super) struct GitLogInput {
 impl CapabilityInput for GitLogInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
+            ("repository".to_owned(), JsonValue::String(".".to_owned())),
             ("revision".to_owned(), JsonValue::String("HEAD".to_owned())),
             (
                 "max_count".to_owned(),
@@ -90,7 +90,7 @@ impl CapabilityInput for GitLogInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct GitShowInput {
-    pub(super) repo_root: String,
+    pub(super) repository: String,
     pub(super) revision: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) path: Option<String>,
@@ -99,7 +99,7 @@ pub(super) struct GitShowInput {
 impl CapabilityInput for GitShowInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
+            ("repository".to_owned(), JsonValue::String(".".to_owned())),
             ("revision".to_owned(), JsonValue::String("HEAD".to_owned())),
         ])
     }
@@ -108,7 +108,7 @@ impl CapabilityInput for GitShowInput {
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct GitPatchInput {
-    pub(super) repo_root: String,
+    pub(super) repository: String,
     pub(super) base: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) head: Option<String>,
@@ -120,7 +120,7 @@ pub(super) struct GitPatchInput {
 impl CapabilityInput for GitPatchInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
+            ("repository".to_owned(), JsonValue::String(".".to_owned())),
             ("base".to_owned(), JsonValue::String("HEAD".to_owned())),
             ("stat".to_owned(), JsonValue::Bool(false)),
         ])
@@ -129,8 +129,8 @@ impl CapabilityInput for GitPatchInput {
 
 const LOG_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative Git repository root.",
+        name: "repository",
+        description: "The repository to read, a path from the workspace root; the workspace itself by default.",
     },
     CapabilityField {
         name: "revision",
@@ -142,7 +142,7 @@ const LOG_FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "paths",
-        description: "Optional paths, relative to the root, that the commits must touch.",
+        description: "Optional paths, relative to the repository, that the commits must touch.",
     },
     CapabilityField {
         name: "since",
@@ -152,8 +152,8 @@ const LOG_FIELDS: &[CapabilityField] = &[
 
 const SHOW_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative Git repository root.",
+        name: "repository",
+        description: "The repository to read, a path from the workspace root; the workspace itself by default.",
     },
     CapabilityField {
         name: "revision",
@@ -161,14 +161,14 @@ const SHOW_FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "path",
-        description: "Optional file, relative to the root, to show as it was at the revision.",
+        description: "Optional file, relative to the repository, to show as it was at the revision.",
     },
 ];
 
 const PATCH_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative Git repository root.",
+        name: "repository",
+        description: "The repository to read, a path from the workspace root; the workspace itself by default.",
     },
     CapabilityField {
         name: "base",
@@ -180,7 +180,7 @@ const PATCH_FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "paths",
-        description: "Optional paths, relative to the root, to limit the comparison to.",
+        description: "Optional paths, relative to the repository, to limit the comparison to.",
     },
     CapabilityField {
         name: "stat",
@@ -189,14 +189,14 @@ const PATCH_FIELDS: &[CapabilityField] = &[
 ];
 
 const ROOT_FIELDS: &[CapabilityField] = &[CapabilityField {
-    name: "repo_root",
-    description: "Workspace-relative Git repository root.",
+    name: "repository",
+    description: "The repository to read, a path from the workspace root; the workspace itself by default.",
 }];
 
 const DIFF_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative Git repository root.",
+        name: "repository",
+        description: "The repository to read, a path from the workspace root; the workspace itself by default.",
     },
     CapabilityField {
         name: "base",

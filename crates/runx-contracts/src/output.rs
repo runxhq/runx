@@ -261,9 +261,24 @@ pub fn validate_output_schema_value(
     };
     Err(OutputValidationError {
         path: validation_error_path(&error),
-        message: error.masked().to_string(),
+        message: match described(&schema, error.schema_path().as_str()) {
+            Some(description) => format!("{}: {description}", error.masked()),
+            None => error.masked().to_string(),
+        },
         rule: Some(rule),
     })
+}
+
+/// The description the contract gives the rule a value broke, when it gives
+/// one: the schema node that holds the failing keyword. It says why in the
+/// contract's own words, beside the validator's.
+fn described(schema: &serde_json::Value, keyword_path: &str) -> Option<String> {
+    let node = keyword_path.rsplit_once('/').map_or("", |(node, _)| node);
+    schema
+        .pointer(node)?
+        .get("description")?
+        .as_str()
+        .map(str::to_owned)
 }
 
 fn object_schema() -> JsonValue {

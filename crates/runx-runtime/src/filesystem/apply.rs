@@ -313,10 +313,6 @@ pub(super) fn bundle_report(
         .collect();
     let mut report = JsonObject::from([
         (
-            "repo_root".to_owned(),
-            JsonValue::String(bundle.root.to_string_lossy().into_owned()),
-        ),
-        (
             "write_count".to_owned(),
             JsonValue::Number(JsonNumber::U64(bundle.writes.len() as u64)),
         ),

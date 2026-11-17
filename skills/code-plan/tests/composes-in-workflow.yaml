@@ -1,5 +1,7 @@
 name: code-plan-composes-in-workflow
 package: fixtures/composed
+# It runs in the fixture workspace, a project laid out with its own skills.
+workspace: fixtures/workspace
 host:
   answers:
     draft:

@@ -237,7 +237,7 @@ pub fn assert_json_stderr(stderr: &[u8]) -> Result<(), Box<dyn std::error::Error
     require_stderr_prefix(&lines, &mut cursor, "  Steps:  ")?;
     require_stderr_prefix(&lines, &mut cursor, "  Tools:  ")?;
     require_stderr_prefix(&lines, &mut cursor, "  Boundaries: ")?;
-    require_stderr_prefix(&lines, &mut cursor, "  Managed agent: ")?;
+    require_stderr_prefix(&lines, &mut cursor, "  Turns:  ")?;
     require_stderr_prefix(&lines, &mut cursor, "  Inputs: ")?;
     require_stderr_prefix(&lines, &mut cursor, "  Digest: sha256:")?;
     if lines.get(cursor) == Some(&"") {

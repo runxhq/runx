@@ -50,8 +50,8 @@ impl BoundRun {
         let mut host = RunHost::new(answers);
         #[cfg(feature = "agent")]
         {
-            host.managed = self.request.managed_agent.max_rounds().map(|max_rounds| {
-                std::sync::Arc::new(crate::adapters::managed_agent::ManagedAgent::new(
+            host.managed = self.request.drive.max_rounds().map(|max_rounds| {
+                std::sync::Arc::new(crate::adapters::drive::Drive::new(
                     self.workspace.skill_env_for_skill(&self.skill_dir),
                     self.skill_dir.clone(),
                     max_rounds,
@@ -72,7 +72,7 @@ impl BoundRun {
     // brings, run or continue, and seal; each outcome branch seals exactly
     // once.
     /// Drive the run as far as it goes with what `host` brings: answers, an
-    /// action on the turn the run waits on, or a managed agent.
+    /// action on the turn the run waits on, or the drive.
     pub(super) fn advance(&self, host: &mut RunHost) -> Result<RunResult, SkillRunError> {
         let request = &self.request;
         let closure_digest = self
@@ -221,7 +221,7 @@ impl BoundRun {
                 context: &request_context,
                 run_authority: request.run_authority.as_ref(),
                 act: request.act.as_ref(),
-                driver: if request.managed_agent.max_rounds().is_some() {
+                driver: if request.drive.max_rounds().is_some() {
                     RunDriver::Managed
                 } else {
                     RunDriver::Attached
@@ -754,7 +754,7 @@ pub(super) enum TurnActed {
 
 /// The host a run's driver works it through: the answers the caller
 /// brought, an action on one of the run's open turns, a test caller's
-/// scripted turns, or the managed agent the run consents to. Anything else
+/// scripted turns, or the drive the run consents to. Anything else
 /// suspends the run where it asks.
 pub(super) struct RunHost {
     answers: ResolutionAnswers,
@@ -778,7 +778,7 @@ pub(super) struct RunHost {
     /// `max_concurrency`, in every pass of the session.
     pool: Option<std::sync::Arc<crate::execution::engine::CallPool>>,
     #[cfg(feature = "agent")]
-    managed: Option<std::sync::Arc<crate::adapters::managed_agent::ManagedAgent>>,
+    managed: Option<std::sync::Arc<crate::adapters::drive::Drive>>,
 }
 
 impl RunHost {
@@ -901,19 +901,19 @@ impl RunHost {
         )))
     }
 
-    /// One driver works a run's turns: the one it started with. A run the
-    /// managed agent drives takes a person's approvals from any host, never
+    /// One driver works a run's turns: the one it started with. A run runx
+    /// drives takes a person's approvals from any host, never
     /// another host's agent work.
     fn check_driver(&self, run_id: &str, driver: RunDriver) -> Result<(), SkillRunError> {
         match driver {
             RunDriver::Attached if self.manages() => Err(invalid(format!(
-                "run {run_id} is driven by the host it is attached to; the managed agent cannot work its turns"
+                "run {run_id} is driven by the host it is attached to, so runx cannot drive its turns"
             ))),
             RunDriver::Managed
                 if !self.manages() && (self.act.is_some() || self.answers.answers_agents()) =>
             {
                 Err(invalid(format!(
-                    "run {run_id} is driven by the managed agent; another host cannot work its turns"
+                    "runx drives run {run_id}'s turns, so another host cannot work them"
                 )))
             }
             RunDriver::Attached | RunDriver::Managed => Ok(()),
@@ -961,7 +961,7 @@ impl RunHost {
 
     /// Whether this host brings something for a call that waits on
     /// `waiting`: an answer to one of them, an action on one of its turns, a
-    /// script for one of its turns, or the managed agent for a turn. A call
+    /// script for one of its turns, or the drive for a turn. A call
     /// that waits on nothing, a child run that sealed or never started, or a
     /// script's wait the clock has reached, is taken further by any host.
     fn reaches(&self, waiting: &[ResolutionRequest]) -> Result<bool, RuntimeError> {
@@ -1074,7 +1074,7 @@ impl Host for RunHost {
         self.act.is_some()
     }
 
-    /// Only a managed agent at a loopback endpoint is known to run here; a
+    /// Only a drive at a loopback endpoint is known to run here; a
     /// host that works the run's turns from outside may run its model anywhere.
     fn reads_local_only(&self) -> bool {
         #[cfg(feature = "agent")]
@@ -1099,7 +1099,7 @@ impl Host for RunHost {
     }
 
     /// A call apart from the driver is answered from the same answers, and
-    /// the managed agent works the turns it opens there, as it works the
+    /// runx drives the turns it opens there, as it works the
     /// driver's.
     fn detached(&self) -> Option<crate::host::DetachedHost> {
         let mut given = self.given.clone();
@@ -1134,7 +1134,7 @@ impl Host for RunHost {
 
     /// The calls this host brings something for go further first. Then the
     /// host does what it came to do on this turn, works it from a test
-    /// script, or its managed agent works it once nothing in it waits on a
+    /// script, or runx drives it once nothing in it waits on a
     /// human.
     fn drive_turn(&mut self, turn: &mut dyn Turn) -> Result<(), RuntimeError> {
         self.settle(turn)?;
@@ -1312,7 +1312,7 @@ mod tests {
             .err()
             .map(|error| error.to_string())
             .unwrap_or_default();
-        assert!(refused.contains("driven by the managed agent"), "{refused}");
+        assert!(refused.contains("runx drives run"), "{refused}");
         assert!(agent_work.check_driver("run", RunDriver::Attached).is_ok());
 
         let approvals = RunHost::new(ResolutionAnswers::default());
@@ -1382,11 +1382,11 @@ mod tests {
 
     #[cfg(feature = "agent")]
     #[test]
-    fn managed_agent_workflow_failure_is_typed_sealed_and_visible_in_history()
+    fn a_driven_turns_failure_is_typed_sealed_and_visible_in_history()
     -> Result<(), Box<dyn std::error::Error>> {
         use crate::LocalReceiptStore;
         use crate::adapters::agent::{
-            AgentExecutionTelemetry, AgentToolExecutionTrace, ManagedAgentError,
+            AgentExecutionTelemetry, AgentToolExecutionTrace, DriveError,
         };
         use crate::execution::run_record::{RunFilter, RunState, list_runs};
         use crate::receipts::archive::{ReceiptFilter, list_receipts};
@@ -1401,7 +1401,7 @@ mod tests {
                 temp.path().join(".runx").display().to_string(),
             )]);
             let workflow = crate::execution::workflow::testing::method_workflow(
-                "managed-agent-workflow-failure",
+                "drive-workflow-failure",
                 r#"
 minimum_runx: 0.12.0
 methods:
@@ -1413,9 +1413,9 @@ methods:
             )?;
             let store =
                 KernelStore::for_project(&crate::paths::RunxPaths::resolve(&env, temp.path()))?;
-            let log = RunLog::open(store, "run_managed_agent_failure")?;
+            let log = RunLog::open(store, "run_drive_failure")?;
             log.begin(StartRequest {
-                skill: "managed-agent-workflow-failure",
+                skill: "drive-workflow-failure",
                 skill_path: "skill",
                 method: "default",
                 package_digest: "sha256:package",
@@ -1450,9 +1450,9 @@ methods:
             options.clock =
                 crate::execution::engine::RunClock::Fixed("2026-07-24T00:00:00Z".to_owned());
             let runtime = Runtime::new(ExecutableAdapter, options);
-            let error = ManagedAgentError::bounded_failure(
-                runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted,
-                "Managed agent exceeded 3 tool-call rounds without finalizing.",
+            let error = DriveError::bounded_failure(
+                runx_contracts::SealReason::DriveRoundBudgetExhausted,
+                "it made 3 rounds of calls and never answered",
                 AgentExecutionTelemetry {
                     rounds: Some(3),
                     model_calls: Some(4),
@@ -1470,7 +1470,7 @@ methods:
                 },
             );
             let runtime_error =
-                RuntimeError::managed_agent_resolution("referenced-agent-method", "compose", error)
+                RuntimeError::drive_resolution("referenced-agent-method", "compose", error)
                     .at_workflow_step("compose");
             let mut host = RunHost::new(ResolutionAnswers::default());
             let run = runtime.seal_failed_with_host(
@@ -1479,7 +1479,7 @@ methods:
                 runtime_error,
                 crate::receipts::WorkflowEnding {
                     outcome: RunOutcome::Failed,
-                    reason: Some(runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted),
+                    reason: Some(runx_contracts::SealReason::DriveRoundBudgetExhausted),
                 },
                 &mut host,
             )?;
@@ -1493,7 +1493,7 @@ methods:
             assert_eq!(step.receipt.seal.outcome, RunOutcome::Failed);
             assert_eq!(
                 step.receipt.seal.reason,
-                Some(runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted)
+                Some(runx_contracts::SealReason::DriveRoundBudgetExhausted)
             );
             let encoded = serde_json::to_string(&step.receipt)?;
             assert!(!encoded.contains("prompt"));
@@ -1519,7 +1519,7 @@ methods:
                 inputs: Default::default(),
                 env: Default::default(),
                 cwd: temp.path().to_path_buf(),
-                managed_agent: Default::default(),
+                drive: Default::default(),
             };
             let workspace = WorkspaceEnv::new(Default::default(), temp.path().to_path_buf())?;
             let receipts = ReceiptServices::from_signature_config(signature.clone());

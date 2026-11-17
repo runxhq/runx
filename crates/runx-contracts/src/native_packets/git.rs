@@ -13,7 +13,8 @@ pub const GIT_LOG_MAX_COMMITS: usize = 200;
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.git.branch.v1")]
 pub struct GitBranch {
-    pub repo_root: NonEmptyString,
+    /// The repository read, from the workspace root, as the call named it.
+    pub repository: NonEmptyString,
     pub branch: String,
     pub detached: bool,
 }
@@ -24,7 +25,8 @@ pub struct GitBranch {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.git.status.v1")]
 pub struct GitStatus {
-    pub repo_root: NonEmptyString,
+    /// The repository read, from the workspace root, as the call named it.
+    pub repository: NonEmptyString,
     pub clean: bool,
     pub entries: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -36,7 +38,8 @@ pub struct GitStatus {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.git.diff.v1")]
 pub struct GitDiff {
-    pub repo_root: NonEmptyString,
+    /// The repository read, from the workspace root, as the call named it.
+    pub repository: NonEmptyString,
     pub base: NonEmptyString,
     pub files: Vec<String>,
 }
@@ -47,7 +50,8 @@ pub struct GitDiff {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.git.log.v1")]
 pub struct GitLog {
-    pub repo_root: NonEmptyString,
+    /// The repository read, from the workspace root, as the call named it.
+    pub repository: NonEmptyString,
     pub revision: NonEmptyString,
     pub commits: BoundedVec<GitCommit, 0, GIT_LOG_MAX_COMMITS>,
     pub truncated: bool,
@@ -69,7 +73,8 @@ pub struct GitCommit {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.git.show.v1")]
 pub struct GitShow {
-    pub repo_root: NonEmptyString,
+    /// The repository read, from the workspace root, as the call named it.
+    pub repository: NonEmptyString,
     pub revision: NonEmptyString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<NonEmptyString>,
@@ -85,7 +90,8 @@ pub struct GitShow {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.git.patch.v1")]
 pub struct GitPatch {
-    pub repo_root: NonEmptyString,
+    /// The repository read, from the workspace root, as the call named it.
+    pub repository: NonEmptyString,
     pub base: NonEmptyString,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub head: Option<NonEmptyString>,

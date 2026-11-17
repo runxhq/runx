@@ -404,8 +404,7 @@ mod tests {
     };
 
     use crate::execution::orchestrator::{
-        LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest,
-        TurnRequest,
+        DrivePolicy, LocalOrchestrator, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
     };
     use crate::execution::run_record::{
         CallOutcome, CallRecord, PendingRequest, RunLog, request_digest, waiting_requests,
@@ -442,7 +441,7 @@ mod tests {
             receipt_dir: Some(root.join("receipts")),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
             package_digest: None,
             closure_digest: None,
         })?)
@@ -464,7 +463,7 @@ mod tests {
             receipt_dir: Some(root.join("receipts")),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
             package_digest: None,
             closure_digest: None,
         })?;
@@ -500,7 +499,7 @@ mod tests {
                     receipt_dir: Some(root.join("receipts")),
                     env: env(root),
                     cwd: root.to_path_buf(),
-                    managed_agent: ManagedAgentPolicy::HostDriven,
+                    drive: DrivePolicy::HostDriven,
                     package_digest: None,
                     closure_digest: None,
                 })
@@ -594,7 +593,7 @@ mod tests {
                 inputs: BTreeMap::new(),
                 env: env(root),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             None,
             None,
@@ -666,7 +665,7 @@ mod tests {
         let address = "answer";
         assert!(matches!(
             &session.status(address)?.calls[0].outcome,
-            TurnCallOutcome::Pending { waiting } if matches!(waiting.as_slice(), [ResolutionRequest::Retry { .. }])
+            runx_contracts::TurnCallViewOutcome::Pending { waiting } if matches!(waiting.as_slice(), [ResolutionRequest::Retry { .. }])
         ));
         let early = session
             .complete(
@@ -734,7 +733,7 @@ mod tests {
         let session = open(root, &run_id)?;
         assert!(matches!(
             &session.status(address)?.calls[0].outcome,
-            TurnCallOutcome::Completed { .. }
+            runx_contracts::TurnCallViewOutcome::Completed { .. }
         ));
         // The acknowledgement is recorded once.
         let record = log.load()?.ok_or("the run has a record")?;
@@ -784,7 +783,7 @@ mod tests {
                 inputs: BTreeMap::new(),
                 env: env(root),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             None,
             None,
@@ -844,7 +843,7 @@ mod tests {
                     receipt_dir: Some(root.join("receipts")),
                     env: env(root),
                     cwd: root.to_path_buf(),
-                    managed_agent: ManagedAgentPolicy::HostDriven,
+                    drive: DrivePolicy::HostDriven,
                     package_digest: None,
                     closure_digest: None,
                 })
@@ -860,7 +859,7 @@ mod tests {
         })?;
         assert!(matches!(
             &session.status("answer")?.calls[0].outcome,
-            TurnCallOutcome::Completed { .. }
+            runx_contracts::TurnCallViewOutcome::Completed { .. }
         ));
         drop(session);
 
@@ -877,7 +876,7 @@ mod tests {
         })?;
         assert!(matches!(
             session.status("answer")?.calls.as_slice(),
-            [call] if matches!(call.outcome, TurnCallOutcome::Completed { .. })
+            [call] if matches!(call.outcome, runx_contracts::TurnCallViewOutcome::Completed { .. })
         ));
         drop(session);
 
@@ -931,7 +930,7 @@ mod tests {
                 inputs: BTreeMap::new(),
                 env: env(root),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             None,
             None,
@@ -1024,7 +1023,7 @@ mod tests {
                 inputs: BTreeMap::new(),
                 env: env(root),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             None,
             None,
@@ -1117,7 +1116,7 @@ mod tests {
                 inputs: BTreeMap::new(),
                 env: env(root),
                 cwd: root.to_path_buf(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             None,
             None,
@@ -1161,14 +1160,14 @@ mod tests {
             receipt_dir: Some(root.join("receipts")),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
             package_digest: None,
             closure_digest: None,
         })?;
 
         let status = open(root, &run_id)?.status("answer")?;
         assert!(
-            matches!(&status.calls[0].outcome, TurnCallOutcome::Refused { reason } if reason.contains("note.txt") && reason.contains("read it again")),
+            matches!(&status.calls[0].outcome, runx_contracts::TurnCallViewOutcome::Refused { reason } if reason.contains("note.txt") && reason.contains("read it again")),
             "{:?}",
             status.calls[0]
         );
@@ -1328,7 +1327,10 @@ mod tests {
                 .iter()
                 .map(|call| (
                     call.call_id.as_ref().map(|id| id.as_str().to_owned()),
-                    matches!(call.outcome, TurnCallOutcome::Completed { .. })
+                    matches!(
+                        call.outcome,
+                        runx_contracts::TurnCallViewOutcome::Completed { .. }
+                    )
                 ))
                 .collect::<Vec<_>>(),
             [

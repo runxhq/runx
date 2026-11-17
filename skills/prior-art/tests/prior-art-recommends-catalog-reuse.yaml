@@ -1,7 +1,8 @@
 name: prior-art-recommends-catalog-reuse
+# It runs in the fixture workspace, a project laid out with its own skills.
+workspace: fixtures/workspace
 inputs:
   objective: Add a Moltbook opportunity scan to an existing governed pipeline.
-  repo_root: fixtures/workspace
   source_paths:
     - skills/moltbook/run.yaml
   decomposition:

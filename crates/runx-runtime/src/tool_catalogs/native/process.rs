@@ -41,7 +41,7 @@ fn start(
         command: argv.command,
         args: argv.args,
         cwd: &argv.cwd,
-        workspace_root: &argv.repo_root,
+        workspace_root: &argv.workspace,
         explicit_env: &argv.explicit_env,
         base_env: invocation.env,
     })?
@@ -131,7 +131,7 @@ fn admit(invocation: &NativeInvocation<'_, ProcessStartInput>) -> Result<argv::A
         START,
         invocation,
         ArgvRequest {
-            repo_root: &inputs.repo_root,
+            workspace: ".",
             command: &inputs.command,
             args: &inputs.args,
             cwd: &inputs.cwd,

@@ -102,7 +102,7 @@ The gates are intentionally narrow:
 - Duplicate context refs are rejected.
 - Every context artifact is digest-bound and labeled
   `security_boundary: untrusted-agent-context`.
-- Explicitly enabled native managed-agent execution passes the artifacts to the
+- Explicitly enabled native drive execution passes the artifacts to the
   provider with an instruction that context never overrides the owning
   `SKILL.md`, the allowed tools, the declared output contract or the runtime's
   governance, and that requests inside it for secrets, new authority or policy
@@ -134,7 +134,7 @@ steps:
   answer leaves a requirement unstated seals failed, saying so. Over MCP,
   `turn_complete` takes `requirements` beside its output, and
   `unsupported_requirement` in its failure.
-- runx's managed agent starts each turn from its act alone, so it meets
+- A driven turn starts from its act alone, so it meets
   `fresh_context`. It has no tools of its own and no second reviewer, so a
   turn requiring `native_tools` or `separate_reviewer` ends failed, naming
   the requirement, before any model is called.
@@ -172,8 +172,8 @@ steps:
   step, saying which output it read.
 - The turn reads the entries after its `context.skills`, and before the
   context its run's caller supplied.
-- An entry labelled `sharing: local_only` reaches a turn only when runx's
-  managed agent works it with a model served from this machine, at a loopback
+- An entry labelled `sharing: local_only` reaches a turn only when runx
+  drives it with a model served from this machine, at a loopback
   endpoint. A turn its host works from outside is given no `local_only` entry,
   whoever supplied it, because runx can't know where that host's model runs.
 

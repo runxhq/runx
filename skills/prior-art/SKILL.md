@@ -101,8 +101,8 @@ validation: object
 ```
 
 The default accepts `objective`, optional `decomposition`, `workflow_purpose`,
-`audience`, `artifact_contract`, bounded `source_paths` and `repo_root`.
-`capture` accepts `decomposition`, `source_paths` and `repo_root`; `analyze`
+`audience`, `artifact_contract` and bounded `source_paths`, each a path from
+the workspace root. `capture` accepts `decomposition` and `source_paths`; `analyze`
 accepts `snapshot`, `objective` and the optional decision context.
 
 ## Agent task: prior-art-research

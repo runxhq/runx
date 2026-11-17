@@ -1,7 +1,8 @@
 name: prior-art-missing-source-stops
+# It runs in the fixture workspace, a project laid out with its own skills.
+workspace: fixtures/workspace
 inputs:
   objective: Verify a nonexistent local design note.
-  repo_root: fixtures/workspace
   source_paths:
     - docs/does-not-exist.md
 host:

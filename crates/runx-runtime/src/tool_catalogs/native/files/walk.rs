@@ -21,7 +21,7 @@ use runx_contracts::{
     FileList, FileListEntry, FileSearch, FileSearchMatch,
 };
 
-use super::super::{NativeInvocation, invalid_input, non_empty, root_name};
+use super::super::{NativeInvocation, invalid_input, non_empty};
 use super::capability::{FileListInput, FileSearchInput};
 use crate::RuntimeError;
 use crate::services::is_secret_path;
@@ -41,9 +41,9 @@ pub(super) fn list(
     invocation: &NativeInvocation<'_, FileListInput>,
 ) -> Result<FileList, RuntimeError> {
     let inputs = invocation.inputs;
-    let (repo_root, path) = crate::services::rooted(&inputs.repo_root, &inputs.path);
-    let named = super::Named::of(&inputs.repo_root, repo_root);
-    let root = super::root(LIST_TOOL, repo_root, invocation)?;
+    let (base, path) = crate::services::rooted(super::WORKSPACE, &inputs.path);
+    let named = super::Named::of(base);
+    let root = super::root(LIST_TOOL, base, invocation)?;
     let depth = bounded(LIST_TOOL, "depth", inputs.depth, MAX_DEPTH)?;
     let limit = bounded(
         LIST_TOOL,
@@ -91,7 +91,6 @@ pub(super) fn list(
         });
     }
     Ok(FileList {
-        repo_root: root_name(LIST_TOOL, named.root)?,
         path: non_empty(LIST_TOOL, "path", named.path(&relative(&root, &start)))?,
         entries: BoundedVec::new(entries)
             .ok_or_else(|| invalid_input(LIST_TOOL, "listing exceeded its entry bound"))?,
@@ -103,9 +102,9 @@ pub(super) fn search(
     invocation: &NativeInvocation<'_, FileSearchInput>,
 ) -> Result<FileSearch, RuntimeError> {
     let inputs = invocation.inputs;
-    let (repo_root, path) = crate::services::rooted(&inputs.repo_root, &inputs.path);
-    let named = super::Named::of(&inputs.repo_root, repo_root);
-    let root = super::root(SEARCH_TOOL, repo_root, invocation)?;
+    let (base, path) = crate::services::rooted(super::WORKSPACE, &inputs.path);
+    let named = super::Named::of(base);
+    let root = super::root(SEARCH_TOOL, base, invocation)?;
     let limit = bounded(
         SEARCH_TOOL,
         "max_results",
@@ -178,7 +177,6 @@ pub(super) fn search(
         }
     }
     Ok(FileSearch {
-        repo_root: root_name(SEARCH_TOOL, named.root)?,
         matches: BoundedVec::new(matches)
             .ok_or_else(|| invalid_input(SEARCH_TOOL, "search exceeded its match bound"))?,
         files_searched,

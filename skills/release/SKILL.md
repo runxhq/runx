@@ -37,9 +37,10 @@ workflow, not detached publication authority.
 
 ## Project profile
 
-`project_root` is resolved inside the current runx workspace and must be a
-relative directory (normally `.` when runx is invoked from the project root).
-`profile_path` must name a JSON file inside that directory:
+`project_root` is the project's directory, a path from the workspace root
+(normally `.` when the project is the workspace). `profile_path` names its
+JSON profile, also from the workspace root, and each command's `cwd` in the
+profile is read from the project's directory:
 
 ```json
 {

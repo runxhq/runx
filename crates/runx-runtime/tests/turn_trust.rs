@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use runx_contracts::{JsonObject, ResolutionRequest, TurnCallOutcome, TurnCallResult};
 use runx_runtime::{
-    LocalOrchestrator, ManagedAgentPolicy, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
+    DrivePolicy, LocalOrchestrator, ResumeRequest, RunResult, SkillRunRequest, TurnRequest,
     TurnSession,
 };
 use tempfile::tempdir;
@@ -182,7 +182,7 @@ impl Workspace {
                 inputs: BTreeMap::new(),
                 env: self.env(),
                 cwd: self.root.clone(),
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
             },
             Some(method),
             None,
@@ -220,14 +220,14 @@ impl Workspace {
             receipt_dir: Some(self.root.join("receipts")),
             env,
             cwd: self.root.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
             package_digest: None,
             closure_digest: None,
         })?)
     }
 
     /// The `index`th call of the run's turn, as recorded now.
-    fn recorded(&self, run_id: &str, index: usize) -> TestResult<TurnCallResult> {
+    fn recorded(&self, run_id: &str, index: usize) -> TestResult<runx_contracts::TurnCallView> {
         self.open(run_id)?
             .status(TURN)?
             .calls
@@ -250,8 +250,11 @@ fn load_in(turn: &TurnSession, at: &str, target: serde_json::Value) -> TestResul
     Ok(turn.call(at, "load", None, input(target)?)?)
 }
 
-fn completed(call: &TurnCallResult) -> bool {
-    matches!(call.outcome, TurnCallOutcome::Completed { .. })
+fn completed(call: &impl crate::support::Viewed) -> bool {
+    matches!(
+        call.viewed().outcome,
+        runx_contracts::TurnCallViewOutcome::Completed { .. }
+    )
 }
 
 /// The one approval `call` waits on, of gate type `gate_type`.
@@ -276,9 +279,9 @@ fn refused(call: &TurnCallResult) -> TestResult<String> {
     }
 }
 
-fn declined(call: &TurnCallResult) -> TestResult<String> {
-    match &call.outcome {
-        TurnCallOutcome::Declined { reason } => Ok(reason.as_str().to_owned()),
+fn declined(call: &impl crate::support::Viewed) -> TestResult<String> {
+    match &call.viewed().outcome {
+        runx_contracts::TurnCallViewOutcome::Declined { reason } => Ok(reason.as_str().to_owned()),
         _ => Err(format!("the person declined the call: {call:?}").into()),
     }
 }
@@ -308,7 +311,7 @@ fn mark_under_none(ws: &Workspace) -> TestResult<serde_json::Value> {
             )]),
             env: ws.env(),
             cwd: ws.root.clone(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         Some("mark"),
         None,

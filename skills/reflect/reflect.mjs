@@ -91,7 +91,7 @@ export function sampledOf(successes) {
   }
   return [...latest.values()]
     .sort((left, right) => (left.skill < right.skill ? -1 : left.skill > right.skill ? 1 : 0))
-    .map(({ run_id, skill, method, receipt_id }) => ({ run: run_id, skill, method, evidence: receipt_id }));
+    .map(({ run_id, skill, method, receipt_id, updated_at }) => ({ run: run_id, skill, method, evidence: receipt_id, date: updated_at.slice(0, 10) }));
 }
 
 function later(left, right) {
@@ -157,7 +157,7 @@ export function checksOf({ resistance, unheld, sampled }) {
     ...sampled.map((run, index) => ({
       id: `sampled_${index + 1}`,
       required: true,
-      question: `Did run ${run.run} of ${run.skill} do what ${run.skill}'s purpose asks, judged from its purpose and the run alone?`.slice(0, 1024),
+      question: `Did run ${run.run} of ${run.skill} do what ${run.skill}'s purpose asks, judged from its purpose and the run alone, and where it didn't, is why kept as a fix with a case that fails on the old revision and passes on the fix, or as an observation with its sources?`.slice(0, 1024),
     })),
   ];
 }
@@ -398,11 +398,12 @@ export async function judge(ctx, { survey }) {
 
 /**
  * One assessment per check, from what survey found and the findings judge
- * kept, as a runx.verdict.v1 whose subject is survey's window. A resistance
- * is met once its fix and case are proven and applied, or, with keep, kept as
- * an observation, and a rule once AGENTS.md holds it; until then each is
- * not_met, saying what it lacks, a declined fix with the person's reason. A sampled run is met or not as its purpose-only
- * reader found, and unresolved when no finding was kept.
+ * kept, as a runx.verdict.v1 whose subject is survey's window. A repair, a
+ * resistance or a sampled run that didn't do what its purpose asks, is met
+ * once its fix and case are proven and applied, or kept as an observation,
+ * and a rule once AGENTS.md holds it; until then each is not_met, saying what
+ * it lacks, a declined fix with the person's reason. A sampled run that did
+ * what its purpose asks is met, and one with no finding kept is unresolved.
  */
 export function assessments({ survey, findings, proposals = [], promoted = [], observed = [] }) {
   const observations = new Map(observed.filter((entry) => entry.handle).map((entry) => [entry.criterion, entry.handle]));
@@ -410,6 +411,27 @@ export function assessments({ survey, findings, proposals = [], promoted = [], o
   const by = new Map(findings.map((entry) => [entry.criterion, entry]));
   const proposed = new Map(proposals.map((entry) => [entry.criterion, entry]));
   const where = (item) => `${item.stream}${item.step ? `#${item.step}` : ""}${item.index === undefined ? "" : `/${item.index}`}`;
+  // A repair's answer: met once kept, otherwise what it lacks.
+  const repaired = (id, evidence, entry, at) => {
+    const proposal = proposed.get(id);
+    if (proposal?.applied || observations.has(id)) return { id, verdict: "met", evidence };
+    return {
+      id,
+      verdict: "not_met",
+      evidence,
+      failure: {
+        expected: "a fix with a case that fails on the old revision and passes on the fix, or an observation with its sources",
+        actual: proposal?.declined !== undefined
+          ? `its fix was declined: ${proposal.declined ?? "no reason given"}`
+          : proposal?.dropped
+            ? `its fix was dropped: ${proposal.dropped}`
+            : entry?.finding
+              ? `diagnosed, and nothing kept yet: ${entry.finding.summary ?? ""}`.trim()
+              : `no diagnosis kept: ${entry?.dropped ?? "none was made"}`,
+        where: at,
+      },
+    };
+  };
   const answers = [];
   for (const criterion of survey.criteria.criteria) {
     const { id } = criterion;
@@ -425,27 +447,7 @@ export function assessments({ survey, findings, proposals = [], promoted = [], o
     const entry = by.get(id);
     if (kind === "resisted") {
       const item = survey.resistance[ordinal];
-      const proposal = proposed.get(id);
-      if (proposal?.applied || observations.has(id)) {
-        answers.push({ id, verdict: "met", evidence: [item.evidence] });
-        continue;
-      }
-      answers.push({
-        id,
-        verdict: "not_met",
-        evidence: [item.evidence],
-        failure: {
-          expected: "a fix with a case that fails on the old revision and passes on the fix, or an observation with its sources",
-          actual: proposal?.declined !== undefined
-            ? `its fix was declined: ${proposal.declined ?? "no reason given"}`
-            : proposal?.dropped
-              ? `its fix was dropped: ${proposal.dropped}`
-              : entry?.finding
-                ? `diagnosed, and nothing kept yet: ${entry.finding.summary ?? ""}`.trim()
-                : `no diagnosis kept: ${entry?.dropped ?? "none was made"}`,
-          where: where(item),
-        },
-      });
+      answers.push(repaired(id, [item.evidence], entry, where(item)));
     } else if (kind === "unheld") {
       const rule = survey.unheld[ordinal];
       answers.push(
@@ -456,12 +458,7 @@ export function assessments({ survey, findings, proposals = [], promoted = [], o
     } else if (kind === "sampled") {
       const run = survey.sampled[ordinal];
       if (!entry?.finding) continue;
-      const { finding } = entry;
-      answers.push(
-        finding.met === true
-          ? { id, verdict: "met", evidence: finding.evidence }
-          : { id, verdict: "not_met", evidence: finding.evidence, failure: { expected: `what ${run.skill}'s purpose asks`, actual: finding.summary ?? "it did something else", where: `runx:run:${run.run}` } },
-      );
+      answers.push(entry.finding.met === true ? { id, verdict: "met", evidence: entry.finding.evidence } : repaired(id, entry.finding.evidence, entry, `runx:run:${run.run}`));
     }
   }
   const verdict = answers.some((answer) => answer.verdict === "not_met")
@@ -506,7 +503,32 @@ function outcomes(validation, names) {
 }
 
 /**
- * Propose a fix for each kept diagnosis, through skill-lab#draft, whose
+ * What needs repair, one entry per check: each resistance whose diagnosis
+ * was kept, and each sampled success its purpose-only reader found didn't do
+ * what its purpose asks, citing the run. A wrong result is repaired as a
+ * failure is, so a run that succeeded at the wrong thing is kept and fixed
+ * the same way.
+ */
+export function repairsOf(survey, findings) {
+  const repairs = [];
+  for (const entry of findings) {
+    if (!entry.finding) continue;
+    const [kind, ordinal] = [entry.criterion.slice(0, entry.criterion.lastIndexOf("_")), Number(entry.criterion.slice(entry.criterion.lastIndexOf("_") + 1)) - 1];
+    if (kind === "resisted") repairs.push({ criterion: entry.criterion, item: survey.resistance[ordinal], finding: entry.finding });
+    if (kind === "sampled" && entry.finding.met === false) {
+      const run = survey.sampled[ordinal];
+      repairs.push({
+        criterion: entry.criterion,
+        item: { kind: "wrong_result", run: run.run, skill: run.skill, stream: run.run, date: run.date, reason: entry.finding.summary, evidence: run.evidence },
+        finding: entry.finding,
+      });
+    }
+  }
+  return repairs;
+}
+
+/**
+ * Propose a fix for each repair, through skill-lab#draft, whose
  * own turns write the fix and its case. Code keeps a proposal only when the
  * draft adds a case, names each case it changes or removes, and two candidate
  * tests prove the new case fails on the old revision and passes on the fix:
@@ -536,10 +558,7 @@ export async function propose(ctx, { survey, findings }) {
     return (await ctx.tool("runx.skill.validate", { candidate_files, allow_execute_test: false })).skill_validation;
   };
 
-  for (const entry of findings) {
-    if (!entry.criterion.startsWith("resisted_") || !entry.finding) continue;
-    const item = survey.resistance[Number(entry.criterion.slice("resisted_".length)) - 1];
-    const { criterion, finding } = entry;
+  for (const { criterion, item, finding } of repairsOf(survey, findings)) {
     // Reflection never changes its own package, its checks or its cases.
     if (item.skill === SELF) {
       proposals.push({ criterion, target_dir: null, dropped: "reflection never changes its own package" });
@@ -559,11 +578,10 @@ export async function propose(ctx, { survey, findings }) {
     try {
       draft = await ctx.skill("runx/skill-lab#draft", {
         objective: `Fix ${item.skill}: ${finding.summary}`,
-        repo_root: ".",
         target_dir,
         receipt_id: item.evidence,
         receipt_summary: `${item.kind} at ${item.stream}${item.step ? `#${item.step}` : ""}${item.reason ? `: ${item.reason}` : ""}`,
-        test_output: finding.cause,
+        test_output: finding.cause ?? finding.summary,
       });
     } catch (rejection) {
       // A draft its plan refuses, or that fails, is this finding's, and the
@@ -588,10 +606,19 @@ export async function propose(ctx, { survey, findings }) {
     }
     const names = added.map((written) => written.name);
     const addedFiles = bundle.writes.filter((write) => added.some((written) => written.path === write.path));
-    const before = outcomes(await validate(target_dir, applied(old, { writes: addedFiles })), names);
+    const beforeValidation = await validate(target_dir, applied(old, { writes: addedFiles }));
+    const before = outcomes(beforeValidation, names);
     const afterValidation = await validate(target_dir, applied(old, bundle));
     const after = outcomes(afterValidation, names);
     const proof = { before, after, passed: afterValidation?.test?.status ?? null };
+    // A case that never ran proves nothing either way, and its package's
+    // validation says why.
+    const unrun = names.filter((name) => before[name] === "absent" || after[name] === "absent");
+    if (unrun.length > 0) {
+      const why = [beforeValidation, afterValidation].map((validation) => validation?.test?.reason).find(Boolean);
+      proposals.push({ criterion, target_dir, dropped: `its case ${unrun.join(", ")} didn't run: ${why ?? "the package's tests didn't run"}`, proof, changed, removed });
+      continue;
+    }
     if (!names.every((name) => before[name] === "failed")) {
       proposals.push({ criterion, target_dir, dropped: "its new case doesn't fail on the old revision", proof, changed, removed });
       continue;
@@ -601,7 +628,7 @@ export async function propose(ctx, { survey, findings }) {
       continue;
     }
     try {
-      const result = await ctx.tool("runx.skill.apply", { target_dir, repo_root: ".", mode: "improve", change_bundle: bundle });
+      const result = await ctx.tool("runx.skill.apply", { target_dir, mode: "improve", change_bundle: bundle });
       proposals.push({ criterion, target_dir, applied: await ctx.read(result.apply_result), cases: names, changed, removed, proof });
     } catch (rejection) {
       if (rejection?.code !== "declined") throw rejection;
@@ -689,23 +716,20 @@ export async function promote(ctx, { survey }) {
 }
 
 /**
- * An observation for each kept diagnosis, with its evidence as its sources,
- * on the workspace's observed stream, dated by its run.
+ * An observation for each repair, with its evidence as its sources, on the
+ * workspace's observed stream, dated by its run.
  */
 export async function observe(ctx, { survey, findings }) {
   const observed = [];
-  for (const entry of findings) {
-    if (!entry.criterion.startsWith("resisted_") || !entry.finding) continue;
-    const item = survey.resistance[Number(entry.criterion.slice("resisted_".length)) - 1];
-    const { finding } = entry;
+  for (const { criterion, item, finding } of repairsOf(survey, findings)) {
     const kept = await ctx.skill("runx/memory#observe", {
       level: "workspace",
-      text: `${item.skill}: ${finding.summary} ${finding.cause}`.slice(0, 4000),
+      text: `${item.skill}: ${finding.summary}${finding.cause ? ` ${finding.cause}` : ""}`.slice(0, 4000),
       summary: `${item.skill}: ${finding.summary}`.replace(/\s+/g, " ").slice(0, 120),
       date: item.date,
       sources: finding.evidence.slice(0, 16),
     });
-    observed.push({ criterion: entry.criterion, handle: kept.handle });
+    observed.push({ criterion, handle: kept.handle });
   }
   return { observed };
 }

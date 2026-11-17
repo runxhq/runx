@@ -64,7 +64,7 @@ export const runxSchemaArtifacts = {
         "type": "object"
       },
       "output_schema": {
-        "description": "Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to managed agents."
+        "description": "Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to a driven turn's model."
       },
       "provenance": {
         "items": {
@@ -6966,10 +6966,7 @@ export const runxSchemaArtifacts = {
             "type": "string"
           },
           "path": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "root_path": {
+            "description": "From the workspace root, as its tools name files (rule 2).",
             "minLength": 1,
             "type": "string"
           },
@@ -6979,7 +6976,6 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "sharing",
-          "root_path",
           "path",
           "digest",
           "content"
@@ -8455,7 +8451,7 @@ export const runxSchemaArtifacts = {
         "type": "object"
       },
       "RunDriver": {
-        "description": "Who works a run's agent turns, fixed when it starts: the host it is attached to, or runx's managed agent.",
+        "description": "Who works a run's agent turns, fixed when it starts: the host it is attached to, or runx, which drives them (`--drive`).",
         "enum": [
           "attached",
           "managed"
@@ -9269,9 +9265,23 @@ export const runxSchemaArtifacts = {
       },
       "SealFailure": {
         "additionalProperties": false,
-        "description": "Why a step failed, as runx recorded the failure: its code, the reason, whether a retry is offered, and the failure's own structured fields, such as each field a provider's answer contradicts. A value from a field the call marks never to persist is recorded by its digest, and a presented credential never appears.",
+        "description": "Why a step failed, as runx recorded the failure: its code, the failure as the layer that decided it said it (who, where, why and what to do next, which every surface renders as one sentence), whether a retry is offered, and the failure's own structured fields, such as each field a provider's answer contradicts. A value from a field the call marks never to persist is recorded by its digest, and a presented credential never appears.",
         "properties": {
+          "at": {
+            "description": "Where, as the run's record addresses it, from the run down.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
           "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "decided_by": {
+            "description": "What decided it, by the name its reader knows.",
             "minLength": 1,
             "type": "string"
           },
@@ -9280,7 +9290,13 @@ export const runxSchemaArtifacts = {
             "minProperties": 1,
             "type": "object"
           },
+          "next": {
+            "description": "What the person or agent can do about it, when there is something.",
+            "minLength": 1,
+            "type": "string"
+          },
           "reason": {
+            "description": "The deciding layer's own sentence.",
             "minLength": 1,
             "type": "string"
           },
@@ -9290,6 +9306,7 @@ export const runxSchemaArtifacts = {
         },
         "required": [
           "code",
+          "decided_by",
           "reason",
           "retryable"
         ],
@@ -9308,11 +9325,11 @@ export const runxSchemaArtifacts = {
           "cost_limit_exceeded",
           "receipt_budget_exceeded",
           "resolution_pending",
-          "managed_agent_provider_failed",
-          "managed_agent_resolution_failed",
-          "managed_agent_empty_turn_budget_exhausted",
-          "managed_agent_tool_execution_failed",
-          "managed_agent_round_budget_exhausted",
+          "drive_provider_failed",
+          "drive_resolution_failed",
+          "drive_empty_turn_budget_exhausted",
+          "drive_tool_execution_failed",
+          "drive_round_budget_exhausted",
           "host_closed",
           "cancelled"
         ],
@@ -10773,6 +10790,35 @@ export const runxSchemaArtifacts = {
         "title": "TurnAllowance",
         "type": "object"
       },
+      "TurnArtifactView": {
+        "additionalProperties": false,
+        "description": "An artifact a call made, as its agent reads it: the reference a later call passes, what it is and how large.",
+        "properties": {
+          "media_type": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "ref": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "summary": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "media_type",
+          "size_bytes"
+        ],
+        "title": "TurnArtifactView",
+        "type": "object"
+      },
       "TurnCallOutcome": {
         "anyOf": [
           {
@@ -10906,6 +10952,169 @@ export const runxSchemaArtifacts = {
         ],
         "title": "TurnCallOutcome"
       },
+      "TurnCallView": {
+        "additionalProperties": false,
+        "description": "A call of a turn as its agent reads it (rule 1): what it called, how it ended and what it returned, with its receipt, which a later call reads it by as it does an artifact by its ref, and without what runx keeps for itself: the input's digest, a skill's bound closure, or an artifact's digest and place on disk. A host proving its record of a call reads its [`TurnCallResult`].",
+        "properties": {
+          "call_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "index": {
+            "description": "The call's place in the turn, from 0: `turn_read` reads it whole as `call:<index>`.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outcome": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnCallViewOutcome"
+          },
+          "target": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/CallTarget"
+          }
+        },
+        "required": [
+          "index",
+          "target",
+          "outcome"
+        ],
+        "title": "TurnCallView",
+        "type": "object"
+      },
+      "TurnCallViewOutcome": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "description": "The call ran and succeeded.",
+            "properties": {
+              "artifacts": {
+                "additionalProperties": {
+                  "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnArtifactView"
+                },
+                "description": "Each packet output as an artifact, by output name: a reference a later call passes in place of the packet.",
+                "minProperties": 1,
+                "type": "object"
+              },
+              "output": {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              "receipt_id": {
+                "description": "The receipt that proves it, which a receipt tool reads.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "const": "completed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "output",
+              "receipt_id"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "The call ran and failed, with its receipt when it ran; or it failed before it could run.",
+            "properties": {
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "receipt_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "const": "failed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Admission refused the call; nothing ran.",
+            "properties": {
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "const": "refused",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "A person declined its approval; nothing ran.",
+            "properties": {
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "const": "declined",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "The call has not settled; `waiting` is what it waits on.",
+            "properties": {
+              "status": {
+                "const": "pending",
+                "type": "string"
+              },
+              "waiting": {
+                "items": {
+                  "$ref": "https://schemas.runx.ai/runx/resolution-request/v1.json"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "status",
+              "waiting"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "description": "Its host cancelled it: nothing it did is in effect.",
+            "properties": {
+              "status": {
+                "const": "cancelled",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "How a call ended, as its agent reads it.",
+        "title": "TurnCallViewOutcome"
+      },
       "TurnContextLine": {
         "additionalProperties": false,
         "description": "One context entry of an act as a model reads it in an index: what it is, whom it may be shared with, how large it is, and the locator `turn_read` reads its data by.",
@@ -10967,10 +11176,10 @@ export const runxSchemaArtifacts = {
         "anyOf": [
           {
             "additionalProperties": false,
-            "description": "runx's managed agent, through the provider it names. A `scripted` provider is a scripted model, never a real one.",
+            "description": "runx, driving the turn through the provider it names. A `scripted` provider is a scripted model, never a real one.",
             "properties": {
               "kind": {
-                "const": "managed_agent",
+                "const": "drive",
                 "type": "string"
               },
               "provider": {
@@ -11491,10 +11700,6 @@ export const runxSchemaArtifacts = {
         "minimum": 1,
         "type": "integer"
       },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
-      },
       "write_count": {
         "minimum": 0,
         "type": "integer"
@@ -11507,7 +11712,6 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "repo_root",
       "write_count",
       "delete_count",
       "writes",
@@ -11556,15 +11760,10 @@ export const runxSchemaArtifacts = {
       "replacements": {
         "minimum": 1,
         "type": "integer"
-      },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
       }
     },
     "required": [
       "path",
-      "repo_root",
       "replacements",
       "before_digest",
       "content_digest",
@@ -11597,11 +11796,6 @@ export const runxSchemaArtifacts = {
         },
         "type": "array"
       },
-      "repo_root": {
-        "description": "The root the edits changed, relative to the workspace.",
-        "minLength": 1,
-        "type": "string"
-      },
       "writes": {
         "items": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBundleWrite"
@@ -11610,7 +11804,6 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "repo_root",
       "writes",
       "deletes",
       "calls"
@@ -11638,16 +11831,11 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
-      },
       "truncated": {
         "type": "boolean"
       }
     },
     "required": [
-      "repo_root",
       "path",
       "entries",
       "truncated"
@@ -11684,10 +11872,6 @@ export const runxSchemaArtifacts = {
         "minItems": 0,
         "type": "array"
       },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
-      },
       "total_bytes": {
         "maximum": 33554432,
         "minimum": 0,
@@ -11695,7 +11879,6 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "repo_root",
       "file_count",
       "total_bytes",
       "files",
@@ -11731,10 +11914,6 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
-      },
       "start_line": {
         "description": "The first line read, counting from 1.",
         "minimum": 1,
@@ -11752,7 +11931,6 @@ export const runxSchemaArtifacts = {
     },
     "required": [
       "path",
-      "repo_root",
       "contents",
       "bytes",
       "truncated",
@@ -11783,16 +11961,11 @@ export const runxSchemaArtifacts = {
         "minItems": 0,
         "type": "array"
       },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
-      },
       "truncated": {
         "type": "boolean"
       }
     },
     "required": [
-      "repo_root",
       "matches",
       "files_searched",
       "truncated"
@@ -11836,15 +12009,10 @@ export const runxSchemaArtifacts = {
       "path": {
         "minLength": 1,
         "type": "string"
-      },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
       }
     },
     "required": [
       "path",
-      "repo_root",
       "bytes_written",
       "content_digest",
       "diff"
@@ -11892,13 +12060,14 @@ export const runxSchemaArtifacts = {
       "detached": {
         "type": "boolean"
       },
-      "repo_root": {
+      "repository": {
+        "description": "The repository read, from the workspace root, as the call named it.",
         "minLength": 1,
         "type": "string"
       }
     },
     "required": [
-      "repo_root",
+      "repository",
       "branch",
       "detached"
     ],
@@ -11923,13 +12092,14 @@ export const runxSchemaArtifacts = {
         },
         "type": "array"
       },
-      "repo_root": {
+      "repository": {
+        "description": "The repository read, from the workspace root, as the call named it.",
         "minLength": 1,
         "type": "string"
       }
     },
     "required": [
-      "repo_root",
+      "repository",
       "base",
       "files"
     ],
@@ -11952,7 +12122,8 @@ export const runxSchemaArtifacts = {
         "minItems": 0,
         "type": "array"
       },
-      "repo_root": {
+      "repository": {
+        "description": "The repository read, from the workspace root, as the call named it.",
         "minLength": 1,
         "type": "string"
       },
@@ -11965,7 +12136,7 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "repo_root",
+      "repository",
       "revision",
       "commits",
       "truncated"
@@ -12006,7 +12177,8 @@ export const runxSchemaArtifacts = {
       "patch": {
         "type": "string"
       },
-      "repo_root": {
+      "repository": {
+        "description": "The repository read, from the workspace root, as the call named it.",
         "minLength": 1,
         "type": "string"
       },
@@ -12015,7 +12187,7 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "repo_root",
+      "repository",
       "base",
       "patch",
       "files",
@@ -12051,7 +12223,8 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
-      "repo_root": {
+      "repository": {
+        "description": "The repository read, from the workspace root, as the call named it.",
         "minLength": 1,
         "type": "string"
       },
@@ -12067,7 +12240,7 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "repo_root",
+      "repository",
       "revision",
       "text",
       "files",
@@ -12097,13 +12270,14 @@ export const runxSchemaArtifacts = {
         },
         "type": "array"
       },
-      "repo_root": {
+      "repository": {
+        "description": "The repository read, from the workspace root, as the call named it.",
         "minLength": 1,
         "type": "string"
       }
     },
     "required": [
-      "repo_root",
+      "repository",
       "clean",
       "entries"
     ],
@@ -13950,7 +14124,7 @@ export const runxSchemaArtifacts = {
         "type": "string"
       },
       "catalog_root": {
-        "description": "Where catalog skills live, relative to `repo_root`.",
+        "description": "Where catalog skills live, from the workspace root.",
         "minLength": 1,
         "type": "string"
       },
@@ -13966,10 +14140,6 @@ export const runxSchemaArtifacts = {
         },
         "type": "array"
       },
-      "repo_root": {
-        "minLength": 1,
-        "type": "string"
-      },
       "target_dir": {
         "anyOf": [
           {
@@ -13980,13 +14150,13 @@ export const runxSchemaArtifacts = {
             "type": "null"
           }
         ],
-        "description": "The target package, relative to `repo_root`; null when none was named."
+        "description": "The target package, from the workspace root; null when none was named."
       },
       "target_exists": {
         "type": "boolean"
       },
       "target_files": {
-        "description": "The target's files, from `repo_root`, as the read tools and a change name them.",
+        "description": "The target's files, from the workspace root, as the read tools and a change name them.",
         "items": {
           "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageFile"
         },
@@ -14009,7 +14179,6 @@ export const runxSchemaArtifacts = {
       }
     },
     "required": [
-      "repo_root",
       "target_dir",
       "target_exists",
       "base_digest",
@@ -14772,7 +14941,7 @@ export const runxSchemaArtifacts = {
     "properties": {
       "calls": {
         "items": {
-          "$ref": "https://schemas.runx.ai/runx/turn-call/v1.json"
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnCallView"
         },
         "type": "array"
       },

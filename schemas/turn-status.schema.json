@@ -6,7 +6,7 @@
   "properties": {
     "calls": {
       "items": {
-        "$ref": "https://schemas.runx.ai/runx/turn-call/v1.json"
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/TurnCallView"
       },
       "type": "array"
     },

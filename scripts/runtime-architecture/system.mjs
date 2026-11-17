@@ -120,27 +120,27 @@ export function checkCloudOwnershipBoundary(findings) {
   }
 }
 
-export function checkManagedAgentDefault(findings) {
+export function checkDriveDefault(findings) {
   const orchestratorPath = path.join(
     workspaceRoot,
     "crates/runx-runtime/src/execution/orchestrator.rs",
   );
   const source = existsSync(orchestratorPath) ? readFileSync(orchestratorPath, "utf8") : "";
-  if (!/#\[derive\([^\]]*Default[^\]]*\)\][\s\S]{0,300}enum\s+ManagedAgentPolicy[\s\S]{0,180}#\[default\]\s*HostDriven/u.test(source)) {
-    findings.push(`${relative(orchestratorPath)} must default managed-agent execution to HostDriven`);
+  if (!/#\[derive\([^\]]*Default[^\]]*\)\][\s\S]{0,300}enum\s+DrivePolicy[\s\S]{0,180}#\[default\]\s*HostDriven/u.test(source)) {
+    findings.push(`${relative(orchestratorPath)} must default drive execution to HostDriven`);
   }
   const cliParserPath = path.join(workspaceRoot, "crates/runx-cli/src/skill/parser.rs");
   const cliSource = existsSync(cliParserPath) ? readFileSync(cliParserPath, "utf8") : "";
-  const managedAgentPath = path.join(workspaceRoot, "crates/runx-cli/src/managed_agent.rs");
-  const managedAgentSource = existsSync(managedAgentPath)
-    ? readFileSync(managedAgentPath, "utf8")
+  const drivePath = path.join(workspaceRoot, "crates/runx-cli/src/drive.rs");
+  const driveSource = existsSync(drivePath)
+    ? readFileSync(drivePath, "utf8")
     : "";
-  const skillUsesSharedPolicy = /managed_agent_policy\(\s*"skill"/u.test(cliSource);
+  const skillUsesSharedPolicy = /drive_policy\(\s*"skill"/u.test(cliSource);
   const sharedPolicyRequiresConsent = /if\s+!enabled\s*\{[\s\S]{0,180}max_rounds\.is_some\(\)[\s\S]{0,220}--drive-rounds requires --drive/u.test(
-    managedAgentSource,
+    driveSource,
   );
   if (!skillUsesSharedPolicy || !sharedPolicyRequiresConsent) {
-    findings.push("managed-agent policy must reject a round budget without explicit consent through the shared CLI policy");
+    findings.push("drive policy must reject a round budget without explicit consent through the shared CLI policy");
   }
 }
 

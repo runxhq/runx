@@ -76,7 +76,7 @@ export function admitHostResult({ host_result: host, issue_evidence: issue }) {
     errors.push(
       "An exact tested commit is required; obtain commit permission rather than inventing one.",
     );
-  if (!text(host.repo_root) || !text(host.branch))
+  if (!text(host.checkout) || !text(host.branch))
     errors.push("The candidate checkout or branch is missing.");
   if (!Array.isArray(host.files) || !host.files.length)
     errors.push("No changed files are reported.");
@@ -128,10 +128,10 @@ export function verifyCandidate({
   if (head !== host.commit)
     errors.push("The checkout HEAD differs from the tested commit.");
   if (
-    !text(status?.repo_root) ||
-    status.repo_root !== branch?.repo_root ||
-    status.repo_root !== history?.repo_root ||
-    (host.repo_root !== "." && host.repo_root !== status.repo_root)
+    !text(status?.repository) ||
+    status.repository !== branch?.repository ||
+    status.repository !== history?.repository ||
+    (host.checkout !== "." && host.checkout !== status.repository)
   )
     errors.push(
       "Host work is not in the invocation checkout used for publication.",
@@ -143,7 +143,7 @@ export function verifyCandidate({
       errors,
       observation: {
         status: errors.length ? "unverified" : "verified",
-        repo_root: text(status?.repo_root),
+        checkout: text(status?.repository),
         branch: text(branch?.branch),
         commit: text(head),
       },
@@ -162,7 +162,7 @@ export function finishVerification({
     errors: admission.errors,
     observation: {
       status: "unverified",
-      repo_root: "",
+      checkout: "",
       branch: "",
       commit: "",
     },

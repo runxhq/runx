@@ -13,7 +13,6 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct CommandInput {
-    pub(super) repo_root: String,
     pub(super) command: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) args: Vec<String>,
@@ -29,7 +28,6 @@ pub(super) struct CommandInput {
 impl CapabilityInput for CommandInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             ("cwd".to_owned(), JsonValue::String(".".to_owned())),
             (
                 "timeout_ms".to_owned(),
@@ -62,10 +60,6 @@ impl CapabilityOutput for CommandExecutionOutput {}
 
 const FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative project root.",
-    },
-    CapabilityField {
         name: "command",
         description: "Exact executable name or path; no shell expansion is performed.",
     },
@@ -75,7 +69,7 @@ const FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "cwd",
-        description: "Working directory relative to the project root.",
+        description: "The directory it runs in, from the workspace root; the workspace itself by default.",
     },
     CapabilityField {
         name: "env",

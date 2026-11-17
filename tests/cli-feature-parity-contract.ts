@@ -94,7 +94,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("tool-catalog", "runx-runtime tool catalogs", "fixture-backed", "Catalog discovery and dispatch use the canonical native or manifest-owned path."),
   surface("mcp", "runx-runtime adapters/mcp", "stubbed", "Protocol behavior uses local servers and deterministic clients."),
   surface("adapter-process-tool", "runx-runtime process tool adapter", "fixture-backed", "Exact process invocation, environment, cwd, supervision, and execution-boundary evidence are parity-critical."),
-  surface("adapter-agent", "runx-runtime external agent adapter", "stubbed", "Managed agent calls are represented by local stubs, not live providers."),
+  surface("adapter-agent", "runx-runtime external agent adapter", "stubbed", "Driven turns' model calls are represented by local stubs, not live providers."),
   surface("config", "runx-cli", "schema-exact", "RUNX_HOME and config file behavior are part of CLI parity."),
   surface("secrets", "runx-cli + runx-runtime secrets", "schema-exact", "Secrets are kept by name in the runx home, sealed or by reference, and listed and removed without their values; only secret read prints one."),
   surface("workspaces", "runx-cli + runx-runtime workspace ids", "schema-exact", "Each workspace's id is minted in the runx home by canonical path, never read from the workspace, listed, and rebound after a move."),

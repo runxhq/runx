@@ -73,7 +73,7 @@ pub(super) fn normalize_inputs<I: CapabilityInput>(
     definition: &CapabilityDefinition,
     inputs: &JsonObject,
 ) -> Result<JsonObject, RuntimeError> {
-    let normalized = project_inputs::<I>(definition, inputs.clone());
+    let normalized = project_inputs::<I>(definition, inputs.clone())?;
     deserialize_input::<I>(definition, normalized.clone())?;
     Ok(normalized)
 }
@@ -82,18 +82,36 @@ pub(super) fn decode_inputs<I: CapabilityInput>(
     definition: &CapabilityDefinition,
     inputs: JsonObject,
 ) -> Result<I, RuntimeError> {
-    deserialize_input::<I>(definition, project_inputs::<I>(definition, inputs))
+    deserialize_input::<I>(definition, project_inputs::<I>(definition, inputs)?)
 }
 
+/// A call's inputs with the capability's defaults, an input it doesn't take
+/// refused by name with what it takes: an input never drops unread.
 fn project_inputs<I: CapabilityInput>(
     definition: &CapabilityDefinition,
     mut inputs: JsonObject,
-) -> JsonObject {
-    inputs.retain(|name, _| definition.fields.iter().any(|field| field.name == name));
+) -> Result<JsonObject, RuntimeError> {
+    if let Some(unknown) = inputs.keys().find(|name| {
+        !definition
+            .fields
+            .iter()
+            .any(|field| field.name == name.as_str())
+    }) {
+        let takes = definition
+            .fields
+            .iter()
+            .map(|field| field.name)
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(RuntimeError::Failed(Box::new(
+            crate::Failure::new(definition.id, format!("it takes no input {unknown}"))
+                .next(format!("give it only its inputs: {takes}")),
+        )));
+    }
     for (name, value) in I::defaults() {
         inputs.entry(name).or_insert(value);
     }
-    inputs
+    Ok(inputs)
 }
 
 fn deserialize_input<I: CapabilityInput>(

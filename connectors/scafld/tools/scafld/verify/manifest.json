@@ -9,19 +9,19 @@
       "./verify.sh",
       "{{receipt_path}}",
       "{{target}}",
-      "{{repo_root}}"
+      "{{repository}}"
     ]
   },
   "inputs": {
     "receipt_path": {
       "type": "string",
-      "description": "The receipt file, relative to repo_root or absolute within it."
+      "description": "The receipt file, relative to the repository or absolute within it."
     },
     "target": {
       "type": "string",
       "description": "Exact commit the receipt must verify against."
     },
-    "repo_root": {
+    "repository": {
       "type": "string",
       "description": "Repository root the receipt was finalized in, relative to the workspace."
     }

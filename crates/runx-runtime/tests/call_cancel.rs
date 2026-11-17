@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use runx_contracts::{JsonObject, JsonValue, RunCallOutcome, RunEventFact, TurnCallOutcome};
 use runx_runtime::{
-    CallCancel, LocalOrchestrator, ManagedAgentPolicy, SkillRunRequest, TurnRequest, TurnSession,
+    CallCancel, DrivePolicy, LocalOrchestrator, SkillRunRequest, TurnRequest, TurnSession,
 };
 use tempfile::tempdir;
 
@@ -160,7 +160,7 @@ fn open_under(
             inputs: BTreeMap::new(),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         },
         None,
         None,
@@ -908,7 +908,7 @@ fn stopping_a_run_stops_its_scripts_calls_in_flight_and_never_reaches_its_catch(
                         inputs: BTreeMap::new(),
                         env: env(root),
                         cwd: root.to_path_buf(),
-                        managed_agent: ManagedAgentPolicy::HostDriven,
+                        drive: DrivePolicy::HostDriven,
                     },
                     None,
                     None,
@@ -1094,7 +1094,7 @@ fn a_leads_approval_goes_ahead_with_a_siblings_call_still_running() -> TestResul
         receipt_dir: Some(root.join("receipts")),
         env: env(root),
         cwd: root.to_path_buf(),
-        managed_agent: ManagedAgentPolicy::HostDriven,
+        drive: DrivePolicy::HostDriven,
         package_digest: None,
         closure_digest: None,
     })?;

@@ -32,15 +32,10 @@
     "path": {
       "minLength": 1,
       "type": "string"
-    },
-    "repo_root": {
-      "minLength": 1,
-      "type": "string"
     }
   },
   "required": [
     "path",
-    "repo_root",
     "bytes_written",
     "content_digest",
     "diff"

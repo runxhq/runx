@@ -76,16 +76,16 @@ pub(crate) fn bind_skill_change(
 /// Apply `change` to the skill at `target_dir` as `mode` does: validate the
 /// package it makes, staged, and write it, or, for a design, write nothing.
 pub(crate) fn apply_skill_change(
-    repo_root: &Path,
+    workspace: &Path,
     target_dir: &str,
     mode: SkillAuthoringMode,
     change: &SkillChangeBundle,
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<SkillApplyResult, RuntimeError> {
-    let target = ApplyTarget::resolve(repo_root, target_dir, env)?;
+    let target = ApplyTarget::resolve(workspace, target_dir, env)?;
     validate_change_contract(change, mode, target.before.digest.as_str())?;
-    let secret_prefixes = super::path::declared_secret_prefixes(repo_root, env)?;
+    let secret_prefixes = super::path::declared_secret_prefixes(workspace, env)?;
     let admitted = admit_skill_change(&target.relative, mode, change, &secret_prefixes)?;
     if change.decision != SkillChangeDecision::Write {
         let standing = PackageDigests::standing(&target, env)?;
@@ -105,7 +105,7 @@ pub(crate) fn apply_skill_change(
         // A design shows the package and its checks, and writes nothing.
         return Ok(validated_result(&target, change, candidate.validation));
     }
-    let journal = crate::filesystem::Journal::of_run(env, repo_root)?;
+    let journal = crate::filesystem::Journal::of_run(env, workspace)?;
     let result = commit_candidate(&target, change, admitted, &candidate, journal.as_ref(), env)?;
     drop(candidate);
     Ok(result)
@@ -115,7 +115,7 @@ pub(crate) fn apply_skill_change(
 /// writes and deletes as one bundle beneath the repository root. A change
 /// that decides not to write changes nothing.
 pub(crate) fn skill_change_effect(
-    repo_root: &Path,
+    workspace: &Path,
     target_dir: &str,
     mode: SkillAuthoringMode,
     change: &SkillChangeBundle,
@@ -147,7 +147,7 @@ pub(crate) fn skill_change_effect(
         }
         _ => crate::filesystem::TextBundle::default(),
     };
-    crate::filesystem::text_bundle_effect("runx.skill.apply", repo_root, &bundle, reach)
+    crate::filesystem::text_bundle_effect("runx.skill.apply", workspace, &bundle, reach)
 }
 
 /// A package's digests as an apply result states them.
@@ -190,14 +190,14 @@ impl PackageDigests {
     ) -> Result<Self, RuntimeError> {
         Ok(Self {
             package: Some(loaded.package.package_digest.as_str().into()),
-            distribution: crate::registry::distribution_digest(loaded, env, &target.repo_root)?
+            distribution: crate::registry::distribution_digest(loaded, env, &target.workspace)?
                 .map(Into::into),
         })
     }
 }
 
 struct ApplyTarget {
-    repo_root: PathBuf,
+    workspace: PathBuf,
     paths: RunxPaths,
     relative: String,
     path: PathBuf,
@@ -228,18 +228,18 @@ impl ApplyTarget {
     }
 
     fn resolve(
-        repo_root: &Path,
+        workspace: &Path,
         target_dir: &str,
         env: &BTreeMap<String, String>,
     ) -> Result<Self, RuntimeError> {
-        let repo_root = canonical_directory(repo_root, "skill workspace")?;
-        let paths = RunxPaths::resolve(env, &repo_root);
+        let workspace = canonical_directory(workspace, "skill workspace")?;
+        let paths = RunxPaths::resolve(env, &workspace);
         let target_relative = normalize_child_path(target_dir)?;
         let relative = display_relative(&target_relative);
-        let path = repo_root.join(target_relative);
+        let path = workspace.join(target_relative);
         let before = package_snapshot(&path)?;
         Ok(Self {
-            repo_root,
+            workspace,
             paths,
             relative,
             path,
@@ -269,7 +269,7 @@ fn reapplied_result(
         ));
     }
     let validation = validate_stable_target(
-        &target.repo_root,
+        &target.workspace,
         &target.path,
         &target.relative,
         &target.before,
@@ -317,12 +317,12 @@ fn validate_candidate_stage(
     env: &BTreeMap<String, String>,
     effects: &RuntimeEffectRegistry,
 ) -> Result<ValidatedCandidate, RuntimeError> {
-    let stage = CandidateStage::prepare(&target.repo_root, &target.path, &admitted.bundle)?;
+    let stage = CandidateStage::prepare(&target.workspace, &target.path, &admitted.bundle)?;
     let snapshot = package_snapshot(&stage.skill_dir)?;
     let before_metrics = package_metrics(&target.before);
     let after_metrics = package_metrics(&snapshot);
     let checks = validate_candidate(
-        &target.repo_root,
+        &target.workspace,
         &stage.skill_dir,
         env,
         effects,
@@ -395,7 +395,7 @@ fn commit_candidate(
     // here are the skill package's own, admitted by `admit_skill_change`.
     let (report, ()) = apply_text_bundle_verified(
         "runx.skill.apply",
-        &target.repo_root,
+        &target.workspace,
         &admitted.bundle,
         runx_contracts::Reach::Inputs,
         journal,

@@ -66,7 +66,7 @@ pub use process::detached::{
 };
 pub use time::now_iso8601;
 pub mod saved_authorities;
-/// A scripted model for the managed agent's tests and probes. Only tests and
+/// A scripted model for the drive's tests and probes. Only tests and
 /// benches enable `scripted-model`, so no build that ships has it.
 #[cfg(feature = "scripted-model")]
 #[doc(hidden)]
@@ -128,19 +128,18 @@ pub use adapter::{
     EphemeralValue, Executable, InvocationDiagnostics, InvocationOutput, InvocationStatus,
     SkillAdapter, SkillInvocation,
 };
-pub use agent_config::load_managed_agent_config;
+pub use agent_config::load_drive_config;
 pub use approval::{ApprovalError, LocalApprovalGateResolver, request_approval};
 pub use capability::{
     CapabilityApproval, CapabilityArtifacts, CapabilityContract, CapabilityDefinition,
     CapabilityEffect, CapabilityField, CapabilityInput, CapabilityOutput, TypedCapability,
 };
 pub use config::{
-    ConfigError, ConfigKey, MODEL_PROVIDERS, ManagedAgentAuthMode, ManagedAgentConfig,
-    ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile, RunxPublicConfig,
-    RunxSecretRecord, clear_runx_agent_dialect, clear_runx_agent_endpoint_url,
-    clear_runx_agent_secret, load_runx_config_file, lookup_runx_config_value,
-    mask_runx_config_file, model_provider, parse_config_key, update_runx_config_value,
-    write_runx_config_file,
+    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, MODEL_PROVIDERS, ModelDialect,
+    ModelProvider, RunxAgentConfig, RunxConfigFile, RunxPublicConfig, RunxSecretRecord,
+    clear_runx_agent_dialect, clear_runx_agent_endpoint_url, clear_runx_agent_secret,
+    load_runx_config_file, lookup_runx_config_value, mask_runx_config_file, model_provider,
+    parse_config_key, update_runx_config_value, write_runx_config_file,
 };
 pub use credentials::{CredentialDelivery, CredentialDeliveryError, SecretEnv, SecretString};
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
@@ -185,9 +184,9 @@ pub use list::{
 };
 pub use observations::Observations;
 pub use orchestrator::{
-    DEFAULT_MANAGED_AGENT_MAX_ROUNDS, LocalOrchestrator, MANAGED_AGENT_MAX_ROUNDS_LIMIT,
-    ManagedAgentPolicy, OrchestratorError, PackageTestRequest, ResumeRequest, RunResult, RunStatus,
-    SkillRunRequest, TestRunRequest, TurnRequest,
+    DEFAULT_DRIVE_MAX_ROUNDS, DRIVE_MAX_ROUNDS_LIMIT, DrivePolicy, LocalOrchestrator,
+    OrchestratorError, PackageTestRequest, ResumeRequest, RunResult, RunStatus, SkillRunRequest,
+    TestRunRequest, TurnRequest,
 };
 pub use paths::{
     RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,

@@ -50,6 +50,6 @@ fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2) + "\n");
 process.stdout.write(
   JSON.stringify({
     project_root: path.relative(root, project),
-    profile_path: path.basename(profilePath),
+    profile_path: path.relative(root, profilePath),
   }) + "\n",
 );

@@ -857,7 +857,7 @@ mod tests {
     /// under the effects the CLI runs with, as a run prepares it.
     #[test]
     fn every_bundled_core_method_expands_its_operator_context() -> Result<(), Box<dyn Error>> {
-        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let bundle: serde_json::Value = serde_json::from_str(&fs::read_to_string(
             Path::new(env!("CARGO_MANIFEST_DIR")).join("bundled-skills.json"),
         )?)?;
@@ -871,7 +871,7 @@ mod tests {
             let name = skill_id
                 .strip_prefix("runx/")
                 .ok_or("bundle skill has foreign publisher")?;
-            let directory = repo_root.join("skills").join(name);
+            let directory = workspace.join("skills").join(name);
             let loaded = match crate::load_validated_skill_package(&directory) {
                 Ok(loaded) => loaded,
                 Err(error) => {
@@ -882,7 +882,7 @@ mod tests {
             let Some(manifest) = loaded.manifest() else {
                 continue;
             };
-            let roots = [repo_root.join("tools"), directory.join("tools")]
+            let roots = [workspace.join("tools"), directory.join("tools")]
                 .into_iter()
                 .filter(|path| path.is_dir())
                 .collect::<Vec<_>>();
@@ -897,7 +897,7 @@ mod tests {
                 if let Err(blocked) = load_skill_operator_context_chain_from_package(
                     &loaded,
                     Some(method_name),
-                    SkillOperatorContextOptions::new(env.clone(), repo_root.clone())
+                    SkillOperatorContextOptions::new(env.clone(), workspace.clone())
                         .with_effects(effects.clone()),
                 ) {
                     failures.push(format!("{name}#{method_name}: {}", blocked.error));

@@ -152,7 +152,7 @@ pub fn model_provider(id: &str) -> Option<&'static ModelProvider> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ManagedAgentConfig {
+pub struct DriveConfig {
     /// The provider's id: a built-in profile, or a name the operator gave a
     /// provider configured by dialect and endpoint.
     pub provider: NonEmptyString,
@@ -160,16 +160,16 @@ pub struct ManagedAgentConfig {
     pub model: String,
     pub api_key: Option<SecretString>,
     pub endpoint_url: String,
-    pub auth_mode: ManagedAgentAuthMode,
+    pub auth_mode: DriveAuthMode,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ManagedAgentAuthMode {
+pub enum DriveAuthMode {
     ApiKey,
     LocalNone,
 }
 
-impl ManagedAgentAuthMode {
+impl DriveAuthMode {
     pub fn parse(value: &str) -> Result<Self, ConfigError> {
         match value.trim() {
             "api_key" => Ok(Self::ApiKey),
@@ -340,7 +340,7 @@ pub fn update_runx_config_value(
             config.agent = Some(agent);
         }
         ConfigKey::AgentAuthMode => {
-            ManagedAgentAuthMode::parse(value)?;
+            DriveAuthMode::parse(value)?;
             let mut agent = config.agent.unwrap_or_default();
             agent.auth_mode = Some(value.to_owned());
             config.agent = Some(agent);
@@ -363,7 +363,7 @@ pub fn clear_runx_agent_dialect(mut config: RunxConfigFile) -> RunxConfigFile {
     config
 }
 
-/// The managed agent no longer names a secret; the secret itself stays.
+/// The drive no longer names a secret; the secret itself stays.
 pub fn clear_runx_agent_secret(mut config: RunxConfigFile) -> RunxConfigFile {
     if let Some(agent) = config.agent.as_mut() {
         agent.secret = None;
@@ -407,7 +407,7 @@ pub fn mask_runx_config_file(config: &RunxConfigFile) -> RunxConfigFile {
     masked
 }
 
-pub(crate) fn normalize_managed_agent_provider(value: &str) -> Option<NonEmptyString> {
+pub(crate) fn normalize_drive_provider(value: &str) -> Option<NonEmptyString> {
     NonEmptyString::new(value.trim().to_lowercase())
 }
 

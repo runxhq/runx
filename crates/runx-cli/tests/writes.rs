@@ -752,7 +752,7 @@ fn an_operator_inspects_two_repositories_and_nothing_is_written() -> TestResult 
             command(&workspace),
             &run,
             "turn_call",
-            json!({"turn": "read", "tool": "fs_read", "call_id": format!("read-{index}"), "input": {"repo_root": repo, "path": "README.md"}}),
+            json!({"turn": "read", "tool": "fs_read", "call_id": format!("read-{index}"), "input": {"path": repo.join("README.md")}}),
         )?;
         let read = &called["outcome"];
         assert_eq!(read["status"], "completed", "{read}");

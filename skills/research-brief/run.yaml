@@ -100,11 +100,6 @@ methods:
         maxItems: 16
         uniqueItems: true
         items: {type: string, minLength: 1, maxLength: 4096}
-      repo_root:
-        type: string
-        default: .
-        description: Workspace-relative or explicit absolute root containing the files.
-        optional: true
       max_bytes:
         type: integer
         default: 500000
@@ -133,7 +128,6 @@ methods:
     examples:
       - objective: Identify the strongest architecture decision in the local design notes.
         paths: [docs/architecture.md, docs/constraints.md]
-        repo_root: .
         audience: operators
         channel: brief
     result_from: [research-topic, draft-brief]
@@ -143,7 +137,6 @@ methods:
         inputs:
           objective: $input.objective
           paths: $input.paths
-          repo_root: $input.repo_root
           max_bytes: $input.max_bytes
           domain: $input.domain
           deliverable: deep research brief

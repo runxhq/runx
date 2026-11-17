@@ -15,7 +15,6 @@ use super::super::capability::{NativeCapability, TypedNativeCapability};
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ProcessStartInput {
-    pub(super) repo_root: String,
     pub(super) command: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) args: Vec<String>,
@@ -30,7 +29,6 @@ pub(super) struct ProcessStartInput {
 impl CapabilityInput for ProcessStartInput {
     fn defaults() -> JsonObject {
         JsonObject::from([
-            ("repo_root".to_owned(), JsonValue::String(".".to_owned())),
             ("cwd".to_owned(), JsonValue::String(".".to_owned())),
             (
                 "max_seconds".to_owned(),
@@ -104,10 +102,6 @@ const PROCESS_ID: CapabilityField = CapabilityField {
 
 const START_FIELDS: &[CapabilityField] = &[
     CapabilityField {
-        name: "repo_root",
-        description: "Workspace-relative project root.",
-    },
-    CapabilityField {
         name: "command",
         description: "Exact executable name or path; no shell expansion is performed.",
     },
@@ -117,7 +111,7 @@ const START_FIELDS: &[CapabilityField] = &[
     },
     CapabilityField {
         name: "cwd",
-        description: "Working directory relative to the project root.",
+        description: "The directory it runs in, from the workspace root; the workspace itself by default.",
     },
     CapabilityField {
         name: "env",

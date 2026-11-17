@@ -230,7 +230,7 @@ fn filesystem_paths_do_not_require_utf8() {
             expected_closure_digest: None,
             json: false,
             diagnostics: false,
-            managed_agent: Default::default(),
+            drive: Default::default(),
         })
     );
     let action = route_args(vec!["skill".into(), path.clone()]);
@@ -582,7 +582,7 @@ fn routes_canonical_skill_run_to_native_plan() {
                 max_spend_micro_usd: None,
             }),
             context: None,
-            managed_agent: Default::default(),
+            drive: Default::default(),
         }))
     );
 }
@@ -824,7 +824,7 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
             expected_closure_digest: None,
             json: true,
             diagnostics: false,
-            managed_agent: Default::default(),
+            drive: Default::default(),
         })
     );
     assert_eq!(
@@ -856,7 +856,7 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
 }
 
 #[test]
-fn managed_agent_rounds_need_explicit_managed_agent_consent() {
+fn drive_rounds_need_explicit_drive_consent() {
     assert_eq!(
         plan(&["skill", "skills/docs-demo", "--drive-rounds", "2"]),
         RouterAction::Error("runx skill --drive-rounds requires --drive".to_owned())
@@ -871,8 +871,8 @@ fn managed_agent_rounds_need_explicit_managed_agent_consent() {
     assert!(matches!(action, RouterAction::RunSkill(_)));
     if let RouterAction::RunSkill(skill) = action {
         assert_eq!(
-            skill.managed_agent,
-            runx_runtime::ManagedAgentPolicy::Inline { max_rounds: 2 }
+            skill.drive,
+            runx_runtime::DrivePolicy::Inline { max_rounds: 2 }
         );
     }
 }

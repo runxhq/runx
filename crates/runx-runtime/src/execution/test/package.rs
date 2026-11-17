@@ -182,6 +182,7 @@ pub(crate) fn run_package_case_with_effects(
     let receipt_services =
         ReceiptServices::from_signature_config(options.receipt_signature.clone());
     let output = match load_test_case(&test_path).and_then(|(fixture, target)| {
+        test.enter(&fixture, &mut options.env);
         run_test_case_with_adapter(fixture, target, ExecutableAdapter, options)
     }) {
         Ok(output) => output,
@@ -246,6 +247,7 @@ fn replay_cases(
                 .to_string_lossy()
                 .into_owned(),
         );
+        test.enter(&fixture, &mut options.env);
         let name = fixture.name.clone();
         let is_workflow = fixture.package.is_some();
         let denial_expected = fixture.expect.status == Some(TestExpectedStatus::PolicyDenied);
@@ -448,6 +450,20 @@ impl PackageTestEnvironment {
             )
             .into()
         })
+    }
+
+    /// The workspace root `fixture` runs in: the test's own, or the staged
+    /// fixture directory it names as its workspace.
+    fn enter(&self, fixture: &super::TestFixture, env: &mut BTreeMap<String, String>) {
+        if let Some(workspace) = &fixture.workspace {
+            env.insert(
+                RUNX_CWD_ENV.to_owned(),
+                self.workspace
+                    .join(workspace)
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
     }
 
     fn stage_file(

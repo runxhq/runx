@@ -2,7 +2,6 @@ name: skill-lab-designs-bounded-package
 method: design
 inputs:
   objective: Add a governed release-notes skill
-  repo_root: .
   target_dir: skills/release-notes
   project_context: runx OSS first-party catalog
 host:

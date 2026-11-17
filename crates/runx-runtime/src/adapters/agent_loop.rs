@@ -1,4 +1,4 @@
-//! Provider-agnostic managed-agent tool-use loop.
+//! Provider-agnostic drive tool-use loop.
 //!
 //! This is the governance core of the `agent` source front. It drives a bounded
 //! multi-round conversation: it asks the model for the next tool calls, executes
@@ -52,14 +52,14 @@ pub enum AgentLoopFailureReason {
 }
 
 impl AgentLoopFailureReason {
-    /// The reason a receipt seals a managed agent stopped for this.
+    /// The reason a receipt seals a driven turn stopped for this.
     #[must_use]
     pub const fn seal_reason(self) -> SealReason {
         match self {
-            Self::ProviderFailed => SealReason::ManagedAgentProviderFailed,
-            Self::EmptyTurnBudgetExhausted => SealReason::ManagedAgentEmptyTurnBudgetExhausted,
-            Self::ToolExecutionFailed => SealReason::ManagedAgentToolExecutionFailed,
-            Self::RoundBudgetExhausted => SealReason::ManagedAgentRoundBudgetExhausted,
+            Self::ProviderFailed => SealReason::DriveProviderFailed,
+            Self::EmptyTurnBudgetExhausted => SealReason::DriveEmptyTurnBudgetExhausted,
+            Self::ToolExecutionFailed => SealReason::DriveToolExecutionFailed,
+            Self::RoundBudgetExhausted => SealReason::DriveRoundBudgetExhausted,
         }
     }
 }
@@ -389,8 +389,8 @@ where
                 return Err(AgentLoopFailure::new(
                     AgentLoopFailureReason::ProviderFailed,
                     detail.map_or_else(
-                        || "Managed agent provider request failed.".to_owned(),
-                        |detail| format!("Managed agent provider request failed: {detail}"),
+                        || "its model's provider request failed".to_owned(),
+                        |detail| format!("its model's provider request failed: {detail}"),
                     ),
                     telemetry(
                         round,
@@ -406,7 +406,7 @@ where
                 return Err(AgentLoopFailure::new(
                     AgentLoopFailureReason::EmptyTurnBudgetExhausted,
                     format!(
-                        "Managed agent returned no tool use after {} attempts.",
+                        "its model called no tool in {} attempts",
                         config.max_empty_turn_resamples + 1
                     ),
                     telemetry(
@@ -432,7 +432,7 @@ where
         if malformed {
             return Err(AgentLoopFailure::new(
                 AgentLoopFailureReason::ToolExecutionFailed,
-                "Managed agent emitted an invalid tool-call batch.",
+                "its model sent an invalid batch of tool calls",
                 telemetry(
                     round,
                     model_calls,
@@ -558,7 +558,7 @@ where
                     });
                     return Err(AgentLoopFailure::new(
                         AgentLoopFailureReason::ToolExecutionFailed,
-                        "Managed agent tool execution failed.",
+                        "a tool it called failed",
                         telemetry(
                             round,
                             model_calls,
@@ -595,7 +595,7 @@ where
     Err(AgentLoopFailure::new(
         AgentLoopFailureReason::RoundBudgetExhausted,
         format!(
-            "its agent made {} rounds of calls and never answered",
+            "it made {} rounds of calls and never answered",
             config.max_rounds
         ),
         telemetry(
@@ -1312,7 +1312,7 @@ mod tests {
                 &result,
                 Err(error)
                     if error.reason() == AgentLoopFailureReason::EmptyTurnBudgetExhausted
-                    && error.sanitized_message().contains("no tool use")
+                    && error.sanitized_message().contains("called no tool")
                     && error.telemetry().rounds == Some(1)
                     && error.telemetry().model_calls == Some(4)
                     && error.telemetry().tool_calls == Some(0)
@@ -1584,7 +1584,7 @@ mod tests {
                 &result,
                 Err(error)
                     if error.reason() == AgentLoopFailureReason::ToolExecutionFailed
-                    && error.sanitized_message() == "Managed agent tool execution failed."
+                    && error.sanitized_message() == "a tool it called failed"
                     && error.telemetry().tool_calls == Some(1)
                     && error.telemetry().tool_executions.as_ref().is_some_and(|traces|
                         traces.len() == 1
@@ -1630,7 +1630,7 @@ mod tests {
                 &result,
                 Err(error)
                     if error.reason() == AgentLoopFailureReason::ProviderFailed
-                    && error.sanitized_message() == "Managed agent provider request failed."
+                    && error.sanitized_message() == "its model's provider request failed"
                     && error.telemetry().rounds == Some(1)
                     && error.telemetry().model_calls == Some(1)
                     && error.telemetry().tool_calls == Some(0)
@@ -1678,7 +1678,7 @@ mod tests {
                 Err(error)
                     if error.reason() == AgentLoopFailureReason::ProviderFailed
                     && error.sanitized_message()
-                        == "Managed agent provider request failed: status 404 NOT_FOUND: This model is no longer available for key [redacted]."
+                        == "its model's provider request failed: status 404 NOT_FOUND: This model is no longer available for key [redacted]."
             ),
             "got: {result:?}"
         );

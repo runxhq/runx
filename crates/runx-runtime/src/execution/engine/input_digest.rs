@@ -72,7 +72,7 @@ mod tests {
 
     use crate::execution::run_record::{Replayed, RunLog};
     use crate::kernel::store::KernelStore;
-    use crate::{LocalOrchestrator, ManagedAgentPolicy, SkillRunRequest};
+    use crate::{DrivePolicy, LocalOrchestrator, SkillRunRequest};
 
     /// A package whose one worker step declares `REGION`.
     fn write_region(root: &Path) -> std::path::PathBuf {
@@ -126,7 +126,7 @@ methods:
                     )]),
                     env: env.clone(),
                     cwd: root.to_path_buf(),
-                    managed_agent: ManagedAgentPolicy::HostDriven,
+                    drive: DrivePolicy::HostDriven,
                 },
                 None,
                 None,

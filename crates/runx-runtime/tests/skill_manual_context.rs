@@ -4,7 +4,7 @@ use runx_contracts::{
     ExecutionEvent, JsonValue, ResolutionRequest, canonical_stable_json, sha256_prefixed,
 };
 #[cfg(feature = "agent")]
-use runx_runtime::adapters::agent::{AgentExecutionTelemetry, ManagedAgentError};
+use runx_runtime::adapters::agent::{AgentExecutionTelemetry, DriveError};
 use runx_runtime::{Host, InvocationOutput, Runtime, RuntimeError, SkillAdapter, SkillInvocation};
 
 #[derive(Default)]
@@ -60,14 +60,14 @@ impl Host for MisidentifiedManagedFailureHost {
     ) -> Result<Option<runx_contracts::ResolutionResponse>, RuntimeError> {
         let request_id = match request {
             ResolutionRequest::Turn { id, .. } => id.as_str().to_owned(),
-            _ => "managed-agent".to_owned(),
+            _ => "drive".to_owned(),
         };
-        Err(RuntimeError::ManagedAgentResolution {
+        Err(RuntimeError::DriveResolution {
             step_id: "referenced-agent-method".to_owned(),
             request_id,
-            source: Box::new(ManagedAgentError::bounded_failure(
-                runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted,
-                "Managed agent exhausted its bounded run.",
+            source: Box::new(DriveError::bounded_failure(
+                runx_contracts::SealReason::DriveRoundBudgetExhausted,
+                "it made every round of calls it had and never answered",
                 AgentExecutionTelemetry::default(),
             )),
         })
@@ -110,7 +110,7 @@ fn workflow_execution_binds_managed_failure_to_the_owning_step()
 
     assert!(matches!(
         error,
-        RuntimeError::ManagedAgentResolution { step_id, .. } if step_id == "owning-step"
+        RuntimeError::DriveResolution { step_id, .. } if step_id == "owning-step"
     ));
     Ok(())
 }

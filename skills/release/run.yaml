@@ -10,7 +10,7 @@ methods:
     description: Run the release profile's preparation command and produce an evidence-bound release brief.
     inputs:
       project_root: {type: string, description: Existing project directory relative to the runx workspace.}
-      profile_path: {type: string, description: JSON release profile inside project_root.}
+      profile_path: {type: string, description: "JSON release profile, a path from the workspace root."}
       channel: {type: string, description: Release channel declared by the profile.}
       version: {type: string, description: Exact SemVer release version.}
       last_tag: {type: string, description: Previous release anchor for notes., optional: true}
@@ -20,7 +20,6 @@ methods:
       - id: read-profile
         tool: fs.read
         inputs:
-          repo_root: $input.project_root
           path: $input.profile_path
           max_bytes: 65536
       - id: inspect-profile
@@ -40,7 +39,6 @@ methods:
         tool: command.plan
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.project_root
           command: $steps.inspect-profile.release_context.commands.prepare.command
           args: $steps.inspect-profile.release_context.commands.prepare.args
           cwd: $steps.inspect-profile.release_context.commands.prepare.cwd
@@ -50,7 +48,6 @@ methods:
         tool: command.plan
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.project_root
           command: $steps.inspect-profile.release_context.commands.publish.command
           args: $steps.inspect-profile.release_context.commands.publish.args
           cwd: $steps.inspect-profile.release_context.commands.publish.cwd
@@ -60,7 +57,6 @@ methods:
         tool: command.plan
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.project_root
           command: $steps.inspect-profile.release_context.commands.verify.command
           args: $steps.inspect-profile.release_context.commands.verify.args
           cwd: $steps.inspect-profile.release_context.commands.verify.cwd
@@ -70,7 +66,6 @@ methods:
         tool: command.execute
         inputs:
           output_mode: json
-          repo_root: $steps.inspect-profile.release_context.project_root
           command: $steps.inspect-profile.release_context.commands.prepare.command
           args: $steps.inspect-profile.release_context.commands.prepare.args
           cwd: $steps.inspect-profile.release_context.commands.prepare.cwd
@@ -164,7 +159,7 @@ methods:
     description: Approve a release's exact publish plan, run it without a shell, then verify it with a separate command.
     inputs:
       project_root: {type: string, description: Existing project directory relative to the runx workspace.}
-      profile_path: {type: string, description: JSON release profile inside project_root.}
+      profile_path: {type: string, description: "JSON release profile, a path from the workspace root."}
       channel: {type: string, description: Release channel declared by the profile.}
       version: {type: string, description: Exact SemVer release version.}
       last_tag: {type: string, description: Previous release anchor for notes., optional: true}
@@ -204,7 +199,6 @@ methods:
         tool: command.execute
         inputs:
           output_mode: json
-          repo_root: $steps.prepare.release_context.project_root
           command: $steps.prepare.release_context.commands.publish.command
           args: $steps.prepare.release_context.commands.publish.args
           cwd: $steps.prepare.release_context.commands.publish.cwd
@@ -227,7 +221,6 @@ methods:
         tool: command.execute
         inputs:
           output_mode: json
-          repo_root: $steps.prepare.release_context.project_root
           command: $steps.prepare.release_context.commands.verify.command
           args: $steps.prepare.release_context.commands.verify.args
           cwd: $steps.prepare.release_context.commands.verify.cwd

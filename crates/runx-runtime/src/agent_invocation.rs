@@ -9,7 +9,7 @@ use runx_contracts::{
     ResolutionRequest, TurnInvocation,
 };
 
-const TRUST_BOUNDARY: &str = "runtime-governed: caller-mediated resolution is the default; an in-process model loop runs only with explicit per-run managed-agent consent, and every resolution is receipt-bound";
+const TRUST_BOUNDARY: &str = "runtime-governed: caller-mediated resolution is the default; an in-process model loop runs only with explicit per-run drive consent, and every resolution is receipt-bound";
 
 mod profiles;
 

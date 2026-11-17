@@ -305,7 +305,7 @@ can, a workspace `.env` included.
 ## Secrets
 
 `runx secret` is the one place a secret is kept: by name, in the runx home.
-A connector binding, the managed agent and a program you run each name it,
+A connector binding, the drive and a program you run each name it,
 and none of them holds its value.
 
 ```bash
@@ -328,7 +328,7 @@ Fieldwork's model keys through `@runxhq/client`'s `secrets.read`.
 
 A variable set in the environment or the workspace `.env` needs no secret and
 no setup: a connector whose credential it holds runs as it with no instance
-selected, reading it on every call, and the managed agent reads its
+selected, reading it on every call, and the drive reads its
 provider's variable. Keep a key in a secret when it should live in one place
 you rotate, or in a secrets manager.
 
@@ -480,7 +480,7 @@ repository, message, post, charge, or other resource.
 
 ## Model keys and the runx account
 
-The managed agent's model key is a secret the agent names, or a variable:
+The drive's model key is a secret `agent.secret` names, or a variable:
 
 ```bash
 runx secret set anthropic

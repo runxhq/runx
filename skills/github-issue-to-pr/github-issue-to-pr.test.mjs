@@ -16,7 +16,7 @@ const work = () => ({
   summary: "Correct the issue workflow.",
   ...issue,
   issue_number: "442",
-  repo_root: ".",
+  checkout: ".",
   branch: "fix/workflow",
   commit: sha,
   files: ["file.mjs"],
@@ -40,9 +40,9 @@ const observe = (host = work(), overrides = {}) =>
   verifyCandidate({
     host_result: host,
     admission: admitHostResult({ host_result: host, issue_evidence: issue }).admission,
-    status: { clean: true, repo_root: "/repo" },
-    branch: { branch: host.branch, detached: false, repo_root: "/repo" },
-    history: { commits: [{ commit: sha }], repo_root: "/repo" },
+    status: { clean: true, repository: "/repo" },
+    branch: { branch: host.branch, detached: false, repository: "/repo" },
+    history: { commits: [{ commit: sha }], repository: "/repo" },
     ...overrides,
   }).candidate;
 test("ordinary work verifies its real candidate without imposing finalization", () => {
@@ -72,15 +72,15 @@ test("failed checks, incomplete host work, wrong issue and host errors cannot ad
 });
 test("dirty, wrong branch, detached, changed head and wrong checkout block publication", () => {
   for (const overrides of [
-    { status: { clean: false, repo_root: "/repo" } },
-    { branch: { branch: "main", detached: false, repo_root: "/repo" } },
-    { branch: { branch: "fix/workflow", detached: true, repo_root: "/repo" } },
-    { history: { commits: [{ commit: "b".repeat(40) }], repo_root: "/repo" } },
-    { status: { clean: true, repo_root: "/different" } },
+    { status: { clean: false, repository: "/repo" } },
+    { branch: { branch: "main", detached: false, repository: "/repo" } },
+    { branch: { branch: "fix/workflow", detached: true, repository: "/repo" } },
+    { history: { commits: [{ commit: "b".repeat(40) }], repository: "/repo" } },
+    { status: { clean: true, repository: "/different" } },
   ])
     assert.equal(observe(work(), overrides).decision, "blocked");
   const wrong = work();
-  wrong.repo_root = "/other";
+  wrong.checkout = "/other";
   assert.equal(observe(wrong).decision, "blocked");
 });
 test("required finalization is still exact-commit, exact-contract and independently verified", () => {

@@ -32,7 +32,7 @@ fn run(root: &Path, skill: &Path, run_id: Option<&str>) -> TestResult<RunResult>
             inputs: BTreeMap::new(),
             env: env(root),
             cwd: root.to_path_buf(),
-            managed_agent: Default::default(),
+            drive: Default::default(),
         },
         None,
         None,

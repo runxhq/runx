@@ -2,7 +2,6 @@ name: skill-lab-builds-thin-skill
 method: build
 inputs:
   objective: Create a bounded decision-note skill without package-local runtime code
-  repo_root: .
   target_dir: .runx-tmp/skill-lab-fixtures/fixture-decision-note
   project_context: Keep the package declarative and prove its native test.
 host:

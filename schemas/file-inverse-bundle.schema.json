@@ -19,11 +19,6 @@
       },
       "type": "array"
     },
-    "repo_root": {
-      "description": "The root the edits changed, relative to the workspace.",
-      "minLength": 1,
-      "type": "string"
-    },
     "writes": {
       "items": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FileBundleWrite"
@@ -32,7 +27,6 @@
     }
   },
   "required": [
-    "repo_root",
     "writes",
     "deletes",
     "calls"

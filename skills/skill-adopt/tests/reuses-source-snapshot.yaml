@@ -2,15 +2,12 @@ name: reuses-supplied-source-without-reacquiring
 method: from-source
 inputs:
   objective: Adopt this captured decision-note procedure as a runnable local runx package.
-  repo_root: .
   target_dir: .runx-tmp/skill-adopt-fixtures/reuses-source-snapshot/fixture-decision-note
   source_snapshot:
-    repo_root: .
     file_count: 1
     total_bytes: 718
     files:
       - path: fixtures/upstream/decision-note/SKILL.md
-        repo_root: .
         contents: |
           ---
           name: fixture-decision-note

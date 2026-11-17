@@ -180,7 +180,7 @@ pub(crate) fn start(request: ScriptPass<'_>) -> Result<(Option<LiveScript>, Pass
         .map_err(|error| engine_failure("resolving JavaScript export", error))?;
     let callable = exported.as_callable().ok_or_else(|| {
         EngineError::new(
-            WorkerFailureCode::ExecutionFailed,
+            WorkerFailureCode::ModuleRejected,
             format!(
                 "JavaScript module does not export callable {:?}",
                 request.export_name

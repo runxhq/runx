@@ -11,7 +11,7 @@
       "type": "string"
     },
     "catalog_root": {
-      "description": "Where catalog skills live, relative to `repo_root`.",
+      "description": "Where catalog skills live, from the workspace root.",
       "minLength": 1,
       "type": "string"
     },
@@ -27,10 +27,6 @@
       },
       "type": "array"
     },
-    "repo_root": {
-      "minLength": 1,
-      "type": "string"
-    },
     "target_dir": {
       "anyOf": [
         {
@@ -41,13 +37,13 @@
           "type": "null"
         }
       ],
-      "description": "The target package, relative to `repo_root`; null when none was named."
+      "description": "The target package, from the workspace root; null when none was named."
     },
     "target_exists": {
       "type": "boolean"
     },
     "target_files": {
-      "description": "The target's files, from `repo_root`, as the read tools and a change name them.",
+      "description": "The target's files, from the workspace root, as the read tools and a change name them.",
       "items": {
         "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/SkillPackageFile"
       },
@@ -70,7 +66,6 @@
     }
   },
   "required": [
-    "repo_root",
     "target_dir",
     "target_exists",
     "base_digest",

@@ -525,7 +525,7 @@ fn the_act_carries_the_projects_instructions_from_the_repository_root_down()
     fs::write(root.join("AGENTS.md"), "Root rules.\n")?;
     fs::write(root.join("apps/CLAUDE.md"), "App rules.\n")?;
     fs::write(workspace.join("AGENTS.md"), "Site rules.\n")?;
-    // A link within its own directory is read as its target.
+    // A link within its own directory is read as its target, once.
     #[cfg(unix)]
     std::os::unix::fs::symlink("AGENTS.md", workspace.join("CLAUDE.md"))?;
     let skill = temp_skill("Plan from the project's rules.")?;
@@ -546,21 +546,35 @@ fn the_act_carries_the_projects_instructions_from_the_repository_root_down()
         .iter()
         .map(|profile| (profile.path.as_str().to_owned(), profile.content.clone()))
         .collect::<Vec<_>>();
-    let mut expected = vec![
-        ("AGENTS.md".to_owned(), "Root rules.\n".to_owned()),
-        ("apps/CLAUDE.md".to_owned(), "App rules.\n".to_owned()),
-        ("apps/site/AGENTS.md".to_owned(), "Site rules.\n".to_owned()),
-    ];
-    if cfg!(unix) {
-        expected.push(("apps/site/CLAUDE.md".to_owned(), "Site rules.\n".to_owned()));
-    }
-    assert_eq!(read, expected);
+    // Named from the workspace root, as its tools name files, and read once
+    // where two names reach one file.
+    assert_eq!(
+        read,
+        vec![
+            ("../../AGENTS.md".to_owned(), "Root rules.\n".to_owned()),
+            ("../CLAUDE.md".to_owned(), "App rules.\n".to_owned()),
+            ("AGENTS.md".to_owned(), "Site rules.\n".to_owned()),
+        ]
+    );
+    // They instruct whatever agent works in the project, so they reach the
+    // configured model unless the person keeps them local.
     assert!(
         instructions
             .iter()
-            .all(|profile| profile.root_path.as_str() == root.to_string_lossy()),
-        "each path is relative to the repository root"
+            .all(|profile| profile.sharing == runx_contracts::ContextSharing::ConfiguredModel)
     );
+    request
+        .env
+        .insert("RUNX_PROFILE_SHARING".to_owned(), "local_only".to_owned());
+    let kept = build_turn_invocation(&request, &package_of(&request)?, None, "agent".to_owned())?;
+    assert!(
+        kept.envelope
+            .context
+            .iter()
+            .flat_map(|profiles| &profiles.instructions)
+            .all(|profile| profile.sharing == runx_contracts::ContextSharing::LocalOnly)
+    );
+    request.env.remove("RUNX_PROFILE_SHARING");
 
     // A link leaving its directory is refused.
     #[cfg(unix)]
@@ -572,7 +586,10 @@ fn the_act_carries_the_projects_instructions_from_the_repository_root_down()
                 .err()
                 .map(|error| error.to_string())
                 .unwrap_or_default();
-        assert!(refused.contains("links outside its directory"), "{refused}");
+        assert!(
+            refused.starts_with("CLAUDE.md links outside its directory"),
+            "{refused}"
+        );
     }
     Ok(())
 }

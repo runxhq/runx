@@ -22,7 +22,7 @@ export function inspectProfile(inputs) {
   const commands = Object.fromEntries(
     ["prepare", "publish", "verify"].map((phase) => [
       phase,
-      normalizeCommand(profile.commands?.[phase], phase, identity),
+      normalizeCommand(profile.commands?.[phase], phase, identity, requiredText(inputs.project_root, "project root", 4_000)),
     ]),
   );
   return {
@@ -195,7 +195,14 @@ function commandIntent(value) {
   };
 }
 
-function normalizeCommand(value, phase, identity) {
+/** A path under the project, from the workspace root, as every tool takes it. */
+function underProject(projectRoot, relative) {
+  const root = projectRoot.replace(/\/+$/, "");
+  if (root === "" || root === ".") return relative;
+  return relative === "." ? root : `${root}/${relative}`;
+}
+
+function normalizeCommand(value, phase, identity, projectRoot) {
   if (!Array.isArray(value?.argv) || value.argv.length === 0) {
     throw new Error(`commands.${phase}.argv must name an executable`);
   }
@@ -207,7 +214,7 @@ function normalizeCommand(value, phase, identity) {
   }
   return {
     command: value.argv[0], args: value.argv.slice(1),
-    cwd: value.cwd ?? ".", timeout_ms: value.timeout_ms ?? 120_000,
+    cwd: underProject(projectRoot, value.cwd ?? "."), timeout_ms: value.timeout_ms ?? 120_000,
     env: {
       RUNX_RELEASE_PHASE: phase,
       RUNX_RELEASE_VERSION: identity.version,

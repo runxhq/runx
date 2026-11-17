@@ -225,6 +225,40 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
     })
 }
 
+/// A step that gives a core tool an input it doesn't take, by name: what
+/// `doctor` reports before anything runs, and what the step's own call
+/// refuses when it runs, in a test or a run alike.
+pub(crate) fn refuse_inputs_no_tool_takes(
+    package: &runx_parser::ValidatedSkillPackage,
+) -> Result<(), RuntimeError> {
+    for manifest in package.profiles.values() {
+        for method in manifest.methods.values() {
+            for step in &method.workflow.steps {
+                let runx_parser::StepKind::Tool(runx_parser::ToolTarget::Catalog(tool)) =
+                    &step.kind
+                else {
+                    continue;
+                };
+                let Some(takes) = crate::tool_catalogs::native::input_names(tool) else {
+                    continue;
+                };
+                if let Some(input) = step
+                    .inputs
+                    .keys()
+                    .find(|input| !takes.contains(&input.as_str()))
+                {
+                    return Err(RuntimeError::Failed(Box::new(
+                        crate::Failure::new(tool.clone(), format!("it takes no input {input}"))
+                            .next(format!("give it only its inputs: {}", takes.join(", ")))
+                            .within(&format!("{}/{}", method.name, step.id)),
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// A package's validation, once per exact source. Validation is a pure
 /// function of the package bytes, and one run loads the same package for every
 /// step and module call that names it, so each distinct source is parsed once
@@ -572,6 +606,29 @@ mod tests {
     use super::discover_workspace_skill_package_dirs;
 
     const MANUAL: &str = "---\nname: demo\ndescription: Demo skill.\n---\n\n# Demo\n";
+
+    /// A step that gives a core tool an input it doesn't take is named, with
+    /// the input and what the tool takes, before anything runs.
+    #[test]
+    fn a_step_giving_a_core_tool_an_input_it_takes_not_is_refused() {
+        let temp = tempfile::tempdir().expect("temporary workspace");
+        let root = temp.path();
+        fs::write(root.join("SKILL.md"), MANUAL).expect("manual");
+        fs::write(
+            root.join("run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  admit:\n    steps:\n      - id: admit\n        tool: artifact.admit\n        inputs: {path: notes.md, path_scope: skill, media_type: text/markdown}\n",
+        )
+        .expect("profile");
+        let loaded = super::load_validated_skill_package(root).expect("the package loads");
+        let refused = super::refuse_inputs_no_tool_takes(&loaded.package)
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(
+            refused.starts_with("it takes no input path_scope (artifact.admit, at admit/admit). Next: give it only its inputs: "),
+            "{refused}"
+        );
+    }
 
     #[test]
     fn catalog_workspace_does_not_wrap_root_manual_around_repository() {

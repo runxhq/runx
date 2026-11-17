@@ -140,11 +140,6 @@ methods:
         description: What to extract and how to represent missing or ambiguous fields.
         minLength: 1
         maxLength: 5000
-      repo_root:
-        type: string
-        default: .
-        description: Authorized workspace root.
-        optional: true
       path:
         type: string
         description: Workspace-relative text document to admit through native artifact storage.
@@ -161,7 +156,6 @@ methods:
     - id: admit
       tool: artifact.admit
       inputs:
-        repo_root: $input.repo_root
         path: $input.path
         media_type: text/plain
     - id: read

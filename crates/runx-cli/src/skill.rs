@@ -6,7 +6,7 @@ use std::process::ExitCode;
 
 use runx_contracts::{CheckOutcome, JsonObject, JsonValue, Readiness};
 use runx_runtime::skill_front::{PreparedEntryProvenance, PreparedSkillRunStatus};
-use runx_runtime::{ManagedAgentPolicy, OrchestratorError, SkillRunRequest, WorkspaceEnv};
+use runx_runtime::{DrivePolicy, OrchestratorError, SkillRunRequest, WorkspaceEnv};
 
 mod environment_readiness;
 mod inputs;
@@ -58,7 +58,7 @@ pub struct SkillPlan {
     pub authority: Option<SavedAuthority>,
     /// The caller's context for the run (`--context`).
     pub context: Option<Box<CallerContext>>,
-    pub managed_agent: ManagedAgentPolicy,
+    pub drive: DrivePolicy,
 }
 
 /// The saved authority a run starts with, and the money limit `--max-spend`
@@ -243,7 +243,7 @@ pub fn run_native_skill_with_workspace(mut plan: SkillPlan, workspace: &Workspac
         inputs,
         env,
         cwd,
-        managed_agent: plan.managed_agent.clone(),
+        drive: plan.drive.clone(),
     };
     let orchestrator = match crate::runtime::local_orchestrator(&request.env) {
         Ok(orchestrator) => orchestrator,

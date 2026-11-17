@@ -20,8 +20,8 @@ use super::test::{PackageTestReport, TestProcesses};
 use super::test::{TestReplayError, TestReplayOutput};
 use crate::effects::RuntimeEffectRegistry;
 
-pub const DEFAULT_MANAGED_AGENT_MAX_ROUNDS: u32 = 4;
-pub const MANAGED_AGENT_MAX_ROUNDS_LIMIT: u32 = 32;
+pub const DEFAULT_DRIVE_MAX_ROUNDS: u32 = 4;
+pub const DRIVE_MAX_ROUNDS_LIMIT: u32 = 32;
 
 /// Per-run consent for in-process model execution.
 ///
@@ -29,7 +29,7 @@ pub const MANAGED_AGENT_MAX_ROUNDS_LIMIT: u32 = 32;
 /// default remains caller-mediated `needs_agent` resolution.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "mode", rename_all = "snake_case")]
-pub enum ManagedAgentPolicy {
+pub enum DrivePolicy {
     #[default]
     HostDriven,
     Inline {
@@ -37,11 +37,11 @@ pub enum ManagedAgentPolicy {
     },
 }
 
-impl ManagedAgentPolicy {
+impl DrivePolicy {
     pub fn inline(max_rounds: u32) -> Result<Self, String> {
-        if !(1..=MANAGED_AGENT_MAX_ROUNDS_LIMIT).contains(&max_rounds) {
+        if !(1..=DRIVE_MAX_ROUNDS_LIMIT).contains(&max_rounds) {
             return Err(format!(
-                "managed-agent rounds must be between 1 and {MANAGED_AGENT_MAX_ROUNDS_LIMIT}"
+                "drive rounds must be between 1 and {DRIVE_MAX_ROUNDS_LIMIT}"
             ));
         }
         Ok(Self::Inline { max_rounds })
@@ -83,9 +83,9 @@ pub struct SkillRunRequest {
     pub inputs: BTreeMap<String, JsonValue>,
     pub env: BTreeMap<String, String>,
     pub cwd: PathBuf,
-    /// Explicit consent for an in-process managed-agent loop. The default is
+    /// Explicit consent for an in-process drive loop. The default is
     /// host-driven resolution even when model credentials are configured.
-    pub managed_agent: ManagedAgentPolicy,
+    pub drive: DrivePolicy,
 }
 
 /// Continue a paused run with the answers its host brings. The run's skill,
@@ -98,9 +98,9 @@ pub struct ResumeRequest {
     pub receipt_dir: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     pub cwd: PathBuf,
-    /// Explicit consent for an in-process managed agent to work the turns
-    /// the run opens from here.
-    pub managed_agent: ManagedAgentPolicy,
+    /// Explicit consent for runx to drive the turns the run opens from here,
+    /// with an in-process model.
+    pub drive: DrivePolicy,
     /// Digests a caller pins; each must be the one the run started under.
     pub package_digest: Option<String>,
     pub closure_digest: Option<String>,
@@ -330,7 +330,7 @@ impl LocalOrchestrator {
             env: &request.env,
             cwd: &request.cwd,
             answers: Some(&request.answers),
-            managed_agent: request.managed_agent.clone(),
+            drive: request.drive.clone(),
             package_digest: request.package_digest.as_deref(),
             closure_digest: request.closure_digest.as_deref(),
         };
@@ -362,7 +362,7 @@ impl LocalOrchestrator {
                 env: &request.env,
                 cwd: &request.cwd,
                 answers: None,
-                managed_agent: ManagedAgentPolicy::HostDriven,
+                drive: DrivePolicy::HostDriven,
                 package_digest: None,
                 closure_digest: None,
             },

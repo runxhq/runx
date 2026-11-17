@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use runx_contracts::JsonValue;
+use runx_contracts::{JsonValue, SkillAuthoringBrief};
 
-use super::super::{NativeInvocation, invalid_input, resolve_repo_root_for};
+use super::super::{NativeInvocation, invalid_input, resolve_root_for};
 use super::inputs::{ApplyInput, BindInput, InspectInput, ValidateInput};
 use super::outputs::{ApplyOutput, AuthoringInspectOutput, BindOutput, ValidateOutput};
 use super::{APPLY_TOOL, VALIDATE_TOOL};
@@ -11,27 +11,30 @@ use crate::RuntimeError;
 pub(super) fn inspect_skill(
     invocation: &NativeInvocation<'_, InspectInput>,
 ) -> Result<AuthoringInspectOutput, RuntimeError> {
-    let repo_root = resolve_repo_root_for(
+    let workspace = resolve_root_for(
         "runx.skill.inspect",
-        &invocation.inputs.repo_root,
+        ".",
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
     )?;
     let authoring_context = crate::services::inspect_skill_workspace(
-        &repo_root,
+        &workspace,
         invocation.inputs.target_dir.as_deref(),
         invocation.effects,
     )?;
-    Ok(AuthoringInspectOutput { authoring_context })
+    Ok(AuthoringInspectOutput {
+        authoring_brief: SkillAuthoringBrief::from(&authoring_context),
+        authoring_context,
+    })
 }
 
 pub(super) fn validate_skill(
     invocation: &NativeInvocation<'_, ValidateInput>,
 ) -> Result<ValidateOutput, RuntimeError> {
-    let repo_root = resolve_repo_root_for(
+    let workspace = resolve_root_for(
         VALIDATE_TOOL,
-        &invocation.inputs.repo_root,
+        ".",
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
@@ -39,10 +42,10 @@ pub(super) fn validate_skill(
     let candidate_files = invocation.inputs.candidate_files.as_deref();
     let requested_path = requested_skill_path(invocation, candidate_files)?;
     if candidate_files.is_none()
-        && names_registry_package(&repo_root, invocation.skill_directory, requested_path)
+        && names_registry_package(&workspace, invocation.skill_directory, requested_path)
     {
         let skill_validation = crate::services::validate_registry_package(
-            &repo_root,
+            &workspace,
             requested_path,
             invocation.inputs.allow_execute_test,
             invocation.env,
@@ -51,9 +54,9 @@ pub(super) fn validate_skill(
         return Ok(ValidateOutput { skill_validation });
     }
     let (validation_root, resolved_path) = if candidate_files.is_none() {
-        resolve_skill_validation_target(&repo_root, invocation.skill_directory, requested_path)?
+        resolve_skill_validation_target(&workspace, invocation.skill_directory, requested_path)?
     } else {
-        (repo_root.clone(), requested_path.to_owned())
+        (workspace.clone(), requested_path.to_owned())
     };
     let skill_validation = crate::services::validate_skill_package(
         &validation_root,
@@ -251,15 +254,15 @@ fn resolve_catalog_skill_target(
 pub(super) fn apply_skill_effect(
     invocation: &NativeInvocation<'_, ApplyInput>,
 ) -> Result<Option<crate::capability::LocalEffect>, RuntimeError> {
-    let repo_root = resolve_repo_root_for(
+    let workspace = resolve_root_for(
         APPLY_TOOL,
-        &invocation.inputs.repo_root,
+        ".",
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
     )?;
     crate::services::skill_change_effect(
-        &repo_root,
+        &workspace,
         &invocation.inputs.target_dir,
         invocation.inputs.mode,
         &invocation.inputs.change_bundle,
@@ -270,15 +273,15 @@ pub(super) fn apply_skill_effect(
 pub(super) fn apply_skill(
     invocation: &NativeInvocation<'_, ApplyInput>,
 ) -> Result<ApplyOutput, RuntimeError> {
-    let repo_root = resolve_repo_root_for(
+    let workspace = resolve_root_for(
         APPLY_TOOL,
-        &invocation.inputs.repo_root,
+        ".",
         invocation.env,
         invocation.skill_directory,
         invocation.reach,
     )?;
     let report = crate::services::apply_skill_change(
-        &repo_root,
+        &workspace,
         &invocation.inputs.target_dir,
         invocation.inputs.mode,
         &invocation.inputs.change_bundle,

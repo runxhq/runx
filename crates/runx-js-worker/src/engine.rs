@@ -96,7 +96,7 @@ pub(crate) fn evaluate(
         .map_err(|error| engine_failure("resolving JavaScript export", error))?;
     let callable = exported.as_callable().ok_or_else(|| {
         EngineError::new(
-            WorkerFailureCode::ExecutionFailed,
+            WorkerFailureCode::ModuleRejected,
             format!("JavaScript module does not export callable {export_name:?}"),
         )
     })?;
@@ -192,7 +192,12 @@ fn parse_modules(
             None,
             context,
         )
-        .map_err(|error| engine_failure(format!("parsing JavaScript module {path:?}"), error))?;
+        .map_err(|error| {
+            EngineError::new(
+                WorkerFailureCode::ModuleRejected,
+                format!("parsing JavaScript module {path:?}: {error}"),
+            )
+        })?;
         loader.insert(virtual_path.to_string_lossy(), module.clone());
         parsed.insert(path.clone(), module);
     }

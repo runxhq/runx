@@ -20,7 +20,7 @@ use super::operator_context::{
     SkillOperatorContextChain, SkillOperatorContextNode, SkillOperatorContextOptions,
     load_skill_operator_context_chain_from_package,
 };
-use super::orchestrator::ManagedAgentPolicy;
+use super::orchestrator::DrivePolicy;
 use super::orchestrator::SkillRunRequest;
 use super::skill_front::SkillRunError;
 use super::skill_front::method_manifest::selected_method;
@@ -123,7 +123,7 @@ pub struct PreparedRequestSummary {
     pub receipt_dir: Option<PathBuf>,
     pub run_id: Option<String>,
     pub inputs: Vec<PreparedInputSummary>,
-    pub managed_agent: ManagedAgentPolicy,
+    pub drive: DrivePolicy,
     pub entry: PreparedEntryProvenance,
 }
 
@@ -135,9 +135,9 @@ pub struct PreparedGovernanceSummary {
     pub execution_boundaries: Vec<ExecutionBoundaryKind>,
     pub gates: Vec<String>,
     pub idempotency_keys: Vec<String>,
-    pub managed_turns: usize,
-    pub managed_agent_enabled: bool,
-    pub managed_agent_max_rounds: Option<u32>,
+    pub agent_turns: usize,
+    pub drive_enabled: bool,
+    pub drive_max_rounds: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -342,7 +342,7 @@ struct PreparedContextPreimage<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     act: Option<&'a runx_contracts::CallAct>,
     run_authority: Option<&'a crate::RunAuthority>,
-    managed_agent: &'a ManagedAgentPolicy,
+    drive: &'a DrivePolicy,
     entry: &'a PreparedEntryProvenance,
     chain: Option<&'a SkillOperatorContextChain>,
     blocked_reason: Option<&'a str>,
@@ -507,8 +507,8 @@ fn prepared_governance(
         .as_ref()
         .map(governance_summary)
         .unwrap_or_default();
-    governance.managed_agent_enabled = request.managed_agent.is_inline();
-    governance.managed_agent_max_rounds = request.managed_agent.max_rounds();
+    governance.drive_enabled = request.drive.is_inline();
+    governance.drive_max_rounds = request.drive.max_rounds();
     governance
 }
 
@@ -528,7 +528,7 @@ fn prepared_context_digest(
         inputs: &request.inputs,
         act: request.act.as_ref(),
         run_authority: request.run_authority.as_ref(),
-        managed_agent: &request.managed_agent,
+        drive: &request.drive,
         entry: &summary.entry,
         chain: context.chain.as_ref(),
         blocked_reason: context.blocked_reason.as_deref(),
@@ -701,7 +701,7 @@ fn request_summary(
                 }
             })
             .collect(),
-        managed_agent: request.managed_agent.clone(),
+        drive: request.drive.clone(),
         entry,
     }
 }
@@ -748,7 +748,7 @@ fn summarize_node(node: &SkillOperatorContextNode, summary: &mut PreparedGoverna
         }
         match &definition.kind {
             StepKind::Ask(ask) => summary.gates.push(ask.gate.clone()),
-            StepKind::Agent(_) => summary.managed_turns += 1,
+            StepKind::Agent(_) => summary.agent_turns += 1,
             _ => {}
         }
         // An operation call's key, as its step writes it.
@@ -869,7 +869,7 @@ mod tests {
             // credentials and resolves inline against the live provider.
             env: BTreeMap::from([("RUNX_HOME".to_owned(), path.to_string_lossy().into_owned())]),
             cwd: path.to_path_buf(),
-            managed_agent: ManagedAgentPolicy::HostDriven,
+            drive: DrivePolicy::HostDriven,
         }
     }
 
@@ -1050,7 +1050,7 @@ mod tests {
     }
 
     #[test]
-    fn prepared_skill_binds_and_reports_managed_agent_consent() -> Result<(), Box<dyn Error>> {
+    fn prepared_skill_binds_and_reports_drive_consent() -> Result<(), Box<dyn Error>> {
         let temp = tempdir()?;
         write_skill(temp.path(), "", "# Prepared")?;
         let host_driven = LocalOrchestrator::default().prepare_skill(
@@ -1059,7 +1059,7 @@ mod tests {
             PreparedEntryProvenance::default(),
         )?;
         let mut inline_request = request(temp.path());
-        inline_request.managed_agent = ManagedAgentPolicy::inline(3)?;
+        inline_request.drive = DrivePolicy::inline(3)?;
         let inline = LocalOrchestrator::default().prepare_skill(
             inline_request,
             None,
@@ -1067,12 +1067,12 @@ mod tests {
         )?;
 
         assert_ne!(host_driven.report().digest, inline.report().digest);
-        assert_eq!(inline.report().governance.managed_turns, 1);
-        assert!(inline.report().governance.managed_agent_enabled);
-        assert_eq!(inline.report().governance.managed_agent_max_rounds, Some(3));
+        assert_eq!(inline.report().governance.agent_turns, 1);
+        assert!(inline.report().governance.drive_enabled);
+        assert_eq!(inline.report().governance.drive_max_rounds, Some(3));
         assert_eq!(
-            inline.report().request.managed_agent,
-            ManagedAgentPolicy::Inline { max_rounds: 3 }
+            inline.report().request.drive,
+            DrivePolicy::Inline { max_rounds: 3 }
         );
         Ok(())
     }
@@ -1330,7 +1330,7 @@ methods:
         assert_eq!(governance.conditional_steps, 1);
         assert_eq!(governance.gates, ["release.publish.approval"]);
         assert_eq!(governance.idempotency_keys, ["release-publish-1"]);
-        assert_eq!(governance.managed_turns, 0);
+        assert_eq!(governance.agent_turns, 0);
         Ok(())
     }
 

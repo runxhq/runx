@@ -35,7 +35,7 @@ export type AgentContextEnvelopeContract = {
   readonly output?: {
     readonly [key: string]: OutputFieldContract;
   };
-  /** Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to managed agents. */
+  /** Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to a driven turn's model. */
   readonly output_schema?: unknown;
   readonly provenance: readonly ProvenanceEntryContract[];
   /** Exact non-secret execution requirements selected from the owning manifest, plus environment-name availability. Secret values never enter the agent context. */
@@ -1063,7 +1063,6 @@ export type FileApplyBundleContract = {
   readonly deletes: readonly FileAppliedDeleteContract[];
   /** The run's journal entry holding what each file held before. */
   readonly journal?: number;
-  readonly repo_root: string;
   readonly write_count: number;
   readonly writes: readonly FileAppliedWriteContract[];
 };
@@ -1099,7 +1098,6 @@ export type FileEditContract = {
   readonly journal?: number;
   readonly path: string;
   readonly replacements: number;
-  readonly repo_root: string;
 };
 
 export type FileEntryKindContract = "file" | "directory" | "symlink";
@@ -1109,8 +1107,6 @@ export type FileInverseBundleContract = {
   /** The calls it undoes, in the order the run made them. */
   readonly calls: readonly string[];
   readonly deletes: readonly FileBoundDeleteContract[];
-  /** The root the edits changed, relative to the workspace. */
-  readonly repo_root: string;
   readonly writes: readonly FileBundleWriteContract[];
 };
 
@@ -1118,7 +1114,6 @@ export type FileInverseBundleContract = {
 export type FileListContract = {
   readonly entries: readonly FileListEntryContract[];
   readonly path: string;
-  readonly repo_root: string;
   readonly truncated: boolean;
 };
 
@@ -1138,7 +1133,6 @@ export type FileReadContract = {
   /** The lines read, from `start_line`, with their line endings. */
   readonly contents: string;
   readonly path: string;
-  readonly repo_root: string;
   /** The first line read, counting from 1. */
   readonly start_line: number;
   /** How many lines the whole file has. */
@@ -1152,7 +1146,6 @@ export type FileReadBundleContract = {
   readonly file_count: number;
   readonly files: readonly FileReadContract[];
   readonly missing: readonly MissingFileContract[];
-  readonly repo_root: string;
   readonly total_bytes: number;
 };
 
@@ -1160,7 +1153,6 @@ export type FileReadBundleContract = {
 export type FileSearchContract = {
   readonly files_searched: number;
   readonly matches: readonly FileSearchMatchContract[];
-  readonly repo_root: string;
   readonly truncated: boolean;
 };
 
@@ -1187,7 +1179,6 @@ export type FileWriteContract = {
   /** The run's journal entry holding what the file held. */
   readonly journal?: number;
   readonly path: string;
-  readonly repo_root: string;
 };
 
 export type GitBlobDigestContract = {
@@ -1200,7 +1191,8 @@ export type GitBlobDigestContract = {
 export type GitBranchContract = {
   readonly branch: string;
   readonly detached: boolean;
-  readonly repo_root: string;
+  /** The repository read, from the workspace root, as the call named it. */
+  readonly repository: string;
 };
 
 /** One commit as `git.log` reports it. */
@@ -1216,13 +1208,15 @@ export type GitCommitContract = {
 export type GitDiffContract = {
   readonly base: string;
   readonly files: readonly string[];
-  readonly repo_root: string;
+  /** The repository read, from the workspace root, as the call named it. */
+  readonly repository: string;
 };
 
 /** What `git.log` reports: the commits reachable from `revision`, newest first, and whether more were left out. */
 export type GitLogContract = {
   readonly commits: readonly GitCommitContract[];
-  readonly repo_root: string;
+  /** The repository read, from the workspace root, as the call named it. */
+  readonly repository: string;
   readonly revision: string;
   readonly truncated: boolean;
 };
@@ -1234,7 +1228,8 @@ export type GitPatchContract = {
   readonly head?: string;
   readonly omitted: readonly string[];
   readonly patch: string;
-  readonly repo_root: string;
+  /** The repository read, from the workspace root, as the call named it. */
+  readonly repository: string;
   readonly truncated: boolean;
 };
 
@@ -1243,7 +1238,8 @@ export type GitShowContract = {
   readonly files: readonly string[];
   readonly omitted: readonly string[];
   readonly path?: string;
-  readonly repo_root: string;
+  /** The repository read, from the workspace root, as the call named it. */
+  readonly repository: string;
   readonly revision: string;
   readonly text: string;
   readonly truncated: boolean;
@@ -1254,7 +1250,8 @@ export type GitStatusContract = {
   readonly branch?: string;
   readonly clean: boolean;
   readonly entries: readonly string[];
-  readonly repo_root: string;
+  /** The repository read, from the workspace root, as the call named it. */
+  readonly repository: string;
 };
 
 export type HostedAuthContract = "delegated" | "credential";
@@ -2164,8 +2161,8 @@ export type ProcessStreamContract = "stdout" | "stderr" | "terminal";
 export type ProfileFileContract = {
   readonly content: string;
   readonly digest: string;
+  /** From the workspace root, as its tools name files (rule 2). */
   readonly path: string;
-  readonly root_path: string;
   readonly sharing: ContextSharingContract;
 };
 
@@ -2815,7 +2812,7 @@ export type RunContextContract = {
   };
 };
 
-/** Who works a run's agent turns, fixed when it starts: the host it is attached to, or runx's managed agent. */
+/** Who works a run's agent turns, fixed when it starts: the host it is attached to, or runx, which drives them (`--drive`). */
 export type RunDriverContract = "attached" | "managed";
 
 export type RunEventFactContract = {
@@ -3105,18 +3102,25 @@ export type SealContract = {
   readonly reason?: SealReasonContract;
 };
 
-/** Why a step failed, as runx recorded the failure: its code, the reason, whether a retry is offered, and the failure's own structured fields, such as each field a provider's answer contradicts. A value from a field the call marks never to persist is recorded by its digest, and a presented credential never appears. */
+/** Why a step failed, as runx recorded the failure: its code, the failure as the layer that decided it said it (who, where, why and what to do next, which every surface renders as one sentence), whether a retry is offered, and the failure's own structured fields, such as each field a provider's answer contradicts. A value from a field the call marks never to persist is recorded by its digest, and a presented credential never appears. */
 export type SealFailureContract = {
+  /** Where, as the run's record addresses it, from the run down. */
+  readonly at?: readonly string[];
   readonly code: string;
+  /** What decided it, by the name its reader knows. */
+  readonly decided_by: string;
   readonly fields?: {
     readonly [key: string]: unknown;
   };
+  /** What the person or agent can do about it, when there is something. */
+  readonly next?: string;
+  /** The deciding layer's own sentence. */
   readonly reason: string;
   readonly retryable: boolean;
 };
 
 /** Why a receipt's subject ended as it did, beyond its outcome. */
-export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "approval_declined" | "cost_limit_exceeded" | "receipt_budget_exceeded" | "resolution_pending" | "managed_agent_provider_failed" | "managed_agent_resolution_failed" | "managed_agent_empty_turn_budget_exhausted" | "managed_agent_tool_execution_failed" | "managed_agent_round_budget_exhausted" | "host_closed" | "cancelled";
+export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "approval_declined" | "cost_limit_exceeded" | "receipt_budget_exceeded" | "resolution_pending" | "drive_provider_failed" | "drive_resolution_failed" | "drive_empty_turn_budget_exhausted" | "drive_tool_execution_failed" | "drive_round_budget_exhausted" | "host_closed" | "cancelled";
 
 /** A local session: authority the person already holds on this machine. */
 export type SessionAuthContract = {
@@ -3183,15 +3187,14 @@ export type SkillApplyVerdictContract = "unchanged" | "needs_core" | "validated"
 export type SkillAuthoringContextContract = {
   /** The digest a change to the target binds to. */
   readonly base_digest: string;
-  /** Where catalog skills live, relative to `repo_root`. */
+  /** Where catalog skills live, from the workspace root. */
   readonly catalog_root: string;
   readonly catalog_skills: readonly SkillCatalogEntryContract[];
   readonly core_tools: readonly SkillCatalogEntryContract[];
-  readonly repo_root: string;
-  /** The target package, relative to `repo_root`; null when none was named. */
+  /** The target package, from the workspace root; null when none was named. */
   readonly target_dir: string | null;
   readonly target_exists: boolean;
-  /** The target's files, from `repo_root`, as the read tools and a change name them. */
+  /** The target's files, from the workspace root, as the read tools and a change name them. */
   readonly target_files: readonly SkillPackageFileContract[];
   /** The existing target's inspection, or why it would not inspect; null when the target does not exist. */
   readonly target_inspection: {
@@ -3727,6 +3730,14 @@ export type TurnAllowanceContract = {
   readonly tools?: readonly string[];
 };
 
+/** An artifact a call made, as its agent reads it: the reference a later call passes, what it is and how large. */
+export type TurnArtifactViewContract = {
+  readonly media_type: string;
+  readonly ref: string;
+  readonly size_bytes: number;
+  readonly summary?: string;
+};
+
 export type TurnCallOutcomeContract = {
   /** Each packet output as a project artifact of the run, by output name: a reference a later call passes in place of the packet. */
   readonly artifacts?: {
@@ -3766,6 +3777,44 @@ export type TurnCallResultContract = {
   readonly target: CallTargetContract;
 };
 
+/** A call of a turn as its agent reads it (rule 1): what it called, how it ended and what it returned, with its receipt, which a later call reads it by as it does an artifact by its ref, and without what runx keeps for itself: the input's digest, a skill's bound closure, or an artifact's digest and place on disk. A host proving its record of a call reads its [`TurnCallResult`]. */
+export type TurnCallViewContract = {
+  readonly call_id?: string;
+  /** The call's place in the turn, from 0: `turn_read` reads it whole as `call:<index>`. */
+  readonly index: number;
+  readonly outcome: TurnCallViewOutcomeContract;
+  readonly target: CallTargetContract;
+};
+
+/** How a call ended, as its agent reads it. */
+export type TurnCallViewOutcomeContract = {
+  /** Each packet output as an artifact, by output name: a reference a later call passes in place of the packet. */
+  readonly artifacts?: {
+    readonly [key: string]: TurnArtifactViewContract;
+  };
+  readonly output: {
+    readonly [key: string]: unknown;
+  };
+  /** The receipt that proves it, which a receipt tool reads. */
+  readonly receipt_id: string;
+  readonly status: "completed";
+} | {
+  readonly reason: string;
+  readonly receipt_id?: string;
+  readonly status: "failed";
+} | {
+  readonly reason: string;
+  readonly status: "refused";
+} | {
+  readonly reason: string;
+  readonly status: "declined";
+} | {
+  readonly status: "pending";
+  readonly waiting: readonly ResolutionRequestContract[];
+} | {
+  readonly status: "cancelled";
+};
+
 /** One context entry of an act as a model reads it in an index: what it is, whom it may be shared with, how large it is, and the locator `turn_read` reads its data by. */
 export type TurnContextLineContract = {
   readonly created_at: string;
@@ -3784,7 +3833,7 @@ export type TurnFileContract = {
 
 /** The host that answered a turn, as its answer records it. One run's turns can each be answered by a different host over its life, so the host is recorded per answer, never per run. */
 export type TurnHostContract = {
-  readonly kind: "managed_agent";
+  readonly kind: "drive";
   readonly provider: string;
 } | {
   readonly kind: "mcp_client";
@@ -3844,7 +3893,7 @@ export type TurnRequirementContract = "native_tools" | "fresh_context" | "separa
 
 /** An open turn as its agent reads it: the act it answers (its id is the turn's address), with the act's context as an index, the calls it may make, and how each call it made so far ended. Nothing in it is the data of a context entry, which `turn_read` reads by its locator. */
 export type TurnStatusContract = {
-  readonly calls: readonly TurnCallResultContract[];
+  readonly calls: readonly TurnCallViewContract[];
   readonly invocation: TurnViewContract;
   readonly tools: readonly TurnToolContract[];
 };

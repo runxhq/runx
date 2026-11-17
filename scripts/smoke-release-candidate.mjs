@@ -306,7 +306,6 @@ methods:
           - {value: $steps.approve.approval_decision.approved, equals: true}
         tool: fs.write
         inputs:
-          repo_root: .
           path: approval-proof.txt
           contents: one host-attested human approval
 `,

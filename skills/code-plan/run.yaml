@@ -88,11 +88,6 @@ methods:
         description: Optional captured control context to pass through unchanged.
         additionalProperties: true
         optional: true
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root used for native skill-catalog inspection.
-        optional: true
     result_from:
       - validate
     examples:
@@ -100,8 +95,7 @@ methods:
     steps:
       - id: inspect
         tool: runx.skill.inspect
-        inputs:
-          repo_root: $input.repo_root
+        inputs: {}
       - id: draft
         agent: code-plan-draft
         outputs:
@@ -283,7 +277,6 @@ methods:
           change_set: $input.change_set
           catalog_skills: $steps.inspect.authoring_context.catalog_skills
           run_context: $input.run_context
-          repo_root: $input.repo_root
       - id: validate
         inputs:
           objective: $input.objective

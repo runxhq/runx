@@ -23,6 +23,5 @@ methods:
       - id: apply
         tool: fs.apply_bundle
         inputs:
-          repo_root: $steps.inverse.inverse_bundle.repo_root
           writes: $steps.inverse.inverse_bundle.writes
           deletes: $steps.inverse.inverse_bundle.deletes

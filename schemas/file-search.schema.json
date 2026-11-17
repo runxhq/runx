@@ -16,16 +16,11 @@
       "minItems": 0,
       "type": "array"
     },
-    "repo_root": {
-      "minLength": 1,
-      "type": "string"
-    },
     "truncated": {
       "type": "boolean"
     }
   },
   "required": [
-    "repo_root",
     "matches",
     "files_searched",
     "truncated"

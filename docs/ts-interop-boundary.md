@@ -86,7 +86,7 @@ implied.
   correctly stay in the kernel; only the network legs move.
 - **One local execution path.** Native CLI and MCP skill calls use the same
   `LocalOrchestrator` and skill front for preparation, invocation, pause/resume,
-  and typed results. The Rust managed-agent loop is opt-in; host-driven judgment remains the default.
+  and typed results. The Rust drive loop is opt-in; host-driven judgment remains the default.
   Cloud's `@runx/mcp` exposes hosted registry/auth/control-plane operations;
   submitted hosted execution invokes the native worker boundary. It is not a
   duplicate local MCP skill executor.

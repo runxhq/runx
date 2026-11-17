@@ -243,6 +243,10 @@ pub struct TestFixture {
     /// A fixture package under `fixtures/` it runs instead of this one, by
     /// its package-relative directory.
     pub package: Option<String>,
+    /// A directory of its staged `fixtures/` it runs in as its workspace root,
+    /// as `fixtures/<directory>`: a workspace laid out as a project's, its
+    /// paths read from there as a run's are from the person's.
+    pub workspace: Option<String>,
     pub setup: TestSetup,
     pub inputs: JsonObject,
     pub env: BTreeMap<String, String>,
@@ -333,6 +337,8 @@ struct RawTestFixture {
     method: Option<String>,
     #[serde(default)]
     package: Option<String>,
+    #[serde(default)]
+    workspace: Option<String>,
     #[serde(default)]
     setup: TestSetup,
     #[serde(default)]
@@ -440,24 +446,36 @@ fn validate_fixture(fixture: RawTestFixture) -> Result<TestFixture, TestFixtureE
     if let Some(method) = &fixture.method {
         require_non_empty(method, "method")?;
     }
-    if let Some(package) = &fixture.package {
-        let normalized = package.strip_prefix("fixtures/").is_some_and(|rest| {
+    // A fixture directory is named as fixtures/<directory>, never above it.
+    let fixture_directory = |value: &str| {
+        value.strip_prefix("fixtures/").is_some_and(|rest| {
             !rest.is_empty()
                 && rest
                     .split('/')
                     .all(|segment| !segment.is_empty() && !matches!(segment, "." | ".."))
+        })
+    };
+    if let Some(package) = &fixture.package
+        && !fixture_directory(package)
+    {
+        return Err(TestFixtureError::Invalid {
+            field: "package".to_owned(),
+            message: "names a fixture package as fixtures/<directory>".to_owned(),
         });
-        if !normalized {
-            return Err(TestFixtureError::Invalid {
-                field: "package".to_owned(),
-                message: "names a fixture package as fixtures/<directory>".to_owned(),
-            });
-        }
+    }
+    if let Some(workspace) = &fixture.workspace
+        && !fixture_directory(workspace)
+    {
+        return Err(TestFixtureError::Invalid {
+            field: "workspace".to_owned(),
+            message: "names a staged fixture directory as fixtures/<directory>".to_owned(),
+        });
     }
     Ok(TestFixture {
         name: fixture.name,
         method: fixture.method,
         package: fixture.package,
+        workspace: fixture.workspace,
         setup: validate_setup(fixture.setup)?,
         inputs: fixture.inputs,
         env: validate_test_env(fixture.env)?,

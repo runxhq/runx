@@ -62,7 +62,7 @@ fn reports_status_and_changed_files_without_local_wrappers()
     let status = invoke_tool(
         workspace.path(),
         GitInput {
-            repo_root: ".".to_owned(),
+            repository: ".".to_owned(),
         },
         status,
     )?;
@@ -77,7 +77,7 @@ fn reports_status_and_changed_files_without_local_wrappers()
     let diff = invoke_tool(
         workspace.path(),
         GitDiffInput {
-            repo_root: ".".to_owned(),
+            repository: ".".to_owned(),
             base: "HEAD".to_owned(),
         },
         diff_name_only,
@@ -126,7 +126,7 @@ fn invoke_current_branch(root: &std::path::Path) -> Result<JsonObject, Box<dyn s
     invoke_tool(
         root,
         GitInput {
-            repo_root: ".".to_owned(),
+            repository: ".".to_owned(),
         },
         current_branch,
     )

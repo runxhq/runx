@@ -271,3 +271,21 @@ pub(crate) fn bind_resume(
     }
     Ok(serde_json::from_value(serde_json::Value::Object(bound))?)
 }
+
+/// A turn's call as its agent reads it, from the record a call returns or
+/// the view a status lists.
+pub trait Viewed: std::fmt::Debug {
+    fn viewed(&self) -> runx_contracts::TurnCallView;
+}
+
+impl Viewed for runx_contracts::TurnCallResult {
+    fn viewed(&self) -> runx_contracts::TurnCallView {
+        runx_contracts::TurnCallView::from(self)
+    }
+}
+
+impl Viewed for runx_contracts::TurnCallView {
+    fn viewed(&self) -> runx_contracts::TurnCallView {
+        self.clone()
+    }
+}

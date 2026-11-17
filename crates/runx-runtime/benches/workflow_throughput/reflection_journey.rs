@@ -19,9 +19,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use runx_contracts::{JsonNumber, JsonObject, JsonValue, RunEventFact};
-use runx_runtime::scripted_model::{ScriptedModel, managed_agent_env, tool_call};
+use runx_runtime::scripted_model::{ScriptedModel, drive_env, tool_call};
 use runx_runtime::work_counts::snapshot;
-use runx_runtime::{LocalOrchestrator, ManagedAgentPolicy, RuntimeEffectRegistry, SkillRunRequest};
+use runx_runtime::{DrivePolicy, LocalOrchestrator, RuntimeEffectRegistry, SkillRunRequest};
 use tempfile::TempDir;
 
 const SIZES: [(&str, usize); 3] = [("10", 10), ("100", 100), ("1000", 1000)];
@@ -157,7 +157,7 @@ fn environment(root: &Path, endpoint: &str) -> BTreeMap<String, String> {
     if let Ok(path) = std::env::var("PATH") {
         env.insert("PATH".to_owned(), path);
     }
-    env.extend(managed_agent_env(endpoint, "fixture-model"));
+    env.extend(drive_env(endpoint, "fixture-model"));
     env
 }
 
@@ -172,7 +172,7 @@ fn greet(root: &Path, env: &BTreeMap<String, String>, index: usize) -> Result<()
         root.join("skills/greet"),
         "hello",
         serde_json::json!({"name": format!("team {index}")}),
-        ManagedAgentPolicy::HostDriven,
+        DrivePolicy::HostDriven,
     )?;
     if output["status"] != "sealed" {
         return Err(format!("greet didn't seal: {output}").into());
@@ -198,7 +198,7 @@ fn run(
         reflect_package(),
         method,
         serde_json::json!({"reader": "nightly", "until": "2099-01-01T00:00:00Z"}),
-        ManagedAgentPolicy::inline(4)?,
+        DrivePolicy::inline(4)?,
     )?;
     if output["status"] != "sealed" || output["outcome"] != "completed" {
         return Err(format!("{what} didn't complete: {output}").into());
@@ -212,7 +212,7 @@ fn execute(
     skill_path: PathBuf,
     method: &str,
     inputs: serde_json::Value,
-    managed_agent: ManagedAgentPolicy,
+    drive: DrivePolicy,
 ) -> Result<serde_json::Value, Box<dyn Error>> {
     let ran = LocalOrchestrator::with_effects_and_environment(
         RuntimeEffectRegistry::local()?,
@@ -231,7 +231,7 @@ fn execute(
             inputs: serde_json::from_value(inputs)?,
             env: env.clone(),
             cwd: root.to_path_buf(),
-            managed_agent,
+            drive,
         },
         Some(method),
         None,

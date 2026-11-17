@@ -37,7 +37,6 @@ const ready = {
       input_context: {
         objective:
           "Inspect README.md against the supplied report about explicit connection selection. Return source-bound findings or identify missing evidence; do not edit documentation.",
-        repo_root: ".",
         source_paths: ["README.md"],
         workflow_purpose: "Documentation source review",
         audience: "Local operator",

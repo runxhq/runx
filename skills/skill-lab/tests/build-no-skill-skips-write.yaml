@@ -2,7 +2,6 @@ name: skill-lab-build-no-skill-skips-write
 method: build
 inputs:
   objective: Add a second general-purpose release skill
-  repo_root: .
   target_dir: skills/release-copy
 host:
   answers:

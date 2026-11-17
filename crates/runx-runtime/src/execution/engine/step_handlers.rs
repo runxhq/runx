@@ -2598,10 +2598,10 @@ pub(super) fn runtime_error_step_run<A>(
 where
     A: SkillAdapter,
 {
-    // A managed agent that stopped seals why it stopped.
+    // A driven turn that stopped seals why it stopped.
     let ending = match &error {
         #[cfg(feature = "agent")]
-        RuntimeError::ManagedAgentResolution { source, .. } => Some(StepSealEnding {
+        RuntimeError::DriveResolution { source, .. } => Some(StepSealEnding {
             outcome: RunOutcome::Failed,
             reason: Some(source.reason()),
         }),
@@ -2659,7 +2659,7 @@ where
         outcome: output.into(),
         usage: match &error {
             #[cfg(feature = "agent")]
-            RuntimeError::ManagedAgentResolution { source, .. } => source
+            RuntimeError::DriveResolution { source, .. } => source
                 .telemetry()
                 .and_then(crate::adapters::agent::AgentExecutionTelemetry::usage),
             _ => None,

@@ -197,10 +197,9 @@ pub(super) fn agent_context_envelope_corpus() -> Vec<(&'static str, Value)> {
             }]);
             v["provenance"] = json!([{ "input": "a", "output": "b", "from_step": "s0" }]);
             v["context"] = json!({
-                "memory": { "root_path": "/r", "path": "MEMORY.md", "digest": "abc", "content": "x" },
+                "memory": { "path": "MEMORY.md", "digest": "abc", "content": "x" },
             });
-            v["voice_profile"] =
-                json!({ "root_path": "/r", "path": "voice.md", "digest": "abc", "content": "" });
+            v["voice_profile"] = json!({ "path": "voice.md", "digest": "abc", "content": "" });
             v["execution_location"] =
                 json!({ "skill_directory": "/skills/demo", "tool_roots": ["/tools"] });
             v["output"] =
@@ -918,6 +917,19 @@ fn turn_call() -> Value {
     })
 }
 
+/// A call as its agent reads it: its receipt, and no input digest.
+fn turn_call_view() -> Value {
+    json!({
+        "index": 0,
+        "target": { "kind": "tool", "tool": "data.digest" },
+        "outcome": {
+            "status": "completed",
+            "output": { "digest": "sha256:abc" },
+            "receipt_id": "rx_call",
+        },
+    })
+}
+
 pub(super) fn turn_call_corpus() -> Vec<(&'static str, Value)> {
     let valid = turn_call();
     vec![
@@ -1027,10 +1039,14 @@ pub(super) fn turn_status_corpus() -> Vec<(&'static str, Value)> {
             "target": { "kind": "tool", "tool": "data.digest" },
             "input_schema": { "type": "object" },
         }],
-        "calls": [turn_call()],
+        "calls": [turn_call_view()],
     });
     vec![
         ("valid status", valid.clone()),
+        (
+            "a call carrying runx's record",
+            set_field(valid.clone(), "calls", json!([turn_call()])),
+        ),
         (
             "valid status without calls",
             set_field(valid.clone(), "calls", json!([])),

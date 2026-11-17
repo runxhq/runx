@@ -11,11 +11,6 @@ methods:
       objective:
         type: string
         description: Capability to design or place in the current catalog.
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root to inspect.
-        optional: true
       package_name:
         type: string
         description: The name a new package takes, its SKILL.md name.
@@ -29,7 +24,6 @@ methods:
         optional: true
     examples:
       - objective: Decide whether the existing research skill should support bounded local files.
-        repo_root: .
         target_dir: skills/research
         project_context: Preserve remote evidence support and reuse native file admission.
     result_from: [author, check]
@@ -37,8 +31,11 @@ methods:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
+        # The record bind binds the change to, and the brief its author reads.
+        outputs:
+          authoring_context: {packet: runx.skill_lab.authoring_context.v1}
+          authoring_brief: {type: object}
       - id: author
         agent: skill-lab-author
         calls:
@@ -50,8 +47,7 @@ methods:
           package_name: $input.package_name
           project_context: $input.project_context
           authoring_mode: design
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
+          authoring_brief: $steps.inspect.authoring_brief
           target_dir: $input.target_dir
       - id: bind
         tool: runx.skill.bind
@@ -63,7 +59,6 @@ methods:
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
-          repo_root: $input.repo_root
           mode: design
           change_bundle: $steps.bind.change_bundle
         outputs:
@@ -78,11 +73,6 @@ methods:
         type: string
         description: The name the new package takes, its SKILL.md name.
         optional: true
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root that owns target_dir.
-        optional: true
       target_dir:
         type: string
         description: Repo-relative package directory to create, where no package stands.
@@ -92,7 +82,6 @@ methods:
         optional: true
     examples:
       - objective: Create a skill that drafts a customer update from the week's merged work.
-        repo_root: .
         target_dir: skills/customer-update
         project_context: Reuse the native git and file reads; the person approves the draft before anything is sent.
     result_from: [author, apply]
@@ -100,8 +89,11 @@ methods:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
+        # The record bind binds the change to, and the brief its author reads.
+        outputs:
+          authoring_context: {packet: runx.skill_lab.authoring_context.v1}
+          authoring_brief: {type: object}
       - id: author
         agent: skill-lab-author
         calls:
@@ -113,8 +105,7 @@ methods:
           package_name: $input.package_name
           project_context: $input.project_context
           authoring_mode: build
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
+          authoring_brief: $steps.inspect.authoring_brief
           target_dir: $input.target_dir
       - id: bind
         tool: runx.skill.bind
@@ -126,7 +117,6 @@ methods:
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
-          repo_root: $input.repo_root
           mode: build
           change_bundle: $steps.bind.change_bundle
         outputs:
@@ -145,11 +135,6 @@ methods:
         type: string
         description: The name the new package takes, its SKILL.md name.
         optional: true
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root that owns target_dir.
-        optional: true
       target_dir:
         type: string
         description: Repo-relative package directory to create, where no package stands.
@@ -161,15 +146,17 @@ methods:
       - run_id: run-weekly-digest
         call: answer/3
         package_name: weekly-digest
-        repo_root: .
         target_dir: skills/weekly-digest
     result_from: [author, apply]
     steps:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
+        # The record bind binds the change to, and the brief its author reads.
+        outputs:
+          authoring_context: {packet: runx.skill_lab.authoring_context.v1}
+          authoring_brief: {type: object}
       - id: read
         tool: call.read
         inputs:
@@ -186,8 +173,7 @@ methods:
           package_name: $input.package_name
           project_context: $input.project_context
           authoring_mode: save
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
+          authoring_brief: $steps.inspect.authoring_brief
           target_dir: $input.target_dir
       - id: bind
         tool: runx.skill.bind
@@ -201,7 +187,6 @@ methods:
         effects: ask
         inputs:
           target_dir: $input.target_dir
-          repo_root: $input.repo_root
           mode: build
           change_bundle: $steps.bind.change_bundle
         outputs:
@@ -213,11 +198,6 @@ methods:
       objective:
         type: string
         description: Bounded improvement objective.
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root that owns target_dir.
-        optional: true
       target_dir:
         type: string
         description: Repo-relative package directory to improve.
@@ -242,7 +222,6 @@ methods:
         optional: true
     examples:
       - objective: Make every public method callable from inspection without source-diving.
-        repo_root: .
         target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
         test_output: The agent could not construct the nested resources selector from inspection.
@@ -254,7 +233,6 @@ methods:
         skill: .#draft
         inputs:
           objective: $input.objective
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
           project_context: $input.project_context
           receipt_id: $input.receipt_id
@@ -265,7 +243,6 @@ methods:
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
-          repo_root: $input.repo_root
           mode: improve
           change_bundle: $steps.draft.change_bundle
         outputs:
@@ -277,11 +254,6 @@ methods:
       objective:
         type: string
         description: Bounded improvement objective.
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root that owns target_dir.
-        optional: true
       target_dir:
         type: string
         description: Repo-relative package directory to improve.
@@ -306,7 +278,6 @@ methods:
         optional: true
     examples:
       - objective: Make every public method callable from inspection without source-diving.
-        repo_root: .
         target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
         test_output: The agent could not construct the nested resources selector from inspection.
@@ -315,14 +286,30 @@ methods:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
+        # The record bind binds the change to, and the brief its author reads.
+        outputs:
+          authoring_context: {packet: runx.skill_lab.authoring_context.v1}
+          authoring_brief: {type: object}
       - id: author
         agent: skill-lab-author
         calls:
           tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
+        # Its caller proves a draft by the case it adds, so one that writes
+        # adds a case.
         outputs:
-          change_draft: {type: object, packet: runx.skill.change_draft.v1}
+          change_draft:
+            type: object
+            packet: runx.skill.change_draft.v1
+            if: {properties: {decision: {const: write}}, required: [decision]}
+            then:
+              properties:
+                writes:
+                  description: "A draft that writes adds the case its caller proves it by: a tests/<name>.yaml that fails on the package as it stands and passes on the change."
+                  contains:
+                    type: object
+                    properties: {path: {type: string, pattern: "/tests/[^/]+\\.ya?ml$"}}
+                    required: [path]
         inputs:
           objective: $input.objective
           project_context: $input.project_context
@@ -331,8 +318,7 @@ methods:
           test_output: $input.test_output
           failure_packet: $input.failure_packet
           authoring_mode: improve
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
+          authoring_brief: $steps.inspect.authoring_brief
           target_dir: $input.target_dir
       - id: bind
         tool: runx.skill.bind
@@ -347,11 +333,6 @@ methods:
       objective:
         type: string
         description: Behavior or regression boundary the fixtures must prove.
-      repo_root:
-        type: string
-        default: .
-        description: Workspace root that owns target_dir.
-        optional: true
       target_dir:
         type: string
         description: Repo-relative package directory receiving fixtures.
@@ -365,7 +346,6 @@ methods:
         optional: true
     examples:
       - objective: Prove that local evidence preserves exact UTF-8 content and rejects missing files.
-        repo_root: .
         target_dir: skills/research
         project_context: Exercise the real native file and evidence capabilities.
     result_from: [author, apply]
@@ -373,8 +353,11 @@ methods:
       - id: inspect
         tool: runx.skill.inspect
         inputs:
-          repo_root: $input.repo_root
           target_dir: $input.target_dir
+        # The record bind binds the change to, and the brief its author reads.
+        outputs:
+          authoring_context: {packet: runx.skill_lab.authoring_context.v1}
+          authoring_brief: {type: object}
       - id: author
         agent: skill-lab-author
         calls:
@@ -386,8 +369,7 @@ methods:
           project_context: $input.project_context
           test_output: $input.test_output
           authoring_mode: test
-          authoring_context: $steps.inspect.authoring_context
-          repo_root: $input.repo_root
+          authoring_brief: $steps.inspect.authoring_brief
           target_dir: $input.target_dir
       - id: bind
         tool: runx.skill.bind
@@ -399,7 +381,6 @@ methods:
         tool: runx.skill.apply
         inputs:
           target_dir: $input.target_dir
-          repo_root: $input.repo_root
           mode: test
           change_bundle: $steps.bind.change_bundle
         outputs:

@@ -26,7 +26,6 @@ pub const FS_SEARCH_MAX_CONTEXT_LINES: usize = 3;
 #[runx_schema(id = "runx.fs.file_read.v1")]
 pub struct FileRead {
     pub path: NonEmptyString,
-    pub repo_root: NonEmptyString,
     /// The lines read, from `start_line`, with their line endings.
     pub contents: String,
     /// The whole file's size.
@@ -47,7 +46,6 @@ pub struct FileRead {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.fs.file_read_bundle.v1")]
 pub struct FileReadBundle {
-    pub repo_root: NonEmptyString,
     pub file_count: BoundedU64<0, { FS_BUNDLE_MAX_FILES as u64 }>,
     pub total_bytes: BoundedU64<0, FS_BUNDLE_MAX_BYTES>,
     pub files: BoundedVec<FileRead, 0, FS_BUNDLE_MAX_FILES>,
@@ -68,7 +66,6 @@ pub struct MissingFile {
 #[runx_schema(id = "runx.fs.file_write.v1")]
 pub struct FileWrite {
     pub path: NonEmptyString,
-    pub repo_root: NonEmptyString,
     pub bytes_written: u64,
     /// The digest of what the file now holds.
     pub content_digest: Digest,
@@ -90,7 +87,6 @@ pub struct FileWrite {
 #[runx_schema(id = "runx.fs.file_edit.v1")]
 pub struct FileEdit {
     pub path: NonEmptyString,
-    pub repo_root: NonEmptyString,
     pub replacements: NonZeroU64,
     /// The digest of the content the edits replaced.
     pub before_digest: Digest,
@@ -109,7 +105,6 @@ pub struct FileEdit {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.fs.apply_bundle.v1")]
 pub struct FileApplyBundle {
-    pub repo_root: NonEmptyString,
     pub write_count: u64,
     pub delete_count: u64,
     pub writes: Vec<FileAppliedWrite>,
@@ -160,7 +155,6 @@ pub enum FileDeleteStatus {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.fs.file_list.v1")]
 pub struct FileList {
-    pub repo_root: NonEmptyString,
     pub path: NonEmptyString,
     pub entries: BoundedVec<FileListEntry, 0, FS_LIST_MAX_ENTRIES>,
     pub truncated: bool,
@@ -190,7 +184,6 @@ pub enum FileEntryKind {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.fs.file_search.v1")]
 pub struct FileSearch {
-    pub repo_root: NonEmptyString,
     pub matches: BoundedVec<FileSearchMatch, 0, FS_SEARCH_MAX_MATCHES>,
     pub files_searched: u64,
     pub truncated: bool,
@@ -215,8 +208,6 @@ pub struct FileSearchMatch {
 #[serde(deny_unknown_fields)]
 #[runx_schema(id = "runx.fs.inverse_bundle.v1")]
 pub struct FileInverseBundle {
-    /// The root the edits changed, relative to the workspace.
-    pub repo_root: NonEmptyString,
     pub writes: Vec<FileBundleWrite>,
     pub deletes: Vec<FileBoundDelete>,
     /// The calls it undoes, in the order the run made them.

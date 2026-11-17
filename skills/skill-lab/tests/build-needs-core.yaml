@@ -2,7 +2,6 @@ name: skill-lab-stops-for-earned-core-gap
 method: build
 inputs:
   objective: Add a digest-bound compare-and-swap bundle primitive required by two existing skills
-  repo_root: .
   target_dir: skills/fixture-core-gap
 host:
   answers:

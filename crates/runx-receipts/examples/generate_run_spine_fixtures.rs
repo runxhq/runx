@@ -297,7 +297,10 @@ fn abnormal_receipt() -> Receipt {
     // diagnostics state it.
     receipt.seal.failure = Some(SealFailure {
         code: "process_failed".into(),
-        reason: "the echo tool exited with status 1".into(),
+        decided_by: "the echo tool".into(),
+        at: vec!["echo".into()],
+        reason: "it exited with status 1".into(),
+        next: None,
         retryable: false,
         fields: JsonObject::from([(
             "exit_code".to_owned(),

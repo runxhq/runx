@@ -1,9 +1,7 @@
 //! The actual outreach workflow, revised while a send has only an acknowledgement.
 
 use super::*;
-use runx_runtime::scripted_model::{
-    managed_agent_env, read_chat_request, tool_call, write_chat_response,
-};
+use runx_runtime::scripted_model::{drive_env, read_chat_request, tool_call, write_chat_response};
 use serde_json::{Value, json};
 use std::io::{self, Write};
 use std::net::{TcpListener, TcpStream};
@@ -397,7 +395,7 @@ fn project(root: &Path, reuse: bool) -> TestResult<PathBuf> {
 fn command(root: &Path, model: &Model) -> Command {
     let mut command = unsigned_runx_command_at(root);
     command
-        .envs(managed_agent_env(
+        .envs(drive_env(
             &model.endpoint,
             if model.local {
                 "qwen3-8b-32k"

@@ -224,6 +224,15 @@ fn discover_skill_diagnostics(root: &Path) -> Result<Vec<DoctorDiagnostic>, Runt
                 continue;
             }
         };
+        if let Err(error) = crate::skill_package::refuse_inputs_no_tool_takes(&loaded.package) {
+            diagnostics.push(skill_profile_invalid_diagnostic(
+                root,
+                &skill_dir.join("SKILL.md"),
+                &skill_name,
+                &error.to_string(),
+            )?);
+            continue;
+        }
         let test_count = loaded.package.test_fixtures.len() as u64;
         for (profile_relative, manifest) in &loaded.package.profiles {
             let profile_path = loaded.package_root.join(profile_relative);

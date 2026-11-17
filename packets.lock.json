@@ -79,7 +79,7 @@
     },
     {
       "id": "runx/github-issue-to-pr.host_result.v1",
-      "digest": "sha256:99ac6eee7ea18198a717405e767633599013268d8203cf49263f6440f42a5fdc"
+      "digest": "sha256:d27547273023908f1bf03a1b2061442c8a2bc53022d8a899070a0ab172415d3b"
     },
     {
       "id": "runx/github-issue-to-pr.issue_evidence.v1",
@@ -87,7 +87,7 @@
     },
     {
       "id": "runx/github-issue-to-pr.result.v1",
-      "digest": "sha256:848bc45df2374757409d44edac580f2c2663395251b2b24ee150e5e241a51d2e"
+      "digest": "sha256:9928bbe94c82ddee52168331ac307ec1eb8cafcc78ff895bdca48df694458382"
     },
     {
       "id": "runx/github-issue-triage.queue.v1",

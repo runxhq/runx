@@ -105,11 +105,6 @@ methods:
       path:
         type: string
         description: Workspace-relative UTF-8 text of the invoice. Convert a PDF or image to text first.
-      repo_root:
-        type: string
-        default: .
-        description: Authorized workspace root.
-        optional: true
       parent_payment_authority: {}
       idempotency_seed: {}
       connector: {}
@@ -124,7 +119,6 @@ methods:
         inputs:
           source_id: $input.path
           path: $input.path
-          repo_root: $input.repo_root
           objective: Extract the amount due now, its currency, the invoice's own reference and its HTTPS payment URL. Write the amount as digits and one dot with no symbols or separators, with two fractional digits for USD, so that $1,234.5 is 1234.50. Take the balance due, never a subtotal or a prior total. If the document states two different amounts due or payment URLs, or omits a field, list that field as missing instead of choosing one.
           schema:
             type: object

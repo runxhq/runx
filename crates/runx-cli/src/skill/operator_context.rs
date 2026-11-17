@@ -39,11 +39,11 @@ pub(super) fn write_operator_context(
         list_or_none(&execution_boundaries),
     ));
     out.push_str(&format!(
-        "  Managed agent: {} turn(s), {}\n",
-        report.governance.managed_turns,
-        match report.governance.managed_agent_max_rounds {
-            Some(rounds) => format!("enabled, max {rounds} round(s) per turn"),
-            None => "off; caller resolves needs_agent".to_owned(),
+        "  Turns:  {} agent turn(s), {}\n",
+        report.governance.agent_turns,
+        match report.governance.drive_max_rounds {
+            Some(rounds) => format!("driven by runx, at most {rounds} round(s) each"),
+            None => "the caller's to work (needs_agent)".to_owned(),
         },
     ));
     out.push_str("  Inputs: ");

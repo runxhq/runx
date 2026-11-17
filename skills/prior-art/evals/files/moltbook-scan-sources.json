@@ -19,6 +19,5 @@
   },
   "source_paths": [
     "skills/moltbook/run.yaml"
-  ],
-  "repo_root": "."
+  ]
 }

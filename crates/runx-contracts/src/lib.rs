@@ -111,9 +111,10 @@ pub use host_protocol::{
     ProjectBinding, PurchaseMethod, PurchasePaymentOption, PurchaseQuote, PurchaseRequest,
     Question, QuestionOption, RESERVED_ANSWER_FIELDS, ResolutionRequest, ResolutionResponse,
     ResolutionResponseActor, RetryResend, SkillAllowance, SkillManual, TURN_READ_PAGE_CHARS,
-    TurnAllowance, TurnCallOutcome, TurnCallResult, TurnContextLine, TurnFile, TurnInvocation,
-    TurnLoad, TurnLocator, TurnProfiles, TurnReadPage, TurnRequirement, TurnStatus, TurnTool,
-    TurnUsage, TurnUsageCall, TurnView, TurnViewEnvelope, check_answer,
+    TurnAllowance, TurnArtifactView, TurnCallOutcome, TurnCallResult, TurnCallView,
+    TurnCallViewOutcome, TurnContextLine, TurnFile, TurnInvocation, TurnLoad, TurnLocator,
+    TurnProfiles, TurnReadPage, TurnRequirement, TurnStatus, TurnTool, TurnUsage, TurnUsageCall,
+    TurnView, TurnViewEnvelope, check_answer,
 };
 pub use json::{JsonNumber, JsonObject, JsonValue, MAX_PORTABLE_INTEGER, json_string_field};
 pub use list::{
@@ -240,11 +241,12 @@ pub use schema_reconcile::{SchemaDrift, reconcile_schema_artifacts};
 pub use skill_authoring::{
     SKILL_APPLY_RESULT_SCHEMA, SKILL_CHANGE_BUNDLE_SCHEMA, SKILL_CHANGE_DRAFT_SCHEMA,
     SKILL_VALIDATION_RESULT_SCHEMA, SkillApplyResult, SkillApplyResultSchema, SkillApplyVerdict,
-    SkillAuthoringContext, SkillAuthoringMode, SkillCatalogEntry, SkillChangeBundle,
-    SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft, SkillChangeDraftSchema,
-    SkillFileWrite, SkillPackageDelta, SkillPackageFile, SkillPackageMetrics, SkillValidation,
-    SkillValidationCheck, SkillValidationCheckStatus, SkillValidationResult,
-    SkillValidationResultSchema, SkillValidationSchema, SkillValidationVerdict,
+    SkillAuthoringBrief, SkillAuthoringContext, SkillAuthoringMode, SkillCatalogEntry,
+    SkillChangeBundle, SkillChangeBundleSchema, SkillChangeDecision, SkillChangeDraft,
+    SkillChangeDraftSchema, SkillFileWrite, SkillMethodBrief, SkillPackageDelta, SkillPackageFile,
+    SkillPackageMetrics, SkillTargetBrief, SkillValidation, SkillValidationCheck,
+    SkillValidationCheckStatus, SkillValidationResult, SkillValidationResultSchema,
+    SkillValidationSchema, SkillValidationVerdict,
 };
 pub use source_packet::{
     OperationalProposalRedactionStatus, SOURCE_PACKET_SCHEMA, SignalAuthenticity, SignalTrustLevel,

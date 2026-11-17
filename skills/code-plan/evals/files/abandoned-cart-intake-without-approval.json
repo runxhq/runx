@@ -2,7 +2,6 @@
   "about": "The code-intake artifact a prior run completed for abandoned cart recovery, carrying no commence or action decision.",
   "objective": "Roll out abandoned cart recovery across api and app.",
   "project_context": "Example product workspace",
-  "repo_root": "fixtures/workspace",
   "change_set": {
     "change_set_id": "change_set_abandoned_cart_982",
     "thread_locator": "support://request/982",

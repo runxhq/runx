@@ -1,5 +1,5 @@
-//! The managed agent: an in-process model that works an agent turn when a
-//! run consents to it. It is one more driver of the turn: each tool the model
+//! The drive: runx works an agent turn itself, with an in-process model,
+//! when a run consents to it (`--drive`), and the turn is a driven turn. It is one more driver of the turn: each tool the model
 //! chooses is a call through the turn, admitted, executed and recorded by the
 //! run, and its final result answers the act. A call that waits on a human
 //! ends the pass with the turn open; a later pass continues from what the
@@ -14,7 +14,7 @@ use runx_contracts::{
 };
 use serde::Serialize;
 
-use super::agent::ManagedAgentError;
+use super::agent::DriveError;
 use super::agent_anthropic_messages::AnthropicMessagesCaller;
 use super::agent_chat_completions::ChatCompletionsCaller;
 use super::agent_loop::{
@@ -23,7 +23,7 @@ use super::agent_loop::{
 use super::agent_openai_responses::OpenAiResponsesCaller;
 use super::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use crate::RuntimeError;
-use crate::config::{ManagedAgentAuthMode, ManagedAgentConfig, ModelDialect};
+use crate::config::{DriveAuthMode, DriveConfig, ModelDialect};
 use crate::execution::engine::turn::{TURN_COMPLETE_TOOL, TURN_READ_TOOL, TURN_STATUS_TOOL, Turn};
 use crate::host::Host;
 use crate::http::ReqwestHttpTransport;
@@ -32,14 +32,14 @@ use crate::http::ReqwestHttpTransport;
 /// transient text-only reply without letting a persistently silent model spin.
 const MAX_EMPTY_TURN_RESAMPLES: u32 = 3;
 
-/// The managed agent a run consents to, with the bound on its rounds.
-pub(crate) struct ManagedAgent {
+/// The drive a run consents to, with the bound on its rounds.
+pub(crate) struct Drive {
     env: BTreeMap<String, String>,
     skill_directory: PathBuf,
     max_rounds: u32,
 }
 
-impl ManagedAgent {
+impl Drive {
     pub(crate) fn new(
         env: BTreeMap<String, String>,
         skill_directory: PathBuf,
@@ -55,7 +55,7 @@ impl ManagedAgent {
     /// Whether the configured model runs on this machine, at a loopback
     /// endpoint. No configured model, or one that can't be read, is not.
     pub(crate) fn is_local(&self) -> bool {
-        crate::agent_config::load_managed_agent_config(&self.env, &self.skill_directory)
+        crate::agent_config::load_drive_config(&self.env, &self.skill_directory)
             .ok()
             .flatten()
             .is_some_and(|config| local_endpoint(&config))
@@ -79,16 +79,15 @@ impl ManagedAgent {
         }
         let step_id = turn.step_id().to_owned();
         let request_id = turn.invocation().id.as_str().to_owned();
-        let fail = |error: ManagedAgentError| {
-            RuntimeError::managed_agent_resolution(step_id.clone(), request_id.clone(), error)
+        let fail = |error: DriveError| {
+            RuntimeError::drive_resolution(step_id.clone(), request_id.clone(), error)
         };
-        let Some(config) =
-            crate::agent_config::load_managed_agent_config(&self.env, &self.skill_directory)
-                .map_err(|error| {
-                    fail(ManagedAgentError::sanitized(format!(
-                        "managed agent config error: {error}"
-                    )))
-                })?
+        let Some(config) = crate::agent_config::load_drive_config(&self.env, &self.skill_directory)
+            .map_err(|error| {
+                fail(DriveError::sanitized(format!(
+                    "the drive's config is invalid: {error}"
+                )))
+            })?
         else {
             return Ok(None);
         };
@@ -97,18 +96,16 @@ impl ManagedAgent {
         let requires = turn.invocation().requires.clone();
         if let Some(unmet) = requires
             .iter()
-            .find(|requirement| !MANAGED_AGENT_MEETS.contains(requirement))
+            .find(|requirement| !DRIVE_MEETS.contains(requirement))
         {
             return Ok(Some(crate::execution::outcome::failed_answer(
-                format!("runx's managed agent can't meet {}", unmet.as_str()),
+                format!("a driven turn can't meet {}", unmet.as_str()),
                 Some(*unmet),
             )));
         }
         let envelope = turn.invocation().envelope.clone();
-        if !shares_context(&config, &envelope) {
-            return Err(fail(ManagedAgentError::sanitized(
-                "selected model is outside a context entry's sharing scope",
-            )));
+        if let Some(refusal) = kept_local(&config, &envelope) {
+            return Err(fail(refusal));
         }
         let mut given = BTreeSet::new();
         let prompt = build_prompt(
@@ -141,7 +138,7 @@ impl ManagedAgent {
         calls.refresh()?;
         let end =
             run_agent_loop(&loop_config, model.as_ref(), &mut calls, prompt).map_err(|error| {
-                fail(ManagedAgentError::bounded_failure(
+                fail(DriveError::bounded_failure(
                     error.reason().seal_reason(),
                     error.sanitized_message(),
                     error.telemetry().clone(),
@@ -152,7 +149,7 @@ impl ManagedAgent {
                 // It states what it always meets, a fresh context, the
                 // model that answered, what its calls to it used, and itself
                 // as the host, through its provider.
-                crate::execution::outcome::with_met_requirements(answer, &MANAGED_AGENT_MEETS)
+                crate::execution::outcome::with_met_requirements(answer, &DRIVE_MEETS)
                     .and_then(|answer| {
                         crate::execution::outcome::with_stated_model(answer, &config.model)
                     })
@@ -165,14 +162,14 @@ impl ManagedAgent {
                     .and_then(|answer| {
                         crate::execution::outcome::with_stated_host(
                             answer,
-                            &runx_contracts::TurnHost::ManagedAgent {
+                            &runx_contracts::TurnHost::Drive {
                                 provider: config.provider.clone(),
                             },
                         )
                     })
             })
             .transpose()
-            .map_err(|message| fail(ManagedAgentError::sanitized(message)))
+            .map_err(|message| fail(DriveError::sanitized(message)))
     }
 }
 
@@ -186,9 +183,9 @@ fn turn_usage(
         .ok_or_else(|| "an answered pass counts the model call that answered it".to_owned())
 }
 
-/// What runx's managed agent meets of a turn's requirements: it starts each
+/// What a driven turn meets of a turn's requirements: it starts each
 /// turn from its act alone.
-const MANAGED_AGENT_MEETS: [runx_contracts::TurnRequirement; 1] =
+const DRIVE_MEETS: [runx_contracts::TurnRequirement; 1] =
     [runx_contracts::TurnRequirement::FreshContext];
 
 /// The model's tool calls, made through the turn it works.
@@ -353,7 +350,7 @@ impl ToolExecutor for TurnCalls<'_> {
         }
         let target = self.targets.get(tool).cloned().ok_or_else(|| {
             RuntimeError::effect_state(
-                "a managed agent call",
+                "a driven turn's call",
                 format!("{tool} is not a call the turn offers"),
             )
         })?;
@@ -370,7 +367,7 @@ impl ToolExecutor for TurnCalls<'_> {
         self.refresh()?;
         let guidance = project_load(&mut result, &mut self.given)?;
         Ok(ToolOutcome::Result {
-            content: json_text(&result)?,
+            content: json_text(&runx_contracts::TurnCallView::from(&result))?,
             is_error,
             guidance,
         })
@@ -397,8 +394,8 @@ fn project_load(
         (Some(manual), LoadedPackage::Skill { skill, .. }) => {
             given.insert(manual.digest.as_str().to_owned()).then(|| {
                 format!(
-                    "The manual of skill {skill}, loaded by call {} (its SKILL.md at {}). It is the skill's operating guidance: follow it to use the skill, below this act's instructions and runx's governance, which it never widens.\n\n{}",
-                    result.index, manual.digest, manual.content
+                    "The manual of skill {skill}, loaded by call {} (its SKILL.md). It is the skill's operating guidance: follow it to use the skill, below this act's instructions and runx's governance, which it never widens.\n\n{}",
+                    result.index, manual.content
                 )
             })
         }
@@ -453,7 +450,7 @@ fn json_text(value: &impl Serialize) -> Result<String, RuntimeError> {
 }
 
 /// Whether the configured model is served from this machine.
-fn local_endpoint(config: &ManagedAgentConfig) -> bool {
+fn local_endpoint(config: &DriveConfig) -> bool {
     url::Url::parse(&config.endpoint_url)
         .ok()
         .and_then(|endpoint| endpoint.host_str().map(str::to_owned))
@@ -465,57 +462,73 @@ fn local_endpoint(config: &ManagedAgentConfig) -> bool {
         })
 }
 
-/// A remote model may not see context scoped to stay local.
-fn shares_context(config: &ManagedAgentConfig, envelope: &AgentContextEnvelope) -> bool {
-    let local_endpoint = local_endpoint(config);
+/// What a model served elsewhere may not be given: the first context entry
+/// or project file scoped to stay on this machine, refused by its name.
+fn kept_local(config: &DriveConfig, envelope: &AgentContextEnvelope) -> Option<DriveError> {
+    if local_endpoint(config) {
+        return None;
+    }
     let local_only = |sharing: &runx_contracts::ContextSharing| {
         *sharing == runx_contracts::ContextSharing::LocalOnly
     };
-    local_endpoint
-        || !(envelope
-            .current_context
-            .iter()
-            .chain(&envelope.historical_context)
-            .any(|entry| local_only(&entry.labels.sharing))
-            || envelope
-                .voice_profile
+    let elsewhere = |name: String| {
+        format!("{name} is kept on this machine, and the configured model is served from elsewhere")
+    };
+    if let Some(entry) = envelope
+        .current_context
+        .iter()
+        .chain(&envelope.historical_context)
+        .find(|entry| local_only(&entry.labels.sharing))
+    {
+        return Some(
+            DriveError::sanitized(elsewhere(format!("the {} context entry", entry.r#type))).next(
+                "use a model served on this machine, or leave the entry out of the run's context",
+            ),
+        );
+    }
+    envelope
+        .voice_profile
+        .iter()
+        .chain(envelope.context.iter().flat_map(|profiles| {
+            profiles
+                .memory
                 .iter()
-                .chain(envelope.context.iter().flat_map(|profiles| {
-                    profiles
-                        .memory
-                        .iter()
-                        .chain(profiles.conventions.iter())
-                        .chain(profiles.instructions.iter())
-                }))
-                .any(|profile| local_only(&profile.sharing)))
+                .chain(profiles.conventions.iter())
+                .chain(profiles.instructions.iter())
+        }))
+        .find(|profile| local_only(&profile.sharing))
+        .map(|profile| {
+            DriveError::sanitized(elsewhere(profile.path.to_string())).next(
+                "use a model served on this machine, or unset RUNX_PROFILE_SHARING so the project's files reach the configured model",
+            )
+        })
 }
 
 /// The configured dialect's caller over the configured transport.
-fn caller(config: &ManagedAgentConfig) -> Result<Box<dyn ModelCaller>, ManagedAgentError> {
+fn caller(config: &DriveConfig) -> Result<Box<dyn ModelCaller>, DriveError> {
     match config.auth_mode {
-        ManagedAgentAuthMode::LocalNone => speak(
+        DriveAuthMode::LocalNone => speak(
             config,
             ReqwestHttpTransport::for_exact_loopback_agent(&config.endpoint_url)
-                .map_err(|_| ManagedAgentError::sanitized("local model endpoint is invalid"))?,
+                .map_err(|_| DriveError::sanitized("local model endpoint is invalid"))?,
         ),
-        ManagedAgentAuthMode::ApiKey => speak(
+        DriveAuthMode::ApiKey => speak(
             config,
-            ReqwestHttpTransport::for_managed_agent().map_err(|_| {
-                ManagedAgentError::sanitized("managed agent transport is unavailable")
-            })?,
+            ReqwestHttpTransport::for_drive()
+                .map_err(|_| DriveError::sanitized("the drive's transport is unavailable"))?,
         ),
     }
 }
 
 fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
-    config: &ManagedAgentConfig,
+    config: &DriveConfig,
     transport: T,
-) -> Result<Box<dyn ModelCaller>, ManagedAgentError> {
+) -> Result<Box<dyn ModelCaller>, DriveError> {
     let (endpoint, model) = (config.endpoint_url.clone(), config.model.clone());
     Ok(match config.dialect {
         ModelDialect::AnthropicMessages => {
             let key = config.api_key.clone().ok_or_else(|| {
-                ManagedAgentError::sanitized("the anthropic_messages dialect requires an API key")
+                DriveError::sanitized("the anthropic_messages dialect requires an API key")
             })?;
             Box::new(AnthropicMessagesCaller::new(
                 transport, endpoint, key, model,
@@ -523,7 +536,7 @@ fn speak<T: crate::http::RuntimeHttpTransport + 'static>(
         }
         ModelDialect::OpenAiResponses => {
             let key = config.api_key.clone().ok_or_else(|| {
-                ManagedAgentError::sanitized("the openai_responses dialect requires an API key")
+                DriveError::sanitized("the openai_responses dialect requires an API key")
             })?;
             Box::new(OpenAiResponsesCaller::new(transport, endpoint, key, model))
         }
@@ -546,15 +559,15 @@ fn build_prompt(
     envelope: &TurnViewEnvelope,
     calls: &[TurnCallResult],
     given: &mut BTreeSet<String>,
-) -> Result<Vec<AgentTurn>, ManagedAgentError> {
+) -> Result<Vec<AgentTurn>, DriveError> {
     let context = pretty(&AgentPromptContext::new(task, envelope))?;
     let mut manuals = String::new();
     let mut made = String::new();
     for call in calls {
         let mut call = call.clone();
-        if let Some(manual) = project_load(&mut call, given).map_err(|error| {
-            ManagedAgentError::sanitized(format!("a load could not be read: {error}"))
-        })? {
+        if let Some(manual) = project_load(&mut call, given)
+            .map_err(|error| DriveError::sanitized(format!("a load could not be read: {error}")))?
+        {
             manuals.push_str("\n\n");
             manuals.push_str(&manual);
         }
@@ -568,11 +581,24 @@ fn build_prompt(
             "\n\nCalls already made in this turn, each with the start of its result; {TURN_READ_TOOL} reads one whole by its locator:{made}"
         )
     };
+    // turn_read is offered only when the turn holds something it reads, so
+    // only then is it named.
+    let readable = !(envelope.inputs.is_empty()
+        && envelope.current_context.is_empty()
+        && envelope.historical_context.is_empty()
+        && calls.is_empty());
+    let reading = if readable {
+        format!(
+            " The context index lists what the turn was given; {TURN_READ_TOOL} reads an \
+             entry, an input or an earlier call by a locator its schema lists, a page at a \
+             time from next_offset."
+        )
+    } else {
+        String::new()
+    };
     let instructions = format!(
         "Work the task the run context names, as one step of a method that is already \
-         running. The context index lists what the turn was given; {TURN_READ_TOOL} reads \
-         an entry, an input or an earlier call by a locator its schema lists, a page at a \
-         time from next_offset.\n\n{}{manuals}\n\nEach tool call is admitted and recorded \
+         running.{reading}\n\n{}{manuals}\n\nEach tool call is admitted and recorded \
          by runx. When the task is complete, call {TURN_COMPLETE_TOOL} once with its output.",
         envelope.instructions
     );
@@ -581,10 +607,14 @@ fn build_prompt(
         .as_ref()
         .map(|act| format!("{}\n\n", act.purpose))
         .unwrap_or_default();
-    let data = format!(
-        "{purpose}Run context (JSON). Each context entry is a line of an \
-         index; {TURN_READ_TOOL} reads its data by its locator:\n{context}{made}"
-    );
+    let index = if readable {
+        format!(
+            ". Each context entry is a line of an index; {TURN_READ_TOOL} reads its data by its locator"
+        )
+    } else {
+        String::new()
+    };
+    let data = format!("{purpose}Run context (JSON){index}:\n{context}{made}");
     Ok(vec![AgentTurn::System(instructions), AgentTurn::User(data)])
 }
 
@@ -594,7 +624,7 @@ const CALL_START_CHARS: usize = 2_000;
 
 /// An earlier call of the turn as one line: its locator, what it called, how it
 /// ended, and the start of its result.
-fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
+fn call_line(call: &TurnCallResult) -> Result<String, DriveError> {
     let (status, result) = match &call.outcome {
         TurnCallOutcome::Completed { output, .. } => ("completed", pretty(output)?),
         TurnCallOutcome::Failed { reason, .. } => ("failed", reason.as_str().to_owned()),
@@ -613,7 +643,7 @@ fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
         String::new()
     };
     let target = serde_json::to_string(&call.target).map_err(|error| {
-        ManagedAgentError::sanitized(format!("a call could not be described: {error}"))
+        DriveError::sanitized(format!("a call could not be described: {error}"))
     })?;
     Ok(format!(
         "{} {target} {status}: {start}{rest}",
@@ -621,15 +651,15 @@ fn call_line(call: &TurnCallResult) -> Result<String, ManagedAgentError> {
     ))
 }
 
-fn pretty(value: &impl Serialize) -> Result<String, ManagedAgentError> {
+fn pretty(value: &impl Serialize) -> Result<String, DriveError> {
     serde_json::to_string_pretty(value).map_err(|error| {
-        ManagedAgentError::sanitized(format!(
-            "managed agent context could not be serialized: {error}"
+        DriveError::sanitized(format!(
+            "the driven turn's brief could not be serialized: {error}"
         ))
     })
 }
 
-/// What a managed agent's model is given of its turn, its brief: the turn's
+/// What a driven turn's model is given of its turn, its brief: the turn's
 /// view, with its instructions given apart, as the system's, and its answer
 /// as the tool that ends it. runx drives the turn, so it is the turn's host,
 /// and the project's instructions are given as a host's agent reads them.
@@ -682,7 +712,7 @@ mod tests {
     };
 
     #[test]
-    fn prompt_carries_instructions_directive_and_inputs() -> Result<(), ManagedAgentError> {
+    fn prompt_carries_instructions_directive_and_inputs() -> Result<(), DriveError> {
         let mut inputs = JsonObject::new();
         inputs.insert(
             "issue_title".to_owned(),
@@ -695,7 +725,7 @@ mod tests {
             &mut BTreeSet::new(),
         )?;
         let [AgentTurn::System(instructions), AgentTurn::User(prompt)] = prompt.as_slice() else {
-            return Err(ManagedAgentError::sanitized("prompt roles changed"));
+            return Err(DriveError::sanitized("prompt roles changed"));
         };
         assert!(instructions.contains("Triage") && instructions.contains(TURN_COMPLETE_TOOL));
         assert!(!instructions.contains("bug report") && !instructions.contains("issue_title"));
@@ -710,7 +740,7 @@ mod tests {
     }
 
     #[test]
-    fn prompt_carries_the_act_whole_and_its_context_as_an_index() -> Result<(), ManagedAgentError> {
+    fn prompt_carries_the_act_whole_and_its_context_as_an_index() -> Result<(), DriveError> {
         let mut inputs = JsonObject::new();
         inputs.insert(
             "objective".to_owned(),
@@ -757,7 +787,7 @@ mod tests {
         )?;
 
         let [AgentTurn::System(instructions), AgentTurn::User(prompt)] = prompt.as_slice() else {
-            return Err(ManagedAgentError::sanitized("prompt roles changed"));
+            return Err(DriveError::sanitized("prompt roles changed"));
         };
         assert!(prompt.starts_with("Review the product using the supplied taste profile.\n\n"));
         assert!(!instructions.contains("Review the product using the supplied taste profile."));
@@ -799,11 +829,27 @@ mod tests {
         }
         assert!(instructions.contains(TURN_COMPLETE_TOOL));
         assert!(!prompt.contains("Calls already made"));
+
+        // A turn holding nothing to read isn't offered turn_read, so its
+        // prompt doesn't name it.
+        let bare = build_prompt(
+            &non_empty("review"),
+            &TurnViewEnvelope::from(&prompt_envelope("Review", JsonObject::new(), Vec::new())),
+            &[],
+            &mut BTreeSet::new(),
+        )?;
+        assert!(
+            bare.iter().all(|turn| match turn {
+                AgentTurn::System(text) | AgentTurn::User(text) => !text.contains(TURN_READ_TOOL),
+                _ => true,
+            }),
+            "{bare:?}"
+        );
         Ok(())
     }
 
     #[test]
-    fn a_later_pass_reads_the_calls_the_turn_already_made() -> Result<(), ManagedAgentError> {
+    fn a_later_pass_reads_the_calls_the_turn_already_made() -> Result<(), DriveError> {
         let call = runx_contracts::TurnCallResult {
             index: 0,
             target: runx_contracts::CallTarget::Ask,
@@ -836,7 +882,7 @@ mod tests {
             &mut BTreeSet::new(),
         )?;
         let [AgentTurn::System(instructions), AgentTurn::User(prompt)] = prompt.as_slice() else {
-            return Err(ManagedAgentError::sanitized("prompt roles changed"));
+            return Err(DriveError::sanitized("prompt roles changed"));
         };
         assert!(
             !instructions.contains("no reason given") && !instructions.contains("more characters")
@@ -904,12 +950,45 @@ mod tests {
             "{prompt}"
         );
         assert!(instructions.contains("operating guidance"));
+        assert!(!instructions.contains("sha256:"), "{instructions}");
         assert_eq!(given, BTreeSet::from(["sha256:manual".to_owned()]));
         // A load later in the pass gives a manual already given no second time.
         let mut later = load(2)?;
         assert_eq!(project_load(&mut later, &mut given)?, None);
         assert!(!serde_json::to_string(&later)?.contains("Write each note"));
         Ok(())
+    }
+
+    /// A model served elsewhere is refused what the person keeps on this
+    /// machine, by its name, and told what to do; one served here is given it.
+    #[test]
+    fn a_remote_model_is_refused_a_project_file_kept_local_by_its_name() {
+        let config = |endpoint: &str| crate::config::DriveConfig {
+            provider: non_empty("anthropic"),
+            dialect: ModelDialect::AnthropicMessages,
+            model: "fixture-model".to_owned(),
+            api_key: None,
+            endpoint_url: endpoint.to_owned(),
+            auth_mode: crate::config::DriveAuthMode::ApiKey,
+        };
+        let mut envelope = prompt_envelope("Review", JsonObject::new(), Vec::new());
+        let mut kept = profile_file("../AGENTS.md", "Root rules.");
+        kept.sharing = runx_contracts::ContextSharing::LocalOnly;
+        envelope.context = Some(runx_contracts::AgentContextProfiles {
+            memory: None,
+            conventions: None,
+            instructions: vec![profile_file("AGENTS.md", "Site rules."), kept],
+        });
+        let refused = kept_local(&config("https://api.example.com/v1/messages"), &envelope)
+            .map(|refusal| (refusal.to_string(), refusal.next_step().map(str::to_owned)));
+        assert_eq!(
+            refused,
+            Some((
+                "../AGENTS.md is kept on this machine, and the configured model is served from elsewhere".to_owned(),
+                Some("use a model served on this machine, or unset RUNX_PROFILE_SHARING so the project's files reach the configured model".to_owned()),
+            ))
+        );
+        assert!(kept_local(&config("http://127.0.0.1:8080/v1/messages"), &envelope).is_none());
     }
 
     fn prompt_envelope(
@@ -946,7 +1025,6 @@ mod tests {
     fn profile_file(path: &str, content: &str) -> ProfileFile {
         ProfileFile {
             sharing: runx_contracts::ContextSharing::ConfiguredModel,
-            root_path: non_empty("/workspace"),
             path: non_empty(path),
             digest: non_empty(format!("sha256:{path}")),
             content: content.to_owned(),

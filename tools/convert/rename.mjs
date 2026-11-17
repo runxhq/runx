@@ -40,6 +40,7 @@ const FORMS = {
   runner: ["runner", "runners"],
   agent_session: ["agentsession"],
   agent_act: ["agentact"],
+  managed_agent: ["managedagent"],
 };
 const ORDER = Object.keys(FORMS);
 
@@ -71,6 +72,9 @@ const SWAPS = {
   runner: () => [["runners", "methods"], ["runner", "method"]],
   agent_session: () => [["agent-session", "agent"], ["agent_session", "agent"], ["AgentSession", "Agent"], ["agentSession", "agent"]],
   agent_act: () => [["AgentAct", "Turn"], ["agent_act", "turn"], ["agentAct", "turn"]],
+  // runx driving a turn itself is `--drive` (Kam, 17 November): its config,
+  // policy, errors and seal reasons say drive, and its turn is a driven turn.
+  managed_agent: () => [["managed-agent", "drive"], ["managed_agent", "drive"], ["ManagedAgent", "Drive"], ["managedAgent", "drive"]],
 };
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

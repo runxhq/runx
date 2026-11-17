@@ -9,21 +9,15 @@ use crate::{CapabilityField, CapabilityInput};
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct InspectInput {
-    pub(super) repo_root: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) target_dir: Option<String>,
 }
 
-impl CapabilityInput for InspectInput {
-    fn defaults() -> JsonObject {
-        root_default()
-    }
-}
+impl CapabilityInput for InspectInput {}
 
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ApplyInput {
-    pub(super) repo_root: String,
     pub(super) target_dir: String,
     pub(super) mode: SkillAuthoringMode,
     pub(super) change_bundle: SkillChangeBundle,
@@ -31,9 +25,7 @@ pub(super) struct ApplyInput {
 
 impl CapabilityInput for ApplyInput {
     fn defaults() -> JsonObject {
-        let mut defaults = root_default();
-        defaults.insert("mode".to_owned(), JsonValue::String("build".to_owned()));
-        defaults
+        JsonObject::from([("mode".to_owned(), JsonValue::String("build".to_owned()))])
     }
 }
 
@@ -54,7 +46,6 @@ impl CapabilityInput for BindInput {}
 #[derive(Clone, Debug, Serialize, Deserialize, runx_contracts::schema::RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ValidateInput {
-    pub(super) repo_root: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) skill_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -64,22 +55,16 @@ pub(super) struct ValidateInput {
 
 impl CapabilityInput for ValidateInput {
     fn defaults() -> JsonObject {
-        let mut defaults = root_default();
-        defaults.insert("allow_execute_test".to_owned(), JsonValue::Bool(false));
-        defaults
+        JsonObject::from([("allow_execute_test".to_owned(), JsonValue::Bool(false))])
     }
 }
 
-pub(super) const INSPECT_FIELDS: &[CapabilityField] = &[
-    root_field(),
-    field(
-        "target_dir",
-        "Optional package path relative to the project root.",
-    ),
-];
+pub(super) const INSPECT_FIELDS: &[CapabilityField] = &[field(
+    "target_dir",
+    "Optional package path relative to the project root.",
+)];
 
 pub(super) const APPLY_FIELDS: &[CapabilityField] = &[
-    root_field(),
     field("target_dir", "Package path relative to the project root."),
     field(
         "mode",
@@ -111,7 +96,6 @@ pub(super) const BIND_FIELDS: &[CapabilityField] = &[
 ];
 
 pub(super) const VALIDATE_FIELDS: &[CapabilityField] = &[
-    root_field(),
     field(
         "skill_path",
         "Package path relative to the workspace or owning skill, or a registry reference, <publisher>/<name>@<version>, read into runx's cache.",
@@ -128,12 +112,4 @@ pub(super) const VALIDATE_FIELDS: &[CapabilityField] = &[
 
 const fn field(name: &'static str, description: &'static str) -> CapabilityField {
     CapabilityField { name, description }
-}
-
-const fn root_field() -> CapabilityField {
-    field("repo_root", "Workspace-relative project root.")
-}
-
-fn root_default() -> JsonObject {
-    JsonObject::from([("repo_root".to_owned(), JsonValue::String(".".to_owned()))])
 }

@@ -181,10 +181,6 @@ fn indexes_a_native_local_file_read_without_remote_transport() {
                     JsonValue::String("docs/architecture.md".to_owned()),
                 ),
                 (
-                    "repo_root".to_owned(),
-                    JsonValue::String("/workspace".to_owned()),
-                ),
-                (
                     "contents".to_owned(),
                     JsonValue::String(contents.to_owned()),
                 ),

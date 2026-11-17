@@ -45,7 +45,7 @@
       "type": "object"
     },
     "output_schema": {
-      "description": "Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to managed agents."
+      "description": "Exact root JSON Schema for the final result, including any declared packet contract. `output` remains the concise field index used by hosts; this schema is the validator offered to a driven turn's model."
     },
     "provenance": {
       "items": {

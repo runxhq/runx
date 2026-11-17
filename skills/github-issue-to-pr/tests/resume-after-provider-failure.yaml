@@ -25,7 +25,7 @@ inputs:
     status: completed
     repository: runxhq/runx
     issue_number: "442"
-    repo_root: .
+    checkout: .
     branch: fix/442-operator-first
     commit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
     files:

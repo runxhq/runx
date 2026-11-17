@@ -531,7 +531,7 @@ runx skill runx/skill-lab#build \
 ```
 
 Your agent works the authoring turns; the package is written after
-validation. Without a managed agent, the run returns the pending work and
+validation. Unless runx drives its turns (`--drive`), the run returns the pending work and
 resume instructions.
 
 A finished package should include test cases for its successful path,

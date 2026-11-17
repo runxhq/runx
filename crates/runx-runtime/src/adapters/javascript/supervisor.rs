@@ -56,6 +56,7 @@ pub(super) enum WorkerInvocationResult {
     /// A part of an output a script returned past what its answer carries.
     OutputPart(String),
     Failure {
+        code: runx_contracts::javascript_worker::WorkerFailureCode,
         message: String,
         fate: WorkerFate,
     },

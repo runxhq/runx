@@ -83,6 +83,66 @@ fn skill_lab_waits_for_agent_then_applies_one_validated_package() -> TestResult 
     Ok(())
 }
 
+/// Its caller proves a draft by the case it adds, so a draft that writes and
+/// adds no case is refused by its answer's own contract, as a driven turn's
+/// model is told when it answers.
+#[test]
+fn a_draft_that_writes_adds_the_case_its_caller_proves_it_by() -> TestResult {
+    let repo = crate::support::repo_root()?;
+    let root = crate::support::isolated_target_temp_root("skill-lab-draft")?;
+    let receipts = root.join("receipts");
+    let pending = command(&repo, &root)
+        .args([
+            "skill",
+            "runx/skill-lab#draft",
+            "-i",
+            "objective=Read the current price list",
+            "-i",
+            "target_dir=digest-note",
+        ])
+        .arg("--receipt-dir")
+        .arg(&receipts)
+        .output()?;
+    assert_exit(&pending, 2)?;
+    let pending_text = String::from_utf8(pending.stdout)?;
+    let run_id = line_value(&pending_text, "run_id: ")?;
+    let read = command(&repo, &root)
+        .args(["history", run_id, "--json"])
+        .output()?;
+    let answer = serde_json::json!({ "answers": { "author": { "change_draft": {
+        "decision": "write",
+        "summary": "Read the current price list.",
+        "writes": [{ "path": "digest-note/run.yaml", "contents": "minimum_runx: 0.12.0\n" }],
+        "deletes": [],
+    } } } });
+    let answers = root.join("answers.json");
+    fs::write(
+        &answers,
+        crate::support::bind_resume(&assert_json(&read, 0)?, answer)?.to_string(),
+    )?;
+    let resumed = command(&repo, &root)
+        .arg("resume")
+        .arg(run_id)
+        .arg(&answers)
+        .arg("--receipt-dir")
+        .arg(&receipts)
+        .arg("--json")
+        .output()?;
+    // The answer is refused, and the run still waits on its author.
+    let failed = assert_json(&resumed, 1)?;
+    assert_eq!(failed["status"], "failure", "{failed}");
+    assert!(
+        failed["error"]["message"].as_str().is_some_and(
+            |message| message.contains("change_draft/writes")
+                // in the contract's own words
+                && message.contains("adds the case its caller proves it by")
+        ),
+        "{failed}"
+    );
+    fs::remove_dir_all(root)?;
+    Ok(())
+}
+
 #[test]
 fn skill_lab_refuses_a_target_outside_the_workspace_without_writing() -> TestResult {
     let repo = crate::support::repo_root()?;
@@ -108,7 +168,7 @@ fn skill_lab_refuses_a_target_outside_the_workspace_without_writing() -> TestRes
     assert!(
         output["error"]["message"]
             .as_str()
-            .is_some_and(|message| message.contains("target_dir must stay inside repo_root"))
+            .is_some_and(|message| message.contains("target_dir must stay inside the workspace"))
     );
     assert!(!outside.exists());
 

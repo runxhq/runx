@@ -35,7 +35,7 @@ test("the guard fails on runner as a method and harness as a test, and passes th
     "crates/runx-runtime/src/skill.rs:1\trunner\trunner\tfn inputs(skill: &Skill) -> &Inputs { &skill.runner.inputs }\n" +
       "docs/action.md:4\trunner\trunner\trunner is its method.\n" +
       "skills/demo/SKILL.md:1\tharness\tharness\tRun the harness before you publish.\n" +
-      "stale: 2 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
+      "stale: 2 uses of runner as a method, 1 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
   );
 });
 
@@ -51,7 +51,7 @@ test("the guard fails on graph as a workflow in prose and in code, and passes an
     "README.md:1\tgraph\tgraph\tCompose skills into a graph.\n" +
       "crates/runx-parser/src/workflow.rs:1\tgraph\tgraph\tpub struct Method { pub graph: Graph }\n" +
       "crates/runx-parser/src/workflow.rs:1\tgraph\tGraph\tpub struct Method { pub graph: Graph }\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 3 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 3 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files\n",
   );
 });
 
@@ -63,7 +63,7 @@ test("the guard counts graph in a message a person reads and in a name, and not 
     run.stdout,
     'crates/runx-runtime/src/error.rs:1\tgraph\tgraph\tpub const FAILED: &str = "graph step failed";\n' +
       "crates/runx-runtime/src/error.rs:3\tgraph\tgraph\tfn graph() {}\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 2 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 1 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 2 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 1 files\n",
   );
 });
 
@@ -91,7 +91,7 @@ test("the guard fails on a key the format removes where it's written as one, and
     "tools/demo/read/manifest.json:1 key source",
     "tools/demo/read/manifest.json:1 key scopes",
   ]);
-  assert.match(run.stdout, /, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 8 of a key the format removes and 0 paths holding a retired word, in 4 files\n$/);
+  assert.match(run.stdout, /, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 8 of a key the format removes and 0 paths holding a retired word, in 4 files\n$/);
 });
 
 test("the guard fails on a path whose own name holds a retired word, once per path, and passes a path stay, a name the repo keeps and another word", (t) => {
@@ -117,7 +117,7 @@ test("the guard fails on a path whose own name holds a retired word, once per pa
       "docs/harness-control-plane.md\tpath\tharness\tharness-control-plane.md\n" +
       "docs/paragraph_runners-guide.txt\tpath\trunner\tparagraph_runners-guide.txt\n" +
       "fixtures/kernel/graphs/\tpath\tgraph\tgraphs\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 5 paths holding a retired word, in 0 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 5 paths holding a retired word, in 0 files\n",
   );
 });
 
@@ -137,28 +137,38 @@ test("the guard fails on execution closure in any form, and passes a closure and
       "docs/inspect.md:1\tclosure\tExecution closures\tInspect the execution closure. Execution closures bind packages.\n" +
       "packages/client/src/inspect.ts:1\tclosure\texecutionClosure\tconst executionClosureDigest = run(\"--execution-closure-digest\");\n" +
       "packages/client/src/inspect.ts:1\tclosure\texecution-closure\tconst executionClosureDigest = run(\"--execution-closure-digest\");\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 6 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 6 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
   );
 });
 
 test("the guard fails on agent act, which is a turn, and a count of acts beside an agent, and passes a call's act, an agent's actor and an agent who acts", (t) => {
   const root = tree(t, {
     "docs/turns.md": "Agent acts yield needs_agent. The run waits on an agent act.\nA call's act says what it is told to do; an agent actor approves.\nAn agent acts only inside its turn, and each agent acts once.\n",
-    "crates/runx-runtime/src/prepared.rs": "pub managed_agent_acts: usize,\n",
-    "crates/runx-cli/src/summary.rs": 'let line = format!("Managed agent: {} act(s)", turns);\n',
-    "docs/summary.md": "The summary reads Managed agent: 2 acts, and a call's act.\n",
+    "crates/runx-runtime/src/prepared.rs": "pub agent_acts: usize,\n",
+    "crates/runx-cli/src/summary.rs": 'let line = format!("Agent: {} act(s)", turns);\n',
+    "docs/summary.md": "The summary reads Agent: 2 acts, and a call's act.\n",
   });
   const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.equal(
     run.stdout,
-    'crates/runx-cli/src/summary.rs:1\tturn\tagent: {} act(s)\tlet line = format!("Managed agent: {} act(s)", turns);\n' +
-      "crates/runx-runtime/src/prepared.rs:1\tturn\tagent_acts\tpub managed_agent_acts: usize,\n" +
-      "docs/summary.md:1\tturn\tagent: 2 acts\tThe summary reads Managed agent: 2 acts, and a call's act.\n" +
+    'crates/runx-cli/src/summary.rs:1\tturn\tAgent: {} act(s)\tlet line = format!("Agent: {} act(s)", turns);\n' +
+      "crates/runx-runtime/src/prepared.rs:1\tturn\tagent_acts\tpub agent_acts: usize,\n" +
+      "docs/summary.md:1\tturn\tAgent: 2 acts\tThe summary reads Agent: 2 acts, and a call's act.\n" +
       "docs/turns.md:1\tturn\tAgent acts\tAgent acts yield needs_agent. The run waits on an agent act.\n" +
       "docs/turns.md:1\tturn\tagent act\tAgent acts yield needs_agent. The run waits on an agent act.\n" +
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 5 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 4 files\n",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 5 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 4 files\n",
   );
+});
+
+test("the guard fails on managed agent, which is the drive, in any case or joining", (t) => {
+  const root = tree(t, {
+    "docs/drive.md": "The managed agent works the turn.\n",
+    "crates/runx-runtime/src/drive.rs": "pub struct ManagedAgentConfig;\n",
+  });
+  const run = spawnSync(process.execPath, [GUARD, "oss", root, "--list"], { encoding: "utf8" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /, 2 of managed agent, which is the drive, /);
 });
 
 test("Cargo's harness key in a bench or test table is Cargo's, and stays, as does the key as the bench targets check writes it", (t) => {
@@ -177,7 +187,7 @@ test("Cargo's harness key in a bench or test table is Cargo's, and stays, as doe
     "crates/runx-runtime/benches/throughput.rs:1\tharness\tharness\t// Run the harness over each case.\n" +
       "scripts/check-bench-targets.mjs:3\tharness\tharness\t// The harness ran.\n" +
       "scripts/verify-fast.mjs:2\tharness\tharness\t// Benches run only as harness = false targets.\n" +
-      "stale: 0 uses of runner as a method, 3 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
+      "stale: 0 uses of runner as a method, 3 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 3 files\n",
   );
 });
 
@@ -195,7 +205,7 @@ test("what the rename leaves as written the guard doesn't read, a signed block a
     "scripts/site-release.ts:4\tharness\tharness\t// The harness checks it.\n" +
       "spec/spec.md:11\tharness\tharness\tThe harness checks it.\n" +
       'spec/spec.md:14\trunner\trunner\t{ "runner": "default" }\n' +
-      "stale: 1 uses of runner as a method, 2 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files\n",
+      "stale: 1 uses of runner as a method, 2 of harness as a test or run, 0 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 0 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files\n",
   );
 });
 
@@ -232,7 +242,7 @@ test("a repo with its own vocabulary is read for every word inside its scope, an
       "app/flows/graph-editor.md:1:30\tbrand",
       "skills/nitrosend/run.md:1:1\tbrand",
       "skills/nitrosend/run.md:1\tgraph",
-      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 1 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 2 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files",
+      "stale: 0 uses of runner as a method, 0 of harness as a test or run, 1 of graph as a workflow in prose, 0 of execution closure, which is closure, 0 of agent act, which is a turn, 0 of managed agent, which is the drive, 2 of Runx, which is runx, 0 of a key the format removes and 0 paths holding a retired word, in 2 files",
     ],
   );
 });

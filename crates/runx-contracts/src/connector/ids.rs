@@ -295,7 +295,7 @@ identifier!(
 );
 identifier!(
     /// The name of a secret the operator keeps in runx (`runx secret set`):
-    /// what a binding, the managed agent and a host name it by. Never the
+    /// what a binding, the drive and a host name it by. Never the
     /// secret itself.
     SecretName,
     SECRET_NAME_PATTERN,

@@ -133,7 +133,7 @@
       "additionalProperties": false,
       "required": [
         "status",
-        "repo_root",
+        "checkout",
         "branch",
         "commit"
       ],
@@ -144,7 +144,7 @@
             "unverified"
           ]
         },
-        "repo_root": {
+        "checkout": {
           "type": "string"
         },
         "branch": {

@@ -222,6 +222,7 @@ impl WorkerSession {
                     };
                     self.terminate();
                     return Ok(WorkerInvocationResult::Failure {
+                        code: runx_contracts::javascript_worker::WorkerFailureCode::ResourceLimit,
                         message: self.failure_message_with_stderr(message),
                         fate: WorkerFate::Discard,
                     });
@@ -259,11 +260,16 @@ impl WorkerSession {
             WorkerResponse::Failure {
                 protocol_version,
                 invocation_id: Some(response_id),
+                code,
                 message,
                 fate,
                 ..
             } if protocol_version == PROTOCOL_VERSION && response_id == invocation_id => {
-                Ok(WorkerInvocationResult::Failure { message, fate })
+                Ok(WorkerInvocationResult::Failure {
+                    code,
+                    message,
+                    fate,
+                })
             }
             response => Err(worker_error(format!(
                 "deterministic JavaScript worker response mismatch: {response:?}"

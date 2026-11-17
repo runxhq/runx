@@ -28,5 +28,5 @@ set.
 
 | Example | Front | Run |
 | --- | --- | --- |
-| `managed-agent` | agent (host-drives default; yields `needs_agent` to the calling agent) | `runx test examples/managed-agent` |
+| `drive` | agent (host-drives default; yields `needs_agent` to the calling agent) | `runx test examples/drive` |
 | `hello-workflow` | a method of two skill steps | `runx test examples/hello-workflow` |

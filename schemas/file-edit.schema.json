@@ -36,15 +36,10 @@
     "replacements": {
       "minimum": 1,
       "type": "integer"
-    },
-    "repo_root": {
-      "minLength": 1,
-      "type": "string"
     }
   },
   "required": [
     "path",
-    "repo_root",
     "replacements",
     "before_digest",
     "content_digest",

@@ -74,7 +74,7 @@ pub(crate) fn resolve_tool_result(
 
 /// Dispatch one tool through the native registry, then the local manifest
 /// catalog. This is the only execution owner shared by workflow steps and
-/// managed-agent calls.
+/// drive calls.
 pub(crate) fn dispatch_tool(
     mut request: ToolDispatchRequest<'_>,
     effects: &RuntimeEffectRegistry,

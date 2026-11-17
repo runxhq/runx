@@ -263,7 +263,7 @@ pub(crate) fn current(
 }
 
 /// Whether `model` made the run `record` holds, when a call names one: it
-/// has a turn, and runx's managed agent stated `model` answered each.
+/// has a turn, and runx drove each, stating `model` answered it.
 fn made_by(record: &super::run_record::RunRecord, model: Option<&str>) -> bool {
     let Some(model) = model else {
         return true;
@@ -651,12 +651,13 @@ fn file_read_allowed(
             .get(name)
             .and_then(runx_contracts::JsonValue::as_str)
     };
-    // A package's own file is its to read; any other is read within reach.
-    let package = ["repo_root", "path"]
-        .iter()
-        .any(|name| text(name).and_then(crate::services::package_path).is_some());
+    // A package's own file is its to read; any other is read within reach,
+    // from the workspace root, as every file tool reads.
+    let package = text("path")
+        .and_then(crate::services::package_path)
+        .is_some();
     if !package {
-        let named = Path::new(text("repo_root").unwrap_or("."));
+        let named = Path::new(".");
         let workspace = crate::RunxPaths::resolve(env, skill_directory)
             .workspace()
             .to_path_buf();
@@ -896,7 +897,7 @@ fn index_at(
 /// a result, or an operation that only read. An operation counts only when
 /// its packet shows runx made the read itself, not through a process it
 /// started. No person answered it, except to approve spending on a metered
-/// read, and runx's managed agent answered each turn from a fresh context,
+/// read, and runx drove each turn from a fresh context,
 /// stating the model that answered.
 pub(crate) fn eligible(
     store: &std::sync::Arc<KernelStore>,
@@ -1047,7 +1048,7 @@ fn packet_read_runx_made(packet: &runx_contracts::JsonObject) -> bool {
 /// The gate a person approves spending on a metered read at.
 const SPEND_GATE: &str = "provider_usage";
 
-/// Whether `answer` leaves its source eligible: runx's managed agent gave
+/// Whether `answer` leaves its source eligible: a turn runx drove gave
 /// it, or a person approved spending on a metered read, since approving
 /// spend isn't asking. Any other answer from a person is something runx
 /// can't see again.
@@ -1059,7 +1060,7 @@ fn answer_allowed(answer: &super::run_record::Answer) -> bool {
     }
 }
 
-/// Whether runx's managed agent gave `answer`: no person did, and it states
+/// Whether a turn runx drove gave `answer`: no person did, and it states
 /// the model that answered and that the turn started from a fresh context.
 fn answered_by_runx(answer: &super::run_record::Answer) -> bool {
     !answer.human
@@ -1172,7 +1173,7 @@ mod tests {
 
     /// A person's approval to spend on a metered read leaves its source
     /// eligible, since approving spend isn't asking; any other answer a person
-    /// gave, to a question or a write's approval, doesn't. runx's managed agent
+    /// gave, to a question or a write's approval, doesn't. A turn runx drove
     /// answers, stating its model and a fresh context.
     #[test]
     fn a_persons_approval_to_spend_on_a_read_leaves_a_source_eligible() {

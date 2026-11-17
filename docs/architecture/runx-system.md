@@ -109,7 +109,7 @@ Each target has one meaning and one authority boundary:
   recovery. A workflow author cannot choose an effect
   owner or gain provider/process authority by naming inputs.
 - **Agent step:** bounded judgment under the current manual and an explicit
-  allowed-tool set. It yields `needs_agent` by default. In-process managed-agent
+  allowed-tool set. It yields `needs_agent` by default. In-process drive
   execution requires fresh per-run consent and a visible round budget;
   configured credentials never imply consent.
 - **Native capability:** trusted, product-neutral Rust behavior registered from
@@ -224,7 +224,7 @@ step passes on or derives keeps them, and a resumed run reads them as they
 were recorded. What `artifact.store` retains takes them unless the step says
 otherwise, and `artifact.open` keeps the label it opens. That's a default and
 not a wall. A `local_only` value reaches a turn only where a `local_only`
-context entry can: runx's managed agent at a loopback endpoint. An agent step
+context entry can: a turn runx drives with a model at a loopback endpoint. An agent step
 given one on any other host is refused, never given the step without it, and a
 context entry an output labelled `local_only` holds is `local_only` whatever
 it says. So is a call the turn makes whose result is labelled `local_only`:

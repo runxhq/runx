@@ -278,10 +278,10 @@ pub enum RuntimeError {
         reason: String,
     },
     #[cfg(feature = "agent")]
-    ManagedAgentResolution {
+    DriveResolution {
         step_id: String,
         request_id: String,
-        source: Box<crate::adapters::agent::ManagedAgentError>,
+        source: Box<crate::adapters::agent::DriveError>,
     },
     ProviderReadbackPending {
         step_id: String,
@@ -337,6 +337,7 @@ pub enum RuntimeError {
         step_id: String,
     },
     ProviderEffectUnknown {
+        step_id: String,
         plan_digest: String,
         idempotency_key: String,
         reason: String,
@@ -407,7 +408,7 @@ impl std::error::Error for RuntimeError {
             Self::CredentialDelivery(source) => Some(source),
             Self::EngineFailure { source, .. } => Some(source.as_ref()),
             #[cfg(feature = "agent")]
-            Self::ManagedAgentResolution { source, .. } => Some(source.as_ref()),
+            Self::DriveResolution { source, .. } => Some(source.as_ref()),
             _ => None,
         }
     }
@@ -512,14 +513,14 @@ impl RuntimeError {
                 runx(format!("planning failed: {reason}")).at_step(step_id)
             }
             #[cfg(feature = "agent")]
-            Self::ManagedAgentResolution {
+            Self::DriveResolution {
                 step_id, source, ..
             } => {
-                let failure = Failure::new("runx's agent", source.to_string()).at_step(step_id);
-                match source.reason() {
-                    runx_contracts::SealReason::ManagedAgentRoundBudgetExhausted => failure.next(
-                        "give it a narrower task, or more rounds with --drive-rounds",
-                    ),
+                let failure = Failure::new("the driven turn", source.to_string()).at_step(step_id);
+                match (source.next_step(), source.reason()) {
+                    (Some(next), _) => failure.next(next),
+                    (None, runx_contracts::SealReason::DriveRoundBudgetExhausted) => failure
+                        .next("give it a narrower task, or more rounds with --drive-rounds"),
                     _ => failure,
                 }
             }
@@ -577,13 +578,18 @@ impl RuntimeError {
                     .to_owned(),
             )
             .at_step(step_id),
+            // runx can't tell whether the effect happened; the provider's own
+            // words say why.
             Self::ProviderEffectUnknown {
-                plan_digest,
+                step_id,
                 idempotency_key,
                 reason,
-            } => provider(format!(
-                "the effect's outcome is unknown for plan {plan_digest} with idempotency key {idempotency_key}: {reason}"
-            )),
+                ..
+            } => runx(format!("the effect's outcome is unknown: {reason}"))
+                .next(format!(
+                    "runx resume retries it under idempotency key {idempotency_key}"
+                ))
+                .at_step(step_id),
             Self::ProviderEffectRejected {
                 plan_digest,
                 idempotency_key,
@@ -721,7 +727,7 @@ impl RuntimeError {
             | Self::SkillChangeRefused { .. } => false,
             Self::InputContract { .. } => false,
             #[cfg(feature = "agent")]
-            Self::ManagedAgentResolution { .. } | Self::ModelProvider { .. } => false,
+            Self::DriveResolution { .. } | Self::ModelProvider { .. } => false,
         }
     }
 
@@ -782,7 +788,7 @@ impl RuntimeError {
                 );
             }
             #[cfg(feature = "agent")]
-            Self::ManagedAgentResolution { source, .. } => {
+            Self::DriveResolution { source, .. } => {
                 projection = source.public_failure_projection();
             }
             Self::ProviderEffectRejected {
@@ -921,18 +927,18 @@ impl RuntimeError {
             | Self::ProviderReadbackPending { step_id, .. } => Some(step_id),
             Self::InputContract { step_id, .. } => step_id.as_deref(),
             #[cfg(feature = "agent")]
-            Self::ManagedAgentResolution { step_id, .. } => Some(step_id),
+            Self::DriveResolution { step_id, .. } => Some(step_id),
             _ => None,
         }
     }
 
     #[cfg(feature = "agent")]
-    pub(crate) fn managed_agent_resolution(
+    pub(crate) fn drive_resolution(
         step_id: impl Into<String>,
         request_id: impl Into<String>,
-        source: crate::adapters::agent::ManagedAgentError,
+        source: crate::adapters::agent::DriveError,
     ) -> Self {
-        Self::ManagedAgentResolution {
+        Self::DriveResolution {
             step_id: step_id.into(),
             request_id: request_id.into(),
             source: Box::new(source),
@@ -989,9 +995,9 @@ impl RuntimeError {
                 resend,
             },
             #[cfg(feature = "agent")]
-            Self::ManagedAgentResolution {
+            Self::DriveResolution {
                 request_id, source, ..
-            } => Self::ManagedAgentResolution {
+            } => Self::DriveResolution {
                 step_id: step_id.to_owned(),
                 request_id,
                 source,

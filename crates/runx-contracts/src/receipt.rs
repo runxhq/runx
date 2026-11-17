@@ -201,16 +201,27 @@ pub struct Seal {
     pub failure: Option<SealFailure>,
 }
 
-/// Why a step failed, as runx recorded the failure: its code, the reason,
-/// whether a retry is offered, and the failure's own structured fields, such
-/// as each field a provider's answer contradicts. A value from a field the
-/// call marks never to persist is recorded by its digest, and a presented
-/// credential never appears.
+/// Why a step failed, as runx recorded the failure: its code, the failure
+/// as the layer that decided it said it (who, where, why and what to do
+/// next, which every surface renders as one sentence), whether a retry is
+/// offered, and the failure's own structured fields, such as each field a
+/// provider's answer contradicts. A value from a field the call marks never
+/// to persist is recorded by its digest, and a presented credential never
+/// appears.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SealFailure {
     pub code: NonEmptyString,
+    /// What decided it, by the name its reader knows.
+    pub decided_by: NonEmptyString,
+    /// Where, as the run's record addresses it, from the run down.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub at: Vec<NonEmptyString>,
+    /// The deciding layer's own sentence.
     pub reason: NonEmptyString,
+    /// What the person or agent can do about it, when there is something.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<NonEmptyString>,
     pub retryable: bool,
     #[serde(default, skip_serializing_if = "JsonObject::is_empty")]
     pub fields: JsonObject,
@@ -242,17 +253,17 @@ pub enum SealReason {
     ReceiptBudgetExceeded,
     /// The workflow waits on a step's request its host has not yet answered.
     ResolutionPending,
-    /// The managed agent's provider request failed.
-    ManagedAgentProviderFailed,
-    /// The managed agent could not resolve the turn it was given.
-    ManagedAgentResolutionFailed,
-    /// The managed agent's model answered without progress for every turn
+    /// A driven turn's model provider request failed.
+    DriveProviderFailed,
+    /// runx could not drive the turn it was given.
+    DriveResolutionFailed,
+    /// A driven turn's model answered without progress for every turn
     /// it was allowed.
-    ManagedAgentEmptyTurnBudgetExhausted,
-    /// A tool the managed agent called failed.
-    ManagedAgentToolExecutionFailed,
-    /// The managed agent used every round its turn allowed.
-    ManagedAgentRoundBudgetExhausted,
+    DriveEmptyTurnBudgetExhausted,
+    /// A tool a driven turn's model called failed.
+    DriveToolExecutionFailed,
+    /// A driven turn used every round it was allowed.
+    DriveRoundBudgetExhausted,
     /// The host driving the run closed it while it waited.
     HostClosed,
     /// Its caller cancelled the call that ran it.
@@ -273,13 +284,11 @@ impl SealReason {
             Self::CostLimitExceeded => "cost_limit_exceeded",
             Self::ReceiptBudgetExceeded => "receipt_budget_exceeded",
             Self::ResolutionPending => "resolution_pending",
-            Self::ManagedAgentProviderFailed => "managed_agent_provider_failed",
-            Self::ManagedAgentResolutionFailed => "managed_agent_resolution_failed",
-            Self::ManagedAgentEmptyTurnBudgetExhausted => {
-                "managed_agent_empty_turn_budget_exhausted"
-            }
-            Self::ManagedAgentToolExecutionFailed => "managed_agent_tool_execution_failed",
-            Self::ManagedAgentRoundBudgetExhausted => "managed_agent_round_budget_exhausted",
+            Self::DriveProviderFailed => "drive_provider_failed",
+            Self::DriveResolutionFailed => "drive_resolution_failed",
+            Self::DriveEmptyTurnBudgetExhausted => "drive_empty_turn_budget_exhausted",
+            Self::DriveToolExecutionFailed => "drive_tool_execution_failed",
+            Self::DriveRoundBudgetExhausted => "drive_round_budget_exhausted",
             Self::HostClosed => "host_closed",
             Self::Cancelled => "cancelled",
         }

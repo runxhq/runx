@@ -334,7 +334,7 @@ pub(crate) struct Continuation<'a> {
     pub(crate) env: &'a BTreeMap<String, String>,
     pub(crate) cwd: &'a Path,
     pub(crate) answers: Option<&'a runx_contracts::ResumeDocument>,
-    pub(crate) managed_agent: crate::execution::orchestrator::ManagedAgentPolicy,
+    pub(crate) drive: crate::execution::orchestrator::DrivePolicy,
     /// Digests a caller pins; each must be the one the run started under.
     pub(crate) package_digest: Option<&'a str>,
     pub(crate) closure_digest: Option<&'a str>,
@@ -445,7 +445,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
         inputs: BTreeMap::new(),
         env: continuation.env.clone(),
         cwd: continuation.cwd.to_path_buf(),
-        managed_agent: continuation.managed_agent,
+        drive: continuation.drive,
     };
     receipts
         .write_sealed_receipts(
@@ -507,7 +507,7 @@ pub(crate) fn bind_paused_run(
             inputs: BTreeMap::new(),
             env: continuation.env.clone(),
             cwd: continuation.cwd.to_path_buf(),
-            managed_agent: continuation.managed_agent,
+            drive: continuation.drive,
         },
         &SkillRunOverrides {
             method: Some(paused.method),
@@ -589,7 +589,7 @@ fn bind_sealed_run(
             inputs: BTreeMap::new(),
             env: continuation.env.clone(),
             cwd: continuation.cwd.to_path_buf(),
-            managed_agent: continuation.managed_agent,
+            drive: continuation.drive,
         },
         &SkillRunOverrides {
             method: Some(sealed.method),

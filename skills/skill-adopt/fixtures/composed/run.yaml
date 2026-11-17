@@ -7,7 +7,6 @@ methods:
       - id: capture
         tool: fs.read_bundle
         inputs:
-          repo_root: .
           paths:
             - fixtures/upstream/decision-note/SKILL.md
           max_bytes: 524288
@@ -15,7 +14,6 @@ methods:
         skill: ../..#from-source
         inputs:
           objective: Adopt this captured decision-note procedure as a runnable local runx package.
-          repo_root: .
           target_dir: .runx-tmp/skill-adopt-fixtures/composes-in-workflow/fixture-decision-note
           source_snapshot: $steps.capture.file_read_bundle
       - id: digest

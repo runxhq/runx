@@ -11,11 +11,10 @@ pub(crate) fn non_empty(
     NonEmptyString::new(value).ok_or_else(|| invalid_input(tool, format!("{field} is empty")))
 }
 
-/// A resolved root as a native packet names it.
-/// The root a tool's result names: the one its caller named, never where it
-/// lies on disk.
+/// The repository a git tool's result names: the one its caller named, never
+/// where it lies on disk.
 pub(crate) fn root_name(tool: &str, named: &str) -> Result<NonEmptyString, RuntimeError> {
-    non_empty(tool, "repo_root", named)
+    non_empty(tool, "repository", named)
 }
 
 pub(crate) fn invalid_input(tool: &str, message: impl Into<String>) -> RuntimeError {

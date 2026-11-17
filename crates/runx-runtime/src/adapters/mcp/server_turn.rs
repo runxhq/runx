@@ -237,7 +237,9 @@ pub(super) fn execute_mcp_turn_tool(
                             | TurnCallOutcome::Refused { .. }
                             | TurnCallOutcome::Declined { .. }
                     );
-                    structured(&call, failed)
+                    // Its agent reads the call as a turn's agent does,
+                    // without what runx keeps for itself.
+                    structured(&runx_contracts::TurnCallView::from(&call), failed)
                 })
                 .map_err(|error| error.to_string())
         }),

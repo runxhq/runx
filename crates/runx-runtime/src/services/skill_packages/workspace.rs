@@ -17,28 +17,27 @@ use crate::filesystem::read_dir_sorted;
 use crate::{RuntimeError, RunxListItem, RunxListOptions, RunxListRequestedKind};
 
 pub(crate) fn inspect_skill_workspace(
-    repo_root: &Path,
+    workspace: &Path,
     target_dir: Option<&str>,
     effects: &crate::RuntimeEffectRegistry,
 ) -> Result<SkillAuthoringContext, RuntimeError> {
-    let repo_root = canonical_directory(repo_root, "skill workspace")?;
+    let workspace = canonical_directory(workspace, "skill workspace")?;
     let target_dir = target_dir.map(normalize_child_path).transpose()?;
-    let target_root = target_dir.as_ref().map(|path| repo_root.join(path));
+    let target_root = target_dir.as_ref().map(|path| workspace.join(path));
     let target_exists = target_root.as_ref().is_some_and(|path| path.is_dir());
     let (target_files, target_metrics, base_digest) =
-        inspect_target(&repo_root, target_root.as_deref(), target_exists)?;
+        inspect_target(&workspace, target_root.as_deref(), target_exists)?;
     let target_inspection =
-        inspect_target_package(&repo_root, target_root.as_deref(), target_exists);
-    let catalog_root = if repo_root.join("skills").is_dir() {
+        inspect_target_package(&workspace, target_root.as_deref(), target_exists);
+    let catalog_root = if workspace.join("skills").is_dir() {
         "skills"
     } else {
         "."
     };
-    let catalog_skills = catalog_inventory(&repo_root, RunxListRequestedKind::Skills)?;
-    let core_tools = core_tool_inventory(&repo_root, effects)?;
+    let catalog_skills = catalog_inventory(&workspace, RunxListRequestedKind::Skills)?;
+    let core_tools = core_tool_inventory(&workspace, effects)?;
 
     Ok(SkillAuthoringContext {
-        repo_root: repo_root.to_string_lossy().into_owned().into(),
         target_dir: target_dir
             .as_deref()
             .map(|path| display_relative(path).into()),
@@ -54,7 +53,7 @@ pub(crate) fn inspect_skill_workspace(
 }
 
 fn inspect_target_package(
-    repo_root: &Path,
+    workspace: &Path,
     target_root: Option<&Path>,
     target_exists: bool,
 ) -> Option<JsonObject> {
@@ -68,7 +67,7 @@ fn inspect_target_package(
     };
     let env = std::collections::BTreeMap::from([(
         crate::paths::RUNX_CWD_ENV.to_owned(),
-        repo_root.to_string_lossy().into_owned(),
+        workspace.to_string_lossy().into_owned(),
     )]);
     Some(
         match crate::inspect_skill_package(target_root, None, Some(&env))
@@ -92,7 +91,7 @@ fn invalid_target_inspection(error: &str) -> JsonObject {
 }
 
 fn inspect_target(
-    repo_root: &Path,
+    workspace: &Path,
     target_root: Option<&Path>,
     target_exists: bool,
 ) -> Result<(Vec<SkillPackageFile>, SkillPackageMetrics, Digest), RuntimeError> {
@@ -100,7 +99,7 @@ fn inspect_target(
         let target = target_root.ok_or_else(|| {
             invalid_skill_change("existing skill target has no resolved workspace path")
         })?;
-        bounded_file_inventory(repo_root, target)?
+        bounded_file_inventory(workspace, target)?
     } else {
         Vec::new()
     };
@@ -113,10 +112,10 @@ fn inspect_target(
 }
 
 fn core_tool_inventory(
-    repo_root: &Path,
+    workspace: &Path,
     effects: &crate::RuntimeEffectRegistry,
 ) -> Result<Vec<SkillCatalogEntry>, RuntimeError> {
-    let mut core_tools = catalog_inventory(repo_root, RunxListRequestedKind::Tools)?;
+    let mut core_tools = catalog_inventory(workspace, RunxListRequestedKind::Tools)?;
     {
         let native_tools = crate::tool_catalogs::native::inventory(effects);
         let native_names = native_tools
@@ -134,14 +133,14 @@ fn core_tool_inventory(
     Ok(core_tools)
 }
 
-/// The package at `target`'s files, named from `repo_root` as the read
+/// The package at `target`'s files, named from `workspace` as the read
 /// tools and a change name them.
 fn bounded_file_inventory(
-    repo_root: &Path,
+    workspace: &Path,
     target: &Path,
 ) -> Result<Vec<SkillPackageFile>, RuntimeError> {
     let mut output = Vec::new();
-    inventory_directory(repo_root, target, &mut output)?;
+    inventory_directory(workspace, target, &mut output)?;
     if output.len() > MAX_PACKAGE_FILES {
         return Err(invalid_skill_change(format!(
             "skill package inventory exceeds {MAX_PACKAGE_FILES} files"
@@ -178,11 +177,11 @@ fn inventory_directory(
 }
 
 fn catalog_inventory(
-    repo_root: &Path,
+    workspace: &Path,
     requested_kind: RunxListRequestedKind,
 ) -> Result<Vec<SkillCatalogEntry>, RuntimeError> {
     let report = crate::list_authoring_primitives(&RunxListOptions {
-        root: repo_root.to_path_buf(),
+        root: workspace.to_path_buf(),
         requested_kind,
     })?;
     Ok(report.items.into_iter().map(catalog_entry).collect())

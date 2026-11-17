@@ -26,7 +26,7 @@ pub use self::types::{
 
 const DEFAULT_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const MANAGED_AGENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
+const DRIVE_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 /// Provider operations may contain one adapter-owned synchronous budget of up
 /// to 120 seconds. Keep the control-plane envelope above that budget so the
 /// caller never abandons a still-running, idempotently recoverable effect.
@@ -114,7 +114,7 @@ impl TransportProfile {
                 no_proxy: false,
             },
             Self::PublicPatient => TransportConfig {
-                request_timeout: MANAGED_AGENT_REQUEST_TIMEOUT,
+                request_timeout: DRIVE_REQUEST_TIMEOUT,
                 connect_timeout: DEFAULT_HTTP_CONNECT_TIMEOUT,
                 allow_private_networks: false,
                 no_proxy: false,
@@ -132,7 +132,7 @@ impl TransportProfile {
                 no_proxy: false,
             },
             Self::ExactLoopbackAgent => TransportConfig {
-                request_timeout: MANAGED_AGENT_REQUEST_TIMEOUT,
+                request_timeout: DRIVE_REQUEST_TIMEOUT,
                 connect_timeout: DEFAULT_HTTP_CONNECT_TIMEOUT,
                 allow_private_networks: true,
                 no_proxy: true,
@@ -192,11 +192,11 @@ impl ReqwestHttpTransport {
         Self::from_profile(TransportProfile::PrivateStandard)
     }
 
-    /// Build the model-provider transport for managed-agent calls. These calls can
+    /// Build the model-provider transport for drive calls. These calls can
     /// legitimately take longer than the generic governed HTTP timeout while the
     /// provider thinks and emits tool use, but they still keep the same public-DNS
     /// guard and short connect timeout.
-    pub fn for_managed_agent() -> Result<Self, RuntimeHttpError> {
+    pub fn for_drive() -> Result<Self, RuntimeHttpError> {
         Self::from_profile(TransportProfile::PublicPatient)
     }
 
@@ -1372,8 +1372,8 @@ mod tests {
         let _public_second = ReqwestHttpTransport::new()?;
         let _private_first = ReqwestHttpTransport::with_private_network_access()?;
         let _private_second = ReqwestHttpTransport::with_private_network_access()?;
-        let _managed_first = ReqwestHttpTransport::for_managed_agent()?;
-        let _managed_second = ReqwestHttpTransport::for_managed_agent()?;
+        let _managed_first = ReqwestHttpTransport::for_drive()?;
+        let _managed_second = ReqwestHttpTransport::for_drive()?;
         let provider_public = ReqwestHttpTransport::for_provider_operation(false)?;
         let provider_private = ReqwestHttpTransport::for_provider_operation(true)?;
 

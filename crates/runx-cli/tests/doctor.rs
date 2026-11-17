@@ -65,7 +65,7 @@ fn doctor_reports_explicit_keyless_local_model_and_invalid_endpoint()
                 .iter()
                 .find(|item| item["id"] == "runx.agent.config")
         })
-        .ok_or("missing managed-agent diagnostic")?;
+        .ok_or("missing drive diagnostic")?;
     assert_eq!(diagnostic["severity"], "info");
     assert_eq!(diagnostic["evidence"]["auth_mode"], "local_none");
     assert_eq!(diagnostic["evidence"]["api_key_set"], false);
@@ -84,7 +84,7 @@ fn doctor_reports_explicit_keyless_local_model_and_invalid_endpoint()
                 .iter()
                 .find(|item| item["id"] == "runx.agent.config")
         })
-        .ok_or("missing managed-agent diagnostic")?;
+        .ok_or("missing drive diagnostic")?;
     assert_eq!(diagnostic["severity"], "warning");
     assert!(
         diagnostic["evidence"]["semantic_error"]
@@ -114,7 +114,7 @@ fn doctor_says_keep_one_model_key_when_two_differ() -> Result<(), Box<dyn std::e
                 .iter()
                 .find(|item| item["id"] == "runx.agent.config")
         })
-        .ok_or("missing managed-agent diagnostic")?;
+        .ok_or("missing drive diagnostic")?;
     assert!(
         diagnostic["message"]
             .as_str()
@@ -201,7 +201,7 @@ fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
 
     let config_env =
         BTreeMap::from([("RUNX_HOME".to_owned(), home.to_string_lossy().into_owned())]);
-    let loaded = runx_runtime::load_managed_agent_config(&config_env, &workspace)?
+    let loaded = runx_runtime::load_drive_config(&config_env, &workspace)?
         .ok_or("managed configuration should load")?;
     assert_eq!(loaded.provider.as_str(), "anthropic");
     assert_eq!(loaded.endpoint_url, "https://api.anthropic.com/v1/messages");
@@ -219,7 +219,7 @@ fn config_cli_switches_from_local_model_to_anthropic_and_doctor_accepts_it()
         .ok_or("missing diagnostics")?
         .iter()
         .find(|item| item["id"] == "runx.agent.config")
-        .ok_or("missing managed-agent diagnostic")?;
+        .ok_or("missing drive diagnostic")?;
     assert_eq!(diagnostic["severity"], "info");
     assert_eq!(diagnostic["evidence"]["endpoint_set"], false);
     assert_eq!(diagnostic["evidence"]["auth_mode"], "api_key");

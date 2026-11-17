@@ -38,7 +38,7 @@ mod catalog;
 use capability::NativeCapability;
 use capability::RawNativeInvocation;
 pub(super) use input::{invalid_input, non_empty, root_name};
-pub(super) use workspace::resolve_repo_root_for;
+pub(super) use workspace::resolve_root_for;
 
 pub(crate) use catalog::artifacts;
 pub(crate) use catalog::inventory;
@@ -215,6 +215,18 @@ pub(crate) fn local_effect(
 
 pub(crate) fn is_core_tool(tool: &str) -> bool {
     definition(tool).is_some()
+}
+
+/// The inputs core tool `tool` takes, by name; none when it isn't one.
+pub(crate) fn input_names(tool: &str) -> Option<Vec<&'static str>> {
+    definition(tool).map(|capability| {
+        capability
+            .definition()
+            .fields
+            .iter()
+            .map(|field| field.name)
+            .collect()
+    })
 }
 
 /// The sources of the core tools that reach the workspace's files: its files

@@ -66,6 +66,7 @@ pub(crate) struct ScriptPassed {
 /// A script waiting on its calls, live on its worker.
 pub(crate) struct LiveScript<'a> {
     script: supervisor::LiveScript<'a>,
+    export_name: String,
 }
 
 impl LiveScript<'_> {
@@ -91,7 +92,7 @@ impl LiveScript<'_> {
             let Some(frame) = frames.next() else {
                 break;
             };
-            let more = script_passed(self.script.settle(frame, now)?)?;
+            let more = script_passed(self.script.settle(frame, now)?, &self.export_name)?;
             passed.calls.extend(more.calls);
             passed.ending = more.ending;
         }
@@ -161,11 +162,27 @@ fn settlement_frames(
     Ok(frames)
 }
 
-fn script_passed(result: supervisor::WorkerInvocationResult) -> Result<ScriptPassed, RuntimeError> {
+fn script_passed(
+    result: supervisor::WorkerInvocationResult,
+    export_name: &str,
+) -> Result<ScriptPassed, RuntimeError> {
     match result {
         supervisor::WorkerInvocationResult::Passed { calls, ending } => {
             Ok(ScriptPassed { calls, ending })
         }
+        // A module that doesn't parse, or has no export to call, is the
+        // script's to fix, and runx says how one is written.
+        supervisor::WorkerInvocationResult::Failure {
+            code: runx_contracts::javascript_worker::WorkerFailureCode::ModuleRejected,
+            message,
+            ..
+        } => Err(RuntimeError::Failed(Box::new(
+            crate::Failure::new("the worker", message).next(if export_name == "default" {
+                "write the script as export default async function (ctx, inputs) { ... }, returning an object".to_owned()
+            } else {
+                format!("write it as a module exporting async function {export_name}(ctx, inputs) {{ ... }}, returning an object")
+            }),
+        ))),
         supervisor::WorkerInvocationResult::Failure { message, .. } => {
             Err(RuntimeError::JavaScriptWorker { message })
         }
@@ -330,13 +347,13 @@ impl JavaScriptAdapter {
                     settled: clock,
                     now,
                 })?;
-        let mut passed = script_passed(result)?;
+        let mut passed = script_passed(result, &prepared.export_name)?;
         let mut frames = settlement_frames(settled)?.into_iter();
         while passed.ending == ScriptEnding::Waiting {
             let Some(frame) = frames.next() else {
                 break;
             };
-            let more = script_passed(script.settle(frame, now)?)?;
+            let more = script_passed(script.settle(frame, now)?, &prepared.export_name)?;
             passed.calls.extend(more.calls);
             passed.ending = more.ending;
         }
@@ -356,7 +373,13 @@ impl JavaScriptAdapter {
             passed.ending = ScriptEnding::Diverged { position };
         }
         let passed = whole(&mut script, passed)?;
-        Ok((LiveScript { script }, passed))
+        Ok((
+            LiveScript {
+                script,
+                export_name: prepared.export_name.clone(),
+            },
+            passed,
+        ))
     }
 
     /// Run `request` from `package`, the validated package its run admitted.
