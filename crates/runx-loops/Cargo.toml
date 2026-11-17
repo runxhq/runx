@@ -1,0 +1,32 @@
+[package]
+name = "runx-loops"
+version = "0.1.0"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+description = "runx's loops: named, continuing jobs a workspace keeps, built on the runtime's public API alone."
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+include = ["Cargo.toml", "src/**/*.rs"]
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = "0.4.45"
+chrono-tz = "0.10.4"
+croner = "2.2.0"
+fs2.workspace = true
+runx-contracts.workspace = true
+runx-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_norway.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+runx-contracts.workspace = true
+tempfile = "3.23.0"

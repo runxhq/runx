@@ -4,6 +4,7 @@ members = [
     "runx-contracts",
     "runx-core",
     "runx-js-worker",
+    "runx-loops",
     "runx-parser",
     "runx-contracts-derive",
     "runx-receipts",
