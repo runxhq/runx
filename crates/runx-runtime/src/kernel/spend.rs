@@ -129,6 +129,25 @@ pub(crate) fn charge(
     })
 }
 
+/// What run `run_id` of the workspace at `cwd`, with every run below it, has
+/// committed against its money limit, in micro-USD: what settled and what is
+/// still reserved, so a reservation whose call never settled counts as spent.
+///
+/// # Errors
+///
+/// Returns why the store or the run's spend history couldn't be read.
+pub fn committed_spend(
+    env: &BTreeMap<String, String>,
+    cwd: &std::path::Path,
+    run_id: &str,
+) -> Result<u64, String> {
+    let paths = crate::paths::RunxPaths::resolve(env, cwd);
+    let store = KernelStore::for_project(&paths).map_err(|error| error.to_string())?;
+    Ok(status(&store, root_run_id(run_id))
+        .map_err(|error| error.to_string())?
+        .committed_usd_micro)
+}
+
 /// What the run whose root is `root` has committed against its limit.
 pub(crate) fn status(store: &KernelStore, root: &str) -> Result<SpendStatus, SpendError> {
     let mut status = SpendStatus::default();

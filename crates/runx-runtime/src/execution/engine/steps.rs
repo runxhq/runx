@@ -570,7 +570,8 @@ impl WorkflowExecution {
         );
         let (workflow_dir, env) = (context.workflow_dir, &context.runtime.options.env);
         let reaches = floor.is_ok() && super::reaches_world(&context.step.kind);
-        let reads = reaches && super::only_reads(context.step, workflow_dir, env);
+        let leaves = super::leaves(context.step, workflow_dir, env);
+        let reads = reaches && !leaves.effect();
         // A safe read isn't claimed: a crash that leaves it unsettled runs it
         // again with nobody asked, as it does worker compute (D33).
         let claimed = reaches && !super::safe_read(context.step, workflow_dir, env);
@@ -589,9 +590,9 @@ impl WorkflowExecution {
                         ),
                         &std::mem::take(&mut answering.answers),
                         super::claim_durability(context.step, workflow_dir, env),
-                        !reads,
+                        leaves,
                     )?;
-                    if !reads {
+                    if leaves.effect() {
                         crate::interrupt::note_effect();
                     }
                 }

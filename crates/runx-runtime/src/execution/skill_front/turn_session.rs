@@ -644,7 +644,7 @@ mod tests {
             reuse: None,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
-            effect: true,
+            effect: crate::execution::run_record::Leaves::World,
             given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })?;
         Ok((run_id, log))

@@ -2377,8 +2377,8 @@ where
         // A call records where what it was given may be shared, whatever it
         // came to, so a read of it later is labelled by all its maker saw.
         let given = self.given_of(&made.input)?;
-        // A claim records whether its work may change the world, by the
-        // same rule its execution notes an effect by.
+        // A claim records what its work may leave behind, by the same rule
+        // a step's claim does.
         let effect = match &outcome {
             CallOutcome::Claimed(_) => {
                 let call = self
@@ -2387,13 +2387,13 @@ where
                         context: "recording a claim",
                         message: reason,
                     })?;
-                !super::only_reads(
+                super::leaves(
                     &call.step,
                     self.scope.workflow_dir,
                     &self.scope.runtime.options.env,
                 )
             }
-            _ => false,
+            _ => crate::execution::run_record::Leaves::Nothing,
         };
         // A call that asked to reuse a result and ran its child to completion
         // makes that child its identity's newest source, known by the receipt

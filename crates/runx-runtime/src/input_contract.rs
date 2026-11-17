@@ -382,6 +382,33 @@ enum UnknownInputs {
     Project,
 }
 
+/// Whether `method` of the skill package at `skill_path` takes `inputs`
+/// whole: every required input given, none it doesn't declare, each of its
+/// own type. When it doesn't, why, in the method's own words. A host checks a
+/// run's inputs this way before it commits to starting one.
+///
+/// # Errors
+///
+/// Returns why the package didn't load, it has no such method, or the inputs
+/// aren't what the method takes.
+pub fn check_method_inputs(
+    skill_path: &std::path::Path,
+    method: &str,
+    inputs: &JsonObject,
+) -> Result<(), String> {
+    let loaded = crate::skill_package::load_validated_skill_package(skill_path)
+        .map_err(|error| error.to_string())?;
+    let definition = loaded
+        .package
+        .profiles
+        .values()
+        .find_map(|profile| profile.methods.get(method))
+        .ok_or_else(|| format!("{} has no method {method}", loaded.package.skill.name))?;
+    materialize_complete_method_inputs(&definition.inputs, &definition.input_constraints, inputs)
+        .map(|_| ())
+        .map_err(|error| error.into_runtime_error().to_string())
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct InputContractError {
     declared_by: &'static str,

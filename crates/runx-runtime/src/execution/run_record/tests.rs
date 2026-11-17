@@ -607,7 +607,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
             reuse: None,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
-            effect: true,
+            effect: Leaves::World,
             given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })
         .unwrap();
@@ -650,7 +650,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
-        effect: true,
+        effect: Leaves::World,
         given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
@@ -684,7 +684,7 @@ fn a_call_leaves_the_run_paused_at_its_turn() {
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
-        effect: true,
+        effect: Leaves::World,
         given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
@@ -748,7 +748,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
             reuse: None,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
-            effect: true,
+            effect: Leaves::World,
             given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })
         .unwrap();
@@ -774,7 +774,7 @@ fn a_paused_run_waits_on_every_open_request_in_its_tree() {
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
-        effect: true,
+        effect: Leaves::World,
         given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
@@ -929,7 +929,11 @@ fn a_calls_claims_are_read_from_its_whole_history() {
                 &retry,
                 &[],
                 crate::kernel::store::Durability::Durable,
-                effect,
+                if effect {
+                    Leaves::World
+                } else {
+                    Leaves::Nothing
+                },
             )
             .unwrap();
     };
@@ -964,7 +968,7 @@ fn a_claimed_step_no_step_event_settled_waits_on_its_retry() {
         &retry,
         &[],
         crate::kernel::store::Durability::Durable,
-        true,
+        Leaves::World,
     )
     .unwrap();
 
@@ -1300,7 +1304,7 @@ fn a_poll_at_a_turn_reads_what_changed_since_its_cursor_not_the_turn() {
                 reuse: None,
                 reuse_identity: None,
                 durability: crate::kernel::store::Durability::Ordered,
-                effect: true,
+                effect: Leaves::World,
                 given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
             })
             .unwrap();
@@ -1367,7 +1371,7 @@ fn turn_of_calls(store: &Arc<KernelStore>, run_id: &str, calls: u32) -> (RunLog,
                 reuse: None,
                 reuse_identity: None,
                 durability: crate::kernel::store::Durability::Ordered,
-                effect: true,
+                effect: Leaves::World,
                 given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
             })
             .unwrap();
@@ -1524,7 +1528,7 @@ fn a_calls_reuse_decision_is_recorded_once_and_read_back() {
             reuse,
             reuse_identity: None,
             durability: crate::kernel::store::Durability::Ordered,
-            effect: true,
+            effect: Leaves::World,
             given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
         })
         .unwrap();
@@ -1573,7 +1577,7 @@ fn a_run_syncs_only_where_it_reaches_the_world_or_answers_its_host() {
             "step send",
             runx_contracts::RetryResend::Safe,
         );
-        log.record_claim("send", 1, &retry, &[], Durability::Durable, true)
+        log.record_claim("send", 1, &retry, &[], Durability::Durable, Leaves::World)
             .unwrap();
         let claimed = since();
         log.record_sealed(&read.receipt, None).unwrap();
@@ -1647,7 +1651,7 @@ fn a_calls_packet_is_written_once_its_artifact_which_the_record_names_and_replay
         reuse: None,
         reuse_identity: None,
         durability: crate::kernel::store::Durability::Ordered,
-        effect: true,
+        effect: Leaves::World,
         given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
     })
     .unwrap();
@@ -1684,4 +1688,51 @@ fn a_calls_packet_is_written_once_its_artifact_which_the_record_names_and_replay
         panic!("the call replays completed");
     };
     assert_eq!(run.contract, made.contract);
+}
+
+/// What a run changed is read from its claims: a claim on the world a step
+/// settled is done, one nothing settled is unknown, and a package's own store
+/// state and a free read count as neither.
+#[test]
+fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
+    let workspace = tempfile::tempdir().unwrap();
+    let (env, store) = project_env(&workspace);
+    let log = RunLog::open(Arc::clone(&store), "run_changes").unwrap();
+    start(&log, &JsonObject::new());
+    for (step_id, leaves) in [
+        ("send", Leaves::World),
+        ("keep", Leaves::OwnState),
+        ("look", Leaves::Nothing),
+    ] {
+        let retry = crate::execution::engine::unsettled_retry(
+            log.address(&format!("{step_id}/retry")),
+            &format!("step {step_id}"),
+            runx_contracts::RetryResend::Safe,
+        );
+        log.record_claim(
+            step_id,
+            1,
+            &retry,
+            &[],
+            crate::kernel::store::Durability::Durable,
+            leaves,
+        )
+        .unwrap();
+    }
+    let read = || changes(&env, workspace.path(), "run_changes").unwrap();
+    assert_eq!(
+        read(),
+        RunChanges {
+            done: 0,
+            unknown: 1
+        }
+    );
+    log.record_step(&step("run_changes", "send"), &[]).unwrap();
+    assert_eq!(
+        read(),
+        RunChanges {
+            done: 1,
+            unknown: 0
+        }
+    );
 }

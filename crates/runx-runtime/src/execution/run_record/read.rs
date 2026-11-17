@@ -119,6 +119,125 @@ pub fn read_run(
     })
 }
 
+/// What a run's tree did in the workspace or at a provider, as its own claims
+/// record it: each step or call claimed before it reached the world as
+/// leaving something behind, other than its package's own store state, and
+/// how that claim settled. A host judges by this how a run that ended can be
+/// followed: one that changed nothing can be tried again unseen; one that
+/// changed something waits for the person; one whose change is unknown waits
+/// for custody to settle it (the loop contract §7).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunChanges {
+    /// Claims that settled done: changes and charges that happened.
+    pub done: u32,
+    /// Claims nothing settled, or left as custody holds them: each may have
+    /// happened.
+    pub unknown: u32,
+}
+
+/// What run `run_id` of the workspace at `cwd`, with every run below it,
+/// changed outside its package's own store, by its claims.
+pub fn changes(
+    env: &BTreeMap<String, String>,
+    cwd: &std::path::Path,
+    run_id: &str,
+) -> Result<RunChanges, RunRecordError> {
+    let paths = RunxPaths::resolve(env, cwd);
+    let store = KernelStore::for_project(&paths)?;
+    let run_id = validate_run_id(run_id)?;
+    if store.first::<RunEvent>(run_id)?.is_none() {
+        return Err(RunRecordError::UnknownRun {
+            run_id: run_id.to_owned(),
+        });
+    }
+    // Each claim where it was made, its stream, step and attempt, and a
+    // call's index: true once it settled done, false while it may have run.
+    // A claim that settled as nothing done is dropped.
+    let mut claims = BTreeMap::<(String, String, u32, Option<u32>), bool>::new();
+    let settle = |claims: &mut BTreeMap<_, bool>, at, done: Option<bool>| {
+        if claims.get(&at) == Some(&false) {
+            match done {
+                Some(true) => {
+                    claims.insert(at, true);
+                }
+                Some(false) => {
+                    claims.remove(&at);
+                }
+                None => {}
+            }
+        }
+    };
+    let mut after = 0;
+    loop {
+        let page = store.tree_after::<RunEvent>(run_id, after, PAGE)?;
+        let Some(last) = page.last() else {
+            break;
+        };
+        after = last.sequence;
+        for event in page {
+            let key = event.key;
+            match event.recorded.event {
+                RunEvent::Suspended(suspended) => {
+                    if let HoldEvent::Claimed {
+                        effect: true,
+                        own_state: false,
+                        ..
+                    } = suspended.hold
+                    {
+                        claims.insert((key, suspended.step_id, suspended.attempt, None), false);
+                    }
+                }
+                RunEvent::Step(step) => {
+                    let at = (key, step.step_id.clone(), step.attempt, None);
+                    if claims.get(&at) == Some(&false) {
+                        let (outcome, _) = step_status(&store, &step.record, &step.receipt)?;
+                        settle(&mut claims, at, Some(outcome.succeeded()));
+                    }
+                }
+                RunEvent::Call(call) => {
+                    let at = (key, call.step_id.clone(), call.attempt, Some(call.index));
+                    match &call.outcome {
+                        CallOutcomeEvent::Claimed {
+                            effect: true,
+                            own_state: false,
+                            ..
+                        } => {
+                            claims.insert(at, false);
+                        }
+                        CallOutcomeEvent::Completed {
+                            record, receipt, ..
+                        } => {
+                            if claims.get(&at) == Some(&false) {
+                                let (outcome, _) = step_status(&store, record, receipt)?;
+                                settle(&mut claims, at, Some(outcome.succeeded()));
+                            }
+                        }
+                        // Admission or the person stopped it, it couldn't
+                        // run, or its host cancelled it while it only read:
+                        // nothing it did is in effect.
+                        CallOutcomeEvent::Refused { .. }
+                        | CallOutcomeEvent::Declined { .. }
+                        | CallOutcomeEvent::Failed { .. }
+                        | CallOutcomeEvent::Cancelled => settle(&mut claims, at, Some(false)),
+                        // A retry the person declined leaves its act as
+                        // custody holds it, as does anything still waiting.
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let count = |done: bool| {
+        u32::try_from(claims.values().filter(|settled| **settled == done).count())
+            .unwrap_or(u32::MAX)
+    };
+    Ok(RunChanges {
+        done: count(true),
+        unknown: count(false),
+    })
+}
+
 /// What one page of a script's calls holds at most, as `call.read` writes
 /// them: a script's calls, however many, are read a page at a time, so no
 /// read is past what `artifact.open` opens.

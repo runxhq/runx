@@ -123,10 +123,12 @@ pub use execution_environment::environment_requirement_statuses;
 pub use tool_catalogs::native::{NativeCapabilitySnapshot, native_capability_snapshot};
 
 pub mod adapters;
-pub use identity::StreamScope;
+pub use identity::{StreamScope, stream_owner};
+pub use input_contract::check_method_inputs;
 pub use kernel::host_streams::{
     HostAppend, HostEvents, HostName, HostRecord, HostStreamError, HostStreams,
 };
+pub use kernel::spend::committed_spend;
 
 pub use adapter::{
     EphemeralValue, Executable, InvocationDiagnostics, InvocationOutput, InvocationStatus,

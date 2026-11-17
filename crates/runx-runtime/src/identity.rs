@@ -260,6 +260,23 @@ pub(crate) fn skill_identity(
     })
 }
 
+/// The identity the skill package at `skill_path` keeps its streams under:
+/// `runx/<name>` for a skill this runx bundles, `<publisher>/<name>` for a
+/// signed one, `project:<name>` for the workspace's own. A host that scopes
+/// a run's streams ([`StreamScope`]) names its owner by this.
+///
+/// # Errors
+///
+/// Returns why the package didn't load or its identity is refused.
+pub fn stream_owner(
+    env: &BTreeMap<String, String>,
+    skill_path: &std::path::Path,
+) -> Result<String, String> {
+    let loaded = crate::skill_package::load_validated_skill_package(skill_path)
+        .map_err(|error| error.to_string())?;
+    Ok(skill_identity(&loaded, env)?.name())
+}
+
 /// The bundled skill `reference`, `runx/<name>`, resolved to `loaded`: it must
 /// be the CLI's own copy, byte for byte.
 ///

@@ -56,7 +56,7 @@ mod read;
 
 pub(crate) use claim::retained_claim;
 pub use driver::{DriverLock, driven};
-pub use read::{read_call, read_run};
+pub use read::{RunChanges, changes, read_call, read_run};
 
 /// One event in a run's stream.
 #[derive(Debug, Serialize, Deserialize)]
@@ -285,7 +285,37 @@ enum HoldEvent {
         /// that does.
         #[serde(default = "claimed_effect")]
         effect: bool,
+        /// Whether what it leaves is only its package's own store state.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        own_state: bool,
     },
+}
+
+/// What a claimed step's or call's work leaves behind, recorded with its
+/// claim so a reader of the run knows what may have changed without
+/// deciding again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Leaves {
+    /// Nothing: a free read.
+    Nothing,
+    /// A change only to its package's own store state: keyed appends the
+    /// approval floor exempts, and that a host judging what a run did to the
+    /// world doesn't count.
+    OwnState,
+    /// A change or a charge in the workspace or at a provider.
+    World,
+}
+
+impl Leaves {
+    /// Whether it leaves anything: a cancel that finds only free reads
+    /// claimed changed nothing.
+    pub(crate) const fn effect(self) -> bool {
+        !matches!(self, Self::Nothing)
+    }
+
+    const fn own_state(self) -> bool {
+        matches!(self, Self::OwnState)
+    }
 }
 
 /// What a claim recorded before the claim said whether its work changes the
@@ -479,6 +509,9 @@ enum CallOutcomeEvent {
         /// Whether its work leaves something behind, a change or a charge.
         #[serde(default = "claimed_effect")]
         effect: bool,
+        /// Whether what it leaves is only its package's own store state.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        own_state: bool,
     },
     /// A safe read was claimed and has not settled: a crash that leaves it
     /// so reruns it with nobody asked (D33).
@@ -690,8 +723,8 @@ pub(crate) struct CallRecord<'a> {
     /// How durable its commit is: durable where it claims what reaches the
     /// world or answers the host, ordered otherwise.
     pub durability: Durability,
-    /// For a claimed call, whether its work may change the world.
-    pub effect: bool,
+    /// For a claimed call, what its work may leave behind.
+    pub effect: Leaves,
     /// Where what its maker had seen when it made the call may be shared:
     /// what its step was given and had read, and its input.
     pub given: runx_contracts::ArtifactLabels,
@@ -1659,7 +1692,7 @@ impl RunLog {
         retry: &ResolutionRequest,
         answers: &[Answer],
         durability: Durability,
-        effect: bool,
+        leaves: Leaves,
     ) -> Result<(), RunRecordError> {
         let (request_id, blob, digest) = request_blob(retry)?;
         let (answers, values) = answer_events(answers)?;
@@ -1671,7 +1704,8 @@ impl RunLog {
                     request_id,
                     request: blob.digest().to_owned(),
                     digest,
-                    effect,
+                    effect: leaves.effect(),
+                    own_state: leaves.own_state(),
                 },
                 answers,
             })),
@@ -1882,7 +1916,8 @@ impl RunLog {
                     request_id: retry.id.clone(),
                     request: request.digest().to_owned(),
                     digest: retry.digest.clone(),
-                    effect: call.effect,
+                    effect: call.effect.effect(),
+                    own_state: call.effect.own_state(),
                 };
                 blobs.push(request);
                 outcome
@@ -2285,7 +2320,7 @@ pub(crate) fn validate_run_id(run_id: &str) -> Result<&str, RunRecordError> {
 
 /// A new run id: `run_<skill>_<time><random>`, unique per invocation and
 /// ordered by when it was minted.
-pub(crate) fn mint_run_id(skill: &str) -> Result<String, RunRecordError> {
+pub fn mint_run_id(skill: &str) -> Result<String, RunRecordError> {
     use ring::rand::SecureRandom as _;
     let mut random = [0_u8; 6];
     ring::rand::SystemRandom::new()

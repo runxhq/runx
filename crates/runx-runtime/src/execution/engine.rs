@@ -89,6 +89,35 @@ pub(crate) fn only_reads(
     }
 }
 
+/// What `step`'s work, claimed before it reaches the world, may leave
+/// behind: nothing when it only reads; only its package's own store state
+/// when it's an operation the store implements, which the approval floor
+/// exempts; otherwise a change or a charge in the world.
+pub(crate) fn leaves(
+    step: &runx_parser::WorkflowStep,
+    workflow_dir: &Path,
+    env: &std::collections::BTreeMap<String, String>,
+) -> crate::execution::run_record::Leaves {
+    use crate::execution::run_record::Leaves;
+    if only_reads(step, workflow_dir, env) {
+        return Leaves::Nothing;
+    }
+    match &step.kind {
+        runx_parser::StepKind::Operation(target)
+            if crate::kernel::operation::operation_write(
+                target,
+                &step.inputs,
+                env,
+                workflow_dir,
+            )
+            .is_some_and(|write| write.store) =>
+        {
+            Leaves::OwnState
+        }
+        _ => Leaves::World,
+    }
+}
+
 /// Whether `step` with its inputs is a safe read (D33): a native tool that
 /// only reads, in runx's own process, or an operation that is a safe read by
 /// [`crate::kernel::operation::safe_read`]. A crash that leaves one
