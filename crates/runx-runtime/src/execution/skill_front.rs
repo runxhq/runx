@@ -150,6 +150,9 @@ pub(crate) fn deliver_answers(
 pub(crate) struct SkillRunOverrides {
     /// Select a method by name instead of the manifest default.
     pub(crate) method: Option<String>,
+    /// A host's appends that commit in the run's start (the loop contract's
+    /// E1): a new run only, never a continuation.
+    pub(crate) host_events: Option<crate::kernel::host_streams::HostEvents>,
     /// Native host services shared for the lifetime of a local server session.
     pub(crate) javascript: Option<crate::adapters::javascript::JavaScriptAdapter>,
     /// The registry reference the skill was resolved through, when its method

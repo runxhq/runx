@@ -199,6 +199,12 @@ impl BoundRun {
             // A continuation runs on the implementation the run started on,
             // unless it's refused as it starts and runs nothing.
             Some(started) => {
+                if self.overrides.host_events.is_some() {
+                    return Err(invalid(
+                        "a run that already started takes no host's claim: only a start carries one"
+                            .to_owned(),
+                    ));
+                }
                 if let Some(reason) = start
                     .refusal
                     .is_none()
@@ -215,27 +221,30 @@ impl BoundRun {
                     )));
                 }
             }
-            None => log.begin(StartRequest {
-                skill: &self.manifest.skill,
-                skill_path: &request.skill_path.to_string_lossy(),
-                method: &self.method.name,
-                package_digest: &self.package_digest,
-                closure_digest,
-                inputs: &workflow_inputs,
-                context: &request_context,
-                run_authority: request.run_authority.as_ref(),
-                act: request.act.as_ref(),
-                driver: if request.drive.is_inline() {
-                    RunDriver::Managed
-                } else {
-                    RunDriver::Attached
+            None => log.begin_with(
+                StartRequest {
+                    skill: &self.manifest.skill,
+                    skill_path: &request.skill_path.to_string_lossy(),
+                    method: &self.method.name,
+                    package_digest: &self.package_digest,
+                    closure_digest,
+                    inputs: &workflow_inputs,
+                    context: &request_context,
+                    run_authority: request.run_authority.as_ref(),
+                    act: request.act.as_ref(),
+                    driver: if request.drive.is_inline() {
+                        RunDriver::Managed
+                    } else {
+                        RunDriver::Attached
+                    },
+                    prepared: prepared.as_ref(),
+                    purchase: self.purchase(),
+                    implementation: &start.implementation,
+                    ran_on: crate::execution_environment::ran_on(&request.env),
+                    created_at: &crate::time::now_iso8601(),
                 },
-                prepared: prepared.as_ref(),
-                purchase: self.purchase(),
-                implementation: &start.implementation,
-                ran_on: crate::execution_environment::ran_on(&request.env),
-                created_at: &crate::time::now_iso8601(),
-            })?,
+                self.overrides.host_events.clone(),
+            )?,
         }
         let workflow = self.workflow(&workflow_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {

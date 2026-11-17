@@ -300,10 +300,35 @@ impl LocalOrchestrator {
                 javascript: Some(javascript),
                 purchase: None,
                 run_log: None,
+                host_events: None,
             },
             &self.effects,
             Some(package_digest),
             Some(closure_digest),
+        )?)
+    }
+
+    /// Start a new run of `request` in the one commit that also makes the
+    /// host's `host_events` (the loop contract's E1), so a host's claim and
+    /// the run it starts are one. Refused for a run that already started:
+    /// only a start carries a host's claim.
+    pub fn run_claimed(
+        &self,
+        request: &SkillRunRequest,
+        method: Option<&str>,
+        host_events: crate::kernel::host_streams::HostEvents,
+    ) -> Result<RunResult, OrchestratorError> {
+        let overrides = super::skill_front::SkillRunOverrides {
+            method: method.map(str::to_owned),
+            host_events: Some(host_events),
+            ..Default::default()
+        };
+        Ok(super::skill_front::execute_bound_skill_run_with_overrides(
+            request,
+            &overrides,
+            &self.effects,
+            None,
+            None,
         )?)
     }
 

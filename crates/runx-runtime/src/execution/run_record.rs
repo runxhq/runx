@@ -1392,7 +1392,19 @@ impl RunLog {
 
     /// Start a top-level run. The stream must not exist yet: a run that does
     /// is continued from its record, never started again.
+    #[cfg(test)]
     pub(crate) fn begin(&self, started: StartRequest<'_>) -> Result<(), RunRecordError> {
+        self.begin_with(started, None)
+    }
+
+    /// Start the run, with a host's appends in the same commit when it brings
+    /// them (the loop contract's E1): every append or none, durably, so the
+    /// host's claim and the run it starts are one.
+    pub(crate) fn begin_with(
+        &self,
+        started: StartRequest<'_>,
+        host: Option<crate::kernel::host_streams::HostEvents>,
+    ) -> Result<(), RunRecordError> {
         let inputs = Blob::json(started.inputs)?;
         let context = (!started.context.current.is_empty()
             || !started.context.historical.is_empty())
@@ -1417,7 +1429,17 @@ impl RunLog {
         };
         let mut blobs = vec![inputs];
         blobs.extend(context);
-        self.append_first(RunEvent::Started(Box::new(event)), blobs)?;
+        match host {
+            None => self.append_first(RunEvent::Started(Box::new(event)), blobs)?,
+            Some(host) => self.commit(
+                Expected::Absent,
+                RunEvent::Started(Box::new(event)),
+                blobs,
+                host.into_appends()?,
+                Durability::Durable,
+                Vec::new(),
+            )?,
+        }
         self.keep_act(started.act);
         Ok(())
     }

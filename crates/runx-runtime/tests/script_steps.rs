@@ -4830,3 +4830,71 @@ fn a_failed_morning_continues_from_its_positions_and_a_rotated_token_keeps_them(
     );
     Ok(())
 }
+
+/// A host's claim and the run it starts are one commit (the loop contract's
+/// E1): the run starts with the host's append, and a claim that finds its
+/// stream moved starts no run at all.
+#[test]
+fn a_hosts_claim_and_the_run_it_starts_commit_together() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("claimed");
+    std::fs::create_dir_all(&skill_dir)?;
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: claimed\ndescription: One script that answers.\n---\n\nAnswers.\n",
+    )?;
+    std::fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        script: {module: answer.mjs}\n        max_calls: 1\n        outputs:\n          answered: {type: boolean}\n",
+    )?;
+    std::fs::write(
+        skill_dir.join("answer.mjs"),
+        "export default async function () {\n  return { answered: true };\n}\n",
+    )?;
+    let request = |run_id: &str| SkillRunRequest {
+        current_context: Vec::new(),
+        historical_context: Vec::new(),
+        run_authority: None,
+        act: None,
+        skill_path: skill_dir.clone(),
+        receipt_dir: Some(temp.path().join("receipts")),
+        run_id: Some(run_id.to_owned()),
+        answers: None,
+        inputs: BTreeMap::new(),
+        env: env(temp.path()),
+        cwd: temp.path().to_path_buf(),
+        drive: DrivePolicy::HostDriven,
+    };
+    let claim = |expected: Option<u64>| -> TestResult<runx_runtime::HostEvents> {
+        Ok(runx_runtime::HostEvents {
+            host: runx_runtime::HostName::new("loops")?,
+            appends: vec![runx_runtime::HostAppend {
+                key: "acme/record".to_owned(),
+                expected,
+                event_type: "woke".to_owned(),
+                data: serde_json::from_value(serde_json::json!({"run": "run_claimed"}))?,
+            }],
+        })
+    };
+    let sealed =
+        LocalOrchestrator::default().run_claimed(&request("run_claimed"), None, claim(None)?)?;
+    assert_eq!(
+        object(object(&sealed.output)?.get("result").ok_or("no result")?)?.get("answered"),
+        Some(&JsonValue::Bool(true))
+    );
+    let streams = runx_runtime::HostStreams::open(
+        &env(temp.path()),
+        temp.path(),
+        runx_runtime::HostName::new("loops")?,
+    )?;
+    assert_eq!(streams.version("acme/record")?, 1);
+    // The same claim again finds the record moved: no run starts.
+    let stale = LocalOrchestrator::default().run_claimed(&request("run_stale"), None, claim(None)?);
+    assert!(stale.is_err(), "a stale claim started a run: {stale:?}");
+    assert!(
+        runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), "run_stale", None)
+            .is_err()
+    );
+    assert_eq!(streams.version("acme/record")?, 1);
+    Ok(())
+}
