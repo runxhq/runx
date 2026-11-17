@@ -199,7 +199,12 @@ fn declares_input(manifest: &Path, input: &str) -> bool {
     std::fs::read(manifest)
         .ok()
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-        .is_some_and(|manifest| manifest.get("inputs").and_then(|inputs| inputs.get(input)).is_some())
+        .is_some_and(|manifest| {
+            manifest
+                .get("inputs")
+                .and_then(|inputs| inputs.get(input))
+                .is_some()
+        })
 }
 
 fn refusal(answer: &JsonValue) -> Option<String> {
