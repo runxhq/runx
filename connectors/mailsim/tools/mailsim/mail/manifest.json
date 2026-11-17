@@ -19,7 +19,6 @@
     "subject": {"type": "string", "optional": true},
     "body": {"type": "string", "optional": true},
     "in_reply_to": {"type": "string", "optional": true},
-    "unless_inbound_since": {"type": "string", "optional": true},
     "id": {"type": "string", "optional": true},
     "thread_id": {"type": "string", "optional": true},
     "after": {"type": "string", "optional": true},

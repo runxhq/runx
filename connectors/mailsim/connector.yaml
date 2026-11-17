@@ -38,7 +38,6 @@ operations:
         subject: {type: string, minLength: 1, maxLength: 998}
         body: {type: string, minLength: 1, maxLength: 262144}
         in_reply_to: {type: string, maxLength: 998, pattern: "^<[^<>\\s]+>$"}
-        unless_inbound_since: {type: string, format: date-time}
     result_fields: [id, thread_id, rfc_message_id, to, from_email, from_name, reply_to, subject, body, in_reply_to, sent_at]
     implementation:
       process:

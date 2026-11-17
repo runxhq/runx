@@ -4,8 +4,8 @@
 //   inbound.jsonl       what arrived, written by the world simulator
 //   suppressions.jsonl  addresses nothing is sent to again
 // It answers as a provider does: a send under a key it holds replays the
-// original; a suppressed recipient, or one who wrote since a given time,
-// is refused before anything is sent; a write is read back by its key.
+// original; a suppressed recipient is refused before anything is sent; a
+// write is read back by its key.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -49,13 +49,6 @@ function send(input) {
   const held = sentByKey(key);
   if (held) return publicMessage(held);
   if (suppression(input.to).suppressed) return { refused: "suppressed" };
-  if (input.unless_inbound_since) {
-    const since = Date.parse(input.unless_inbound_since);
-    const wrote = lines("inbound.jsonl").some(
-      (event) => lower(event.from) === lower(input.to) && Date.parse(event.received_at) > since,
-    );
-    if (wrote) return { refused: "inbound_since" };
-  }
   const id = `msg_${createHash("sha256").update(key).digest("hex").slice(0, 16)}`;
   const parent = input.in_reply_to
     ? [...lines("sent.jsonl"), ...lines("inbound.jsonl")].find((message) => message.rfc_message_id === input.in_reply_to)
