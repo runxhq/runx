@@ -1781,6 +1781,12 @@ fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
     log.record_request("post", 1, &approval("post.approval"))
         .unwrap();
     claim("post");
+    // Approved at its gate, sent, and its end unknown: a retry waits. Its
+    // claim was made at the gate, and it's past it now (Codex, fix check 3).
+    log.record_request("ship", 1, &approval("ship.approval"))
+        .unwrap();
+    claim("ship");
+    log.record_request("ship", 1, &retry_of("ship")).unwrap();
     let mut receipt = workflow_receipt(
         RunScope {
             run_id: "run_changes",
@@ -1797,7 +1803,7 @@ fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
         read(),
         RunChanges {
             done: 1,
-            unknown: 1
+            unknown: 2
         }
     );
 }

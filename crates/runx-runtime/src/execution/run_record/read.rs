@@ -208,6 +208,10 @@ pub fn changes(
                                 settle(&mut claims, at, Some(false));
                                 gated.insert(step);
                             } else {
+                                // Past its gate: a retry is an act sent with
+                                // its end unknown, so no claim of the step is
+                                // at its gate any more.
+                                at_gate.retain(|claim| claim.0 != step.0 || claim.1 != step.1);
                                 gated.remove(&step);
                             }
                         }
@@ -224,6 +228,7 @@ pub fn changes(
                     claims.retain(|at, done| at.0 != key || *done || !at_gate.contains(at));
                 }
                 RunEvent::Step(step) => {
+                    at_gate.retain(|claim| claim.0 != key || claim.1 != step.step_id);
                     gated.remove(&(key.clone(), step.step_id.clone()));
                     let at = (key, step.step_id.clone(), step.attempt, None);
                     if claims.get(&at) == Some(&false) {
