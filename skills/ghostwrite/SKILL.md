@@ -28,6 +28,9 @@ publishes, posts, sends, or claims provider acknowledgement.
 - Prefer one sharp, useful artifact over several thin sections.
 - Narrow the claim or return `needs_more_evidence` rather than filling a gap
   with plausible prose.
+- State only numbers the evidence holds. Code withholds a draft that states a
+  number nothing admitted holds: a time, price, date or metric is the
+  evidence's or it isn't written.
 
 ## Methods and chain boundaries
 

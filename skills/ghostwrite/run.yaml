@@ -48,6 +48,12 @@ methods:
         type: string
         description: Additional project-specific voice constraints.
         optional: true
+      quoted:
+        type: array
+        description: Text the draft carries unchanged that isn't evidence, such as a required footer, so the numbers it holds count as admitted.
+        maxItems: 10
+        items: {type: string, maxLength: 3000}
+        optional: true
       brand_context: {}
       taste_context: {}
     result_from:
@@ -200,6 +206,7 @@ methods:
         inputs:
           evidence_context: $steps.admit.evidence_context
           content_draft: $steps.author.content_draft
+          quoted: $input.quoted
         outputs:
           content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
   admit:
@@ -267,6 +274,12 @@ methods:
       content_draft:
         description: Candidate draft written from that evidence context; absent when admission withheld the draft.
         optional: true
+      quoted:
+        type: array
+        description: Text the draft carries unchanged that isn't evidence, such as a required footer, so the numbers it holds count as admitted.
+        maxItems: 10
+        items: {type: string, maxLength: 3000}
+        optional: true
     result_from:
       - reject
       - finalize
@@ -329,6 +342,7 @@ methods:
         inputs:
           evidence_context: $input.evidence_context
           content_draft: $input.content_draft
+          quoted: $input.quoted
         outputs:
           reviewed_draft: {type: object}
           review_context: {type: object}

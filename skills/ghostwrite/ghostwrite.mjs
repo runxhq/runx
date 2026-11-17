@@ -331,7 +331,30 @@ function isDigest(value) {
 
 // Source readiness and digests are mechanical; applicability of prose-scoped
 // writing guidance is the writer’s bounded judgment, recorded for each context.
-export function reviewContextUse({ evidence_context, content_draft }) {
+/** Every run of digits in `value`: the numbers a text states. */
+function numbersIn(value) {
+  return text(value).match(/\d+/gu) ?? [];
+}
+
+/**
+ * The numbers a draft states that nothing admitted holds: not the evidence's
+ * claims, the brief, nor the text the caller gives it to carry unchanged. A
+ * time, a price, a date or a metric a writer made up is one of them.
+ */
+export function inventedNumbers(context, draft, quoted = []) {
+  const admitted = new Set(
+    [
+      context.objective,
+      context.audience,
+      object(context.research_brief).summary,
+      ...(Array.isArray(context.evidence_log) ? context.evidence_log.map((entry) => entry?.claim) : []),
+      ...strings(quoted),
+    ].flatMap(numbersIn),
+  );
+  return [...new Set([draft.title, draft.body].flatMap(numbersIn))].filter((number) => !admitted.has(number));
+}
+
+export function reviewContextUse({ evidence_context, content_draft, quoted }) {
   const context = object(evidence_context);
   const candidate = object(content_draft);
   const bindings = Array.isArray(object(candidate.context_binding).applied)
@@ -346,6 +369,12 @@ export function reviewContextUse({ evidence_context, content_draft }) {
     if (blockers.length === 0)
       blockers.push(
         `The writer returned ${text(candidate.decision) || "no decision"}: the evidence supports no draft.`,
+      );
+  } else {
+    const invented = inventedNumbers(context, object(candidate.draft), quoted);
+    if (invented.length > 0)
+      blockers.push(
+        `The draft states ${invented.join(", ")}, which nothing admitted holds: a number comes from the evidence.`,
       );
   }
   for (const requirement of requirements) {
