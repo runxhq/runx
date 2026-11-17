@@ -457,7 +457,9 @@ impl Loops {
                     std::fs::create_dir_all(parent)
                         .map_err(|error| LoopError::io("making loops/", error))?;
                 }
-                std::fs::write(&path, &writes.bytes)
+                // Whole or not at all: bytes a crash left part-written would
+                // read as the person's own edit and stand in the proposal's place.
+                runx_runtime::durable::replace_file(&path, writes.bytes.as_bytes())
                     .map_err(|error| LoopError::io(format!("writing {}", path.display()), error))?;
             }
             record.push(RecordEvent::Written {

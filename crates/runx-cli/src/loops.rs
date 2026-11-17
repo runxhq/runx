@@ -350,7 +350,7 @@ fn new_loop(
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent).map_err(|error| format!("making loops/: {error}"))?;
     }
-    std::fs::write(&target, bytes)
+    runx_runtime::durable::replace_file(&target, bytes.as_bytes())
         .map_err(|error| format!("writing {}: {error}", target.display()))?;
     Ok(target)
 }

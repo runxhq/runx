@@ -106,20 +106,10 @@ pub(crate) fn write_new(path: &Path, contents: &[u8]) -> Result<(), PrivateFileF
 
 /// A sibling name no other writer of `path` will choose.
 pub(crate) fn staged_path(path: &Path) -> Result<std::path::PathBuf, PrivateFileFault> {
-    use ring::rand::SecureRandom;
-    let mut nonce = [0_u8; 8];
-    ring::rand::SystemRandom::new()
-        .fill(&mut nonce)
-        .map_err(|_| PrivateFileFault::Io("no system randomness".to_owned()))?;
-    let name = path
-        .file_name()
-        .ok_or(PrivateFileFault::NotAFile)?
-        .to_string_lossy();
-    let suffix = nonce
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    Ok(path.with_file_name(format!(".{name}.{suffix}.tmp")))
+    if path.file_name().is_none() {
+        return Err(PrivateFileFault::NotAFile);
+    }
+    crate::durable::staged_path(path).map_err(|error| PrivateFileFault::Io(error.to_string()))
 }
 
 pub(crate) use platform::ensure_private_directory;
