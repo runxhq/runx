@@ -44,6 +44,7 @@ pub(super) struct ScriptPassInvocation {
     pub(super) max_calls: u32,
     pub(super) settled: Vec<ScriptSettlement>,
     pub(super) now: i64,
+    pub(super) context: serde_json::Value,
 }
 
 pub(super) enum WorkerInvocationResult {
@@ -122,6 +123,7 @@ impl JavaScriptWorkerSupervisor {
             max_calls: pass.max_calls,
             settled: pass.settled,
             now: pass.now,
+            context: pass.context,
         }));
         let session = self.pool.acquire(pass.worker_path.as_deref())?.detach()?;
         let mut script = LiveScript {

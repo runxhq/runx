@@ -325,7 +325,9 @@ its calls by their real names, as a package's script does:
 `ctx.tool("data.digest", input)`, `ctx.operation("<connector>/<operation>",
 input)` and `ctx.skill("<skill>#<method>", input)`, and the `script` tool
 lists each of the turn's calls by its real name beside the name the turn
-offers it under. `ctx.now()` reads the time. Its source and inputs are
+offers it under. `ctx.now()` reads the time, and `ctx.context` is the run's
+context as its host gave it, `{current, historical}`, each a list of context
+entries, given again on every pass. Its source and inputs are
 recorded before it runs, and its calls nest under it: each is recorded at the
 script call's address, `answer/0/<n>`, at its position in the script, and
 admitted as the turn's own call, so a read-only turn's script writes nothing

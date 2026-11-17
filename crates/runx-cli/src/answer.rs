@@ -101,7 +101,10 @@ impl Terminal<'_> {
             .read_line(&mut line)
             .map_err(|error| error.to_string())?;
         if read == 0 {
-            return Err("the terminal closed before every request was answered; nothing was resumed".to_owned());
+            return Err(
+                "the terminal closed before every request was answered; nothing was resumed"
+                    .to_owned(),
+            );
         }
         Ok(line.trim().to_owned())
     }
@@ -291,7 +294,10 @@ mod tests {
                 }},
             })
         };
-        let waiting = vec![waited(gate("first", "Hello"))?, waited(gate("second", "Hi"))?];
+        let waiting = vec![
+            waited(gate("first", "Hello"))?,
+            waited(gate("second", "Hi"))?,
+        ];
         let mut shown = Vec::new();
         let document = answer_at_terminal(
             &waiting,
@@ -332,7 +338,9 @@ mod tests {
         )?;
         assert_eq!(
             document.approvals["brief"].value,
-            Some(serde_json::from_value(serde_json::json!({"tone": "Warm", "note": "Keep it short"}))?)
+            Some(serde_json::from_value(
+                serde_json::json!({"tone": "Warm", "note": "Keep it short"})
+            )?)
         );
         Ok(())
     }

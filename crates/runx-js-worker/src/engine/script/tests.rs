@@ -25,6 +25,7 @@ fn run(source: &str, settled: &[ScriptSettlement]) -> Result<Passed, String> {
         max_calls: 64,
         settled,
         now: NOW,
+        context: &serde_json::Value::Null,
         allocated: || 0,
     })
     .map_err(|error| error.message)
@@ -389,6 +390,7 @@ fn a_live_script_takes_its_settlements_as_a_replay_of_them_would() -> Result<(),
         max_calls: 64,
         settled: &[],
         now: NOW,
+        context: &serde_json::Value::Null,
         allocated: || 0,
     })
     .map_err(|error| error.message)?;
@@ -441,5 +443,46 @@ fn each_settlement_drains_under_a_job_budget_of_its_own() -> Result<(), String> 
         return Err(format!("the script returns: {:?}", replayed.ending));
     };
     assert_eq!(output["total"].as_f64(), Some(5_000.0));
+    Ok(())
+}
+
+/// A script reads the context its run's host gave it (the loop contract's
+/// E2): a loop's wake reaches its method this way. `ctx.context` can't be
+/// replaced, and each pass is given it again from the record.
+#[test]
+fn a_script_reads_its_runs_context() -> Result<(), String> {
+    let modules = BTreeMap::from([(
+        "main.mjs".to_owned(),
+        r#"export default async function (ctx) {
+            let replaced = true;
+            try { ctx.context = {}; } catch { replaced = false; }
+            return { woke: ctx.context.current[0].data.kind, replaced };
+        }"#
+        .to_owned(),
+    )]);
+    let context = json!({
+        "current": [{"type": "wake", "data": {"kind": "clock"}}],
+        "historical": [],
+    });
+    let passed = pass(ScriptPass {
+        entry_module: "main.mjs",
+        export_name: "default",
+        modules: &modules,
+        inputs: json!({}),
+        references: &[],
+        limits: InvocationLimits::default(),
+        max_calls: 64,
+        settled: &[],
+        now: NOW,
+        context: &context,
+        allocated: || 0,
+    })
+    .map_err(|error| error.message)?;
+    assert_eq!(
+        passed.ending,
+        ScriptEnding::Returned {
+            output: json!({"woke": "clock", "replaced": false})
+        }
+    );
     Ok(())
 }

@@ -320,7 +320,7 @@ impl JavaScriptAdapter {
         prepared: &PreparedScript,
         given: (&JsonObject, Vec<ScriptInputReference>),
         settled: Vec<ScriptSettlement>,
-        now: i64,
+        (now, context): (i64, serde_json::Value),
     ) -> Result<(LiveScript<'_>, ScriptPassed), RuntimeError> {
         let (inputs, references) = given;
         let inputs = serde_json::to_value(inputs)
@@ -346,6 +346,7 @@ impl JavaScriptAdapter {
                     max_calls: prepared.max_calls,
                     settled: clock,
                     now,
+                    context,
                 })?;
         let mut passed = script_passed(result, &prepared.export_name)?;
         let mut frames = settlement_frames(settled)?.into_iter();

@@ -102,6 +102,8 @@ pub(crate) struct ScriptPass<'a> {
     pub(crate) max_calls: u32,
     pub(crate) settled: &'a [ScriptSettlement],
     pub(crate) now: i64,
+    /// The run's context, as `ctx.context`.
+    pub(crate) context: &'a serde_json::Value,
     /// How much of the worker's memory is in use.
     pub(crate) allocated: fn() -> usize,
 }
@@ -203,7 +205,7 @@ pub(crate) fn start(request: ScriptPass<'_>) -> Result<(Option<LiveScript>, Pass
         pending: BTreeMap::new(),
         references: Vec::new(),
     }));
-    let ctx = script_context(&ledger, request.max_calls, &mut context)?;
+    let ctx = script_context(&ledger, (request.max_calls, request.context), &mut context)?;
     let input = given(&request.inputs, request.references, &ledger, &mut context)?;
 
     jobs.renew();
@@ -466,14 +468,24 @@ fn take_calls(ledger: &Shared) -> Vec<ScriptCall> {
     std::mem::take(&mut ledger.borrow_mut().calls)
 }
 
-/// `ctx`: `skill`, `tool`, `operation`, `now`, `wait` and `read`, and the
-/// step's `max_calls`, frozen. A script that pages reads its limit to stop
-/// short of it and say what it left, since reaching it ends the step.
+/// `ctx`, frozen: `skill`, `tool`, `operation`, `now`, `wait` and `read`, the
+/// step's `max_calls`, and the run's `context`, given again on every pass from
+/// the record, so what a pass does to it is that pass's. A script that pages reads its
+/// limit to stop short of it and say what it left, since reaching it ends the
+/// step.
 fn script_context(
     ledger: &Shared,
-    max_calls: u32,
+    (max_calls, run_context): (u32, &serde_json::Value),
     context: &mut Context,
 ) -> Result<JsValue, EngineError> {
+    let run_context = if run_context.is_null() {
+        serde_json::json!({"current": [], "historical": []})
+    } else {
+        run_context.clone()
+    };
+    let run_context = JsValue::from_json(&run_context, context)
+        .map_err(|error| engine_failure("giving the script its run's context", error))?;
+
     let functions: [(&str, usize, CallFn); 6] = [
         ("skill", 3, skill),
         ("tool", 2, tool),
@@ -501,6 +513,7 @@ fn script_context(
         initializer.property(js_string!(name), object, Attribute::default());
     }
     initializer.property(js_string!("max_calls"), max_calls, Attribute::default());
+    initializer.property(js_string!("context"), run_context, Attribute::default());
     let ctx = initializer.build();
     ctx.set_integrity_level(IntegrityLevel::Frozen, context)
         .map_err(|error| engine_failure("freezing the script's ctx", error))?;

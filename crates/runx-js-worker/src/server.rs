@@ -433,6 +433,7 @@ fn script_pass(
         max_calls,
         settled,
         now,
+        context,
     } = request;
     match script::start(script::ScriptPass {
         entry_module: &entry_module,
@@ -444,6 +445,7 @@ fn script_pass(
         max_calls,
         settled: &settled,
         now,
+        context: &context,
         allocated,
     }) {
         Ok((live, passed)) => (

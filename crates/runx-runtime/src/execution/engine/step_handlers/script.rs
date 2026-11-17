@@ -274,10 +274,18 @@ where
     }
     let mut settled = settlements(ledger, ledger.recorded()?)?;
     settled.extend(clock_reads(ledger.clock()?));
-    let (mut live, mut passed) =
-        runtime
-            .javascript
-            .start_script(prepared, (&given, references), settled, now()?)?;
+    let (mut live, mut passed) = runtime.javascript.start_script(
+        prepared,
+        (&given, references),
+        settled,
+        (
+            now()?,
+            run_context(
+                &runtime.options.current_context,
+                &runtime.options.historical_context,
+            )?,
+        ),
+    )?;
     // Every call the script has made, in position order, and how many of
     // them are calls rather than reads of the clock.
     let mut made = Vec::new();
@@ -423,6 +431,21 @@ where
         return Err(waiting_on(step_id, position, requests));
     }
     Ok(ended)
+}
+
+/// The run's context as its host gave it, which a script reads as
+/// `ctx.context` (the loop contract's E2): what it is given now, and what it
+/// was given before. A script runs here, so `local_only` entries are its too.
+fn run_context(
+    current: &[runx_contracts::ContextEntry],
+    historical: &[runx_contracts::ContextEntry],
+) -> Result<serde_json::Value, RuntimeError> {
+    Ok(serde_json::json!({
+        "current": serde_json::to_value(current)
+            .map_err(|source| RuntimeError::json("giving a script its run's context", source))?,
+        "historical": serde_json::to_value(historical)
+            .map_err(|source| RuntimeError::json("giving a script its run's context", source))?,
+    }))
 }
 
 /// A call that waits, at its position, with the requests it waits on.

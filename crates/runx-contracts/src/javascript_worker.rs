@@ -157,6 +157,12 @@ pub struct ScriptPassRequest {
     /// What a `ctx.now()` the record doesn't hold yet reads: milliseconds
     /// since the epoch.
     pub now: i64,
+    /// The run's context as its host gave it, `{current, historical}`, each a
+    /// list of context entries, which the script reads as `ctx.context`. It's
+    /// fixed for the run and given again on every pass, so a replay reads the
+    /// same.
+    #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
+    pub context: serde_json::Value,
 }
 
 /// Further settlements for the live script a pass left waiting on this
