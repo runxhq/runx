@@ -341,8 +341,13 @@ export function reviewContextUse({ evidence_context, content_draft }) {
     ? context.context_requirements
     : [];
   const blockers = strings(context.blockers);
-  if (candidate.decision !== "ready")
+  if (candidate.decision !== "ready") {
     blockers.push(...strings(candidate.review_checklist));
+    if (blockers.length === 0)
+      blockers.push(
+        `The writer returned ${text(candidate.decision) || "no decision"}: the evidence supports no draft.`,
+      );
+  }
   for (const requirement of requirements) {
     const matching = bindings.filter(
       (binding) =>
@@ -358,9 +363,21 @@ export function reviewContextUse({ evidence_context, content_draft }) {
         `${text(requirement?.type)} context applicability is ${text(review.decision) || "unresolved"}: ${text(review.reason)}`,
       );
   }
+  // A withheld draft reaches verification whole: a writer that withheld
+  // wrote no draft, so it's an empty one, and nothing it binds.
+  const draft = object(candidate.draft);
   return {
     reviewed_draft: blockers.length
-      ? { ...candidate, decision: "needs_more_evidence" }
+      ? {
+          ...candidate,
+          decision: "needs_more_evidence",
+          draft: {
+            title: text(draft.title),
+            body: text(draft.body),
+            claims: Array.isArray(draft.claims) ? draft.claims : [],
+          },
+          context_binding: { ...object(candidate.context_binding), applied: bindings },
+        }
       : candidate,
     review_context: { ...context, blockers: [...new Set(blockers)] },
   };

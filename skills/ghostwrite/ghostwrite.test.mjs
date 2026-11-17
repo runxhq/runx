@@ -114,6 +114,12 @@ test("an out-of-scope or uncertain writer judgment withholds and preserves the a
     assert.equal(result.reviewed_draft.decision, "needs_more_evidence");
     assert.match(result.review_context.blockers[0], /engineering Reddit/);
   }
+  // A writer that withheld wrote no draft: verification is given an empty
+  // one, whole, and the writer's decision as why.
+  const withheld = reviewContextUse({ evidence_context: ctx, content_draft: { decision: "needs_more_evidence" } });
+  assert.deepEqual(withheld.reviewed_draft.draft, { title: "", body: "", claims: [] });
+  assert.deepEqual(withheld.reviewed_draft.context_binding, { applied: [] });
+  assert.match(withheld.review_context.blockers[0], /writer returned needs_more_evidence/);
 });
 
 test("every admitted context needs one explicit review, even when labels happen to match", () => {
