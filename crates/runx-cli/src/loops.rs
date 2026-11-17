@@ -393,6 +393,10 @@ fn ending(ending: &Ending) -> String {
             "failed after {changed} change(s): {}",
             why.as_deref().unwrap_or("no reason given")
         ),
+        Ending::Unavailable { why, .. } => format!(
+            "couldn't run, its model unavailable: {}",
+            why.as_deref().unwrap_or("no reason given")
+        ),
     }
 }
 

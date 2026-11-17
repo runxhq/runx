@@ -185,6 +185,14 @@ pub enum Ending {
         why: Option<String>,
         changed: u32,
     },
+    /// Its model couldn't be reached or answered nothing usable, having
+    /// changed nothing: the loop couldn't run, which is no failure of its
+    /// skill, and it's tried again later on the batch it held.
+    Unavailable {
+        outcome: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        why: Option<String>,
+    },
 }
 
 impl Ending {
@@ -202,7 +210,8 @@ impl Ending {
             | Self::Closed { outcome }
             | Self::Refused { outcome, .. }
             | Self::Failed { outcome, .. }
-            | Self::FailedAfterChange { outcome, .. } => outcome,
+            | Self::FailedAfterChange { outcome, .. }
+            | Self::Unavailable { outcome, .. } => outcome,
         }
     }
 }

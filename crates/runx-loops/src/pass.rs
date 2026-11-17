@@ -517,8 +517,15 @@ impl Loops {
                     through: ending.moves().then_some(live.through),
                     changed: proposals.changed,
                     spent_micro_usd: spent,
-                    retry_at: matches!(ending, Ending::Failed { .. })
-                        .then(|| stamp(now + file.policy.retry_after(state.failures + 1))),
+                    retry_at: match ending {
+                        Ending::Failed { .. } => {
+                            Some(stamp(now + file.policy.retry_after(state.failures + 1)))
+                        }
+                        Ending::Unavailable { .. } => {
+                            Some(stamp(now + file.policy.retry_after(state.outages + 1)))
+                        }
+                        _ => None,
+                    },
                     at: stamp(now),
                 }];
                 let pause = match &ending {
@@ -546,7 +553,10 @@ impl Loops {
                         }),
                     _ => None,
                 };
-                if let Some(why) = pause {
+                // A loop the person stopped stays stopped: a pause is for
+                // one that runs, and the stop outranks it.
+                if let Some(why) = pause.filter(|_| !matches!(state.status, Status::Stopped { .. }))
+                {
                     record.push(RecordEvent::Paused {
                         why,
                         at: stamp(now),
@@ -683,6 +693,14 @@ impl Loops {
                         outcome: label,
                         reason: why.clone().unwrap_or_else(|| reason.replace('_', " ")),
                     },
+                    // Its model was unavailable and it changed nothing: the
+                    // loop couldn't run, no failure of its skill's.
+                    (RunOutcome::Failed, Some("drive_provider_failed")) if changes.done == 0 => {
+                        Ending::Unavailable {
+                            outcome: label,
+                            why,
+                        }
+                    }
                     (RunOutcome::Failed | RunOutcome::Killed | RunOutcome::TimedOut, _) => {
                         if changes.done > 0 {
                             Ending::FailedAfterChange {

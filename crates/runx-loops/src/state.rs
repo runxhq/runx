@@ -133,6 +133,9 @@ pub struct LoopState {
     /// run starts.
     pub couldnt: Option<String>,
     pub couldnts: u32,
+    /// Wakes in a row whose model was unavailable, which space the next try;
+    /// a wake that answers or is closed clears them.
+    pub outages: u32,
     /// The end of the batch a wake that didn't move the loop held, which a
     /// person's skip moves past.
     pub held_through: Option<u64>,
@@ -182,6 +185,7 @@ impl LoopState {
                 self.active = Some(revision.clone());
                 self.pending = None;
                 self.failures = 0;
+                self.outages = 0;
                 self.retry_at = None;
                 self.couldnt = None;
                 self.couldnts = 0;
@@ -195,6 +199,7 @@ impl LoopState {
             RecordEvent::Resumed { .. } => {
                 self.status = Status::Running;
                 self.failures = 0;
+                self.outages = 0;
                 self.retry_at = None;
                 self.couldnt = None;
                 self.couldnts = 0;
@@ -262,13 +267,25 @@ impl LoopState {
                             self.position = self.position.max(*through);
                         }
                         self.failures = 0;
+                        self.outages = 0;
                         self.retry_at = None;
                         self.held_through = None;
                     } else {
                         self.held_through = Some(live.through);
-                        if matches!(ending, Ending::Failed { .. }) {
-                            self.failures += 1;
-                            self.retry_at = retry_at.as_deref().and_then(instant);
+                        match ending {
+                            Ending::Failed { .. } => {
+                                self.failures += 1;
+                                self.retry_at = retry_at.as_deref().and_then(instant);
+                            }
+                            Ending::Unavailable { why, .. } => {
+                                self.outages += 1;
+                                self.couldnt =
+                                    Some(why.clone().unwrap_or_else(|| {
+                                        "its model couldn't be reached".to_owned()
+                                    }));
+                                self.retry_at = retry_at.as_deref().and_then(instant);
+                            }
+                            _ => {}
                         }
                     }
                 }
