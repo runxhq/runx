@@ -279,6 +279,7 @@ fn a_call_that_did_not_succeed_rejects_with_its_reason_code_and_message() -> Res
             operation: "github/issues.update".to_owned(),
             inputs: json!({"repository": "a/b"}),
             idempotency_key: Some("k".to_owned()),
+            connector: None,
         }
     );
     Ok(())
@@ -482,6 +483,28 @@ fn a_script_reads_its_runs_context() -> Result<(), String> {
         passed.ending,
         ScriptEnding::Returned {
             output: json!({"woke": "clock", "replaced": false})
+        }
+    );
+    Ok(())
+}
+
+/// A requirement chosen per run is named by the call, beside its key.
+#[test]
+fn an_operation_call_names_the_connector_its_requirement_chose() -> Result<(), String> {
+    let passed = run(
+        r#"export default async function (ctx) {
+            await ctx.operation("mail/inbox.read", { after: "0" }, { connector: "mailsim" });
+            return {};
+        }"#,
+        &[],
+    )?;
+    assert_eq!(
+        passed.calls[0].target,
+        ScriptCallTarget::Operation {
+            operation: "mail/inbox.read".to_owned(),
+            inputs: json!({"after": "0"}),
+            idempotency_key: None,
+            connector: Some("mailsim".to_owned()),
         }
     );
     Ok(())

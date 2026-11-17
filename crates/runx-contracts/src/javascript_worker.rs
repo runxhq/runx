@@ -284,12 +284,16 @@ pub enum ScriptCallTarget {
         name: String,
         inputs: serde_json::Value,
     },
-    /// `ctx.operation("<connector>/<operation>", inputs, { idempotency_key })`.
+    /// `ctx.operation("<connector>/<operation>", inputs, { idempotency_key, connector })`.
     Operation {
         operation: String,
         inputs: serde_json::Value,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         idempotency_key: Option<String>,
+        /// The connector a requirement chosen per run names, which the
+        /// kernel checks against the requirement's `from`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        connector: Option<String>,
     },
     /// `ctx.now()`, and what it read.
     Now { millis: i64 },

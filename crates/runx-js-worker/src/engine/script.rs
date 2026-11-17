@@ -622,8 +622,8 @@ fn operation(
     )?;
     let inputs = inputs(arguments.get_or_undefined(1), "ctx.operation", context)?;
     let options = arguments.get_or_undefined(2);
-    let idempotency_key = match options.as_object() {
-        None if options.is_undefined() => None,
+    let (idempotency_key, connector) = match options.as_object() {
+        None if options.is_undefined() => (None, None),
         None => {
             return Err(JsNativeError::typ()
                 .with_message("ctx.operation's options are an object")
@@ -632,20 +632,28 @@ fn operation(
         Some(options) => {
             // A read is the world read again, so it never takes `reuse`.
             for key in options.own_property_keys(context)? {
-                if key.to_string() != "idempotency_key" {
+                let key = key.to_string();
+                if key != "idempotency_key" && key != "connector" {
                     return Err(JsNativeError::typ()
                         .with_message(format!(
-                            "ctx.operation's options take an idempotency_key, not {key}"
+                            "ctx.operation's options take an idempotency_key and a connector, not {key}"
                         ))
                         .into());
                 }
             }
-            let key = options.get(js_string!("idempotency_key"), context)?;
-            if key.is_undefined() {
-                None
-            } else {
-                Some(text(&key, "ctx.operation", "an idempotency_key string")?)
-            }
+            let option = |name, what, context: &mut Context| -> JsResult<Option<String>> {
+                let value = options.get(js_string!(name), context)?;
+                if value.is_undefined() {
+                    Ok(None)
+                } else {
+                    Ok(Some(text(&value, "ctx.operation", what)?))
+                }
+            };
+            (
+                option("idempotency_key", "an idempotency_key string", context)?,
+                // A requirement chosen per run names the connector it chose.
+                option("connector", "a connector's name", context)?,
+            )
         }
     };
     call(
@@ -654,6 +662,7 @@ fn operation(
             operation,
             inputs,
             idempotency_key,
+            connector,
         },
         context,
     )
