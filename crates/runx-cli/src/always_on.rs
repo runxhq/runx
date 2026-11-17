@@ -109,12 +109,24 @@ pub(crate) fn serve_workspace(workspace: &WorkspaceEnv) -> Result<(), String> {
         .cwd()
         .canonicalize()
         .map_err(|error| format!("reading {}: {error}", workspace.cwd().display()))?;
+    // Registration is one change at a time: two starts at once never lose
+    // one. The home's workspace ids key a repository, every worktree one,
+    // while a loop lives where it was started, so the host keeps its own.
+    let lock = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(dir.join("workspaces.lock"))
+        .map_err(|error| format!("opening the workspaces' lock: {error}"))?;
+    lock.lock_exclusive()
+        .map_err(|error| format!("taking the workspaces' lock: {error}"))?;
     let mut served = workspaces(&dir);
     if !served.contains(&path) {
         served.push(path);
         let bytes = serde_json::to_vec_pretty(&served).map_err(|error| error.to_string())?;
         write_atomic(&dir.join("workspaces.json"), &bytes)?;
     }
+    drop(lock);
     ring(workspace);
     Ok(())
 }
@@ -275,7 +287,17 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
     });
     let binary = Binary::now();
     loop {
-        let next = pass_all(&dir);
+        // Each pass runs beside the bell, so `off` is heard while a wake
+        // drives: no loop is claimed after it, and a wake still running past
+        // the grace is left for recovery.
+        let pass = {
+            let dir = dir.clone();
+            let bell = Arc::clone(&bell);
+            std::thread::spawn(move || pass_all(&dir, &bell))
+        };
+        let Some(next) = finished(pass, &bell)? else {
+            break;
+        };
         // A new runx binary takes over between passes, so no wake runs on a
         // half-upgraded runx; waiting runs are records it drives on.
         if binary.changed() {
@@ -357,12 +379,60 @@ impl Binary {
     }
 }
 
+/// How long `off` lets the wake a pass is in reach a suspension or its end.
+const OFF_GRACE: StdDuration = StdDuration::from_secs(30);
+
+type Ringer = Arc<(Mutex<Bell>, Condvar)>;
+
+/// Whether `off` was asked for.
+fn off(bell: &Ringer) -> bool {
+    bell.0.lock().map_or(true, |state| state.off)
+}
+
+/// The pass's earliest next time once it finishes, or none when `off` came
+/// first: the pass then gets its grace, and a wake still running after it is
+/// left for recovery from its record.
+fn finished(
+    pass: std::thread::JoinHandle<Option<DateTime<Utc>>>,
+    bell: &Ringer,
+) -> Result<Option<Option<DateTime<Utc>>>, String> {
+    let (state, signal) = &**bell;
+    loop {
+        if pass.is_finished() {
+            return pass
+                .join()
+                .map(Some)
+                .map_err(|_| "a pass panicked".to_owned());
+        }
+        let held = state.lock().map_err(|_| "its bell broke".to_owned())?;
+        if held.off {
+            drop(held);
+            let deadline = std::time::Instant::now() + OFF_GRACE;
+            while !pass.is_finished() && std::time::Instant::now() < deadline {
+                std::thread::sleep(StdDuration::from_millis(100));
+            }
+            if !pass.is_finished() {
+                log("off: a wake still running is left for recovery");
+            }
+            return Ok(None);
+        }
+        let _ = signal
+            .wait_timeout_while(held, StdDuration::from_millis(250), |bell| !bell.off)
+            .map_err(|_| "its bell broke".to_owned())?;
+    }
+}
+
 /// One pass over every loop of every workspace served, and the earliest time
-/// anything is next due.
-fn pass_all(dir: &Path) -> Option<DateTime<Utc>> {
+/// anything is next due. `off` stops it claiming another loop.
+fn pass_all(dir: &Path, bell: &Ringer) -> Option<DateTime<Utc>> {
     let mut next: Option<DateTime<Utc>> = None;
     for path in workspaces(dir) {
-        let workspace = match WorkspaceEnv::load_process(path.clone()) {
+        if off(bell) {
+            return next;
+        }
+        // Each workspace where it is: never the location this process was
+        // started with.
+        let workspace = match WorkspaceEnv::load_located(path.clone()) {
             Ok(workspace) => workspace,
             Err(error) => {
                 log(&format!("{}: {error}", path.display()));
@@ -384,6 +454,9 @@ fn pass_all(dir: &Path) -> Option<DateTime<Utc>> {
             }
         };
         for name in names {
+            if off(bell) {
+                return next;
+            }
             match loops.pass(&name, Utc::now()) {
                 Ok(passed) => {
                     if let Some(run) = &passed.woke {

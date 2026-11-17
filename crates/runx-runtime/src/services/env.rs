@@ -45,6 +45,21 @@ impl WorkspaceEnv {
         Self::load(std::env::vars().collect(), cwd)
     }
 
+    /// The workspace at `cwd`, from the process's environment less what names
+    /// one workspace's location, so a host serving several loads each where
+    /// it is and never where the host itself was started.
+    pub fn load_located(cwd: PathBuf) -> Result<Self, WorkspaceEnvError> {
+        let mut ambient: BTreeMap<String, String> = std::env::vars().collect();
+        for located in [
+            crate::paths::RUNX_CWD_ENV,
+            crate::paths::RUNX_PROJECT_DIR_ENV,
+            crate::paths::RUNX_RECEIPT_DIR_ENV,
+        ] {
+            ambient.remove(located);
+        }
+        Self::load(ambient, cwd)
+    }
+
     pub(crate) fn load(
         ambient_env: BTreeMap<String, String>,
         cwd: PathBuf,
