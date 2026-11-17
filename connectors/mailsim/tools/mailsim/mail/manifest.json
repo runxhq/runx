@@ -24,6 +24,7 @@
     "after": {"type": "string", "optional": true},
     "limit": {"type": "integer", "optional": true},
     "address": {"type": "string", "optional": true},
+    "basis": {"type": "object", "optional": true},
     "reason": {"type": "string", "optional": true}
   }
 }

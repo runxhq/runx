@@ -122,6 +122,31 @@ operations:
     implementation:
       process:
         tool: mailsim.mail
+  eligibility.read:
+    description: Whether this sender may write to one address now, by the provider's policy, from the basis the caller shows for contacting it, and the evidence the verdict rests on.
+    verb: read
+    scopes: [mail.read]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://runx.ai'}
+    target:
+      template: {"$argument": "/address"}
+    input_schema:
+      type: object
+      required: [address, basis]
+      additionalProperties: false
+      properties:
+        address: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        basis:
+          type: object
+          required: [kind]
+          additionalProperties: false
+          properties:
+            kind: {enum: [met, customer, opted_in, referred, published]}
+            evidence: {type: string, maxLength: 2000}
+    result_fields: [address, status, policy_id, evidence_ids, reason]
+    implementation:
+      process:
+        tool: mailsim.mail
   suppression.add:
     description: Suppress one address for this sender, so nothing is sent to it again.
     verb: write

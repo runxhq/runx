@@ -4,10 +4,11 @@
 //   inbound.jsonl       what arrived, written by the world simulator
 //   suppressions.jsonl  addresses nothing is sent to again
 // It answers as a provider does: a send under a key it holds replays the
-// original; a suppressed recipient is refused before anything is sent; a
-// write is read back by its key.
+// original, and one under that key with another message is refused; a
+// suppressed recipient is refused before anything is sent; a write is read
+// back by its key; who may be written to is the provider's verdict.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -39,6 +40,38 @@ function sentByKey(key) {
   return lines("sent.jsonl").find((message) => message.idempotency_key === key) ?? null;
 }
 
+/** How long a send waits for another to finish, and when a held lock is a crashed one's. */
+const LOCK_TRIES = 200;
+const STALE_LOCK_MS = 30_000;
+
+/**
+ * Run `work` holding the world's send lock, so a key is claimed once however
+ * many sends arrive at once: the check and the append are one step.
+ */
+function locked(work) {
+  const lock = file(".send.lock");
+  for (let tries = 0; tries < LOCK_TRIES; tries += 1) {
+    try {
+      mkdirSync(lock);
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      if (Date.now() - statSync(lock).mtimeMs > STALE_LOCK_MS) rmdirSync(lock);
+      else Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+      continue;
+    }
+    try {
+      return work();
+    } finally {
+      rmdirSync(lock);
+    }
+  }
+  throw new Error("another send held the world's lock too long");
+}
+
+/** Whether `held` is the message `input` asks to send. */
+const same = (held, input) =>
+  held.to === lower(input.to) && held.subject === input.subject && held.body === input.body;
+
 function send(input) {
   const key = input.idempotency_key;
   if (input.phase === "readback") {
@@ -46,8 +79,13 @@ function send(input) {
     if (!message) throw new Error(`no message is held under key ${key}`);
     return publicMessage(message);
   }
+  return locked(() => sendOnce(input, key));
+}
+
+function sendOnce(input, key) {
   const held = sentByKey(key);
-  if (held) return publicMessage(held);
+  // One message per key: the same one again is the original; another is refused.
+  if (held) return same(held, input) ? publicMessage(held) : { refused: "key_reused" };
   if (suppression(input.to).suppressed) return { refused: "suppressed" };
   const id = `msg_${createHash("sha256").update(key).digest("hex").slice(0, 16)}`;
   const parent = input.in_reply_to
@@ -102,6 +140,34 @@ function inbox(input) {
   return { events, cursor: String(after + events.length), more: after + events.length < all.length };
 }
 
+/**
+ * Whether the sender may write to `address` now, by this provider's policy:
+ * never to a suppressed address; to one the sender met, serves, was given
+ * permission by or was referred to; to a published one only with the page it
+ * was published on; to anything else, not yet.
+ */
+function eligibility(input) {
+  const address = lower(input.address);
+  const policy = "mailsim-basis-v1";
+  const kind = input.basis?.kind;
+  const evidence = String(input.basis?.evidence ?? "").trim();
+  const verdict = (status, reason) => ({
+    address,
+    status,
+    policy_id: policy,
+    evidence_ids: [`basis:${kind ?? "none"}`, ...(evidence ? [`evidence:${createHash("sha256").update(evidence).digest("hex").slice(0, 16)}`] : [])],
+    reason,
+  });
+  if (suppression(address).suppressed) return verdict("ineligible", "The address is suppressed.");
+  if (["met", "customer", "opted_in", "referred"].includes(kind)) return verdict("eligible", `The sender's basis: ${kind}.`);
+  if (kind === "published") {
+    return /^https?:\/\/\S+$/.test(evidence.split(/\s/)[0] ?? "")
+      ? verdict("eligible", "Published, with the page it was published on.")
+      : verdict("unknown", "Published, but no page shows where.");
+  }
+  return verdict("unknown", "No basis this policy accepts.");
+}
+
 function suppress(input) {
   if (input.phase === "readback") {
     const held = suppression(input.address);
@@ -120,6 +186,7 @@ const operations = {
   "thread.read": thread,
   "inbox.read": inbox,
   "suppression.read": (input) => suppression(input.address),
+  "eligibility.read": eligibility,
   "suppression.add": suppress,
 };
 
