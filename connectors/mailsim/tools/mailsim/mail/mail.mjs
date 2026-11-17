@@ -7,8 +7,13 @@
 // original, and one under that key with another message is refused; a
 // suppressed recipient is refused before anything is sent; a write is read
 // back by its key; who may be written to is the provider's verdict.
+//
+// A key's sends come one at a time: runx's custody of an act attempts it once
+// at a time, in any run, refusing a second attempt before it's sent, so
+// checking a key and appending under it need no lock of their own. Sends
+// under other keys each append one whole line.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, rmdirSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -40,37 +45,19 @@ function sentByKey(key) {
   return lines("sent.jsonl").find((message) => message.idempotency_key === key) ?? null;
 }
 
-/** How long a send waits for another to finish, and when a held lock is a crashed one's. */
-const LOCK_TRIES = 200;
-const STALE_LOCK_MS = 30_000;
+/** The message `input` asks to send, as it's held. */
+const asked = (input) => ({
+  to: lower(input.to),
+  from_email: lower(input.from_email),
+  from_name: input.from_name,
+  reply_to: input.reply_to ? lower(input.reply_to) : null,
+  subject: input.subject,
+  body: input.body,
+  in_reply_to: input.in_reply_to ?? null,
+});
 
-/**
- * Run `work` holding the world's send lock, so a key is claimed once however
- * many sends arrive at once: the check and the append are one step.
- */
-function locked(work) {
-  const lock = file(".send.lock");
-  for (let tries = 0; tries < LOCK_TRIES; tries += 1) {
-    try {
-      mkdirSync(lock);
-    } catch (error) {
-      if (error.code !== "EEXIST") throw error;
-      if (Date.now() - statSync(lock).mtimeMs > STALE_LOCK_MS) rmdirSync(lock);
-      else Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
-      continue;
-    }
-    try {
-      return work();
-    } finally {
-      rmdirSync(lock);
-    }
-  }
-  throw new Error("another send held the world's lock too long");
-}
-
-/** Whether `held` is the message `input` asks to send. */
-const same = (held, input) =>
-  held.to === lower(input.to) && held.subject === input.subject && held.body === input.body;
+/** Whether `held` is the message `input` asks to send, every field of it. */
+const same = (held, input) => Object.entries(asked(input)).every(([field, value]) => held[field] === value);
 
 function send(input) {
   const key = input.idempotency_key;
@@ -79,10 +66,6 @@ function send(input) {
     if (!message) throw new Error(`no message is held under key ${key}`);
     return publicMessage(message);
   }
-  return locked(() => sendOnce(input, key));
-}
-
-function sendOnce(input, key) {
   const held = sentByKey(key);
   // One message per key: the same one again is the original; another is refused.
   if (held) return same(held, input) ? publicMessage(held) : { refused: "key_reused" };
@@ -96,13 +79,7 @@ function sendOnce(input, key) {
     idempotency_key: key,
     thread_id: parent?.thread_id ?? `thr_${id.slice(4)}`,
     rfc_message_id: `<${id}@mailsim.local>`,
-    to: lower(input.to),
-    from_email: lower(input.from_email),
-    from_name: input.from_name,
-    reply_to: input.reply_to ? lower(input.reply_to) : null,
-    subject: input.subject,
-    body: input.body,
-    in_reply_to: input.in_reply_to ?? null,
+    ...asked(input),
     sent_at: new Date().toISOString(),
   };
   append("sent.jsonl", message);
