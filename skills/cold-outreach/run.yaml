@@ -347,7 +347,7 @@ methods:
       inputs:
         evidence_context: $steps.admit-evidence.evidence_context
         content_draft: $steps.draft.content_draft
-        quoted: [$steps.admit.contact_brief.required_footer]
+        quoted: [$steps.admit.contact_brief.required_footer, $steps.admit.contact_brief.offer]
     - id: digest-draft
       when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
       tool: data.digest

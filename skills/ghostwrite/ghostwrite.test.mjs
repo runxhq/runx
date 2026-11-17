@@ -278,11 +278,15 @@ test("a draft states only numbers something admitted holds", () => {
     evidence_log: [{ claim: 'Priya wrote: "a 15-minute call next Tuesday"' }, { claim: "Shipwright has reviewed 40 pipelines since 2024." }],
   };
   const draft = (body) => ({ title: "Re: review", body });
-  assert.deepEqual(inventedNumbers(context, draft("A 15-minute call works; we've reviewed 40 since 2024.")), []);
-  assert.deepEqual(inventedNumbers(context, draft("Tuesday at 2 PM works, for 15 minutes.")), ["2"]);
+  assert.deepEqual(inventedNumbers(context, draft("A 15-minute call works; we've reviewed forty pipelines since 2024.")), []);
+  assert.deepEqual(inventedNumbers(context, draft("Tuesday at 2 PM works, for 15 minutes.")), ["2 pm"]);
   // Text the draft carries unchanged, as a footer, is the caller's, not invented.
   assert.deepEqual(inventedNumbers(context, draft("Thanks.\n12 Salamanca Place"), ["12 Salamanca Place"]), []);
-  // A figure is its currency's, and a number written in words counts.
-  assert.deepEqual(inventedNumbers(context, draft("Reviews start at $40.")), ["$40"]);
-  assert.deepEqual(inventedNumbers(context, draft("It takes two weeks.")), ["two"]);
+  // A number is held counting what it counts: a currency, a unit, a scale.
+  assert.deepEqual(inventedNumbers(context, draft("Reviews start at $40, or 40 dollars.")), ["$40", "40 dollars"]);
+  assert.deepEqual(inventedNumbers(context, draft("It takes two weeks.")), ["two weeks"]);
+  const scaled = { evidence_log: [{ claim: "Two engineers ship a million deploys over an hour of one engineer's time." }] };
+  assert.deepEqual(inventedNumbers(scaled, draft("Two million deploys.")), ["two million deploys"]);
+  // "One" is a number where it measures, which "an hour" holds.
+  assert.deepEqual(inventedNumbers(scaled, draft("One engineer, one hour, in one day.")), ["one day"]);
 });

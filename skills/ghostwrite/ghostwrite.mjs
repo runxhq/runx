@@ -331,36 +331,119 @@ function isDigest(value) {
 
 // Source readiness and digests are mechanical; applicability of prose-scoped
 // writing guidance is the writer’s bounded judgment, recorded for each context.
-/** The numbers written in words a quantity is stated with; "one" is mostly a pronoun. */
-const NUMBER_WORDS =
-  "two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen";
+/** Numbers written in words, by what each is worth. */
+const ONES = Object.fromEntries(
+  "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen"
+    .split(" ")
+    .map((word, value) => [word, value]),
+);
+const TENS = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+const SCALES = { thousand: 1e3, million: 1e6, billion: 1e9 };
 
-/**
- * The numbers a text states: each figure with the currency or percent it's
- * stated in, so "$40" is never "40 pipelines", and each written in words.
- */
-function numbersIn(value) {
-  const figures = text(value).match(/[$€£¥]?\d+(?:[.,]\d+)*%?/gu) ?? [];
-  const words = text(value).toLowerCase().match(new RegExp(`\\b(?:${NUMBER_WORDS})\\b`, "gu")) ?? [];
-  return [...figures, ...words];
+/** What a number measures when "one" or "a" states it: "one" is otherwise mostly a pronoun. */
+const MEASURES = new Set(["second", "minute", "hour", "day", "week", "fortnight", "month", "quarter", "year", "percent", "dollar", "euro", "pound", "cent"]);
+
+/** Words that name nothing a number counts. */
+const FUNCTION_WORDS = new Set(
+  ("a an the of in on at to for from by with about as and or but nor so than then since per into onto over under after before " +
+    "between through during within without across around is are was were be been being has have had do does did will would " +
+    "can could should may might must shall it its this that these those we our ours you your they their them he she his her " +
+    "i my me us who whom which what when where why how more less most least other another each every any some all no not " +
+    "only just also very too up out off if because while till until ago now").split(" "),
+);
+
+function isNumberWord(word) {
+  return word in ONES || word in TENS || word in SCALES || word === "hundred" || word === "dozen";
+}
+
+function isContent(word) {
+  return /^[\p{L}']+$/u.test(word ?? "") && !FUNCTION_WORDS.has(word) && !isNumberWord(word);
+}
+
+/** A word as what it counts, whatever its number: "pipelines" and "pipeline's" are "pipeline". */
+function singular(word) {
+  return word.replace(/'s?$/u, "").replace(/ies$/u, "y").replace(/(?<!s)s$/u, "");
+}
+
+/** The number a run of number words from `from` states, as "two hundred and fifty", and where it ends. */
+function spelled(tokens, from) {
+  let total = 0;
+  let current = 0;
+  let end = from;
+  for (let at = from; at < tokens.length; at += 1) {
+    const word = tokens[at];
+    if (word === "and" && at > from && isNumberWord(tokens[at + 1])) continue;
+    if (word in ONES) current += ONES[word];
+    else if (word in TENS) current += TENS[word];
+    else if (word === "hundred" || word === "dozen") current = (current || 1) * (word === "hundred" ? 100 : 12);
+    else if (word in SCALES) {
+      total += (current || 1) * SCALES[word];
+      current = 0;
+    } else break;
+    end = at + 1;
+  }
+  return { value: total + current, end };
 }
 
 /**
- * The numbers a draft states that nothing admitted holds: not the evidence's
- * claims, the brief, nor the text the caller gives it to carry unchanged. A
- * time, a price, a date or a metric a writer made up is one of them.
+ * The quantities a text states, each a number and what it counts: a
+ * figure's currency or percent, else the word after it. `window`, the words
+ * after it, is what a quantity of the same number stated in other words may
+ * count. `admitting` reads a text for every quantity it holds, "an hour"
+ * among them; a draft's "one" counts only where it measures.
+ */
+function quantitiesIn(value, admitting) {
+  const tokens = text(value).toLowerCase().match(/[$€£¥]?\d+(?:[.,:]\d+)*%?|[\p{L}']+/gu) ?? [];
+  const found = [];
+  for (let at = 0; at < tokens.length; at += 1) {
+    const figure = /^([$€£¥]?)(\d+(?:[.,:]\d+)*)(%?)$/u.exec(tokens[at]);
+    let number;
+    let end;
+    if (figure) {
+      const plain = /^(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$/u.test(figure[2]);
+      number = plain ? Number(figure[2].replaceAll(",", "")) : figure[2];
+      end = at + 1;
+      // A figure with its scale in words, as "2 million".
+      while (typeof number === "number" && tokens[end] in SCALES) number *= SCALES[tokens[end++]];
+    } else if (isNumberWord(tokens[at])) {
+      ({ value: number, end } = spelled(tokens, at));
+    } else if (admitting && (tokens[at] === "a" || tokens[at] === "an") && MEASURES.has(singular(tokens[at + 1] ?? ""))) {
+      number = 1;
+      end = at + 1;
+    } else continue;
+    const symbol = figure ? figure[1] || figure[3] || null : null;
+    const after = tokens.slice(end, end + 4);
+    const unit = symbol ?? (isContent(after[0]) ? singular(after[0]) : null);
+    const said = tokens.slice(at, end).join(" ") + (!symbol && unit ? ` ${after[0]}` : "");
+    const one = !figure && end === at + 1 && tokens[at] === "one";
+    if (admitting || !one || MEASURES.has(unit)) {
+      found.push({ value: number, unit, window: [symbol, ...after.filter(isContent).map(singular)].filter(Boolean), said });
+    }
+    at = end - 1;
+  }
+  return found;
+}
+
+/**
+ * The quantities a draft states that nothing admitted holds: not the
+ * evidence's claims, the brief, nor the text the caller gives it to carry
+ * unchanged. A quantity is held when something admitted states its number
+ * counting what it counts, so "40 pipelines" never holds "40 dollars" nor
+ * "two" and "a million" "two million". A time, a price, a date or a metric
+ * a writer made up is one of them.
  */
 export function inventedNumbers(context, draft, quoted = []) {
-  const admitted = new Set(
-    [
-      context.objective,
-      context.audience,
-      object(context.research_brief).summary,
-      ...(Array.isArray(context.evidence_log) ? context.evidence_log.map((entry) => entry?.claim) : []),
-      ...strings(quoted),
-    ].flatMap(numbersIn),
-  );
-  return [...new Set([draft.title, draft.body].flatMap(numbersIn))].filter((number) => !admitted.has(number));
+  const admitted = [
+    context.objective,
+    context.audience,
+    object(context.research_brief).summary,
+    ...(Array.isArray(context.evidence_log) ? context.evidence_log.map((entry) => entry?.claim) : []),
+    ...strings(quoted),
+  ].flatMap((value) => quantitiesIn(value, true));
+  const held = (stated) =>
+    admitted.some((known) => known.value === stated.value && (stated.unit === null || known.window.includes(stated.unit)));
+  const stated = [draft.title, draft.body].flatMap((value) => quantitiesIn(value, false));
+  return [...new Set(stated.filter((quantity) => !held(quantity)).map((quantity) => quantity.said))];
 }
 
 export function reviewContextUse({ evidence_context, content_draft, quoted }) {

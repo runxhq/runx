@@ -50,7 +50,7 @@ methods:
         optional: true
       quoted:
         type: array
-        description: Text the draft carries unchanged that isn't evidence, such as a required footer, so the numbers it holds count as admitted.
+        description: The sender's own text the draft may state that isn't evidence, such as a required footer or the offer it makes, so the numbers it holds count as admitted.
         maxItems: 10
         items: {type: string, maxLength: 3000}
         optional: true
@@ -276,7 +276,7 @@ methods:
         optional: true
       quoted:
         type: array
-        description: Text the draft carries unchanged that isn't evidence, such as a required footer, so the numbers it holds count as admitted.
+        description: The sender's own text the draft may state that isn't evidence, such as a required footer or the offer it makes, so the numbers it holds count as admitted.
         maxItems: 10
         items: {type: string, maxLength: 3000}
         optional: true
