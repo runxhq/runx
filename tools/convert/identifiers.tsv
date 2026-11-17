@@ -385,6 +385,12 @@ cloud	turn	0	decided	turn	one thing: an agent's turn, the name agent_act takes
 cloud	turn-invocation		decided	turn-invocation	a renamed name lands here: the turn invocation	
 cloud	TurnEnvelope	0	decided	TurnViewEnvelope	the plan's name (§4.2), in Cloud's copy of the turn schema	
 cloud	TurnInvocation	0	decided	TurnView	the plan's name (§4.2), in Cloud's copy of the turn schema	
+cloud	managed-agent	5	managed_agent	drive	runx's own trust_boundary text, which now says drive	packages/api/src/protocol-hosted-control-alignment.test.ts packages/api/src/protocol-openapi-control-alignment.test.ts
+cloud	managed_agent_empty_turn_budget_exhausted	1	managed_agent	drive_empty_turn_budget_exhausted	runx's own failure code, which is now drive_empty_turn_budget_exhausted	spec/spec.md
+cloud	managed_agent_provider_failed	1	managed_agent	drive_provider_failed	runx's own failure code, which is now drive_provider_failed	spec/spec.md
+cloud	managed_agent_resolution_failed	1	managed_agent	drive_resolution_failed	runx's own failure code, which is now drive_resolution_failed	spec/spec.md
+cloud	managed_agent_round_budget_exhausted	1	managed_agent	drive_round_budget_exhausted	runx's own failure code, which is now drive_round_budget_exhausted	spec/spec.md
+cloud	managed_agent_tool_execution_failed	1	managed_agent	drive_tool_execution_failed	runx's own failure code, which is now drive_tool_execution_failed	spec/spec.md
 fieldwork	held	141	hold	?	a bare word: code or prose, read in place	src/agent/context.ts src/agent/session.ts
 fieldwork	holds	100	hold	?	a bare word: code or prose, read in place	scripts/check-structure.mjs scripts/check-structure.test.mjs
 fieldwork	runner	88	runner	?	a bare word: code or prose, read in place	scripts/env.mjs src/agent/prompts.ts
@@ -507,6 +513,8 @@ frantic	runx-skill-harness	1	harness	runx-skill-test	the test sense	packages/ver
 frantic	verifier-runner	1	runner	verifier-runner	Frantic's verifier job runner: stays	apps/api/src/scheduled.ts
 frantic	why123-harness-fail	1	harness	why123-test-fail	the test sense	packages/db/src/launch-board.ts
 frantic	wrong_claim_and_rail_held	1	hold	wrong_claim_and_rail_held	English, or a skill's own word: stays	scripts/test-support/payout-native-proof.ts
+frantic	managed-agent	2	managed_agent	managed-agent	the CI workflow pinned to runx 0.11.1, whose flags are --managed-agent and --managed-agent-rounds: stays until Stage 6 moves its pins	.github/workflows/auto-review.yml
+frantic	managed-agent-rounds	1	managed_agent	managed-agent-rounds	the CI workflow pinned to runx 0.11.1, whose flags are --managed-agent and --managed-agent-rounds: stays until Stage 6 moves its pins	.github/workflows/auto-review.yml
 nitrosend	runner	30	runner	?	a bare word: code or prose, read in place	dogfood/inbound-email/bin/run.mjs dogfood/inbound-email/tests/audit-runner.test.ts
 nitrosend	harness-nitrosend-token	17	harness	test-nitrosend-token	the test sense	skills/nitrosend/nitrosend/graph/provider-operation/tests/inbox-read.yaml skills/nitrosend/nitrosend/tests/apply-draft-refuses-intent.yaml
 nitrosend	harness	9	harness	?	a bare word: code or prose, read in place	scripts/editor-battery/support.rb skills/nitrosend/issue-intake/X.yaml
