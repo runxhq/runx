@@ -464,8 +464,7 @@ impl Loops {
                 "loop {name}'s live wake names a revision its record doesn't hold"
             )));
         };
-        let bound = self.bind(&file.calls).map_err(LoopError::Runtime)?;
-        let mut judged = self.judge(&live.run, &bound, &file.inputs)?;
+        let mut judged = self.judge(&live.run)?;
         if let Judged::Open(waiting) = &judged {
             let drive_on = match waiting {
                 Waiting::Until(at) => *at <= now,
@@ -473,8 +472,9 @@ impl Loops {
                 _ => false,
             };
             if drive_on {
-                self.drive_on(&live.run, &bound, &file.inputs, waiting)?;
-                judged = self.judge(&live.run, &bound, &file.inputs)?;
+                let bound = self.bind(&file.calls).map_err(LoopError::Runtime)?;
+                self.drive_on(&live.run, &bound, waiting)?;
+                judged = self.judge(&live.run)?;
             }
         }
         match judged {
@@ -556,16 +556,11 @@ impl Loops {
             else {
                 continue;
             };
-            let bound = self.bind(&Calls {
-                skill: file.calls.skill.clone(),
-                method: person.method.clone(),
-            });
-            let Ok(bound) = bound else { continue };
             if let Judged::Ended {
                 ending,
                 result,
                 spent,
-            } = self.judge(&person.run, &bound, &file.inputs)?
+            } = self.judge(&person.run)?
             {
                 let proposals = crate::proposals::checked(self, &person.run, &file, &result, now)?;
                 let mut record = vec![RecordEvent::Settled {
@@ -588,12 +583,7 @@ impl Loops {
 
     /// How run `run` stands: open and on what it waits, or how it ended, by
     /// its state, what it changed and who ended it (§7).
-    fn judge(
-        &self,
-        run: &str,
-        bound: &Bound,
-        inputs: &Map<String, Value>,
-    ) -> Result<Judged, LoopError> {
+    fn judge(&self, run: &str) -> Result<Judged, LoopError> {
         let read = runx_runtime::run_record::read_run(&self.env, &self.cwd, run, None)
             .map_err(|error| LoopError::Runtime(error.to_string()))?;
         match read.run.state {
@@ -648,13 +638,9 @@ impl Loops {
                     return Ok(Judged::Open(Waiting::Reconciling));
                 }
                 let outcome = read.run.outcome.unwrap_or(RunOutcome::Failed);
-                let sealed = self.restore(run, bound, inputs)?;
-                let output = serde_json::to_value(&sealed.output)
-                    .map_err(|error| LoopError::json("a run's output", &error))?;
-                let reason = output
-                    .get("seal_reason")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned);
+                // Read from the record and the receipt alone, so a run whose
+                // skill changed since still settles.
+                let reason = self.seal_reason(read.run.receipt_id.as_ref().map(|id| id.as_str()))?;
                 let why = read.run.why.as_ref().map(|why| why.as_str().to_owned());
                 let label = outcome.label().to_owned();
                 let ending = match (outcome, reason.as_deref()) {
@@ -689,7 +675,7 @@ impl Loops {
                     }
                     _ => Ending::Answered { outcome: label },
                 };
-                let result = output.get("result").cloned().unwrap_or(Value::Null);
+                let result = self.loop_output(run)?;
                 let spent = runx_runtime::committed_spend(&self.env, &self.cwd, run)
                     .map_err(LoopError::Runtime)?;
                 Ok(Judged::Ended {
@@ -704,13 +690,7 @@ impl Loops {
     /// Drive a waiting run on: at its time, resumed with nothing new; after
     /// its process died, started again by its id, which continues it from
     /// its record.
-    fn drive_on(
-        &self,
-        run: &str,
-        bound: &Bound,
-        inputs: &Map<String, Value>,
-        waiting: &Waiting,
-    ) -> Result<(), LoopError> {
+    fn drive_on(&self, run: &str, bound: &Bound, waiting: &Waiting) -> Result<(), LoopError> {
         let result = match waiting {
             Waiting::Until(_) => self.orchestrator.resume(&ResumeRequest {
                 run_id: run.to_owned(),
@@ -723,7 +703,7 @@ impl Loops {
                 closure_digest: None,
             }),
             _ => self.orchestrator.run_skill_with_binding(
-                &self.request(bound, run, inputs, Vec::new(), None)?,
+                &self.continuation(bound, run)?,
                 Some(&bound.method),
                 None,
                 None,
@@ -734,21 +714,48 @@ impl Loops {
             .map_err(|error| LoopError::Runtime(error.to_string()))
     }
 
-    /// A sealed run's result, from its record.
-    fn restore(
-        &self,
-        run: &str,
-        bound: &Bound,
-        inputs: &Map<String, Value>,
-    ) -> Result<RunResult, LoopError> {
-        self.orchestrator
-            .run_skill_with_binding(
-                &self.request(bound, run, inputs, Vec::new(), None)?,
-                Some(&bound.method),
-                None,
-                None,
-            )
-            .map_err(|error| LoopError::Runtime(error.to_string()))
+    /// Why a sealed run's receipt says it sealed, when it says.
+    fn seal_reason(&self, receipt: Option<&str>) -> Result<Option<String>, LoopError> {
+        let Some(receipt) = receipt else {
+            return Ok(None);
+        };
+        let paths = runx_runtime::RunxPaths::resolve(&self.env, &self.cwd);
+        let store = runx_runtime::LocalReceiptStore::of_project(paths.receipts(), &paths);
+        let receipt = store
+            .read_exact_without_proof(receipt)
+            .map_err(|error| LoopError::Runtime(error.to_string()))?;
+        Ok(receipt.seal.reason.map(|reason| reason.label().to_owned()))
+    }
+
+    /// The run's declared `loop` output: the last one a step of the run
+    /// itself recorded, as `{"loop": …}`, or nothing when none did.
+    fn loop_output(&self, run: &str) -> Result<Value, LoopError> {
+        let mut cursor: Option<String> = None;
+        let mut found = Value::Null;
+        loop {
+            let page = runx_runtime::run_record::read_run(&self.env, &self.cwd, run, cursor.as_deref())
+                .map_err(|error| LoopError::Runtime(error.to_string()))?;
+            for record in &page.events {
+                if record.stream.as_str() != run {
+                    continue;
+                }
+                if let runx_contracts::RunEventFact::Step {
+                    succeeded: true,
+                    output,
+                    ..
+                } = &record.event
+                    && let Some(output) = output.get("loop")
+                {
+                    found = serde_json::to_value(output)
+                        .map_err(|error| LoopError::json("a run's loop output", &error))?;
+                }
+            }
+            if !page.more {
+                break;
+            }
+            cursor = Some(page.cursor.as_str().to_owned());
+        }
+        Ok(if found.is_null() { Value::Null } else { json!({ "loop": found }) })
     }
 
     /// Whether unattended wakes have a zero-price model: a local one, which
@@ -825,7 +832,13 @@ impl Loops {
         Ok(Some(authority))
     }
 
-    /// The request that starts run `run` of a loop's skill, or continues it.
+    /// The request that continues run `run`, which takes its inputs and its
+    /// context from its record.
+    fn continuation(&self, bound: &Bound, run: &str) -> Result<SkillRunRequest, LoopError> {
+        self.request(bound, run, &Map::new(), Vec::new(), None)
+    }
+
+    /// The request that starts run `run` of a loop's skill.
     fn request(
         &self,
         bound: &Bound,
@@ -1066,7 +1079,9 @@ impl Loops {
         by: &str,
         now: DateTime<Utc>,
     ) -> Result<RunResult, LoopError> {
-        let state = self.read(name)?;
+        // One that ended since is settled first, so it isn't taken as open.
+        let mut state = self.read(name)?;
+        self.settle_people(name, &mut state, now, &mut Passed::default())?;
         let file = match state.active_file() {
             Some(file) => file?,
             None => {
@@ -1094,7 +1109,7 @@ impl Loops {
             return self
                 .orchestrator
                 .run_skill_with_binding(
-                    &self.request(&bound, &live.run, &inputs, Vec::new(), None)?,
+                    &self.continuation(&bound, &live.run)?,
                     Some(method),
                     None,
                     None,
