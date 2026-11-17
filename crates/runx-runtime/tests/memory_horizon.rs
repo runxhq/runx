@@ -606,7 +606,7 @@ impl Workspace {
                 inputs: serde_json::from_value(inputs)?,
                 env: self.env.clone(),
                 cwd: self.directory.path().to_path_buf(),
-                drive: DrivePolicy::inline(8)?,
+                drive: DrivePolicy::inline(Some(8))?,
             },
             Some(method),
             None,

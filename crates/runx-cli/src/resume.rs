@@ -314,7 +314,9 @@ mod tests {
         )?;
         assert_eq!(
             plan.drive,
-            runx_runtime::DrivePolicy::Inline { max_rounds: 2 }
+            runx_runtime::DrivePolicy::Inline {
+                max_rounds: Some(2)
+            }
         );
         Ok(())
     }

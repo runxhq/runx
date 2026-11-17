@@ -5,15 +5,13 @@ use runx_contracts::JsonValue;
 use serde_json::{Value as WireValue, json};
 
 use super::agent_loop::{
-    AgentToolUse, AgentTurn, CallUsage, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
-    provider_failed, provider_refused,
+    AgentToolUse, AgentTurn, CallUsage, ModelAsk, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
+    provider_failed, provider_response_failed, provider_unavailable, reply_cut,
 };
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
 use crate::credentials::SecretString;
 use crate::http::{HttpMethod, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport};
-
-const MAX_OUTPUT_TOKENS: u32 = 8192;
 
 pub struct OpenAiResponsesCaller<T> {
     transport: T,
@@ -50,24 +48,31 @@ impl<T> OpenAiResponsesCaller<T> {
             .collect()
     }
 
-    fn parse_reply(tools: &AgentToolNameMap, body: &str) -> Result<ModelReply, RuntimeError> {
+    fn parse_reply(
+        tools: &AgentToolNameMap,
+        body: &str,
+        ask: &ModelAsk,
+    ) -> Result<ModelReply, RuntimeError> {
         let response: WireValue = serde_json::from_str(body)
             .map_err(|_| provider_failed("openai response is not JSON"))?;
-        if response.get("status").and_then(WireValue::as_str) == Some("incomplete") {
-            let reason = response
-                .pointer("/incomplete_details/reason")
-                .and_then(WireValue::as_str)
-                .unwrap_or("unknown");
-            return Err(provider_failed(format!(
-                "openai response was incomplete: {reason}"
-            )));
-        }
         let usage = response.get("usage").and_then(|usage| {
             Some(CallUsage {
                 input_tokens: usage.get("input_tokens")?.as_u64()?,
                 output_tokens: usage.get("output_tokens")?.as_u64()?,
             })
         });
+        if response.get("status").and_then(WireValue::as_str) == Some("incomplete") {
+            let reason = response
+                .pointer("/incomplete_details/reason")
+                .and_then(WireValue::as_str)
+                .unwrap_or("unknown");
+            if reason == "max_output_tokens" {
+                return Err(reply_cut(ask, usage));
+            }
+            return Err(provider_failed(format!(
+                "openai response was incomplete: {reason}"
+            )));
+        }
         let output = response
             .get("output")
             .and_then(WireValue::as_array)
@@ -143,13 +148,14 @@ impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
         &self,
         tools: &AgentToolNameMap,
         transcript: &[AgentTurn],
+        ask: &ModelAsk,
     ) -> Result<ModelReply, RuntimeError> {
         let body = json!({
             "model": self.model,
             "input": input_json(transcript),
             "tools": Self::tools_json(tools),
             "tool_choice": "auto",
-            "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "max_output_tokens": ask.output_tokens,
             // The loop replays its own transcript; OpenAI keeps nothing.
             "store": false,
         });
@@ -169,20 +175,22 @@ impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
                 ],
                 body: Some(body),
             })
-            .map_err(|error| provider_failed(format!("openai request failed: {error}")))?;
+            .map_err(|error| provider_unavailable(format!("openai request failed: {error}")))?;
         if !(200..300).contains(&response.status) {
-            return Err(provider_refused(
-                response.status,
-                &response.body,
+            return Err(provider_response_failed(
+                &response,
                 Some(self.api_key.expose()),
             ));
         }
-        Self::parse_reply(tools, &response.body)
+        Self::parse_reply(tools, &response.body, ask)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    const ASK: crate::adapters::agent_loop::ModelAsk = crate::adapters::agent_loop::ModelAsk {
+        output_tokens: 8192,
+    };
     use super::*;
     use crate::adapters::agent_loop::AgentToolResult;
     use crate::adapters::agent_tool_definitions::AgentToolDefinition;
@@ -259,7 +267,7 @@ mod tests {
             }]),
         ];
         let reply = caller(&stub)
-            .reply(&tools()?, &transcript)
+            .reply(&tools()?, &transcript, &ASK)
             .map_err(|error| error.to_string())?;
         let uses = &reply.tool_uses;
         assert!(
@@ -282,7 +290,7 @@ mod tests {
         )
         .map_err(|error| error.to_string())?;
         assert_eq!(body["model"], "gpt");
-        assert_eq!(body["max_output_tokens"], MAX_OUTPUT_TOKENS);
+        assert_eq!(body["max_output_tokens"], ASK.output_tokens);
         assert_eq!(body["store"], false);
         assert_eq!(body["tools"][0]["name"], "acme_post");
         assert_eq!(body["input"][0]["role"], "system");
@@ -303,7 +311,7 @@ mod tests {
             r#"{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"ready"}]}]}"#,
         );
         let reply = caller(&stub)
-            .reply(&tools()?, &[AgentTurn::User("go".to_owned())])
+            .reply(&tools()?, &[AgentTurn::User("go".to_owned())], &ASK)
             .map_err(|error| error.to_string())?;
         assert!(reply.tool_uses.is_empty());
         assert_eq!(reply.usage, None, "a reply that reports no usage has none");
@@ -311,15 +319,35 @@ mod tests {
     }
 
     #[test]
-    fn an_incomplete_response_fails_with_its_reason() -> Result<(), String> {
+    fn a_response_stopped_at_its_cap_is_cut() -> Result<(), String> {
         let stub = stub(
             200,
             r#"{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"output":[]}"#,
         );
-        let result = caller(&stub).reply(&tools()?, &[AgentTurn::User("go".to_owned())]);
+        let result = caller(&stub).reply(&tools()?, &[AgentTurn::User("go".to_owned())], &ASK);
+        assert!(
+            matches!(
+                &result,
+                Err(RuntimeError::ModelReplyCut {
+                    output_cap: 8192,
+                    ..
+                })
+            ),
+            "got: {result:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn an_incomplete_response_fails_with_its_reason() -> Result<(), String> {
+        let stub = stub(
+            200,
+            r#"{"status":"incomplete","incomplete_details":{"reason":"content_filter"},"output":[]}"#,
+        );
+        let result = caller(&stub).reply(&tools()?, &[AgentTurn::User("go".to_owned())], &ASK);
         assert!(
             matches!(&result, Err(RuntimeError::ModelProvider { detail })
-                if detail == "openai response was incomplete: max_output_tokens"),
+                if detail == "openai response was incomplete: content_filter"),
             "got: {result:?}"
         );
         Ok(())
@@ -331,7 +359,7 @@ mod tests {
             401,
             r#"{"error":{"message":"Incorrect API key provided: sk-test-key.","type":"invalid_request_error","code":"invalid_api_key"}}"#,
         );
-        let result = caller(&stub).reply(&tools()?, &[AgentTurn::User("go".to_owned())]);
+        let result = caller(&stub).reply(&tools()?, &[AgentTurn::User("go".to_owned())], &ASK);
         assert!(
             matches!(&result, Err(RuntimeError::ModelProvider { detail })
                 if detail == "status 401 invalid_api_key: Incorrect API key provided: [redacted]."),

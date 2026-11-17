@@ -87,7 +87,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &[
             "--receipt-dir dir",
             "--drive  Explicitly allow an in-process model loop for this continuation",
-            "--drive-rounds n  Bound each driven turn to 1-32 rounds (default 4)",
+            "--drive-rounds n  Bound each driven turn to n rounds (default agent.rounds, else 4)",
             "--package-digest sha256   Reassert the checkpointed package binding",
             "--closure-digest sha256",
             "                          Reassert the checkpointed closure",
@@ -130,7 +130,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx config unset endpoint-url|dialect|secret [-j|--json]",
         ],
         notes: &[
-            "Short keys: provider, dialect, model, secret, endpoint-url and auth-mode. Fully qualified config keys are also accepted. Config holds settings, never a secret.",
+            "Short keys: provider, dialect, model, secret, endpoint-url and auth-mode. Fully qualified config keys are also accepted, among them how a driven turn holds up: agent.retries, agent.output_tokens, agent.max_output_tokens, agent.request_timeout_seconds and agent.rounds. Config holds settings, never a secret.",
             "`secret` names the secret holding the model key, kept with `runx secret set <name>`. RUNX_AGENT_API_KEY or the provider's own variable (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) also supplies it; two places holding different keys are refused.",
             "A runx account credential is stored by runx login, never set here; RUNX_PUBLIC_API_TOKEN supplies one for a single process.",
             "anthropic, openai and gemini are built-in providers. Any other provider also sets dialect (chat_completions, anthropic_messages or openai_responses) and endpoint-url.",
@@ -306,7 +306,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "--context json           The caller's context for the run: {current_context, historical_context} entries; it informs the run, never grants authority",
             "--run-id id              The run's submission identity: submitting it again continues that run, and a sealed run returns what it sealed",
             "--drive          Explicitly allow an in-process model loop for this run",
-            "--drive-rounds n Bound each driven turn to 1-32 rounds (default 4)",
+            "--drive-rounds n Bound each driven turn to n rounds (default agent.rounds, else 4)",
             "--receipt-dir dir    Write receipts under dir",
             "-j, --json               Print machine-readable output",
             "--diagnostics            Show everything: the complete prepared context before the run, and its trace and intermediate context inline",

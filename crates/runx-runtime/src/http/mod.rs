@@ -26,7 +26,8 @@ pub use self::types::{
 
 const DEFAULT_HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const DRIVE_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
+/// A drive request's time limit until the operator sets `agent.request_timeout_seconds`.
+pub(crate) const DRIVE_REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 /// Provider operations may contain one adapter-owned synchronous budget of up
 /// to 120 seconds. Keep the control-plane envelope above that budget so the
 /// caller never abandons a still-running, idempotently recoverable effect.
@@ -198,6 +199,14 @@ impl ReqwestHttpTransport {
     /// guard and short connect timeout.
     pub fn for_drive() -> Result<Self, RuntimeHttpError> {
         Self::from_profile(TransportProfile::PublicPatient)
+    }
+
+    /// The same transport with each request given `request_timeout`, as the
+    /// operator set it for drive calls (contracts/driver.md).
+    #[must_use]
+    pub fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
+        self.request_timeout = request_timeout;
+        self
     }
 
     /// Construct a local model transport whose request URL is checked again at
@@ -453,6 +462,15 @@ impl RuntimeHttpTransport for ReqwestHttpTransport {
     }
 }
 
+impl ExactLoopbackHttpTransport {
+    /// The same transport with each request given `request_timeout`.
+    #[must_use]
+    pub fn with_request_timeout(mut self, request_timeout: Duration) -> Self {
+        self.inner = self.inner.with_request_timeout(request_timeout);
+        self
+    }
+}
+
 impl RuntimeHttpTransport for ExactLoopbackHttpTransport {
     fn send(&self, request: RuntimeHttpRequest) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
         if request.method != HttpMethod::Post
@@ -545,7 +563,7 @@ async fn send_reqwest(
         let status = response.status().as_u16();
         // Only a caller that knows the request may repeat says so: the
         // transport never infers it, not even from a GET.
-        if repeatable && repeatable_status(status) && attempt < MAX_REPEATABLE_ATTEMPTS {
+        if repeatable && answerable_later(status) && attempt < MAX_REPEATABLE_ATTEMPTS {
             let delay = repeat_delay(&response, attempt);
             drop(response);
             tokio::time::sleep(delay).await;
@@ -580,8 +598,11 @@ fn safe_response_headers(response: &reqwest::Response) -> Vec<RuntimeHttpHeader>
         .collect()
 }
 
-fn repeatable_status(status: u16) -> bool {
-    matches!(status, 429 | 502 | 503 | 504)
+/// A status a server may answer differently later: a request timeout, too
+/// many requests, a server error, or Anthropic's overload. The one list a
+/// safe read's repeat and the driver's next ask both follow.
+pub(crate) fn answerable_later(status: u16) -> bool {
+    matches!(status, 408 | 429 | 500 | 502 | 503 | 504 | 529)
 }
 
 fn repeat_delay(response: &reqwest::Response, completed_attempts: usize) -> Duration {
@@ -597,7 +618,7 @@ fn repeat_delay(response: &reqwest::Response, completed_attempts: usize) -> Dura
         .min(MAX_SAFE_READ_RETRY_DELAY)
 }
 
-fn parse_retry_after(value: &str) -> Option<Duration> {
+pub(crate) fn parse_retry_after(value: &str) -> Option<Duration> {
     if let Ok(seconds) = value.trim().parse::<u64>() {
         return Some(Duration::from_secs(seconds));
     }

@@ -5,15 +5,13 @@ use runx_contracts::JsonValue;
 use serde_json::{Value as WireValue, json};
 
 use super::agent_loop::{
-    AgentToolUse, AgentTurn, CallUsage, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
-    provider_failed, provider_refused,
+    AgentToolUse, AgentTurn, CallUsage, ModelAsk, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
+    provider_failed, provider_response_failed, provider_unavailable, reply_cut,
 };
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
 use crate::credentials::SecretString;
 use crate::http::{HttpMethod, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport};
-
-const MAX_TOKENS: u32 = 8192;
 
 pub struct ChatCompletionsCaller<T> {
     transport: T,
@@ -88,7 +86,11 @@ impl<T> ChatCompletionsCaller<T> {
         })).collect()
     }
 
-    fn parse_reply(tools: &AgentToolNameMap, body: &str) -> Result<ModelReply, RuntimeError> {
+    fn parse_reply(
+        tools: &AgentToolNameMap,
+        body: &str,
+        ask: &ModelAsk,
+    ) -> Result<ModelReply, RuntimeError> {
         let response: WireValue = serde_json::from_str(body)
             .map_err(|error| RuntimeError::json("parsing openai-compatible response", error))?;
         let usage = response.get("usage").and_then(|usage| {
@@ -104,7 +106,7 @@ impl<T> ChatCompletionsCaller<T> {
             .ok_or_else(|| provider_failed("openai-compatible response must contain one choice"))?;
         let choice = &choices[0];
         if choice.get("finish_reason").and_then(WireValue::as_str) == Some("length") {
-            return Err(provider_failed("openai-compatible response was truncated"));
+            return Err(reply_cut(ask, usage));
         }
         let message = choice
             .get("message")
@@ -167,6 +169,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
         &self,
         tools: &AgentToolNameMap,
         transcript: &[AgentTurn],
+        ask: &ModelAsk,
     ) -> Result<ModelReply, RuntimeError> {
         let body = json!({
             "model":self.model,
@@ -174,7 +177,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
             "tools":Self::tools_json(tools),
             "tool_choice":"auto",
             // The current name; OpenAI's newer models refuse `max_tokens`.
-            "max_completion_tokens":MAX_TOKENS,
+            "max_completion_tokens":ask.output_tokens,
         });
         let body = serde_json::to_string(&body)
             .map_err(|error| RuntimeError::json("serializing openai-compatible request", error))?;
@@ -194,17 +197,16 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
                 body: Some(body),
             })
             .map_err(|error| {
-                provider_failed(format!(
+                provider_unavailable(format!(
                     "openai-compatible model endpoint is unavailable: {error}"
                 ))
             })?;
         if !(200..300).contains(&response.status) {
-            return Err(provider_refused(
-                response.status,
-                &response.body,
+            return Err(provider_response_failed(
+                &response,
                 self.api_key.as_ref().map(SecretString::expose),
             ));
         }
-        Self::parse_reply(tools, &response.body)
+        Self::parse_reply(tools, &response.body, ask)
     }
 }

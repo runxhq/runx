@@ -20,9 +20,6 @@ use super::test::{PackageTestReport, TestProcesses};
 use super::test::{TestReplayError, TestReplayOutput};
 use crate::effects::RuntimeEffectRegistry;
 
-pub const DEFAULT_DRIVE_MAX_ROUNDS: u32 = 4;
-pub const DRIVE_MAX_ROUNDS_LIMIT: u32 = 32;
-
 /// Per-run consent for in-process model execution.
 ///
 /// Model credentials configure availability; they never grant consent. The
@@ -33,25 +30,34 @@ pub enum DrivePolicy {
     #[default]
     HostDriven,
     Inline {
-        max_rounds: u32,
+        /// The rounds a driven turn has; absent, the operator's
+        /// `agent.rounds` (contracts/driver.md). No limit but the operator's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_rounds: Option<u32>,
     },
 }
 
 impl DrivePolicy {
-    pub fn inline(max_rounds: u32) -> Result<Self, String> {
-        if !(1..=DRIVE_MAX_ROUNDS_LIMIT).contains(&max_rounds) {
-            return Err(format!(
-                "drive rounds must be between 1 and {DRIVE_MAX_ROUNDS_LIMIT}"
-            ));
+    pub fn inline(max_rounds: Option<u32>) -> Result<Self, String> {
+        if max_rounds == Some(0) {
+            return Err("drive rounds must be at least 1".to_owned());
         }
         Ok(Self::Inline { max_rounds })
     }
 
+    /// The rounds a driven turn has: the run's own, else the operator's
+    /// setting in `env` and the home's config. None when the host drives.
     #[must_use]
-    pub const fn max_rounds(&self) -> Option<u32> {
+    pub fn rounds(
+        &self,
+        env: &std::collections::BTreeMap<String, String>,
+        cwd: &std::path::Path,
+    ) -> Option<u32> {
         match self {
             Self::HostDriven => None,
-            Self::Inline { max_rounds } => Some(*max_rounds),
+            Self::Inline { max_rounds } => {
+                Some(max_rounds.unwrap_or_else(|| crate::agent_config::configured_rounds(env, cwd)))
+            }
         }
     }
 

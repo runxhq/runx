@@ -468,7 +468,9 @@ mod tests {
         )?;
         assert_eq!(
             plan.drive,
-            runx_runtime::DrivePolicy::Inline { max_rounds: 3 }
+            runx_runtime::DrivePolicy::Inline {
+                max_rounds: Some(3)
+            }
         );
 
         let Err(error) = super::parse_skill_plan(

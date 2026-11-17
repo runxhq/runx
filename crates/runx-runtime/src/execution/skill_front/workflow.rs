@@ -50,13 +50,17 @@ impl BoundRun {
         let mut host = RunHost::new(answers);
         #[cfg(feature = "agent")]
         {
-            host.managed = self.request.drive.max_rounds().map(|max_rounds| {
-                std::sync::Arc::new(crate::adapters::drive::Drive::new(
-                    self.workspace.skill_env_for_skill(&self.skill_dir),
-                    self.skill_dir.clone(),
-                    max_rounds,
-                ))
-            });
+            host.managed = self
+                .request
+                .drive
+                .rounds(&self.request.env, &self.request.cwd)
+                .map(|max_rounds| {
+                    std::sync::Arc::new(crate::adapters::drive::Drive::new(
+                        self.workspace.skill_env_for_skill(&self.skill_dir),
+                        self.skill_dir.clone(),
+                        max_rounds,
+                    ))
+                });
         }
         self.advance(&mut host)
             .map_err(|source| match &self.request.run_id {
@@ -221,7 +225,7 @@ impl BoundRun {
                 context: &request_context,
                 run_authority: request.run_authority.as_ref(),
                 act: request.act.as_ref(),
-                driver: if request.drive.max_rounds().is_some() {
+                driver: if request.drive.is_inline() {
                     RunDriver::Managed
                 } else {
                     RunDriver::Attached

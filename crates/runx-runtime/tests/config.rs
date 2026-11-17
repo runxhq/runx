@@ -4,7 +4,7 @@ use std::path::Path;
 
 use runx_contracts::connector::{SecretName, SecretReference};
 use runx_runtime::{
-    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, ModelDialect, RunxAgentConfig,
+    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, DriveLimits, ModelDialect, RunxAgentConfig,
     RunxConfigFile, RunxPaths, RunxSecretRecord, SecretString, load_drive_config,
     load_runx_config_file, lookup_runx_config_value, mask_runx_config_file, secrets,
     update_runx_config_value, write_runx_config_file,
@@ -213,6 +213,7 @@ fn config_loads_the_drive_key_from_its_one_source() -> Result<(), Box<dyn std::e
             api_key: Some(SecretString::new("sk-explicit")),
             endpoint_url: "https://api.openai.com/v1/responses".to_owned(),
             auth_mode: runx_runtime::DriveAuthMode::ApiKey,
+            limits: DriveLimits::default(),
         })
     );
 
@@ -238,6 +239,7 @@ fn config_loads_the_drive_key_from_its_one_source() -> Result<(), Box<dyn std::e
             api_key: Some(SecretString::new("local-secret")),
             endpoint_url: "https://api.anthropic.com/v1/messages".to_owned(),
             auth_mode: runx_runtime::DriveAuthMode::ApiKey,
+            limits: DriveLimits::default(),
         })
     );
 
@@ -487,6 +489,7 @@ fn explicit_keyless_mode_requires_exact_loopback_and_remains_repairable()
             api_key: None,
             endpoint_url: endpoint.to_owned(),
             auth_mode: DriveAuthMode::LocalNone,
+            limits: DriveLimits::default(),
         })
     );
 
@@ -703,5 +706,88 @@ fn assert_private_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(not(unix))]
 fn assert_private_file(_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
+}
+
+/// The operator's drive settings (contracts/driver.md): the environment over
+/// the home's config, each refused out of its bounds in its own words.
+#[test]
+fn the_drive_holds_up_as_its_operator_set_it() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let home = temp.path().to_str().unwrap_or_default().to_owned();
+    let stored = |config: RunxAgentConfig| RunxConfigFile {
+        agent: Some(RunxAgentConfig {
+            provider: Some("openai".to_owned()),
+            model: Some("gpt-test".to_owned()),
+            ..config
+        }),
+        ..RunxConfigFile::default()
+    };
+    let config_file =
+        RunxPaths::resolve(&env_map([("RUNX_HOME", home.as_str())]), temp.path()).config_file();
+    write_runx_config_file(
+        &config_file,
+        &stored(RunxAgentConfig {
+            retries: Some(6),
+            request_timeout_seconds: Some(900),
+            rounds: Some(12),
+            ..RunxAgentConfig::default()
+        }),
+    )?;
+    let env = env_map([
+        ("RUNX_HOME", home.as_str()),
+        ("RUNX_AGENT_API_KEY", "sk-test"),
+        ("RUNX_AGENT_ROUNDS", "40"),
+    ]);
+    let limits = load_drive_config(&env, temp.path())?
+        .map(|config| config.limits)
+        .ok_or("a drive")?;
+    assert_eq!(
+        limits,
+        DriveLimits {
+            retries: 6,
+            request_timeout: std::time::Duration::from_secs(900),
+            rounds: 40,
+            ..DriveLimits::default()
+        }
+    );
+    // A run that names no rounds takes the operator's.
+    assert_eq!(
+        runx_runtime::DrivePolicy::inline(None)?.rounds(&env, temp.path()),
+        Some(40)
+    );
+    assert_eq!(
+        runx_runtime::DrivePolicy::inline(Some(50))?.rounds(&env, temp.path()),
+        Some(50)
+    );
+    assert!(runx_runtime::DrivePolicy::inline(Some(0)).is_err());
+
+    for (key, value, words) in [
+        ("agent.retries", "21", "must be at most 20"),
+        ("agent.output_tokens", "100", "must be at least 256"),
+        (
+            "agent.max_output_tokens",
+            "4096",
+            "must be at least agent.output_tokens",
+        ),
+        (
+            "agent.request_timeout_seconds",
+            "5",
+            "must be between 10 and 3600",
+        ),
+        ("agent.rounds", "0", "must be at least 1"),
+        ("agent.rounds", "many", "expected a whole number"),
+    ] {
+        let refused = update_runx_config_value(
+            RunxConfigFile::default(),
+            runx_runtime::parse_config_key(key)?,
+            value,
+        );
+        assert!(
+            matches!(&refused, Err(ConfigError::InvalidAgentSetting { key: named, message })
+                if *named == key && *message == words),
+            "{key} {value}: {refused:?}"
+        );
+    }
     Ok(())
 }

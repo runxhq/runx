@@ -198,7 +198,7 @@ fn run(
         reflect_package(),
         method,
         serde_json::json!({"reader": "nightly", "until": "2099-01-01T00:00:00Z"}),
-        DrivePolicy::inline(4)?,
+        DrivePolicy::inline(Some(4))?,
     )?;
     if output["status"] != "sealed" || output["outcome"] != "completed" {
         return Err(format!("{what} didn't complete: {output}").into());

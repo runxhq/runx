@@ -6,8 +6,9 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::config::{
-    ConfigError, DriveAuthMode, DriveConfig, ModelDialect, load_runx_config_file, model_provider,
-    normalize_drive_provider, validate_agent_endpoint_syntax,
+    ConfigError, DriveAuthMode, DriveConfig, DriveLimits, DriveSetting, ModelDialect,
+    RunxConfigFile, load_runx_config_file, model_provider, normalize_drive_provider,
+    validate_agent_endpoint_syntax,
 };
 use crate::credentials::SecretString;
 use crate::paths::RunxPaths;
@@ -240,7 +241,74 @@ pub fn load_drive_config(
         api_key: (!api_key.is_empty()).then(|| SecretString::new(api_key)),
         endpoint_url,
         auth_mode,
+        limits: drive_limits(env, &config)?,
     }))
+}
+
+/// The rounds a driven turn has when its run names none: the operator's
+/// `agent.rounds`, or its default. A setting that doesn't read is refused when
+/// the drive loads its config, in its own words, so here it's the default.
+pub(crate) fn configured_rounds(env: &BTreeMap<String, String>, cwd: &Path) -> u32 {
+    let paths = RunxPaths::resolve(env, cwd);
+    load_runx_config_file(&paths.config_file())
+        .ok()
+        .and_then(|config| drive_limits(env, &config).ok())
+        .unwrap_or_default()
+        .rounds
+}
+
+/// How a driven turn holds up, as the operator set it (contracts/driver.md):
+/// each setting from `RUNX_AGENT_<KEY>` over the home's config, refused out of
+/// its bounds in its own words.
+pub(crate) fn drive_limits(
+    env: &BTreeMap<String, String>,
+    config: &RunxConfigFile,
+) -> Result<DriveLimits, ConfigError> {
+    let agent = config.agent.as_ref();
+    let setting = |setting: DriveSetting| -> Result<Option<u32>, ConfigError> {
+        match env.get(setting.variable()) {
+            Some(value) => setting.parse(value).map(Some),
+            None => Ok(agent.and_then(|agent| setting.get(agent))),
+        }
+    };
+    let defaults = DriveLimits::default();
+    let retries = setting(DriveSetting::Retries)?.unwrap_or(defaults.retries);
+    let output_tokens = setting(DriveSetting::OutputTokens)?.unwrap_or(defaults.output_tokens);
+    let max_output_tokens = setting(DriveSetting::MaxOutputTokens)?
+        .unwrap_or(defaults.max_output_tokens.max(output_tokens));
+    let request_timeout_seconds = setting(DriveSetting::RequestTimeoutSeconds)?;
+    let rounds = setting(DriveSetting::Rounds)?.unwrap_or(defaults.rounds);
+    let refuse = |key, message| Err(ConfigError::InvalidAgentSetting { key, message });
+    if retries > 20 {
+        return refuse("agent.retries", "must be at most 20");
+    }
+    if output_tokens < 256 {
+        return refuse("agent.output_tokens", "must be at least 256");
+    }
+    if max_output_tokens < output_tokens {
+        return refuse(
+            "agent.max_output_tokens",
+            "must be at least agent.output_tokens",
+        );
+    }
+    if request_timeout_seconds.is_some_and(|seconds| !(10..=3600).contains(&seconds)) {
+        return refuse(
+            "agent.request_timeout_seconds",
+            "must be between 10 and 3600",
+        );
+    }
+    if rounds == 0 {
+        return refuse("agent.rounds", "must be at least 1");
+    }
+    Ok(DriveLimits {
+        retries,
+        output_tokens,
+        max_output_tokens,
+        request_timeout: request_timeout_seconds.map_or(defaults.request_timeout, |seconds| {
+            std::time::Duration::from_secs(u64::from(seconds))
+        }),
+        rounds,
+    })
 }
 
 #[cfg(test)]

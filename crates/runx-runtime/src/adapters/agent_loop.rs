@@ -22,6 +22,8 @@
 // the tool-use protocol.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
+use std::time::Duration;
 
 use runx_contracts::{
     JsonValue, OutputField, OutputValidationError, SealReason, validate_output_value,
@@ -30,6 +32,7 @@ use runx_contracts::{
 use super::agent::{AgentExecutionTelemetry, AgentToolExecutionTrace};
 use super::agent_tool_definitions::AgentToolNameMap;
 use crate::RuntimeError;
+use crate::config::DriveLimits;
 
 pub(crate) const UNRECOGNIZED_MODEL_TOOL: &str = "unrecognized_tool";
 
@@ -156,16 +159,59 @@ pub struct ModelReply {
     pub usage: Option<CallUsage>,
 }
 
-/// Per-turn provider call. Given the tools offered now and the transcript so
-/// far, return the model's reply. The loop passes the catalog through and
+/// What one ask of the model may write: its output cap, in tokens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ModelAsk {
+    pub output_tokens: u32,
+}
+
+/// Per-turn provider call. Given the tools offered now, the transcript so far
+/// and what the ask may write, return the model's reply: a transient failure
+/// as [`RuntimeError::ModelUnavailable`], and a reply cut at the ask's cap as
+/// [`RuntimeError::ModelReplyCut`]. The loop passes the catalog through and
 /// never inspects it.
 pub trait ModelCaller {
     fn reply(
         &self,
         tools: &AgentToolNameMap,
         transcript: &[AgentTurn],
+        ask: &ModelAsk,
     ) -> Result<ModelReply, RuntimeError>;
 }
+
+/// How long the driver waits before asking again: a waiter the runtime gives,
+/// so a test waits no real time.
+#[derive(Clone)]
+pub struct Waiter(Arc<dyn Fn(Duration) + Send + Sync>);
+
+impl Waiter {
+    /// The thread waits the whole time.
+    #[must_use]
+    pub fn sleeping() -> Self {
+        Self(Arc::new(std::thread::sleep))
+    }
+
+    pub fn new(wait: impl Fn(Duration) + Send + Sync + 'static) -> Self {
+        Self(Arc::new(wait))
+    }
+
+    fn wait(&self, duration: Duration) {
+        (self.0)(duration);
+    }
+}
+
+impl std::fmt::Debug for Waiter {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Waiter")
+    }
+}
+
+/// The first wait before asking again when the provider sent no
+/// `Retry-After`, doubling each time.
+const FIRST_RETRY_WAIT: Duration = Duration::from_secs(2);
+
+/// The longest the driver waits before one ask, whatever the provider says.
+const MAX_RETRY_WAIT: Duration = Duration::from_secs(300);
 
 /// The most of a provider failure the loop reports.
 const MAX_PROVIDER_DETAIL: usize = 300;
@@ -219,6 +265,46 @@ pub(crate) fn provider_refused(status: u16, body: &str, key: Option<&str>) -> Ru
     provider_failed(detail)
 }
 
+/// A provider that couldn't be reached now, which the driver asks again.
+pub(crate) fn provider_unavailable(detail: impl Into<String>) -> RuntimeError {
+    RuntimeError::ModelUnavailable {
+        detail: detail.into(),
+        retry_after: None,
+    }
+}
+
+/// A non-2xx provider response: one it may answer later, with its
+/// `Retry-After`, or a refusal ([`provider_refused`]).
+pub(crate) fn provider_response_failed(
+    response: &crate::http::RuntimeHttpResponse,
+    key: Option<&str>,
+) -> RuntimeError {
+    let refused = provider_refused(response.status, &response.body, key);
+    if !crate::http::answerable_later(response.status) {
+        return refused;
+    }
+    let RuntimeError::ModelProvider { detail } = refused else {
+        return refused;
+    };
+    RuntimeError::ModelUnavailable {
+        detail,
+        retry_after: response
+            .headers
+            .iter()
+            .find(|header| header.name.eq_ignore_ascii_case("retry-after"))
+            .and_then(|header| crate::http::parse_retry_after(&header.value)),
+    }
+}
+
+/// A reply cut at `ask`'s cap, with what its provider reported it used.
+pub(crate) fn reply_cut(ask: &ModelAsk, usage: Option<CallUsage>) -> RuntimeError {
+    RuntimeError::ModelReplyCut {
+        output_cap: ask.output_tokens,
+        input_tokens: usage.map(|usage| usage.input_tokens),
+        output_tokens: usage.map(|usage| usage.output_tokens),
+    }
+}
+
 /// Executes one chosen tool through the governed runtime. Production
 /// executors make each call through the agent's turn, which admits and
 /// records it; tests supply a fake.
@@ -262,6 +348,10 @@ pub struct AgentLoopEnd {
 #[derive(Clone, Debug)]
 pub struct AgentLoopConfig {
     pub max_rounds: u32,
+    /// How the loop holds up against its model (contracts/driver.md).
+    pub limits: DriveLimits,
+    /// How it waits before asking again.
+    pub wait: Waiter,
     /// How many times to re-ask the model after an empty turn (a stray text-only
     /// reply when it should have called a tool) before failing closed. A transient
     /// sampling blip is recovered by resampling; a persistently silent model still
@@ -286,15 +376,14 @@ enum TurnStop {
 
 /// Ask the model for the next tool uses, tolerating a transient empty turn by
 /// resampling up to `max_resamples` extra times. Returns the first non-empty
-/// turn, or fails closed if every attempt is empty. A provider error from the
-/// model call is surfaced immediately and never retried. Every call counts in
-/// `model_calls`, and its usage joins `usage`, which a call that reports none
-/// leaves at none.
+/// turn, or fails closed if every attempt is empty. Each reply is asked for as
+/// [`answered`] asks. Every call counts in `model_calls`, and its usage joins
+/// `usage`, which a call that reports none leaves at none.
 fn next_tool_uses_resilient<M>(
     model: &M,
     tools: &AgentToolNameMap,
     transcript: &[AgentTurn],
-    max_resamples: u32,
+    (max_resamples, limits, wait): (u32, &DriveLimits, &Waiter),
     model_calls: &mut u32,
     usage: &mut Option<CallUsage>,
 ) -> Result<Vec<AgentToolUse>, TurnStop>
@@ -302,23 +391,94 @@ where
     M: ModelCaller + ?Sized,
 {
     for _ in 0..=max_resamples {
-        *model_calls = model_calls.saturating_add(1);
-        let reply = model.reply(tools, transcript).map_err(|error| {
-            *usage = None;
-            TurnStop::Provider(match error {
-                RuntimeError::ModelProvider { detail } => Some(detail),
-                _ => None,
-            })
-        })?;
-        *usage = usage.zip(reply.usage).map(|(sum, call)| CallUsage {
-            input_tokens: sum.input_tokens.saturating_add(call.input_tokens),
-            output_tokens: sum.output_tokens.saturating_add(call.output_tokens),
-        });
+        let reply = answered(model, tools, transcript, (limits, wait), model_calls, usage)?;
         if !reply.tool_uses.is_empty() {
             return Ok(reply.tool_uses);
         }
     }
     Err(TurnStop::EmptyTurns)
+}
+
+/// One reply from the model (contracts/driver.md). A transient failure is
+/// asked again up to `limits.retries` more times, after the provider's
+/// `Retry-After` or a wait doubling from two seconds, at most five minutes. A
+/// reply cut at its cap is asked again with twice the room, up to
+/// `limits.max_output_tokens`. Any other failure ends the turn at once.
+fn answered<M>(
+    model: &M,
+    tools: &AgentToolNameMap,
+    transcript: &[AgentTurn],
+    (limits, wait): (&DriveLimits, &Waiter),
+    model_calls: &mut u32,
+    usage: &mut Option<CallUsage>,
+) -> Result<ModelReply, TurnStop>
+where
+    M: ModelCaller + ?Sized,
+{
+    let mut ask = ModelAsk {
+        output_tokens: limits.output_tokens,
+    };
+    let mut retried = 0_u32;
+    loop {
+        *model_calls = model_calls.saturating_add(1);
+        match model.reply(tools, transcript, &ask) {
+            Ok(reply) => {
+                *usage = joined(*usage, reply.usage);
+                return Ok(reply);
+            }
+            Err(RuntimeError::ModelUnavailable {
+                detail,
+                retry_after,
+            }) => {
+                *usage = None;
+                if retried >= limits.retries {
+                    return Err(TurnStop::Provider(Some(format!(
+                        "{detail}, on each of {} attempts",
+                        retried + 1
+                    ))));
+                }
+                let backoff = FIRST_RETRY_WAIT.saturating_mul(1_u32 << retried.min(16));
+                wait.wait(retry_after.unwrap_or(backoff).min(MAX_RETRY_WAIT));
+                retried += 1;
+            }
+            Err(RuntimeError::ModelReplyCut {
+                output_cap,
+                input_tokens,
+                output_tokens,
+            }) => {
+                *usage = joined(
+                    *usage,
+                    input_tokens
+                        .zip(output_tokens)
+                        .map(|(input_tokens, output_tokens)| CallUsage {
+                            input_tokens,
+                            output_tokens,
+                        }),
+                );
+                if output_cap >= limits.max_output_tokens {
+                    return Err(TurnStop::Provider(Some(format!(
+                        "its reply was cut at {output_cap} tokens, the most agent.max_output_tokens gives it"
+                    ))));
+                }
+                ask.output_tokens = output_cap.saturating_mul(2).min(limits.max_output_tokens);
+            }
+            Err(error) => {
+                *usage = None;
+                return Err(TurnStop::Provider(match error {
+                    RuntimeError::ModelProvider { detail } => Some(detail),
+                    _ => None,
+                }));
+            }
+        }
+    }
+}
+
+/// Usage so far with one more call's, or none once a call reports none.
+fn joined(sum: Option<CallUsage>, call: Option<CallUsage>) -> Option<CallUsage> {
+    sum.zip(call).map(|(sum, call)| CallUsage {
+        input_tokens: sum.input_tokens.saturating_add(call.input_tokens),
+        output_tokens: sum.output_tokens.saturating_add(call.output_tokens),
+    })
 }
 
 /// The loop's accounting so far.
@@ -380,7 +540,11 @@ where
             model,
             executor.tools(),
             &transcript,
-            config.max_empty_turn_resamples,
+            (
+                config.max_empty_turn_resamples,
+                &config.limits,
+                &config.wait,
+            ),
             &mut model_calls,
             &mut usage,
         ) {
@@ -689,6 +853,8 @@ mod tests {
     fn exact_output_contract_error_identifies_nested_field() -> Result<(), String> {
         let config = AgentLoopConfig {
             max_rounds: 1,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 0,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -759,6 +925,7 @@ mod tests {
             &self,
             _tools: &AgentToolNameMap,
             _transcript: &[AgentTurn],
+            _ask: &ModelAsk,
         ) -> Result<ModelReply, RuntimeError> {
             Ok(unmetered(self.0.clone()))
         }
@@ -797,6 +964,8 @@ mod tests {
         };
         let config = AgentLoopConfig {
             max_rounds: 2,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 0,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -838,6 +1007,7 @@ mod tests {
             &self,
             _tools: &AgentToolNameMap,
             transcript: &[AgentTurn],
+            _ask: &ModelAsk,
         ) -> Result<ModelReply, RuntimeError> {
             let answered = transcript.iter().find_map(|turn| match turn {
                 AgentTurn::ToolResults(results) => Some(results),
@@ -877,6 +1047,8 @@ mod tests {
         };
         let config = AgentLoopConfig {
             max_rounds: 3,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 0,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -941,6 +1113,7 @@ mod tests {
             &self,
             _tools: &AgentToolNameMap,
             transcript: &[AgentTurn],
+            _ask: &ModelAsk,
         ) -> Result<ModelReply, RuntimeError> {
             // Round 1 has only the user prompt -> call a tool. Once tool results
             // are in the transcript -> finalize.
@@ -969,6 +1142,8 @@ mod tests {
     fn loop_executes_tool_then_finalizes() {
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1016,6 +1191,8 @@ mod tests {
         }
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 0,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1046,6 +1223,7 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 let call = self.calls.get();
                 self.calls.set(call + 1);
@@ -1083,6 +1261,8 @@ mod tests {
         };
         let config = AgentLoopConfig {
             max_rounds: 2,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 0,
             final_result_tool: FINAL.to_owned(),
             final_result_output: Some(BTreeMap::from([(
@@ -1136,6 +1316,7 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 let call = self.0.get();
                 self.0.set(call + 1);
@@ -1202,6 +1383,8 @@ mod tests {
         for exact in [false, true] {
             let config = AgentLoopConfig {
                 max_rounds: 2,
+                limits: DriveLimits::default(),
+                wait: Waiter::sleeping(),
                 max_empty_turn_resamples: 0,
                 final_result_tool: FINAL.to_owned(),
                 final_result_schema: exact
@@ -1243,6 +1426,7 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 Ok(unmetered(vec![AgentToolUse {
                     id: format!("x{}", _transcript.len()),
@@ -1254,6 +1438,8 @@ mod tests {
         }
         let config = AgentLoopConfig {
             max_rounds: 3,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1290,12 +1476,15 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 Ok(unmetered(Vec::new()))
             }
         }
         let config = AgentLoopConfig {
             max_rounds: 3,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1334,6 +1523,7 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 if self.empties.get() == 0 {
                     self.empties.set(1);
@@ -1361,6 +1551,8 @@ mod tests {
         }
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1400,6 +1592,7 @@ mod tests {
             &self,
             _tools: &AgentToolNameMap,
             _transcript: &[AgentTurn],
+            _ask: &ModelAsk,
         ) -> Result<ModelReply, RuntimeError> {
             self.0
                 .borrow_mut()
@@ -1443,6 +1636,8 @@ mod tests {
     fn the_loop_sums_every_calls_usage_a_resampled_prose_reply_included() -> Result<(), String> {
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1500,6 +1695,8 @@ mod tests {
     fn a_call_that_reports_no_usage_leaves_the_tokens_out() -> Result<(), String> {
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1563,6 +1760,8 @@ mod tests {
         };
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1603,6 +1802,7 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 Err(RuntimeError::failed(
                     "provider".to_owned(),
@@ -1612,6 +1812,8 @@ mod tests {
         }
         let config = AgentLoopConfig {
             max_rounds: 3,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1650,6 +1852,7 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 let body = format!(
                     r#"[{{"error":{{"code":404,"message":"This model is no longer\n available for key {KEY}.","status":"NOT_FOUND","details":["private prompt"]}}}}]"#
@@ -1659,6 +1862,8 @@ mod tests {
         }
         let config = AgentLoopConfig {
             max_rounds: 3,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1706,6 +1911,7 @@ mod tests {
                 &self,
                 _tools: &AgentToolNameMap,
                 _transcript: &[AgentTurn],
+                _ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
                 Ok(unmetered(vec![AgentToolUse {
                     id: "unknown".to_owned(),
@@ -1738,6 +1944,8 @@ mod tests {
         let result = run_agent_loop(
             &AgentLoopConfig {
                 max_rounds: 2,
+                limits: DriveLimits::default(),
+                wait: Waiter::sleeping(),
                 max_empty_turn_resamples: 0,
                 final_result_tool: FINAL.to_owned(),
                 final_result_output: None,
@@ -1788,6 +1996,8 @@ mod tests {
         // back, records it in telemetry, and the model can still finalize.
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1829,6 +2039,7 @@ mod tests {
             &self,
             _tools: &AgentToolNameMap,
             transcript: &[AgentTurn],
+            _ask: &ModelAsk,
         ) -> Result<ModelReply, RuntimeError> {
             // Call pay, then read, then pay again (a repeat), then finalize.
             let executed = transcript
@@ -1862,6 +2073,8 @@ mod tests {
         // repeated 'pay'. This catches broken dedup, lost distinct names, and order.
         let config = AgentLoopConfig {
             max_rounds: 8,
+            limits: DriveLimits::default(),
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: 3,
             final_result_tool: FINAL.to_owned(),
             final_result_output: None,
@@ -1886,5 +2099,179 @@ mod tests {
             "distinct names are retained in order and the repeated 'pay' is deduped"
         );
         Ok(())
+    }
+
+    /// A model that answers each ask in turn and records each ask's cap.
+    struct Answers {
+        answers: std::cell::RefCell<std::collections::VecDeque<Result<ModelReply, RuntimeError>>>,
+        caps: std::cell::RefCell<Vec<u32>>,
+    }
+
+    impl Answers {
+        fn new(answers: Vec<Result<ModelReply, RuntimeError>>) -> Self {
+            Self {
+                answers: std::cell::RefCell::new(answers.into()),
+                caps: std::cell::RefCell::new(Vec::new()),
+            }
+        }
+    }
+
+    impl ModelCaller for Answers {
+        fn reply(
+            &self,
+            _tools: &AgentToolNameMap,
+            _transcript: &[AgentTurn],
+            ask: &ModelAsk,
+        ) -> Result<ModelReply, RuntimeError> {
+            self.caps.borrow_mut().push(ask.output_tokens);
+            self.answers
+                .borrow_mut()
+                .pop_front()
+                .unwrap_or_else(|| Err(provider_failed("no answer left")))
+        }
+    }
+
+    fn finished() -> Result<ModelReply, RuntimeError> {
+        Ok(unmetered(vec![AgentToolUse {
+            id: "done".to_owned(),
+            name: FINAL.to_owned(),
+            input: JsonValue::Object(Default::default()),
+            replay: None,
+        }]))
+    }
+
+    fn unavailable(retry_after: Option<Duration>) -> Result<ModelReply, RuntimeError> {
+        Err(RuntimeError::ModelUnavailable {
+            detail: "status 503".to_owned(),
+            retry_after,
+        })
+    }
+
+    fn cut(output_cap: u32) -> Result<ModelReply, RuntimeError> {
+        Err(RuntimeError::ModelReplyCut {
+            output_cap,
+            input_tokens: None,
+            output_tokens: None,
+        })
+    }
+
+    /// The loop's answer from `model` under `limits`, and every wait it made,
+    /// on a waiter that waits no real time.
+    fn drive(
+        model: &Answers,
+        limits: DriveLimits,
+    ) -> (Result<AgentLoopEnd, AgentLoopFailure>, Vec<Duration>) {
+        let waits = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&waits);
+        let config = AgentLoopConfig {
+            max_rounds: 2,
+            limits,
+            wait: Waiter::new(move |duration| {
+                if let Ok(mut waits) = recorded.lock() {
+                    waits.push(duration);
+                }
+            }),
+            max_empty_turn_resamples: 0,
+            final_result_tool: FINAL.to_owned(),
+            final_result_output: None,
+            final_result_schema: None,
+        };
+        let result = run_agent_loop(
+            &config,
+            model,
+            &mut OkExecutor,
+            vec![AgentTurn::User("go".to_owned())],
+        );
+        let waited = waits.lock().map(|waits| waits.clone()).unwrap_or_default();
+        (result, waited)
+    }
+
+    #[test]
+    fn a_transient_failure_is_asked_again_after_its_retry_after() {
+        let model = Answers::new(vec![unavailable(Some(Duration::from_secs(7))), finished()]);
+        let (result, waits) = drive(&model, DriveLimits::default());
+        assert!(
+            matches!(&result, Ok(end) if end.telemetry.model_calls == Some(2)),
+            "got: {result:?}"
+        );
+        assert_eq!(waits, vec![Duration::from_secs(7)]);
+    }
+
+    #[test]
+    fn a_failure_that_lasts_ends_the_turn_when_its_retries_run_out() {
+        let model = Answers::new(vec![
+            unavailable(None),
+            unavailable(None),
+            unavailable(None),
+        ]);
+        let limits = DriveLimits {
+            retries: 2,
+            ..DriveLimits::default()
+        };
+        let (result, waits) = drive(&model, limits);
+        assert!(
+            matches!(&result, Err(error)
+                if error.reason() == AgentLoopFailureReason::ProviderFailed
+                && error.sanitized_message().contains("status 503, on each of 3 attempts")
+                && error.telemetry().model_calls == Some(3)),
+            "got: {result:?}"
+        );
+        assert_eq!(waits, vec![Duration::from_secs(2), Duration::from_secs(4)]);
+    }
+
+    #[test]
+    fn a_refusal_ends_the_turn_at_once() {
+        let model = Answers::new(vec![Err(provider_failed("status 400")), finished()]);
+        let (result, waits) = drive(&model, DriveLimits::default());
+        assert!(
+            matches!(&result, Err(error)
+                if error.reason() == AgentLoopFailureReason::ProviderFailed
+                && error.telemetry().model_calls == Some(1)),
+            "got: {result:?}"
+        );
+        assert!(waits.is_empty());
+    }
+
+    #[test]
+    fn a_cut_reply_is_asked_again_with_twice_the_room() {
+        let model = Answers::new(vec![cut(8192), finished()]);
+        let (result, _) = drive(&model, DriveLimits::default());
+        assert!(result.is_ok(), "got: {result:?}");
+        assert_eq!(*model.caps.borrow(), vec![8192, 16_384]);
+    }
+
+    #[test]
+    fn a_reply_cut_at_the_ceiling_ends_the_turn_naming_the_setting() {
+        let model = Answers::new(vec![cut(8192), cut(16_384)]);
+        let limits = DriveLimits {
+            max_output_tokens: 16_384,
+            ..DriveLimits::default()
+        };
+        let (result, _) = drive(&model, limits);
+        assert!(
+            matches!(&result, Err(error)
+                if error.sanitized_message().contains("cut at 16384 tokens, the most agent.max_output_tokens gives it")),
+            "got: {result:?}"
+        );
+        assert_eq!(*model.caps.borrow(), vec![8192, 16_384]);
+    }
+
+    #[test]
+    fn a_response_the_provider_may_answer_later_carries_its_retry_after() {
+        let response = |status| crate::http::RuntimeHttpResponse {
+            status,
+            body: String::new(),
+            headers: vec![crate::http::RuntimeHttpHeader::new("Retry-After", "7")],
+            body_digest: String::new(),
+            body_bytes: 0,
+        };
+        assert!(matches!(
+            provider_response_failed(&response(429), None),
+            RuntimeError::ModelUnavailable { retry_after: Some(wait), .. } if wait == Duration::from_secs(7)
+        ));
+        assert!(matches!(
+            provider_response_failed(&response(400), None),
+            RuntimeError::ModelProvider { .. }
+        ));
     }
 }

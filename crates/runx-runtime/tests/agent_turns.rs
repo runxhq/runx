@@ -1003,7 +1003,7 @@ fn a_run_keeps_the_driver_it_started_with() -> TestResult {
         temp.path(),
         skill_dir.clone(),
         TURN,
-        DrivePolicy::inline(2)?,
+        DrivePolicy::inline(Some(2))?,
     )?;
     let error = managed
         .open()
@@ -1014,7 +1014,7 @@ fn a_run_keeps_the_driver_it_started_with() -> TestResult {
 
     let attached = Paused::start(temp.path(), skill_dir, TURN)?;
     let error = attached
-        .resume_with(serde_json::json!({}), DrivePolicy::inline(2)?)
+        .resume_with(serde_json::json!({}), DrivePolicy::inline(Some(2))?)
         .err()
         .ok_or("runx cannot drive an attached run's turns")?;
     assert!(

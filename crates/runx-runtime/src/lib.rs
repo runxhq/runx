@@ -135,11 +135,12 @@ pub use capability::{
     CapabilityEffect, CapabilityField, CapabilityInput, CapabilityOutput, TypedCapability,
 };
 pub use config::{
-    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, MODEL_PROVIDERS, ModelDialect,
-    ModelProvider, RunxAgentConfig, RunxConfigFile, RunxPublicConfig, RunxSecretRecord,
-    clear_runx_agent_dialect, clear_runx_agent_endpoint_url, clear_runx_agent_secret,
-    load_runx_config_file, lookup_runx_config_value, mask_runx_config_file, model_provider,
-    parse_config_key, update_runx_config_value, write_runx_config_file,
+    ConfigError, ConfigKey, DriveAuthMode, DriveConfig, DriveLimits, DriveSetting, MODEL_PROVIDERS,
+    ModelDialect, ModelProvider, RunxAgentConfig, RunxConfigFile, RunxPublicConfig,
+    RunxSecretRecord, clear_runx_agent_dialect, clear_runx_agent_endpoint_url,
+    clear_runx_agent_secret, clear_runx_drive_setting, load_runx_config_file,
+    lookup_runx_config_value, mask_runx_config_file, model_provider, parse_config_key,
+    update_runx_config_value, write_runx_config_file,
 };
 pub use credentials::{CredentialDelivery, CredentialDeliveryError, SecretEnv, SecretString};
 pub use doctor::{DoctorOptions, default_doctor_options, run_doctor};
@@ -184,9 +185,8 @@ pub use list::{
 };
 pub use observations::Observations;
 pub use orchestrator::{
-    DEFAULT_DRIVE_MAX_ROUNDS, DRIVE_MAX_ROUNDS_LIMIT, DrivePolicy, LocalOrchestrator,
-    OrchestratorError, PackageTestRequest, ResumeRequest, RunResult, RunStatus, SkillRunRequest,
-    TestRunRequest, TurnRequest,
+    DrivePolicy, LocalOrchestrator, OrchestratorError, PackageTestRequest, ResumeRequest,
+    RunResult, RunStatus, SkillRunRequest, TestRunRequest, TurnRequest,
 };
 pub use paths::{
     RUNX_CWD_ENV, RUNX_HOME_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths,

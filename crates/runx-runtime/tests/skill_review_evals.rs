@@ -129,7 +129,7 @@ fn review(
                 .collect::<Result<_, serde_json::Error>>()?,
             env,
             cwd: root.to_path_buf(),
-            drive: DrivePolicy::inline(4)?,
+            drive: DrivePolicy::inline(Some(4))?,
         },
         Some(method),
         None,

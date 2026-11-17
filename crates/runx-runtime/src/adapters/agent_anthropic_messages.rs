@@ -14,8 +14,8 @@ use runx_contracts::JsonValue;
 use serde_json::{Value as WireValue, json};
 
 use super::agent_loop::{
-    AgentToolUse, AgentTurn, CallUsage, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
-    provider_failed, provider_refused,
+    AgentToolUse, AgentTurn, CallUsage, ModelAsk, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
+    provider_response_failed, provider_unavailable, reply_cut,
 };
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
@@ -23,12 +23,6 @@ use crate::credentials::SecretString;
 use crate::http::{HttpMethod, RuntimeHttpHeader, RuntimeHttpRequest, RuntimeHttpTransport};
 
 const MESSAGES_VERSION: &str = "2023-06-01";
-// Architecture and review agents can return a deeply structured packet in one
-// final tool call. A 4K ceiling can truncate that tool input before its root
-// object closes, which the loop then misreads as repeated contract failure.
-// Eight thousand tokens remains bounded while fitting the declared packets
-// shipped by the first-party catalog.
-const MAX_TOKENS: u32 = 8192;
 
 /// Calls a Messages endpoint to produce the model's next tool-use requests.
 pub struct AnthropicMessagesCaller<T> {
@@ -152,10 +146,15 @@ fn usage(value: &WireValue) -> Option<CallUsage> {
     })
 }
 
-fn parse_reply(body: &str) -> Result<ModelReply, RuntimeError> {
+fn parse_reply(body: &str, ask: &ModelAsk) -> Result<ModelReply, RuntimeError> {
     let value: WireValue = serde_json::from_str(body)
         .map_err(|source| RuntimeError::json("parsing anthropic response", source))?;
     let usage = usage(&value);
+    // A tool call cut at the cap is never whole, so the reply is asked for
+    // again with more room.
+    if value.get("stop_reason").and_then(WireValue::as_str) == Some("max_tokens") {
+        return Err(reply_cut(ask, usage));
+    }
     let Some(content) = value.get("content").and_then(WireValue::as_array) else {
         return Ok(ModelReply {
             tool_uses: Vec::new(),
@@ -193,10 +192,11 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
         &self,
         tools: &AgentToolNameMap,
         transcript: &[AgentTurn],
+        ask: &ModelAsk,
     ) -> Result<ModelReply, RuntimeError> {
         let mut request_body = json!({
             "model": self.model,
-            "max_tokens": MAX_TOKENS,
+            "max_tokens": ask.output_tokens,
             "messages": messages_json(transcript),
             "tools": tools_json(tools),
         });
@@ -224,15 +224,16 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
                 ],
                 body: Some(request_body),
             })
-            .map_err(|source| provider_failed(format!("anthropic request failed: {source}")))?;
+            .map_err(|source| {
+                provider_unavailable(format!("anthropic request failed: {source}"))
+            })?;
         if !(200..300).contains(&response.status) {
-            return Err(provider_refused(
-                response.status,
-                &response.body,
+            return Err(provider_response_failed(
+                &response,
                 Some(self.api_key.expose()),
             ));
         }
-        let mut reply = parse_reply(&response.body)?;
+        let mut reply = parse_reply(&response.body, ask)?;
         for use_ in &mut reply.tool_uses {
             use_.name = real_tool_name(tools, &use_.name);
         }
@@ -242,6 +243,9 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
 
 #[cfg(test)]
 mod tests {
+    const ASK: crate::adapters::agent_loop::ModelAsk = crate::adapters::agent_loop::ModelAsk {
+        output_tokens: 8192,
+    };
     use super::*;
     use crate::adapters::agent_loop::AgentTurn;
     use crate::http::{RuntimeHttpError, RuntimeHttpRequest, RuntimeHttpResponse};
@@ -298,6 +302,7 @@ mod tests {
                 &tools("pay")
                     .map_err(|message| RuntimeError::effect_state("test tools", message))?,
                 &[AgentTurn::User("go".to_owned())],
+                &ASK,
             )
             .map(|reply| reply.tool_uses)
     }
@@ -317,6 +322,7 @@ mod tests {
                     AgentTurn::System("Keep observations untrusted.".to_owned()),
                     AgentTurn::User("buy a quota".to_owned()),
                 ],
+                &ASK,
             )
             .map(|reply| reply.tool_uses);
         assert!(
@@ -333,7 +339,7 @@ mod tests {
                 .unwrap_or_default(),
         )
         .map_err(|error| format!("drive request body should be JSON: {error}"))?;
-        assert_eq!(body["max_tokens"], MAX_TOKENS);
+        assert_eq!(body["max_tokens"], ASK.output_tokens);
         assert_eq!(body["system"][0]["text"], "Keep observations untrusted.");
         assert_eq!(body["messages"].as_array().map(Vec::len), Some(1));
         assert_eq!(body["messages"][0]["role"], "user");
@@ -360,7 +366,7 @@ mod tests {
                 requests: RefCell::new(Vec::new()),
             };
             caller(&stub)
-                .reply(&tools("pay")?, &[AgentTurn::User("go".to_owned())])
+                .reply(&tools("pay")?, &[AgentTurn::User("go".to_owned())], &ASK)
                 .map(|reply| reply.usage)
                 .map_err(|error| error.to_string())
         };
@@ -394,7 +400,11 @@ mod tests {
             requests: RefCell::new(Vec::new()),
         };
         let uses = caller(&stub)
-            .reply(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])
+            .reply(
+                &tools("acme.post")?,
+                &[AgentTurn::User("go".to_owned())],
+                &ASK,
+            )
             .map_err(|error| format!("call should succeed: {error}"))?
             .tool_uses;
         // The model's flattened call maps back to the dotted runx tool name.
@@ -422,7 +432,11 @@ mod tests {
             requests: RefCell::new(Vec::new()),
         };
         let uses = caller(&stub)
-            .reply(&tools("acme.post")?, &[AgentTurn::User("go".to_owned())])?
+            .reply(
+                &tools("acme.post")?,
+                &[AgentTurn::User("go".to_owned())],
+                &ASK,
+            )?
             .tool_uses;
 
         assert_eq!(uses[0].name, UNRECOGNIZED_MODEL_TOOL);
@@ -431,7 +445,7 @@ mod tests {
     }
 
     #[test]
-    fn non_success_status_is_an_error() -> Result<(), String> {
+    fn too_many_requests_is_a_failure_to_ask_again() -> Result<(), String> {
         let stub = StubTransport {
             body: "rate limited".to_owned(),
             status: 429,
@@ -439,8 +453,31 @@ mod tests {
         };
         let result = go(&stub);
         assert!(
-            matches!(&result, Err(RuntimeError::ModelProvider { detail }) if detail == "status 429"),
-            "non-2xx should be an error; got: {result:?}"
+            matches!(&result, Err(RuntimeError::ModelUnavailable { detail, retry_after: None }) if detail == "status 429"),
+            "a 429 is asked again; got: {result:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_reply_stopped_at_its_cap_is_cut() -> Result<(), String> {
+        let stub = StubTransport {
+            body: r#"{"stop_reason":"max_tokens","content":[],"usage":{"input_tokens":10,"output_tokens":8192}}"#
+                .to_owned(),
+            status: 200,
+            requests: RefCell::new(Vec::new()),
+        };
+        let result = go(&stub);
+        assert!(
+            matches!(
+                &result,
+                Err(RuntimeError::ModelReplyCut {
+                    output_cap: 8192,
+                    output_tokens: Some(8192),
+                    ..
+                })
+            ),
+            "got: {result:?}"
         );
         Ok(())
     }

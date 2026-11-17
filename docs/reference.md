@@ -556,6 +556,20 @@ server is such a provider, speaking `chat_completions`. A provider's refusal
 reaches the receipt as its status and its own error message, never its raw
 body or the key.
 
+A driven turn holds up against its model as the operator sets it, each setting
+read from `RUNX_AGENT_<KEY>` over `runx config set`:
+- `agent.retries` (default 4, at most 20): how many more times a request the
+  provider may answer later (408, 429, 5xx, 529, or no connection) is asked
+  again, after its `Retry-After` or a wait doubling from two seconds, at most
+  five minutes;
+- `agent.output_tokens` (default 8,192) and `agent.max_output_tokens` (default
+  32,768): the first ask's output cap, and the most a reply cut at its cap is
+  given when it's asked again with twice the room;
+- `agent.request_timeout_seconds` (default 180, 10 to 3,600): one request's
+  time limit, which a slow local model may need raised;
+- `agent.rounds` (default 4): the rounds a driven turn has, which
+  `--drive-rounds` sets for one run. No other limit applies.
+
 Prepared context never asks for performative approval: it binds the selected
 skill, inputs, closure, and drift guards into the receipt. A
 consequential action stops once at its owning boundary. An `operation` step

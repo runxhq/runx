@@ -508,7 +508,7 @@ fn prepared_governance(
         .map(governance_summary)
         .unwrap_or_default();
     governance.drive_enabled = request.drive.is_inline();
-    governance.drive_max_rounds = request.drive.max_rounds();
+    governance.drive_max_rounds = request.drive.rounds(&request.env, &request.cwd);
     governance
 }
 
@@ -1059,7 +1059,7 @@ mod tests {
             PreparedEntryProvenance::default(),
         )?;
         let mut inline_request = request(temp.path());
-        inline_request.drive = DrivePolicy::inline(3)?;
+        inline_request.drive = DrivePolicy::inline(Some(3))?;
         let inline = LocalOrchestrator::default().prepare_skill(
             inline_request,
             None,
@@ -1072,7 +1072,9 @@ mod tests {
         assert_eq!(inline.report().governance.drive_max_rounds, Some(3));
         assert_eq!(
             inline.report().request.drive,
-            DrivePolicy::Inline { max_rounds: 3 }
+            DrivePolicy::Inline {
+                max_rounds: Some(3)
+            }
         );
         Ok(())
     }

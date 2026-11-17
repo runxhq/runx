@@ -36,7 +36,8 @@ contracts; this page says what each word means and where it stops.
   and the answer it ended with.
 - **Agent loop**: the model's cycle inside one turn: a model request, the calls
   it asks for, their results, and the next request. A **round** is one pass of
-  it, and `--drive-rounds` bounds a driven turn's rounds.
+  it, and `agent.rounds`, or `--drive-rounds` for one run, bounds a driven
+  turn's rounds.
 - **Call**: one thing a turn or a script asks runx to do: a tool, an
   operation, a skill, an ask, a load, a wait or a read. Each is admitted against
   the step's `calls` and the run's authority before it runs, and recorded.

@@ -19,7 +19,7 @@ use super::agent::DriveError;
 use super::agent_anthropic_messages::AnthropicMessagesCaller;
 use super::agent_chat_completions::ChatCompletionsCaller;
 use super::agent_loop::{
-    AgentLoopConfig, AgentTurn, ModelCaller, ToolExecutor, ToolOutcome, run_agent_loop,
+    AgentLoopConfig, AgentTurn, ModelCaller, ToolExecutor, ToolOutcome, Waiter, run_agent_loop,
 };
 use super::agent_openai_responses::OpenAiResponsesCaller;
 use super::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
@@ -123,6 +123,8 @@ impl Drive {
         };
         let loop_config = AgentLoopConfig {
             max_rounds: self.max_rounds,
+            limits: config.limits,
+            wait: Waiter::sleeping(),
             max_empty_turn_resamples: MAX_EMPTY_TURN_RESAMPLES,
             final_result_tool: TURN_COMPLETE_TOOL.to_owned(),
             final_result_output: envelope.output,
@@ -511,12 +513,14 @@ fn caller(config: &DriveConfig) -> Result<Box<dyn ModelCaller>, DriveError> {
         DriveAuthMode::LocalNone => speak(
             config,
             ReqwestHttpTransport::for_exact_loopback_agent(&config.endpoint_url)
-                .map_err(|_| DriveError::sanitized("local model endpoint is invalid"))?,
+                .map_err(|_| DriveError::sanitized("local model endpoint is invalid"))?
+                .with_request_timeout(config.limits.request_timeout),
         ),
         DriveAuthMode::ApiKey => speak(
             config,
             ReqwestHttpTransport::for_drive()
-                .map_err(|_| DriveError::sanitized("the drive's transport is unavailable"))?,
+                .map_err(|_| DriveError::sanitized("the drive's transport is unavailable"))?
+                .with_request_timeout(config.limits.request_timeout),
         ),
     }
 }
@@ -975,6 +979,7 @@ mod tests {
             api_key: None,
             endpoint_url: endpoint.to_owned(),
             auth_mode: crate::config::DriveAuthMode::ApiKey,
+            limits: crate::config::DriveLimits::default(),
         };
         let mut envelope = prompt_envelope("Review", JsonObject::new(), Vec::new());
         let mut kept = profile_file("../AGENTS.md", "Root rules.");

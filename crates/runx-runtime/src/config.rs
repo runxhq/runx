@@ -59,6 +59,21 @@ pub struct RunxAgentConfig {
     pub endpoint_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_mode: Option<String>,
+    /// How many more times a transient model failure is asked again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retries: Option<u32>,
+    /// The first ask's output cap, in tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u32>,
+    /// The most a reply cut at its cap is given on asking again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<u32>,
+    /// One model request's time limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_timeout_seconds: Option<u32>,
+    /// The rounds a driven turn has, unless a run says otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rounds: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +104,80 @@ pub enum ConfigKey {
     AgentSecret,
     AgentEndpointUrl,
     AgentAuthMode,
+    Drive(DriveSetting),
+}
+
+/// One of the operator's settings for how a driven turn holds up
+/// (contracts/driver.md): its key, its variable and its place in the config.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DriveSetting {
+    Retries,
+    OutputTokens,
+    MaxOutputTokens,
+    RequestTimeoutSeconds,
+    Rounds,
+}
+
+impl DriveSetting {
+    pub const ALL: [Self; 5] = [
+        Self::Retries,
+        Self::OutputTokens,
+        Self::MaxOutputTokens,
+        Self::RequestTimeoutSeconds,
+        Self::Rounds,
+    ];
+
+    #[must_use]
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Retries => "agent.retries",
+            Self::OutputTokens => "agent.output_tokens",
+            Self::MaxOutputTokens => "agent.max_output_tokens",
+            Self::RequestTimeoutSeconds => "agent.request_timeout_seconds",
+            Self::Rounds => "agent.rounds",
+        }
+    }
+
+    #[must_use]
+    pub const fn variable(self) -> &'static str {
+        match self {
+            Self::Retries => "RUNX_AGENT_RETRIES",
+            Self::OutputTokens => "RUNX_AGENT_OUTPUT_TOKENS",
+            Self::MaxOutputTokens => "RUNX_AGENT_MAX_OUTPUT_TOKENS",
+            Self::RequestTimeoutSeconds => "RUNX_AGENT_REQUEST_TIMEOUT_SECONDS",
+            Self::Rounds => "RUNX_AGENT_ROUNDS",
+        }
+    }
+
+    fn slot(self, agent: &mut RunxAgentConfig) -> &mut Option<u32> {
+        match self {
+            Self::Retries => &mut agent.retries,
+            Self::OutputTokens => &mut agent.output_tokens,
+            Self::MaxOutputTokens => &mut agent.max_output_tokens,
+            Self::RequestTimeoutSeconds => &mut agent.request_timeout_seconds,
+            Self::Rounds => &mut agent.rounds,
+        }
+    }
+
+    #[must_use]
+    pub fn get(self, agent: &RunxAgentConfig) -> Option<u32> {
+        *self.slot(&mut agent.clone())
+    }
+
+    fn set(self, agent: &mut RunxAgentConfig, value: Option<u32>) {
+        *self.slot(agent) = value;
+    }
+
+    /// The value a setting reads as: a whole number, or its words why not.
+    pub fn parse(self, value: &str) -> Result<u32, ConfigError> {
+        value
+            .trim()
+            .parse::<u32>()
+            .map_err(|_| ConfigError::InvalidAgentSetting {
+                key: self.key(),
+                message: "expected a whole number",
+            })
+    }
 }
 
 /// A model API's wire format. Dialects are code; providers are data.
@@ -161,6 +250,32 @@ pub struct DriveConfig {
     pub api_key: Option<SecretString>,
     pub endpoint_url: String,
     pub auth_mode: DriveAuthMode,
+    pub limits: DriveLimits,
+}
+
+/// How a driven turn holds up against its model, as the operator set it
+/// (contracts/driver.md): how many more times a transient failure is asked
+/// again, the first ask's output cap and the most a cut reply is given, one
+/// request's time limit, and how many rounds a turn has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DriveLimits {
+    pub retries: u32,
+    pub output_tokens: u32,
+    pub max_output_tokens: u32,
+    pub request_timeout: std::time::Duration,
+    pub rounds: u32,
+}
+
+impl Default for DriveLimits {
+    fn default() -> Self {
+        Self {
+            retries: 4,
+            output_tokens: 8192,
+            max_output_tokens: 32_768,
+            request_timeout: crate::http::DRIVE_REQUEST_TIMEOUT,
+            rounds: 4,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -247,9 +362,13 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
         "agent.secret" => Ok(ConfigKey::AgentSecret),
         "agent.endpoint_url" => Ok(ConfigKey::AgentEndpointUrl),
         "agent.auth_mode" => Ok(ConfigKey::AgentAuthMode),
-        _ => Err(ConfigError::UnsupportedKey {
-            key: key.to_owned(),
-        }),
+        key => DriveSetting::ALL
+            .into_iter()
+            .find(|setting| setting.key() == key)
+            .map(ConfigKey::Drive)
+            .ok_or_else(|| ConfigError::UnsupportedKey {
+                key: key.to_owned(),
+            }),
     }
 }
 
@@ -345,8 +464,26 @@ pub fn update_runx_config_value(
             agent.auth_mode = Some(value.to_owned());
             config.agent = Some(agent);
         }
+        ConfigKey::Drive(setting) => {
+            let mut agent = config.agent.unwrap_or_default();
+            setting.set(&mut agent, Some(setting.parse(value)?));
+            config.agent = Some(agent);
+            // The settings bound one another, so the whole set is checked.
+            crate::agent_config::drive_limits(&std::collections::BTreeMap::new(), &config)?;
+        }
     }
     Ok(config)
+}
+
+/// The drive's setting is the default again.
+pub fn clear_runx_drive_setting(
+    mut config: RunxConfigFile,
+    setting: DriveSetting,
+) -> RunxConfigFile {
+    if let Some(agent) = config.agent.as_mut() {
+        setting.set(agent, None);
+    }
+    config
 }
 
 pub fn clear_runx_agent_endpoint_url(mut config: RunxConfigFile) -> RunxConfigFile {
@@ -384,6 +521,9 @@ pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Opti
             .map(|name| name.as_str().to_owned()),
         ConfigKey::AgentEndpointUrl => config.agent.as_ref()?.endpoint_url.clone(),
         ConfigKey::AgentAuthMode => config.agent.as_ref()?.auth_mode.clone(),
+        ConfigKey::Drive(setting) => setting
+            .get(config.agent.as_ref()?)
+            .map(|value| value.to_string()),
     }
 }
 

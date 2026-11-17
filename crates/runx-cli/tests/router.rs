@@ -872,7 +872,9 @@ fn drive_rounds_need_explicit_drive_consent() {
     if let RouterAction::RunSkill(skill) = action {
         assert_eq!(
             skill.drive,
-            runx_runtime::DrivePolicy::Inline { max_rounds: 2 }
+            runx_runtime::DrivePolicy::Inline {
+                max_rounds: Some(2)
+            }
         );
     }
 }

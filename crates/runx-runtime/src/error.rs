@@ -373,6 +373,22 @@ pub enum RuntimeError {
     ModelProvider {
         detail: String,
     },
+    /// The model's provider couldn't answer now and may later: a 408, 429,
+    /// 5xx or 529, or no connection. The driver asks again (contracts/driver.md).
+    #[cfg(feature = "agent")]
+    ModelUnavailable {
+        detail: String,
+        /// The provider's `Retry-After`, when it sent one.
+        retry_after: Option<std::time::Duration>,
+    },
+    /// The model's reply was cut at its output cap of `output_cap` tokens. The
+    /// driver asks again with more room, keeping what the cut ask used.
+    #[cfg(feature = "agent")]
+    ModelReplyCut {
+        output_cap: u32,
+        input_tokens: Option<u64>,
+        output_tokens: Option<u64>,
+    },
     ContinuationRejected {
         reason: String,
     },
@@ -611,7 +627,14 @@ impl RuntimeError {
                 runx(format!("the skill change is refused: {message}"))
             }
             #[cfg(feature = "agent")]
-            Self::ModelProvider { detail } => Failure::new("the model provider", detail.clone()),
+            Self::ModelProvider { detail } | Self::ModelUnavailable { detail, .. } => {
+                Failure::new("the model provider", detail.clone())
+            }
+            #[cfg(feature = "agent")]
+            Self::ModelReplyCut { output_cap, .. } => Failure::new(
+                "the model provider",
+                format!("its reply was cut at its output cap of {output_cap} tokens"),
+            ),
             Self::ContinuationRejected { reason } => runx(reason.clone()),
             Self::InputContract {
                 step_id,
@@ -727,7 +750,10 @@ impl RuntimeError {
             | Self::SkillChangeRefused { .. } => false,
             Self::InputContract { .. } => false,
             #[cfg(feature = "agent")]
-            Self::DriveResolution { .. } | Self::ModelProvider { .. } => false,
+            Self::DriveResolution { .. }
+            | Self::ModelProvider { .. }
+            | Self::ModelUnavailable { .. }
+            | Self::ModelReplyCut { .. } => false,
         }
     }
 

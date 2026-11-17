@@ -1,4 +1,4 @@
-use runx_runtime::{DEFAULT_DRIVE_MAX_ROUNDS, DrivePolicy};
+use runx_runtime::DrivePolicy;
 
 pub(crate) fn parse_boolean_flag(command: &str, flag: &str, value: &str) -> Result<bool, String> {
     match value.trim().to_ascii_lowercase().as_str() {
@@ -26,6 +26,5 @@ pub(crate) fn drive_policy(
         }
         return Ok(DrivePolicy::HostDriven);
     }
-    DrivePolicy::inline(max_rounds.unwrap_or(DEFAULT_DRIVE_MAX_ROUNDS))
-        .map_err(|error| format!("runx {command} {error}"))
+    DrivePolicy::inline(max_rounds).map_err(|error| format!("runx {command} {error}"))
 }
