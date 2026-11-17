@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { admitContact, finalizeReview } from "./cold-outreach.mjs";
+import { admitContact, finalizeReview, sequenceBlockers } from "./cold-outreach.mjs";
 
 function inputs() {
   return {
@@ -22,7 +22,7 @@ test("admission returns the structured brief the draft is written from, with no 
     { sender: value.sender, prospect: value.prospect, purpose: value.purpose, offer: value.offer, required_footer: value.required_footer },
   );
   assert.deepEqual(Object.keys(contact_brief).sort(), [
-    "blockers", "decision", "offer", "policy_evidence_ids", "policy_id", "prospect", "purpose", "required_footer", "sender",
+    "blockers", "decision", "follows", "offer", "policy_evidence_ids", "policy_id", "prospect", "purpose", "required_footer", "sender",
   ]);
 });
 
@@ -81,4 +81,25 @@ test("memory is searched for the recipient only for a draft, and only at the lev
   const held = { ...inputs(), memory: levels };
   held.contact_policy = { ...held.contact_policy, suppressed: true };
   assert.deepEqual(admitContact(held).memory_search, { path: "none" });
+});
+
+test("a follow-up holds past the limit or after a reply, opt-out, complaint or bounce, and never repeats", () => {
+  const earlier = [{ subject: "A useful review", body: "Useful offer.\nExample team. Reply to opt out.", sent_at: "2026-11-17T00:00:00Z" }];
+  const follows = (since, number = 1, limit = 2) => ({ earlier, since, number, limit });
+  const at = (kind) => ({ kind, received_at: "2026-11-18T00:00:00Z" });
+  assert.deepEqual(sequenceBlockers(follows([at("auto_reply")])), [], "an away message is no answer");
+  assert.deepEqual(sequenceBlockers(follows([], 3)), ["follow-up 3 is past the 2 the user allows"]);
+  assert.deepEqual(sequenceBlockers(follows([at("reply")])), ["a reply ends the cold sequence"]);
+  assert.deepEqual(sequenceBlockers(follows([at("unsubscribed"), at("bounce")])), ["an opt-out stops the sequence", "an invalid address stops the sequence"]);
+  const value = { ...inputs(), follows: follows([]) };
+  const { contact_brief } = admitContact(value);
+  assert.equal(contact_brief.decision, "eligible_for_draft");
+  // A sentence the sequence already said, word for word, withholds it; a
+  // greeting or the footer doesn't.
+  const said = "We will review one release pipeline for free and show you where the risk hides.";
+  const first = { subject: "A useful review", body: `Hi Ana,\n\n${said}\n\nExample team. Reply to opt out.`, sent_at: "2026-11-17T00:00:00Z" };
+  const brief = admitContact({ ...inputs(), follows: { earlier: [first], since: [], number: 1, limit: 2 } }).contact_brief;
+  const review = (body) => finalizeReview({ contact_brief: brief, content_draft_packet: { decision: "ready", validation: { status: "pass" }, draft: { title: "A useful review", body } }, draft_packet_digest: `sha256:${"a".repeat(64)}` }).outreach_review;
+  assert.deepEqual(review(`Hi Ana,\n\nOne more thing.  ${said}\n\nExample team. Reply to opt out.`).blockers, [`a follow-up says what the sequence hasn't, and this repeats: "${said}"`]);
+  assert.equal(review("Hi Ana,\n\nTeams that ship weekly usually find their rollback steps were never rehearsed.\n\nExample team. Reply to opt out.").decision, "ready_for_review");
 });

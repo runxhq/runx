@@ -43,7 +43,7 @@ shared_inputs:
     maxLength: 3000
 methods:
   prepare:
-    description: Prepare one first-contact email for an exact prospect, holding any contact its policy, qualification or evidence doesn't support. Sends nothing.
+    description: Prepare one cold email for an exact prospect, a first contact or, given the sequence it follows, a follow-up, holding any contact its policy, qualification, sequence or evidence doesn't support. Sends nothing.
     inputs:
       sender: {}
       prospect:
@@ -93,6 +93,37 @@ methods:
       brand_context: {packet: runx/brand-voice.context.v1, description: 'Scoped validated brand voice, selected by the caller.', optional: true}
       taste_context: {packet: runx/taste-profile.context.v1, description: 'Scoped validated taste, selected by the caller.', optional: true}
       memory: {}
+      follows:
+        type: object
+        description: The cold sequence this email follows, which makes it a follow-up, as the caller read it just now. earlier holds the sequence's emails, oldest first, and since what came back after the first. number is this follow-up's place in the sequence and limit the most the user allows. A reply ends the sequence and an opt-out, complaint or bounce stops it; an away message does neither.
+        additionalProperties: false
+        required: [earlier, since, number, limit]
+        properties:
+          earlier:
+            type: array
+            minItems: 1
+            maxItems: 10
+            items:
+              type: object
+              additionalProperties: false
+              required: [subject, body, sent_at]
+              properties:
+                subject: {type: string, minLength: 1, maxLength: 998}
+                body: {type: string, minLength: 1, maxLength: 20000}
+                sent_at: {type: string, format: date-time}
+          since:
+            type: array
+            maxItems: 50
+            items:
+              type: object
+              additionalProperties: false
+              required: [kind, received_at]
+              properties:
+                kind: {enum: [reply, auto_reply, bounce, complaint, unsubscribed]}
+                received_at: {type: string, format: date-time}
+          number: {type: integer, minimum: 1, maximum: 10}
+          limit: {type: integer, minimum: 0, maximum: 10}
+        optional: true
     result_from: [hold, review]
     examples:
     - sender:
@@ -139,6 +170,7 @@ methods:
         qualification: $input.qualification
         evidence_context: $steps.admit-evidence.evidence_context
         memory: $input.memory
+        follows: $input.follows
       outputs:
         memory_search:
           type: object
@@ -151,9 +183,10 @@ methods:
         contact_brief:
           type: object
           additionalProperties: false
-          required: [decision, sender, prospect, purpose, offer, required_footer, policy_id, policy_evidence_ids, blockers]
+          required: [decision, sender, prospect, purpose, offer, required_footer, policy_id, policy_evidence_ids, blockers, follows]
           properties:
             decision: {enum: [hold, eligible_for_draft]}
+            follows: {type: [object, 'null'], additionalProperties: true, description: The sequence a follow-up continues, or null for a first contact.}
             sender:
               type: object
               additionalProperties: false
@@ -306,6 +339,7 @@ methods:
         purpose: $steps.admit.contact_brief.purpose
         offer: $steps.admit.contact_brief.offer
         required_footer: $steps.admit.contact_brief.required_footer
+        follows: $steps.admit.contact_brief.follows
         evidence_context: $steps.admit-evidence.evidence_context
     - id: verify
       when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}

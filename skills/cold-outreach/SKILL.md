@@ -1,12 +1,13 @@
 ---
 name: cold-outreach
-description: Prepare one relevant, evidence-bound cold email for an exact prospect using scoped brand and taste context, or first contact for each lead of a batch; hold unsafe or unsupported contact and leave delivery to an approved mail capability.
+description: Prepare one relevant, evidence-bound cold email for an exact prospect using scoped brand and taste context, a first contact or a follow-up to its sequence, or first contact for each lead of a batch; hold unsafe or unsupported contact and leave delivery to an approved mail capability.
 ---
 
 # Cold outreach
 
-Prepare useful first contact, for one prospect or for each lead of a batch, never
-a campaign sequence or an email transport. Reuse
+Prepare useful first contact, or a follow-up to it, for one prospect, or first
+contact for each lead of a batch, never a campaign's schedule or an email
+transport. Reuse
 supplied prospect research, approved offer facts, `brand-voice` and `taste-profile`
 context. The calling application selects that workspace context; this skill never
 searches global memory or a private credential database.
@@ -100,12 +101,16 @@ of its validated ghostwrite source packet; a hold exposes no usable email payloa
 Route the ready payload through a compatible mail capability. Delivery admission must bind sender,
 recipient and complete content to native approval and provider execution.
 
-The calling application retains the draft and outcomes. Follow-ups require a fresh
-conversation and suppression read, add something useful, and stay within the
-user's configured limit. Reply ends the cold sequence; opt-out, complaint or
-invalid address stops it. Out-of-office is not buying interest. This skill owns
-no timer, queue or send ledger. Each outward message still follows the
-configured approval policy.
+The calling application retains the draft and outcomes. A follow-up is
+`prepare` given the sequence it follows, `follows`: the sequence's earlier
+emails, what came back since the first, this follow-up's number and the most
+the user allows. The caller reads the conversation and the suppression list
+fresh for it. Code holds a follow-up past the limit, or after a reply, which
+ends the cold sequence, or an opt-out, complaint or invalid address, which
+stops it; an away message is no answer and isn't buying interest. A follow-up
+that repeats an earlier email is withheld. This skill owns no timer, queue or
+send ledger. Each outward message still follows the configured approval
+policy.
 
 ## Agent task: cold-outreach-draft
 
@@ -113,6 +118,12 @@ Write one first-contact email from `sender` to `prospect` that serves `purpose`,
 following the outreach judgment above. `offer` is the value to propose; support
 it only as far as the admitted `evidence_context` allows. Apply each admitted
 writing context's profile, applicability and stop conditions.
+
+When `follows` is given, write follow-up `follows.number` instead, which goes
+in the thread of the emails in `follows.earlier`. Make one useful point toward
+`purpose` that those emails didn't, from the admitted evidence, and never
+repeat what they said. Keep it shorter than the first, and keep the first
+email's subject unchanged.
 
 Return `content_draft` with `decision` set to `ready`, or to
 `needs_more_evidence` when no worthwhile angle is supported. `content_brief`

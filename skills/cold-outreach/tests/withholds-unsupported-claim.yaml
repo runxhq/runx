@@ -71,5 +71,5 @@ expect:
           draft: null
           draft_packet_digest: null
           delivery_status: not_sent
-          blockers: ['a validated, supported draft is required']
+          blockers: ['the draft was withheld: claim must bind only admitted source digests']
   receipt: {schema: runx.receipt.v1}
