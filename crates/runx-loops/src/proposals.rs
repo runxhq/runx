@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value};
 
 use crate::file::{Calls, LoopFile, LoopName, digest};
-use crate::records::{Action, Proposal, RecordEvent};
+use crate::records::{Action, Proposal, RecordEvent, Writes};
 use crate::{LoopError, Loops};
 
 /// A method's `loop` output, `runx/loop.result.v1`.
@@ -324,18 +324,21 @@ impl Loops {
             state.proposals.get(id).cloned().ok_or_else(|| {
                 LoopError::Refused(format!("loop {name} has no open proposal {id}"))
             })?;
-        let mut record = vec![RecordEvent::Answered {
-            id: id.to_owned(),
-            accepted: true,
-            by: by.to_owned(),
-            words: None,
-            at: stamp(now),
-        }];
-        match pending.proposal {
+        // The answer is committed first, with the file it writes; the file is
+        // written after, and a pass writes any the process stopped before.
+        let (writes, revision) = match pending.proposal {
             Proposal::Change { brief, inputs, .. } => {
                 let path = name.path(self.cwd());
                 let bytes = std::fs::read_to_string(&path)
                     .map_err(|error| LoopError::io(format!("reading {}", path.display()), error))?;
+                let base = digest(bytes.as_bytes());
+                // A change was proposed against the file the loop runs; one
+                // edited since isn't what was proposed against.
+                if state.active.as_deref() != Some(base.as_str()) {
+                    return Err(LoopError::Refused(format!(
+                        "loop {name}'s file changed since proposal {id} was made: decline it, and its next run proposes against the file as it is"
+                    )));
+                }
                 let mut written: Value = serde_norway::from_str(&bytes)
                     .map_err(|error| LoopError::Invalid(format!("the loop file: {error}")))?;
                 let Some(map) = written.as_object_mut() else {
@@ -350,13 +353,19 @@ impl Loops {
                 let next = serde_norway::to_string(&written)
                     .map_err(|error| LoopError::Invalid(error.to_string()))?;
                 LoopFile::parse(next.as_bytes())?;
-                std::fs::write(&path, &next)
-                    .map_err(|error| LoopError::io(format!("writing {}", path.display()), error))?;
-                record.push(RecordEvent::Revision {
+                let revision = RecordEvent::Revision {
                     digest: digest(next.as_bytes()),
-                    bytes: next,
+                    bytes: next.clone(),
                     at: stamp(now),
-                });
+                };
+                (
+                    Writes {
+                        target: None,
+                        bytes: next,
+                        base: Some(base),
+                    },
+                    Some(revision),
+                )
             }
             Proposal::NewLoop {
                 calls,
@@ -375,19 +384,80 @@ impl Loops {
                     why,
                 };
                 check_new_loop(self, &new).map_err(LoopError::Refused)?;
-                let target = LoopName::new(&new.name)?;
-                let bytes = new_loop_bytes(&new, authority).map_err(LoopError::Invalid)?;
-                let path = target.path(self.cwd());
-                if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)
-                        .map_err(|error| LoopError::io("making loops/", error))?;
-                }
-                std::fs::write(&path, bytes)
-                    .map_err(|error| LoopError::io(format!("writing {}", path.display()), error))?;
+                LoopName::new(&new.name)?;
+                let bytes =
+                    String::from_utf8(new_loop_bytes(&new, authority).map_err(LoopError::Invalid)?)
+                        .map_err(|error| {
+                            LoopError::Invalid(format!("the new loop's file: {error}"))
+                        })?;
+                (
+                    Writes {
+                        target: Some(new.name),
+                        bytes,
+                        base: None,
+                    },
+                    None,
+                )
             }
             _ => {
                 return Err(LoopError::Refused(format!("proposal {id} takes no answer")));
             }
+        };
+        let mut record = vec![RecordEvent::Answered {
+            id: id.to_owned(),
+            accepted: true,
+            by: by.to_owned(),
+            words: None,
+            writes: Some(writes),
+            at: stamp(now),
+        }];
+        record.extend(revision);
+        self.commit(name, &state, &record, None)?;
+        self.write_accepted(name, now)
+    }
+
+    /// Write each file an accepted proposal writes that isn't on disk yet,
+    /// only over the file it was accepted against, or where a new loop's
+    /// isn't, and mark each written. A file the person edited since stands.
+    pub(crate) fn write_accepted(
+        &self,
+        name: &LoopName,
+        now: DateTime<Utc>,
+    ) -> Result<(), LoopError> {
+        let state = self.read(name)?;
+        if state.unwritten.is_empty() {
+            return Ok(());
+        }
+        let mut record = Vec::new();
+        for writes in &state.unwritten {
+            let target = match &writes.target {
+                Some(other) => LoopName::new(other)?,
+                None => name.clone(),
+            };
+            let path = target.path(self.cwd());
+            let current = match std::fs::read(&path) {
+                Ok(bytes) => Some(digest(&bytes)),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => {
+                    return Err(LoopError::io(format!("reading {}", path.display()), error));
+                }
+            };
+            let over = match &writes.base {
+                Some(base) => current.as_deref() == Some(base.as_str()),
+                None => current.is_none(),
+            };
+            if over {
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|error| LoopError::io("making loops/", error))?;
+                }
+                std::fs::write(&path, &writes.bytes)
+                    .map_err(|error| LoopError::io(format!("writing {}", path.display()), error))?;
+            }
+            record.push(RecordEvent::Written {
+                target: writes.target.clone(),
+                at: stamp(now),
+            });
         }
         self.commit(name, &state, &record, None)?;
         Ok(())
@@ -417,6 +487,7 @@ impl Loops {
                 accepted: false,
                 by: by.to_owned(),
                 words: words.map(str::to_owned),
+                writes: None,
                 at: stamp(now),
             }],
             None,

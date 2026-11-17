@@ -135,6 +135,8 @@ pub struct LoopState {
     pub couldnts: u32,
     /// Whether the loop's file, as written now, doesn't validate.
     pub invalid_file: bool,
+    /// The files accepted proposals write that aren't on disk yet.
+    pub unwritten: Vec<crate::records::Writes>,
     /// Wakes in a row whose model was unavailable, which space the next try;
     /// a wake that answers or is closed clears them.
     pub outages: u32,
@@ -360,8 +362,12 @@ impl LoopState {
                 accepted,
                 by,
                 words,
+                writes,
                 at,
             } => {
+                if *accepted && let Some(writes) = writes {
+                    self.unwritten.push(writes.clone());
+                }
                 if let Some(pending) = self.proposals.remove(id) {
                     self.answers.push(Answer {
                         id: id.clone(),
@@ -417,6 +423,9 @@ impl LoopState {
                 self.couldnt = Some(why.clone());
                 self.couldnts += 1;
                 self.retry_at = instant(retry_at);
+            }
+            RecordEvent::Written { target, .. } => {
+                self.unwritten.retain(|writes| writes.target != *target);
             }
             RecordEvent::Token { name, digest, .. } => {
                 self.tokens.insert(name.clone(), digest.clone());

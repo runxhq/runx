@@ -94,6 +94,8 @@ impl Loops {
     /// One pass over loop `name` at `now`.
     pub fn pass(&self, name: &LoopName, now: DateTime<Utc>) -> Result<Passed, LoopError> {
         let mut passed = Passed::default();
+        // What an accepted proposal writes is on disk before the file is read.
+        self.write_accepted(name, now)?;
         let valid = self.take_revision(name, now)?;
         let mut state = self.read(name)?;
         // A stopped or paused loop still settles what its runs finish with.

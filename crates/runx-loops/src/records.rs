@@ -216,6 +216,20 @@ impl Ending {
     }
 }
 
+/// A file an accepted proposal writes: this loop's own, or a new loop's.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Writes {
+    /// The loop whose file it is, when it isn't this one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    pub bytes: String,
+    /// The digest of the file it replaces, written only over that; none for
+    /// a new loop's file, written only where none is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base: Option<String>,
+}
+
 /// What happened to a loop (§5.1).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
@@ -307,6 +321,17 @@ pub enum RecordEvent {
         by: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         words: Option<String>,
+        /// The file an accepted proposal writes, kept with the answer so
+        /// it's written even when the process stops between the two.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        writes: Option<Writes>,
+        at: String,
+    },
+    /// The file an accepted proposal writes is on disk, or the person's own
+    /// edit since stands in its place.
+    Written {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
         at: String,
     },
     /// A clock trigger's occurrences are covered up to `covered_until`,

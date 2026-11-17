@@ -310,11 +310,17 @@ fn the_loop_runs_its_file_as_written_now_and_an_invalid_one_starts_nothing() -> 
     write_loop(root, "acme", "calls: [not a skill\n")?;
     loops.run_now(&acme, "person:kam")?;
     let invalid = loops.pass(&acme, start + Duration::minutes(1))?;
-    assert_eq!(invalid.woke, None, "nothing starts on a file that doesn't validate");
+    assert_eq!(
+        invalid.woke, None,
+        "nothing starts on a file that doesn't validate"
+    );
     assert!(loops.state(&acme)?.couldnt.is_some());
     write_loop(root, "acme", a)?;
     let fixed = loops.pass(&acme, start + Duration::minutes(2))?;
-    assert!(fixed.woke.is_some(), "the person's run now goes once it's fixed");
+    assert!(
+        fixed.woke.is_some(),
+        "the person's run now goes once it's fixed"
+    );
     assert_eq!(loops.state(&acme)?.couldnt, None);
     Ok(())
 }
