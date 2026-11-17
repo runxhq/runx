@@ -50,6 +50,9 @@ pub struct Passed {
     /// The earliest time something is next due: a clock time, a proposed
     /// wake, a retry, or the time a live run waits for.
     pub next: Option<DateTime<Utc>>,
+    /// The times the person's runs wait for, which the pass's next wake
+    /// counts.
+    people_until: Option<DateTime<Utc>>,
 }
 
 /// How a run's end was judged.
@@ -122,6 +125,9 @@ impl Loops {
             }
         }
         if let Some(Waiting::Until(at)) = passed.waiting {
+            passed.next = Some(passed.next.map_or(at, |next| next.min(at)));
+        }
+        if let Some(at) = passed.people_until {
             passed.next = Some(passed.next.map_or(at, |next| next.min(at)));
         }
         Ok(passed)
@@ -605,11 +611,34 @@ impl Loops {
             else {
                 continue;
             };
+            // A person's run is taken further as a wake is: when the time it
+            // waits for came, or the process driving it died.
+            let mut judged = self.judge(&person.run)?;
+            if let Judged::Open(waiting) = &judged {
+                let drive_on = match waiting {
+                    Waiting::Until(at) => *at <= now,
+                    Waiting::Orphaned => true,
+                    _ => false,
+                };
+                if drive_on {
+                    let bound = self
+                        .bind(&Calls {
+                            skill: file.calls.skill.clone(),
+                            method: person.method.clone(),
+                        })
+                        .map_err(LoopError::Runtime)?;
+                    self.drive_on(&person.run, &bound, waiting)?;
+                    judged = self.judge(&person.run)?;
+                }
+            }
+            if let Judged::Open(Waiting::Until(at)) = &judged {
+                passed.people_until = Some(passed.people_until.map_or(*at, |next| next.min(*at)));
+            }
             if let Judged::Ended {
                 ending,
                 result,
                 spent,
-            } = self.judge(&person.run)?
+            } = judged
             {
                 let proposals = crate::proposals::checked(self, &person.run, &file, &result, now)?;
                 let mut record = vec![RecordEvent::Settled {
