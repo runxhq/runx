@@ -19,6 +19,7 @@ pub(crate) mod capability;
 pub mod connector_setup;
 pub mod connectors;
 pub(crate) mod custody;
+pub mod host_streams;
 pub mod instances;
 pub mod operation;
 pub(crate) mod purchase;

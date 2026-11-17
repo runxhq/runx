@@ -123,6 +123,9 @@ pub use execution_environment::environment_requirement_statuses;
 pub use tool_catalogs::native::{NativeCapabilitySnapshot, native_capability_snapshot};
 
 pub mod adapters;
+pub use kernel::host_streams::{
+    HostAppend, HostEvents, HostName, HostRecord, HostStreamError, HostStreams,
+};
 
 pub use adapter::{
     EphemeralValue, Executable, InvocationDiagnostics, InvocationOutput, InvocationStatus,

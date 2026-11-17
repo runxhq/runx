@@ -101,7 +101,7 @@ pub struct Append {
     kind: String,
     key: String,
     expected: Expected,
-    event_type: &'static str,
+    event_type: std::borrow::Cow<'static, str>,
     data: Vec<u8>,
     blobs: Vec<Blob>,
     receipts: Vec<IndexedReceipt>,
@@ -135,6 +135,33 @@ impl Append {
         self
     }
 
+    /// An append to a host's own stream, under the kind `host:<name>`, so no
+    /// host writes a kernel stream (the loop contract's E1).
+    pub(crate) fn host(
+        kind: String,
+        key: String,
+        expected: Expected,
+        event_type: String,
+        data: &serde_json::Value,
+    ) -> Result<Self, KernelStoreError> {
+        if key.is_empty() || key.len() > MAX_KEY_BYTES || key.chars().any(char::is_control) {
+            return Err(KernelStoreError::InvalidKey { kind, key });
+        }
+        let data = serde_json::to_vec(data).map_err(KernelStoreError::encode)?;
+        if data.len() > MAX_EVENT_BYTES {
+            return Err(KernelStoreError::EventTooLarge { kind, key });
+        }
+        Ok(Self {
+            kind,
+            key,
+            expected,
+            event_type: std::borrow::Cow::Owned(event_type),
+            data,
+            blobs: Vec::new(),
+            receipts: Vec::new(),
+        })
+    }
+
     /// A kernel append. Crate-private so hosts cannot write kernel streams.
     pub(crate) fn kernel<E: StreamEvent>(
         key: impl Into<String>,
@@ -161,12 +188,21 @@ impl Append {
             kind,
             key,
             expected,
-            event_type: event.event_type(),
+            event_type: std::borrow::Cow::Borrowed(event.event_type()),
             data,
             blobs: Vec::new(),
             receipts: Vec::new(),
         })
     }
+}
+
+/// One stored event as its stream holds it: checked against its chain, not
+/// decoded.
+pub(crate) struct StoredRow {
+    pub(crate) version: u64,
+    pub(crate) event_type: String,
+    pub(crate) data: Vec<u8>,
+    pub(crate) committed_at: String,
 }
 
 /// One stored event, decoded.
@@ -246,7 +282,7 @@ pub enum KernelStoreError {
 }
 
 impl KernelStoreError {
-    fn encode(error: serde_json::Error) -> Self {
+    pub(crate) fn encode(error: serde_json::Error) -> Self {
         Self::Codec(error.to_string())
     }
 }
@@ -411,7 +447,7 @@ impl KernelStore {
             }
             let version = actual + 1;
             sequence += 1;
-            let chain = chain_link(&previous_chain, append.event_type, &append.data);
+            let chain = chain_link(&previous_chain, &append.event_type, &append.data);
             transaction
                 .execute(
                     "INSERT INTO kernel_events
@@ -421,7 +457,7 @@ impl KernelStore {
                         append.kind,
                         append.key,
                         version as i64,
-                        append.event_type,
+                        append.event_type.as_ref(),
                         append.data,
                         chain,
                         committed_at,
@@ -442,7 +478,7 @@ impl KernelStore {
                         append.kind,
                         append.key,
                         version as i64,
-                        append.event_type,
+                        append.event_type.as_ref(),
                         chain,
                         committed_at,
                         sequence as i64
@@ -858,6 +894,36 @@ impl KernelStore {
         after: u64,
         limit: Option<usize>,
     ) -> Result<Vec<Recorded<E>>, KernelStoreError> {
+        self.read_rows(kind, key, after, limit)?
+            .into_iter()
+            .map(|row| {
+                let event: E =
+                    serde_json::from_slice(&row.data).map_err(KernelStoreError::encode)?;
+                if event.event_type() != row.event_type {
+                    return Err(KernelStoreError::Integrity {
+                        kind: kind.to_owned(),
+                        key: key.to_owned(),
+                        version: row.version,
+                    });
+                }
+                Ok(Recorded {
+                    version: row.version,
+                    committed_at: row.committed_at,
+                    event,
+                })
+            })
+            .collect()
+    }
+
+    /// At most `limit` events of any stream after version `after`, each
+    /// checked against its stream's chain, as stored.
+    pub(crate) fn read_rows(
+        &self,
+        kind: &str,
+        key: &str,
+        after: u64,
+        limit: Option<usize>,
+    ) -> Result<Vec<StoredRow>, KernelStoreError> {
         let connection = self.lock();
         let mut statement = connection
             .prepare_cached(
@@ -903,14 +969,11 @@ impl KernelStore {
                 if chain_link(&chain, &event_type, &data) != stored_chain {
                     return Err(integrity(version));
                 }
-                let event: E = serde_json::from_slice(&data).map_err(KernelStoreError::encode)?;
-                if event.event_type() != event_type {
-                    return Err(integrity(version));
-                }
-                events.push(Recorded {
+                events.push(StoredRow {
                     version,
+                    event_type,
+                    data,
                     committed_at,
-                    event,
                 });
             }
             chain = stored_chain;
@@ -930,7 +993,7 @@ impl KernelStore {
         latest_kind_on(&connection, &self.path, kind, key)
     }
 
-    fn version_of(&self, kind: &str, key: &str) -> Result<u64, KernelStoreError> {
+    pub(crate) fn version_of(&self, kind: &str, key: &str) -> Result<u64, KernelStoreError> {
         self.lock()
             .query_row(
                 "SELECT version FROM kernel_keys WHERE stream = ?1 AND key = ?2",
@@ -945,7 +1008,7 @@ impl KernelStore {
             .map_err(|source| self.database("reading a stream version", source))
     }
 
-    fn heads_of(
+    pub(crate) fn heads_of(
         &self,
         kind: &str,
         after: Option<&str>,

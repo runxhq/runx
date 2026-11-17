@@ -143,7 +143,7 @@ fn rewritten_history_fails_the_chain() {
 fn an_event_type_must_match_its_typed_payload() {
     let (_root, store) = store();
     let mut append = Append::kernel("a", Expected::Absent, &Ledger::Moved { amount: 1 }).unwrap();
-    append.event_type = "opened";
+    append.event_type = "opened".into();
     store.append(vec![append]).unwrap();
     assert!(matches!(
         store.latest::<Ledger>("a"),
