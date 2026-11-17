@@ -866,6 +866,7 @@ fn a_step_settles_its_effect_in_the_same_transaction() {
         amount: None,
         approval_digest: None,
         act_digest: None,
+        claim_digest: None,
     };
     let custody = EffectCustody::for_act(Arc::clone(&store), &intent, &digest("intent"), "run-1");
     custody

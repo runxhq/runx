@@ -273,6 +273,7 @@ impl Plugin {
                 from: Vec::new(),
             }),
             loaded: None,
+            claims: None,
         };
         let mut call = serde_json::json!({"idempotency_key": "call-1", "inputs": {}});
         if let (Some(call), Some(extra)) = (call.as_object_mut(), extra.as_object()) {

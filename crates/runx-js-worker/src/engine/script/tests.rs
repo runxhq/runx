@@ -280,6 +280,7 @@ fn a_call_that_did_not_succeed_rejects_with_its_reason_code_and_message() -> Res
             inputs: json!({"repository": "a/b"}),
             idempotency_key: Some("k".to_owned()),
             connector: None,
+            claim: None,
         }
     );
     Ok(())
@@ -488,12 +489,14 @@ fn a_script_reads_its_runs_context() -> Result<(), String> {
     Ok(())
 }
 
-/// A requirement chosen per run is named by the call, beside its key.
+/// A requirement chosen per run is named by the call, beside its key, and a
+/// write names the record it claims before it acts.
 #[test]
-fn an_operation_call_names_the_connector_its_requirement_chose() -> Result<(), String> {
+fn an_operation_call_names_its_chosen_connector_and_its_claim() -> Result<(), String> {
     let passed = run(
         r#"export default async function (ctx) {
-            await ctx.operation("mail/inbox.read", { after: "0" }, { connector: "mailsim" });
+            const claim = { stream: "opportunities", key: "o1", expected_version: 3, type: "sending", data: {} };
+            await ctx.operation("mail/message.send", { to: "a@b.example" }, { idempotency_key: "k", connector: "mailsim", claim });
             return {};
         }"#,
         &[],
@@ -501,10 +504,13 @@ fn an_operation_call_names_the_connector_its_requirement_chose() -> Result<(), S
     assert_eq!(
         passed.calls[0].target,
         ScriptCallTarget::Operation {
-            operation: "mail/inbox.read".to_owned(),
-            inputs: json!({"after": "0"}),
-            idempotency_key: None,
+            operation: "mail/message.send".to_owned(),
+            inputs: json!({"to": "a@b.example"}),
+            idempotency_key: Some("k".to_owned()),
             connector: Some("mailsim".to_owned()),
+            claim: Some(
+                json!({"stream": "opportunities", "key": "o1", "expected_version": 3, "type": "sending", "data": {}})
+            ),
         }
     );
     Ok(())

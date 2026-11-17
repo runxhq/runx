@@ -50,6 +50,56 @@ pub(crate) struct OperationCall {
     /// provider.
     #[serde(default)]
     pub act: Option<CallAct>,
+    /// The record a write claims before it acts: an append to the calling
+    /// package's own store, at the version the caller decided at, made after
+    /// approval and before anything is sent. Bound into the admitted intent.
+    #[serde(default)]
+    pub claim: Option<CallClaim>,
+}
+
+/// A claim: one event appended to the calling package's own stream at the
+/// version its caller read, `store/events.append`'s own fields. A write that
+/// finds the key moved is refused before it acts.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CallClaim {
+    pub stream: String,
+    pub key: String,
+    pub expected_version: u64,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    #[serde(default)]
+    pub data: JsonObject,
+}
+
+impl CallClaim {
+    /// The claim as `store/events.append`'s inputs.
+    pub(crate) fn inputs(&self) -> JsonObject {
+        JsonObject::from([
+            (
+                "stream".to_owned(),
+                runx_contracts::JsonValue::String(self.stream.clone()),
+            ),
+            (
+                "key".to_owned(),
+                runx_contracts::JsonValue::String(self.key.clone()),
+            ),
+            (
+                "expected_version".to_owned(),
+                runx_contracts::JsonValue::Number(runx_contracts::JsonNumber::U64(
+                    self.expected_version,
+                )),
+            ),
+            (
+                "type".to_owned(),
+                runx_contracts::JsonValue::String(self.event_type.clone()),
+            ),
+            (
+                "data".to_owned(),
+                runx_contracts::JsonValue::Object(self.data.clone()),
+            ),
+        ])
+    }
 }
 
 /// An operation step's `result`: the fields it must and may hold, the values

@@ -284,7 +284,7 @@ pub enum ScriptCallTarget {
         name: String,
         inputs: serde_json::Value,
     },
-    /// `ctx.operation("<connector>/<operation>", inputs, { idempotency_key, connector })`.
+    /// `ctx.operation("<connector>/<operation>", inputs, { idempotency_key, connector, claim })`.
     Operation {
         operation: String,
         inputs: serde_json::Value,
@@ -294,6 +294,10 @@ pub enum ScriptCallTarget {
         /// kernel checks against the requirement's `from`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         connector: Option<String>,
+        /// The record a write claims before it acts, `{stream, key,
+        /// expected_version, type, data}`, which the kernel checks.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        claim: Option<serde_json::Value>,
     },
     /// `ctx.now()`, and what it read.
     Now { millis: i64 },

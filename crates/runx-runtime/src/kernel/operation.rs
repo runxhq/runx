@@ -43,6 +43,7 @@ use crate::http::{ReqwestHttpTransport, RuntimeHttpTransport};
 use crate::{ProviderOperationRequest, RuntimeError};
 
 pub(crate) mod call;
+pub(crate) mod claim;
 pub(crate) mod confirm;
 pub(crate) mod credentials;
 pub(crate) mod hosted;
@@ -527,6 +528,8 @@ pub(crate) struct OperationAdmission {
     caller: Option<crate::identity::ChainLink>,
     /// How a claimed call whose run stopped is taken further, when it is.
     reconciliation: Option<crate::effects::Reconciliation>,
+    /// The record the write claims before it acts, when it claims one.
+    claim: Option<claim::Claim>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -817,6 +820,7 @@ impl RuntimeEffect for OperationEffect {
             return Ok(());
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
+        self.claim(request, target, &call)?;
         let grounds = Grounds::of(request, target)?;
         admission::authorize(&self.evaluation(request, target, &call, &grounds))
             .map(|_| ())
@@ -850,21 +854,9 @@ impl RuntimeEffect for OperationEffect {
         let instance = authorized.instance();
         // Resolving a credential for comparison never dispatches a provider
         // request. A session whose credential is opaque cannot prove identity.
-        let secret = match &instance.authority {
-            InstanceAuthority::Secret { .. } => Some(
-                credentials::from_secret(request.env, request.workflow_dir, connector, instance)
-                    .map_err(denied)?,
-            ),
-            InstanceAuthority::Environment {
-                credential,
-                variable,
-                ..
-            } => Some(
-                credentials::from_environment(request.env, connector, credential, variable)
-                    .map_err(denied)?,
-            ),
-            _ => None,
-        };
+        let secret =
+            credentials::held_locally(request.env, request.workflow_dir, connector, instance)
+                .map_err(denied)?;
         let credential = presented_locally(
             &instance.authority,
             secret.as_ref(),
@@ -949,9 +941,14 @@ impl RuntimeEffect for OperationEffect {
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
         let shape = call.shape().map_err(invalid)?;
+        // A claim is authorized first: admitting the write counts its uses.
+        let claim = self.claim(request, target, &call)?;
         let grounds = Grounds::of(request, target)?;
         let admitted = admission::admit(&self.evaluation(request, target, &call, &grounds))
             .map_err(refused)?;
+        if claim.is_some() && admitted.operation().access() != OperationAccess::Mutate {
+            return Err(invalid("only a write claims a record before it acts"));
+        }
         let Grounds { lanes, scope, .. } = grounds;
         let verb = admitted.operation().verb.authority_verb();
         let target_ref = match call.act.as_ref().and_then(|act| act.target.as_ref()) {
@@ -981,6 +978,7 @@ impl RuntimeEffect for OperationEffect {
             attempt: None,
             caller: request.chain.last().cloned(),
             reconciliation: request.reconciliation,
+            claim,
         };
         let admitted = &context.admitted;
         let intent = admitted.intent();
@@ -1524,6 +1522,25 @@ pub(crate) fn execute(
                 "an earlier attempt has an unknown outcome and this operation cannot be resent safely; reconcile the provider result before resuming".to_owned(),
             ));
         }
+    }
+    // A write's claim is made last before its attempt, and only on a first
+    // one: an attempt custody holds was claimed before it was recorded, and a
+    // claim that landed before a crash replays under its key.
+    if context.admitted.pending.is_none()
+        && let Some(claim) = &context.claim
+    {
+        claim
+            .append(env, cwd, context.caller.as_ref())
+            .map_err(|refusal| match refusal {
+                // runx's refusal, not the provider's: the decision the write
+                // carries out no longer stands, and nothing was sent.
+                claim::Refusal::Moved(reason) => RuntimeError::AuthorityDenied {
+                    verb: admitted.operation().verb.authority_verb(),
+                    step_id: step_id.to_owned(),
+                    reason,
+                },
+                claim::Refusal::Failed(reason) => preflight(reason),
+            })?;
     }
     if let Some(custody) = &context.admitted.custody {
         record_attempt(

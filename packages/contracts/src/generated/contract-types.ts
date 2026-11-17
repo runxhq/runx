@@ -1856,6 +1856,8 @@ export type OperationIntentContract = {
   readonly amount?: OperationAmountContract;
   /** Digest of the approval text a person is shown, when the call is gated. */
   readonly approval_digest?: string;
+  /** Digest of the record the call claims before it acts, when it claims one: an append to its own package's store, made after approval and before the act, which refuses the act when the record moved. */
+  readonly claim_digest?: string;
   readonly connector: string;
   readonly connector_digest: string;
   /** The instance fixes the placement, principal and account. */

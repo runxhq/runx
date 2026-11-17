@@ -9,8 +9,8 @@ pub use binding::{Binding, Operand, Source};
 pub(crate) use step::output_artifacts;
 pub use tool::validate_process_tool;
 pub use types::{
-    AgentTask, AskGate, AskReason, LoadStep, LoadTarget, OperationStepTarget, ProcessTool,
-    ScriptStep, SkillTarget, StepAct, StepKind, ToolTarget, WorkerTool, Workflow, WorkflowStep,
-    WorkflowWhen,
+    AgentTask, AskGate, AskReason, CLAIM_OPERATION, CLAIM_REQUIREMENT, LoadStep, LoadTarget,
+    OperationStepTarget, ProcessTool, ScriptStep, SkillTarget, StepAct, StepKind, ToolTarget,
+    WorkerTool, Workflow, WorkflowStep, WorkflowWhen,
 };
 pub(crate) use validate::validate_workflow_document;

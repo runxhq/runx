@@ -4902,3 +4902,53 @@ fn a_hosts_claim_and_the_run_it_starts_commit_together() -> TestResult {
     assert_eq!(streams.version("acme/record")?, 1);
     Ok(())
 }
+
+/// A script's write claims its package's record at the version it decided
+/// at (the loop contract's E7): one decided before the record moved is
+/// refused and never made, and one decided at the version it stands at takes
+/// the claim as the record's next event and is made.
+#[test]
+fn a_scripts_write_whose_claimed_record_moved_is_refused_unmade() -> TestResult {
+    let temp = tempdir()?;
+    let skill_dir = write_one_step(
+        temp.path(),
+        "        inputs:\n          value: $input.value\n        calls:\n          operations: [store/key.inspect, store/events.append]\n        max_calls: 8\n        outputs:\n          stale: {type: string}\n          current: {type: string}\n          claimed: {type: integer}\n          wrote: {type: integer}\n",
+        r#"export default async function (ctx) {
+  const version = async (stream, key) =>
+    (await ctx.operation("store/key.inspect", { stream, key })).provider_operation.result.version;
+  const send = (key, at) =>
+    ctx
+      .operation(
+        "store/events.append",
+        { stream: "sent", key: "o", expected_version: 0, type: "message.sent", data: { key } },
+        { idempotency_key: key, claim: { stream: "opportunities", key: "o", expected_version: at, type: "opportunity.sending", data: { key } } },
+      )
+      .then(() => "sent", (rejected) => `${rejected.code}: ${rejected.message}`);
+  const at = await version("opportunities", "o");
+  // The record moves after the write was decided at `at`.
+  await ctx.operation("store/events.append", { stream: "opportunities", key: "o", expected_version: at, type: "opportunity.moved", data: {} }, { idempotency_key: "moved" });
+  const stale = await send("send-1", at);
+  const current = await send("send-2", at + 1);
+  return { stale, current, claimed: await version("opportunities", "o"), wrote: await version("sent", "o") };
+}
+"#,
+    )?;
+    let ran = run_managed(temp.path(), skill_dir)?;
+    let output = object(&ran.output)?;
+    let result = output
+        .get("result")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| format!("the run returns its step's result: {output:?}"))?;
+    assert_eq!(
+        text(result, "stale"),
+        Some(
+            "refused: the claim found o in project:script-one/opportunities at version 1, not at version 0, which the write was decided at, so nothing was sent"
+        ),
+        "{result:?}"
+    );
+    assert_eq!(text(result, "current"), Some("sent"));
+    let integer = |field: &str| result.get(field).and_then(JsonValue::as_u64);
+    assert_eq!(integer("claimed"), Some(2), "moved, then claimed once");
+    assert_eq!(integer("wrote"), Some(1), "only the current write was made");
+    Ok(())
+}

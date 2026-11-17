@@ -348,6 +348,19 @@ impl Authorized {
     pub(crate) fn intent_digest(&self) -> &Digest {
         &self.intent_digest
     }
+
+    /// What a call made from this authorization alone is made with: its
+    /// connector, operation, instance and placed target.
+    pub(crate) fn into_call(
+        self,
+    ) -> (
+        Arc<LoadedConnector>,
+        OperationName,
+        ConnectorInstance,
+        String,
+    ) {
+        (self.connector, self.operation, self.instance, self.target)
+    }
 }
 
 /// Authorize one exact call.
@@ -575,6 +588,8 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
         // The act is bound into the intent, so its approval and custody are
         // the act's: a changed act is another call.
         let act_digest = call.act.as_ref().map(digest).transpose()?;
+        // So is a claim: its record is part of what was approved.
+        let claim_digest = call.claim.as_ref().map(digest).transpose()?;
         let intent = OperationIntent {
             connector: connector.name.clone(),
             manifest_digest: connector.manifest_digest.clone(),
@@ -588,6 +603,7 @@ pub(crate) fn authorize(evaluation: &Evaluation<'_>) -> Result<Authorized, Admit
             amount,
             approval_digest,
             act_digest,
+            claim_digest,
         };
         let intent_digest = digest(&intent)?;
         Ok((intent, intent_digest))

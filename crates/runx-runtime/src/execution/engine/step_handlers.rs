@@ -2107,6 +2107,10 @@ where
             | RuntimeError::ProviderReadbackPending { .. }
             | RuntimeError::EffectState { .. }),
         ) => return Err(error),
+        // runx refused the act before anything was sent, as a write whose
+        // claim found its record moved: a refusal, as one at admission is,
+        // so the step seals nothing.
+        Err(error @ RuntimeError::AuthorityDenied { .. }) => return Err(error),
         // A definite failure keeps its record, which the run returns as the
         // call returned it.
         Err(error) => {

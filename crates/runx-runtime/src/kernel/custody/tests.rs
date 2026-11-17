@@ -24,6 +24,7 @@ fn intent(target: &str, key: &str) -> OperationIntent {
         amount: None,
         approval_digest: None,
         act_digest: None,
+        claim_digest: None,
     }
 }
 

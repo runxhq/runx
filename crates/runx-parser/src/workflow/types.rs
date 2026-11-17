@@ -379,7 +379,17 @@ pub struct OperationStepTarget {
     /// that manifest and implementation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loaded: Option<runx_contracts::connector::ConnectorBinding>,
+    /// The enclosing skill's `store` requirement, bound as `declared` is,
+    /// when the call claims a record before it acts: the claim is admitted
+    /// under it as the package's own `store/events.append`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claims: Option<crate::ConnectorRequirement>,
 }
+
+/// The connector a claim appends through, and its operation: the package's
+/// own store.
+pub const CLAIM_REQUIREMENT: &str = "store";
+pub const CLAIM_OPERATION: &str = "events.append";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

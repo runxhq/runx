@@ -206,6 +206,26 @@ pub(crate) fn check_secret(
     Ok(())
 }
 
+/// The secret a local instance holds, read without sending anything: a bound
+/// secret, or the environment's variable. None for an instance that holds
+/// none of its own.
+pub(crate) fn held_locally(
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+    connector: &LoadedConnector,
+    instance: &ConnectorInstance,
+) -> Result<Option<CredentialSecret>, String> {
+    match &instance.authority {
+        InstanceAuthority::Secret { .. } => from_secret(env, cwd, connector, instance).map(Some),
+        InstanceAuthority::Environment {
+            credential,
+            variable,
+            ..
+        } => from_environment(env, connector, credential, variable).map(Some),
+        _ => Ok(None),
+    }
+}
+
 /// The credential a secret instance holds, read now, once its proof shows
 /// this runx home bound it as it stands. Nothing is kept: every call reads
 /// again, so a secret set anew serves from the next call.

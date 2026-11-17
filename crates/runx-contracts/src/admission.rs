@@ -42,6 +42,11 @@ pub struct OperationIntent {
     /// Digest of the act the call performs, when its caller states one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub act_digest: Option<Digest>,
+    /// Digest of the record the call claims before it acts, when it claims
+    /// one: an append to its own package's store, made after approval and
+    /// before the act, which refuses the act when the record moved.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub claim_digest: Option<Digest>,
 }
 
 /// An exact amount an operation moves, in the provider's smallest unit.

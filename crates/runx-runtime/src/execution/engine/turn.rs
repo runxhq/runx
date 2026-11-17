@@ -212,7 +212,14 @@ pub(crate) const TURN_STATUS_TOOL: &str = "turn_status";
 pub(crate) const TURN_READ_TOOL: &str = "turn_read";
 pub(crate) const TURN_COMPLETE_TOOL: &str = "turn_complete";
 
-const OPERATION_CALL_FIELDS: &[&str] = &["connector", "input", "idempotency_key", "amount", "act"];
+const OPERATION_CALL_FIELDS: &[&str] = &[
+    "connector",
+    "input",
+    "idempotency_key",
+    "amount",
+    "act",
+    "claim",
+];
 
 /// The step an operation call runs as: its target, the connector the turn
 /// declares or loaded, and its inputs, the call's arguments as the step's
@@ -245,6 +252,7 @@ pub(crate) fn operation_call_step(
         from: Vec::new(),
         loaded,
         declared,
+        claims: None,
     };
     Ok((target, inputs))
 }
@@ -2664,7 +2672,7 @@ where
                 requirement,
                 operation,
             } => {
-                let (target, arguments) = operation_call_step(
+                let (mut target, arguments) = operation_call_step(
                     requirement.as_str(),
                     operation.as_str(),
                     input,
@@ -2674,6 +2682,24 @@ where
                         .map_err(|error| error.to_string())?,
                 )?;
                 inputs = arguments;
+                // A claim is the package's own store append, so it's a
+                // script's, made only where the step's calls list the append.
+                if inputs.contains_key("claim") {
+                    let listed = self.scope.allowance.operations.iter().any(|allowed| {
+                        allowed.requirement.as_str() == runx_parser::CLAIM_REQUIREMENT
+                            && allowed.operation.as_str() == runx_parser::CLAIM_OPERATION
+                    });
+                    if self.turn.is_some() || !listed {
+                        return Err(format!(
+                            "a claim is its package's own {}/{}: a script claims, where its step's calls list it",
+                            runx_parser::CLAIM_REQUIREMENT,
+                            runx_parser::CLAIM_OPERATION
+                        ));
+                    }
+                    target.claims = self
+                        .declared(runx_parser::CLAIM_REQUIREMENT)
+                        .map_err(|error| error.to_string())?;
+                }
                 // A turn's own call never writes to store (D19): a stream is
                 // written by its package's deterministic steps, a script's
                 // calls among them, since a script is the package's own code.

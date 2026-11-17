@@ -4258,6 +4258,12 @@
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
+        "claim_digest": {
+          "description": "Digest of the record the call claims before it acts, when it claims one: an append to its own package's store, made after approval and before the act, which refuses the act when the record moved.",
+          "maxLength": 71,
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
         "connector": {
           "maxLength": 129,
           "not": {

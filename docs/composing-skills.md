@@ -353,6 +353,37 @@ store. Domain skills own meaning; the store owns bounded reads, idempotent
 appends and their chain evidence. See
 [the governed data plane](./governed-data-plane.md).
 
+### A write that claims its record first
+
+A write decided from a record can claim that record before it acts. The claim
+is one event appended to the package's own stream at the version the write
+was decided at, made after the person approves and just before anything is
+sent:
+
+```yaml
+  - id: send
+    operation: mail/message.send
+    idempotency_key: $steps.plan.send_key
+    claim:
+      stream: opportunities
+      key: $steps.plan.key
+      expected_version: $steps.plan.version
+      type: opportunity.sending
+      data: $steps.plan.claim
+    inputs: $steps.plan.message
+```
+
+A script claims the same way, with `claim` beside `idempotency_key` in
+`ctx.operation`'s options, where its step's `calls` list
+`store/events.append`. When the record moved while the person decided, the
+claim finds it at another version and runx refuses the write before it acts:
+the call is `refused`, naming the version it found, and nothing is sent. When
+it stands, the claim is the record's next event and the write goes. The claim
+is part of what was approved, bound into the call's intent, and it's appended
+under a key the write's own key derives, so recovering a write whose claim
+landed takes the claim as made. An agent's own call never claims: a claim
+writes to store, which only a package's deterministic steps do.
+
 ## Values And References
 
 A step receives exactly what it binds. Its `inputs`, and an operation step's

@@ -622,8 +622,8 @@ fn operation(
     )?;
     let inputs = inputs(arguments.get_or_undefined(1), "ctx.operation", context)?;
     let options = arguments.get_or_undefined(2);
-    let (idempotency_key, connector) = match options.as_object() {
-        None if options.is_undefined() => (None, None),
+    let (idempotency_key, connector, claim) = match options.as_object() {
+        None if options.is_undefined() => (None, None, None),
         None => {
             return Err(JsNativeError::typ()
                 .with_message("ctx.operation's options are an object")
@@ -633,10 +633,10 @@ fn operation(
             // A read is the world read again, so it never takes `reuse`.
             for key in options.own_property_keys(context)? {
                 let key = key.to_string();
-                if key != "idempotency_key" && key != "connector" {
+                if !["idempotency_key", "connector", "claim"].contains(&key.as_str()) {
                     return Err(JsNativeError::typ()
                         .with_message(format!(
-                            "ctx.operation's options take an idempotency_key and a connector, not {key}"
+                            "ctx.operation's options take an idempotency_key, a connector and a claim, not {key}"
                         ))
                         .into());
                 }
@@ -649,10 +649,24 @@ fn operation(
                     Ok(Some(text(&value, "ctx.operation", what)?))
                 }
             };
+            // A write claims a record of its own package before it acts;
+            // the kernel checks the claim's shape.
+            let claim = options.get(js_string!("claim"), context)?;
+            let claim = if claim.is_undefined() {
+                None
+            } else {
+                if !claim.is_object() {
+                    return Err(JsNativeError::typ()
+                        .with_message("ctx.operation's claim is an object: {stream, key, expected_version, type, data}")
+                        .into());
+                }
+                Some(self::inputs(&claim, "ctx.operation's claim", context)?)
+            };
             (
                 option("idempotency_key", "an idempotency_key string", context)?,
                 // A requirement chosen per run names the connector it chose.
                 option("connector", "a connector's name", context)?,
+                claim,
             )
         }
     };
@@ -663,6 +677,7 @@ fn operation(
             inputs,
             idempotency_key,
             connector,
+            claim,
         },
         context,
     )

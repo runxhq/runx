@@ -170,8 +170,8 @@ pub(crate) fn connector_requirements(
 }
 
 /// Every operation a workflow's steps name: an operation step's, each a
-/// per-run choice may take, and each an agent step's turn or a script step
-/// may call.
+/// per-run choice may take, the store append a claim makes, and each an
+/// agent step's turn or a script step may call.
 fn named_operations(workflow: &Workflow) -> Vec<(String, OperationName)> {
     let mut named = Vec::new();
     for step in &workflow.steps {
@@ -184,6 +184,12 @@ fn named_operations(workflow: &Workflow) -> Vec<(String, OperationName)> {
                         .chain(&target.from)
                         .map(|operation| (target.requirement.clone(), operation.clone())),
                 );
+                if step.inputs.contains_key("claim") {
+                    named.extend(
+                        OperationName::new(crate::CLAIM_OPERATION.to_owned())
+                            .map(|operation| (crate::CLAIM_REQUIREMENT.to_owned(), operation)),
+                    );
+                }
             }
             // The step's parser admitted each as <connector>/<operation>.
             crate::StepKind::Agent(crate::AgentTask { allowance, .. })
@@ -300,6 +306,11 @@ pub(crate) fn bind_operation_steps(
                         });
                     }
                     target.declared = Some(requirement.clone());
+                    // A claim is the package's own store append, which the
+                    // step names by claiming.
+                    if step.inputs.contains_key("claim") {
+                        target.claims = requirements.get(crate::CLAIM_REQUIREMENT).cloned();
+                    }
                 }
                 _ => {}
             }

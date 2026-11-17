@@ -84,6 +84,7 @@ fn kind_fields(kind: &str) -> &'static [&'static str] {
             "retry_unknown_outcomes",
             "confirms",
             "act",
+            "claim",
             "result",
         ],
         _ => &[],
@@ -672,6 +673,7 @@ fn parse_operation_target(
             from,
             declared: None,
             loaded: None,
+            claims: None,
         });
     }
     let reference = non_empty(value, &qualified)?;
@@ -695,6 +697,7 @@ fn parse_operation_target(
         from: Vec::new(),
         declared: None,
         loaded: None,
+        claims: None,
     })
 }
 
@@ -708,7 +711,7 @@ fn operation_call(
     previous_steps: &BTreeMap<String, bool>,
 ) -> Result<JsonObject, ValidationError> {
     let mut call = JsonObject::new();
-    for key in ["inputs", "approval", "idempotency_key"] {
+    for key in ["inputs", "approval", "idempotency_key", "claim"] {
         if let Some(value) = raw_step.get(key) {
             call.insert(key.to_owned(), value.clone());
         }

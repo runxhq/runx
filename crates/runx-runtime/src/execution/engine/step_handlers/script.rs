@@ -1051,6 +1051,7 @@ where
             inputs,
             idempotency_key,
             connector,
+            claim,
         } => {
             let (requirement, operation) = operation.rsplit_once('/').ok_or_else(|| {
                 format!("ctx.operation names <connector>/<operation>, not {operation:?}")
@@ -1067,6 +1068,9 @@ where
                     "connector".to_owned(),
                     serde_json::Value::String(connector.clone()),
                 );
+            }
+            if let Some(claim) = claim {
+                input.insert("claim".to_owned(), claim.clone());
             }
             (
                 CallTarget::Operation {

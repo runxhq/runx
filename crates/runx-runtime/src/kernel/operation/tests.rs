@@ -67,6 +67,11 @@ methods:
         operation: fixture/hooks/handoff.deliver
       - id: allocate
         operation: artifact/artifact.allocate
+      - id: claimed_post
+        operation: fixture/chat/channel.post
+        claim: {stream: deals, key: d1, expected_version: 0, type: deal.sending, data: {}}
+      - id: note
+        operation: store/events.append
 "#;
 
 /// How the fake provider answers a call.
@@ -458,6 +463,12 @@ impl Fixture {
             (
                 crate::paths::RUNX_RECEIPT_DIR_ENV.to_owned(),
                 root.path().join("receipts").to_string_lossy().into_owned(),
+            ),
+            // The workspace an admitted environment names, so a store call
+            // keeps its streams in the fixture's own.
+            (
+                crate::paths::RUNX_CWD_ENV.to_owned(),
+                root.path().to_string_lossy().into_owned(),
             ),
         ]);
         let provider = Provider::new(Answer::Succeed);
@@ -3823,6 +3834,7 @@ impl Fixture {
                         from: Vec::new(),
                         declared: Some(declared.clone()),
                         loaded: None,
+                        claims: None,
                     }),
                     artifacts: None,
                     outputs: None,
@@ -4107,4 +4119,133 @@ fn a_read_fingerprints_the_credential_it_presented() {
     assert_eq!(presented(&fixture), Some(first.clone()));
     fixture.set_credential("fixture/forge", "token", "a-rotated-token");
     assert_ne!(presented(&fixture), Some(first));
+}
+
+/// A write claims its package's record at the version it was decided at
+/// (the loop contract's E7), after its approval and before anything is sent:
+/// a record that moved while the person decided refuses the post unsent, and
+/// one that stands takes the claim as its next event and the post goes.
+#[test]
+fn a_claim_is_made_after_approval_and_a_moved_record_refuses_the_write_unsent() -> Result<(), String>
+{
+    let fixture = Fixture::new(&["channel.post", "channel.post.read"]);
+    let chain = [crate::identity::ChainLink {
+        package: runx_contracts::PackagePattern::new("project:deals").ok_or("a package")?,
+        owner: "project:deals".to_owned(),
+        root: fixture.root.path().to_path_buf(),
+        digest: format!("sha256:{}", "0".repeat(64)),
+    }];
+    let object = |value: serde_json::Value| -> Result<JsonObject, String> {
+        serde_json::from_value(value).map_err(|error| error.to_string())
+    };
+    // Admit `step`'s call, let `actor` answer its gate, and execute it.
+    let prepared =
+        |step: &str, inputs: &JsonObject, actor| -> Result<(EffectAdmission, usize), String> {
+            let admission = fixture
+                .admit_from(step, inputs, None, false, &chain)
+                .map_err(|error| error.to_string())?;
+            let mut host = Approver::new(actor);
+            match fixture
+                .prepare(step, admission, &mut host)
+                .map_err(|error| error.to_string())?
+            {
+                EffectPreparationOutcome::Ready(admission) => Ok((*admission, host.requests.len())),
+                EffectPreparationOutcome::Pending { .. } => Err(format!("{step} still waits")),
+            }
+        };
+    let execute_step = |step: &str, admission: &EffectAdmission| {
+        let context = admission
+            .context::<OperationAdmission>()
+            .ok_or("an operation admission")?;
+        execute(
+            context,
+            step,
+            &fixture.env,
+            fixture.root.path(),
+            &NoTools,
+            &mut None,
+        )
+        .map_err(|error| format!("{error:?}"))
+    };
+    let claimed = |key: &str, at: u64| {
+        object(serde_json::json!({
+            "inputs": {"channel_locator": "chat://T123/C456", "text": "deal moved on"},
+            "idempotency_key": key,
+            "claim": {"stream": "deals", "key": "d1", "expected_version": at, "type": "deal.sending", "data": {"by": key}},
+        }))
+    };
+    let append = |at: u64, key: &str| -> Result<Option<u64>, String> {
+        let inputs = object(serde_json::json!({
+            "inputs": {"stream": "deals", "key": "d1", "expected_version": at, "type": "deal.moved", "data": {}},
+            "idempotency_key": key,
+        }))?;
+        let (admission, _) = prepared("note", &inputs, None)?;
+        let outcome = execute_step("note", &admission)?;
+        Ok(packet(&outcome)["result"]
+            .as_object()
+            .and_then(|result| result.get("version"))
+            .and_then(JsonValue::as_u64))
+    };
+
+    // Decided at version 0 and approved; the record moves before the post
+    // is attempted, so the claim finds it at 1 and nothing is sent.
+    let (stale, asked) = prepared(
+        "claimed_post",
+        &claimed("post-1", 0)?,
+        Some(ResolutionResponseActor::Human),
+    )?;
+    assert_eq!(asked, 1, "the post waited on its gate");
+    append(0, "moved-1")?;
+    let context = stale
+        .context::<OperationAdmission>()
+        .ok_or("an operation admission")?;
+    let refused = execute(
+        context,
+        "claimed_post",
+        &fixture.env,
+        fixture.root.path(),
+        &NoTools,
+        &mut None,
+    );
+    assert!(
+        matches!(
+            &refused,
+            Err(RuntimeError::AuthorityDenied { reason, .. })
+                if reason == "the claim found d1 in project:deals/deals at version 1, not at version 0, which the write was decided at, so nothing was sent"
+        ),
+        "{refused:?}"
+    );
+    assert!(
+        fixture
+            .provider
+            .calls
+            .lock()
+            .map_err(|error| error.to_string())?
+            .is_empty(),
+        "nothing was sent"
+    );
+
+    // Decided again at the version it stands at: the claim is its next event
+    // and the post goes, once.
+    let (current, _) = prepared(
+        "claimed_post",
+        &claimed("post-2", 1)?,
+        Some(ResolutionResponseActor::Human),
+    )?;
+    execute_step("claimed_post", &current)?;
+    assert_eq!(
+        fixture
+            .provider
+            .calls
+            .lock()
+            .map_err(|error| error.to_string())?
+            .len(),
+        1
+    );
+    assert_eq!(
+        append(2, "moved-2")?,
+        Some(3),
+        "the claim took version 2, so the next append lands at 3"
+    );
+    Ok(())
 }
