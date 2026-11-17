@@ -1,0 +1,30 @@
+{
+  "schema": "runx.tool.manifest.v1",
+  "name": "mailsim.mail",
+  "version": "0.1.0",
+  "description": "The rehearsal mail provider: every operation of the mailsim connector, over the append-only files in the workspace's world/ folder.",
+  "process": {
+    "command": "node",
+    "args": ["./mail.mjs"]
+  },
+  "inputs": {
+    "connector_operation": {"type": "string", "description": "The operation runx performs, which runx supplies."},
+    "phase": {"type": "string", "description": "perform or readback, for a write.", "optional": true},
+    "idempotency_key": {"type": "string", "description": "runx's key for a write.", "optional": true},
+    "acknowledgement": {"type": "object", "description": "A write's acknowledgement, for its readback.", "optional": true},
+    "to": {"type": "string", "optional": true},
+    "from_email": {"type": "string", "optional": true},
+    "from_name": {"type": "string", "optional": true},
+    "reply_to": {"type": "string", "optional": true},
+    "subject": {"type": "string", "optional": true},
+    "body": {"type": "string", "optional": true},
+    "in_reply_to": {"type": "string", "optional": true},
+    "unless_inbound_since": {"type": "string", "optional": true},
+    "id": {"type": "string", "optional": true},
+    "thread_id": {"type": "string", "optional": true},
+    "after": {"type": "string", "optional": true},
+    "limit": {"type": "integer", "optional": true},
+    "address": {"type": "string", "optional": true},
+    "reason": {"type": "string", "optional": true}
+  }
+}

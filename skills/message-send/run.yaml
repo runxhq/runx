@@ -9,7 +9,61 @@ connectors:
     choose: $input.expected_provider
     from:
       - slack
+  # A real provider joins once its connector is published and its manifest
+  # pinned here, as a connector outside this plugin must be.
+  mail:
+    choose: $input.mail.connector
+    from:
+      - mailsim
 methods:
+  email:
+    description: Send one exact email through the mail connector the caller chooses, at its own gate, once under its key, read back by the key. Returns what was delivered.
+    inputs:
+      mail:
+        type: object
+        description: The mail connector to send through, and its instance when it has several.
+        additionalProperties: false
+        required: [connector]
+        properties:
+          connector: {type: string, minLength: 1, maxLength: 64}
+          instance: {type: string, minLength: 1, maxLength: 128}
+      to: {type: string, format: email, maxLength: 320, description: The one recipient.}
+      from_email: {type: string, format: email, maxLength: 320}
+      from_name: {type: string, minLength: 1, maxLength: 255}
+      reply_to: {type: string, format: email, maxLength: 320}
+      subject: {type: string, minLength: 1, maxLength: 998}
+      body: {type: string, minLength: 1, maxLength: 262144, description: Plain text, exactly as approved.}
+      idempotency_key: {type: string, minLength: 1, maxLength: 255, description: The send's key. The provider keeps one message per key, so a retry never sends twice.}
+      approval_reason: {type: string, minLength: 1, maxLength: 512, description: What the person is shown at the gate.}
+    result_from: [send]
+    examples:
+      - mail: {connector: mailsim}
+        to: priya@northwind.example
+        from_email: sam@acme.example
+        from_name: Sam at Acme
+        reply_to: sam@acme.example
+        subject: Your release notes
+        body: Hi Priya, ...
+        idempotency_key: outreach-acme:priya@northwind.example:first:1
+        approval_reason: Send this first contact to Priya at Northwind.
+    steps:
+      - id: send
+        operation: mail/message.send
+        idempotency_key: $input.idempotency_key
+        approval:
+          reason: $input.approval_reason
+          type: email
+        result:
+          required: [id, thread_id, rfc_message_id, to, subject, sent_at]
+          equals:
+            to: $input.to
+        inputs:
+          to: $input.to
+          from_email: $input.from_email
+          from_name: $input.from_name
+          reply_to: $input.reply_to
+          subject: $input.subject
+          body: $input.body
   send:
     description: Post one message to a channel, planning it, asking approval at the live post, posting once and reading it back.
     inputs:

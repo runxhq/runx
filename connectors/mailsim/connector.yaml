@@ -1,0 +1,150 @@
+schema: runx.connector.v1
+name: mailsim
+title: Mail rehearsal
+description: A rehearsal mail provider kept in the workspace's world/ folder, speaking the same mail contract a real one does. It sends nothing anywhere; the world simulator answers as the people written to.
+category: communication
+auth:
+  credentials:
+    api_key:
+      kind: api_key
+      fields:
+        - {name: api_key, label: "The rehearsal world's key, from world/key", prefixes: [mailsim_]}
+      delivery: {env: MAILSIM_API_KEY}
+      audience: [mailsim.local]
+placements:
+  local:
+    auth: [credentials]
+operations:
+  message.send:
+    description: Send one email to one recipient. One message per key, so a retry under the same key never sends twice.
+    verb: write
+    scopes: [mail.send]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: success, source: docs, source_url: 'https://runx.ai'}
+    approval: required
+    guarantees:
+      provider_idempotency: enforced
+    target:
+      template: {"$argument": "/to"}
+    input_schema:
+      type: object
+      required: [to, from_email, from_name, subject, body]
+      additionalProperties: false
+      properties:
+        to: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        from_email: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        from_name: {type: string, minLength: 1, maxLength: 255}
+        reply_to: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        subject: {type: string, minLength: 1, maxLength: 998}
+        body: {type: string, minLength: 1, maxLength: 262144}
+        in_reply_to: {type: string, maxLength: 998, pattern: "^<[^<>\\s]+>$"}
+        unless_inbound_since: {type: string, format: date-time}
+    result_fields: [id, thread_id, rfc_message_id, to, from_email, from_name, reply_to, subject, body, in_reply_to, sent_at]
+    implementation:
+      process:
+        tool: mailsim.mail
+        readback:
+          matches:
+            - {expected: {source: argument, path: to}, observed: to}
+            - {expected: {source: argument, path: from_email}, observed: from_email}
+            - {expected: {source: argument, path: subject}, observed: subject}
+            - {expected: {source: argument, path: body}, observed: body}
+            - {expected: {source: acknowledgement, path: id}, observed: id}
+  message.read:
+    description: Read one sent message by its send key or its id. No item means no message has that key.
+    verb: read
+    scopes: [mail.read]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://runx.ai'}
+    target:
+      template: "mailsim://messages"
+    input_schema:
+      type: object
+      oneOf: [{required: [idempotency_key]}, {required: [id]}]
+      additionalProperties: false
+      properties:
+        idempotency_key: {type: string, minLength: 1, maxLength: 255}
+        id: {type: string, minLength: 1, maxLength: 255}
+    result_fields: [item]
+    implementation:
+      process:
+        tool: mailsim.mail
+  thread.read:
+    description: Read one thread's messages, both ways, oldest first.
+    verb: read
+    scopes: [mail.read]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://runx.ai'}
+    target:
+      template: {"$argument": "/thread_id"}
+    input_schema:
+      type: object
+      required: [thread_id]
+      additionalProperties: false
+      properties:
+        thread_id: {type: string, minLength: 1, maxLength: 255}
+    result_fields: [thread_id, messages]
+    implementation:
+      process:
+        tool: mailsim.mail
+  inbox.read:
+    description: Read what arrived after a cursor, oldest first, at most limit of it, with the cursor to read on from. Replies, auto-replies, bounces, complaints and unsubscribes.
+    verb: read
+    scopes: [mail.read]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://runx.ai'}
+    target:
+      template: "mailsim://inbox"
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        after: {type: string, maxLength: 64, pattern: "^[0-9]+$"}
+        limit: {type: integer, minimum: 1, maximum: 500}
+    result_fields: [events, cursor, more]
+    implementation:
+      process:
+        tool: mailsim.mail
+  suppression.read:
+    description: Whether the provider suppresses one address for this sender, and why.
+    verb: read
+    scopes: [mail.read]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://runx.ai'}
+    target:
+      template: {"$argument": "/address"}
+    input_schema:
+      type: object
+      required: [address]
+      additionalProperties: false
+      properties:
+        address: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+    result_fields: [address, suppressed, reason]
+    implementation:
+      process:
+        tool: mailsim.mail
+  suppression.add:
+    description: Suppress one address for this sender, so nothing is sent to it again.
+    verb: write
+    scopes: [mail.suppress]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: success, source: docs, source_url: 'https://runx.ai'}
+    guarantees:
+      provider_idempotency: enforced
+    target:
+      template: {"$argument": "/address"}
+    input_schema:
+      type: object
+      required: [address, reason]
+      additionalProperties: false
+      properties:
+        address: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        reason: {enum: [unsubscribe, complaint, bounce]}
+    result_fields: [address, suppressed, reason]
+    implementation:
+      process:
+        tool: mailsim.mail
+        readback:
+          matches:
+            - {expected: {source: argument, path: address}, observed: address}
+            - {expected: {source: literal, value: true}, observed: suppressed}
