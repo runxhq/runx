@@ -642,13 +642,13 @@ mod tests {
     /// A loop's day is its zone's: in Hobart's daylight time, 20:00 UTC is
     /// the next morning there, and that day began at 13:00 UTC.
     #[test]
-    fn a_day_is_bounded_in_the_loops_own_zone() {
-        let at = chrono::DateTime::parse_from_rfc3339("2026-11-17T20:00:00Z")
-            .unwrap()
+    fn a_day_is_bounded_in_the_loops_own_zone() -> Result<(), chrono::ParseError> {
+        let at = chrono::DateTime::parse_from_rfc3339("2026-11-17T20:00:00Z")?
             .with_timezone(&chrono::Utc);
         let (date, start, end) = super::DayZone::Zone(chrono_tz::Australia::Hobart).day_bounds(at);
         assert_eq!(date, "2026-11-18");
         assert_eq!(start.to_rfc3339(), "2026-11-17T13:00:00+00:00");
         assert_eq!(end.to_rfc3339(), "2026-11-18T13:00:00+00:00");
+        Ok(())
     }
 }
