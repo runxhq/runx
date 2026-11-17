@@ -117,6 +117,10 @@ fn dispatch_command(action: RouterAction, workspace: &runx_runtime::WorkspaceEnv
         RouterAction::RunDoctor(plan) => runx_cli::doctor::run_native_doctor(plan, workspace),
         RouterAction::RunExport(plan) => runx_cli::export::run_native_export(plan, workspace),
         RouterAction::RunTool(plan) => runx_cli::tool::run_native_tool(plan, workspace),
+        RouterAction::RunLoops(plan) => runx_cli::loops::run_native_loops(plan, workspace),
+        RouterAction::RunAlwaysOn(plan) => {
+            runx_cli::always_on::run_native_always_on(plan, workspace)
+        }
         RouterAction::Error(_)
         | RouterAction::JsonError(_)
         | RouterAction::PrintHelp

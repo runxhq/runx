@@ -1,3 +1,4 @@
+pub mod always_on;
 mod answer;
 pub mod authority;
 pub mod cli_args;
@@ -13,6 +14,7 @@ pub mod export;
 pub mod history;
 pub mod list;
 pub mod login;
+pub mod loops;
 pub mod mcp;
 pub mod notarize;
 pub mod process;

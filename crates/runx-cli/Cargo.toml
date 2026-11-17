@@ -28,10 +28,12 @@ default = []
 base64 = "0.23.1"
 chrono = "0.4.45"
 ctrlc = "3.5.2"
+fs2.workspace = true
 ring = "0.17.14"
 # A credential typed at a terminal is read without echo.
 rpassword = "7.5.4"
 runx-contracts.workspace = true
+runx-loops.workspace = true
 runx-parser.workspace = true
 runx-receipts.workspace = true
 runx-runtime = { workspace = true, features = ["mcp", "mcp-http-server", "agent", "store"] }

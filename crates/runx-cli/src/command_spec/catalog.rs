@@ -176,6 +176,64 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         options: &["--from reference", "-j, --json"],
     },
     CommandSpec {
+        name: "loops",
+        top_level_usage: &["runx loops [-j|--json]"],
+        usage: &["runx loops [-j|--json]"],
+        notes: &[
+            "Every loop in this workspace: the method it calls, whether it runs, the run working its inbox, how its last run ended, its next wake, and what waits on you: a notice and its action, a change it proposes, a run of yours that's open. A loop is a file in loops/, a named, continuing job that calls one method of a skill each time something wakes it, and keeps everything it knows in its own record.",
+        ],
+        options: &["-j, --json"],
+    },
+    CommandSpec {
+        name: "loop",
+        top_level_usage: &["runx loop new|show|accept|decline|retry|skip|message ..."],
+        usage: &[
+            "runx loop new <skill> <name>",
+            "runx loop show <loop> [-j|--json]",
+            "runx loop accept <loop> <proposal> [--authority <name>]",
+            "runx loop decline <loop> <proposal> [--why <words>]",
+            "runx loop retry <loop>",
+            "runx loop skip <loop>",
+            "runx loop message <loop> <text>",
+        ],
+        notes: &[
+            "`new` copies the skill's loop template to loops/<name>.yaml for you to fill in. `show` says everything the loop's record holds of it now: its notices, and each proposal with its id.",
+            "A run never changes its loop: it proposes. `accept` takes a change to the loop's brief or inputs, writing the file's next revision, or makes a new loop's file under the authority you name, not started. `decline` keeps your words.",
+            "After a run that changed something and then failed, or one admission refused, the loop pauses for you. `retry` gives its batch to a new attempt; `skip` moves past it. `message` tells the loop something, which wakes it.",
+        ],
+        options: &["--authority <name>", "--why <words>", "-j, --json"],
+    },
+    CommandSpec {
+        name: "start",
+        top_level_usage: &["runx start|stop <loop>"],
+        usage: &["runx start <loop>", "runx stop <loop> [--why <words>]"],
+        notes: &[
+            "`start` runs a loop from now on, on its file as it is: it can't start until its inputs are what its method takes. It also resumes a paused loop and takes a revision that widens what the loop may do (another method, authority or policy), which waits for a start. `stop` lets a run that's working finish, and then no wake follows.",
+        ],
+        options: &["--why <words>"],
+    },
+    CommandSpec {
+        name: "run",
+        top_level_usage: &["runx run <loop> [method] [--inputs <json>]"],
+        usage: &[
+            "runx run <loop>",
+            "runx run <loop> <method> [--inputs <json>]",
+        ],
+        notes: &[
+            "With no method, the loop wakes once now, whether it runs or not. With one, it's your own run of that method on the loop: in the loop's records, under its authority, with the loop's inputs the method takes and yours over them. It never takes the loop's events, so a review you leave open never stops the loop. One is open per method: running it again opens the open one, and `runx resume` answers what it asks.",
+        ],
+        options: &["--inputs <json>"],
+    },
+    CommandSpec {
+        name: "on",
+        top_level_usage: &["runx on|off|status"],
+        usage: &["runx on", "runx off", "runx status"],
+        notes: &[
+            "`on` starts the always-on runx in the background: one per runx home, running every started loop's wakes as they come due, and nothing else while it sleeps. A sleeping or switched-off machine runs nothing; when it's back, what came due runs once, marked late. `off` lets the wake it's in reach its end, then stops. `status` says whether it's on.",
+        ],
+        options: &[],
+    },
+    CommandSpec {
         name: "workspace",
         top_level_usage: &["runx workspace list|rebind|forget ... [-j|--json]"],
         usage: &[

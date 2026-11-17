@@ -43,6 +43,8 @@ pub enum RouterAction {
     RunTrust(crate::trust::TrustPlan),
     RunSkill(Box<SkillPlan>),
     RunTool(ToolPlan),
+    RunLoops(crate::loops::LoopsPlan),
+    RunAlwaysOn(crate::always_on::AlwaysOnPlan),
     PrintHelp,
     PrintHelpJson,
     PrintCommandHelp(&'static str),
@@ -285,6 +287,28 @@ fn route_args_with_optional_workspace(
         return parse_registry_plan(&args).map_or_else(
             |message| json_or_human_error(&args, message),
             RouterAction::RunRegistry,
+        );
+    }
+
+    if ["loops", "loop", "start", "stop", "run"]
+        .iter()
+        .any(|command| first_arg_is(&args, command))
+    {
+        return route_parse(
+            &args,
+            crate::loops::parse_loops_plan(&args),
+            RouterAction::RunLoops,
+        );
+    }
+
+    if ["on", "off", "status"]
+        .iter()
+        .any(|command| first_arg_is(&args, command))
+    {
+        return route_parse(
+            &args,
+            crate::always_on::parse_always_on_plan(&args),
+            RouterAction::RunAlwaysOn,
         );
     }
 

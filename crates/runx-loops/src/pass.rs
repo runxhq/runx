@@ -237,6 +237,33 @@ impl Loops {
         Ok(())
     }
 
+    /// The file loop `name` runs: its active revision's, else its file as
+    /// written, when it validates.
+    pub fn file(&self, name: &LoopName) -> Result<Option<LoopFile>, LoopError> {
+        let state = self.read(name)?;
+        if let Some(file) = state.active_file() {
+            return file.map(Some);
+        }
+        Ok(self.written(name)?.and_then(|written| written.file.ok()))
+    }
+
+    /// When loop `name` is next due, when it runs: its next clock time, a
+    /// proposed wake, or a retry of events waiting.
+    pub fn next(
+        &self,
+        name: &LoopName,
+        now: DateTime<Utc>,
+    ) -> Result<Option<DateTime<Utc>>, LoopError> {
+        let state = self.read(name)?;
+        if state.status != Status::Running {
+            return Ok(None);
+        }
+        match state.active_file().transpose()? {
+            Some(file) => self.next_due(name, &state, &file, now),
+            None => Ok(None),
+        }
+    }
+
     /// When something of the loop is next due.
     fn next_due(
         &self,

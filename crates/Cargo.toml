@@ -18,6 +18,7 @@ fs2 = "0.4.3"
 runx-contracts = { path = "runx-contracts", version = "0.1.0" }
 runx-contracts-derive = { path = "runx-contracts-derive", version = "0.1.0" }
 runx-core = { path = "runx-core", version = "0.1.0" }
+runx-loops = { path = "runx-loops", version = "0.1.0" }
 runx-parser = { path = "runx-parser", version = "0.1.0" }
 runx-receipts = { path = "runx-receipts", version = "0.0.2" }
 runx-runtime = { path = "runx-runtime", version = "0.1.0" }
