@@ -349,28 +349,119 @@ pub(crate) fn package_path(path: &str) -> Option<&str> {
     }
 }
 
-/// The root a path is read under and the path below it. A path is from the
-/// workspace root, `root`; one beginning [`PACKAGE_BASE`] names its
-/// package's file; and an absolute one names a file elsewhere, another
-/// repository's among them, under its own directory, which the run's reach
-/// admits or refuses as it would that directory.
-pub(crate) fn rooted<'a>(root: &'a str, path: &'a str) -> (&'a str, &'a str) {
-    match package_path(path) {
-        Some("") => (PACKAGE_BASE, "."),
-        Some(rest) => (PACKAGE_BASE, rest),
-        None if Path::new(path).is_absolute() => {
-            let trimmed = match path.trim_end_matches('/') {
-                "" => "/",
-                trimmed => trimmed,
-            };
-            match trimmed.rfind('/') {
-                Some(0) if trimmed.len() > 1 => ("/", &trimmed[1..]),
-                Some(at) if at > 0 => (&trimmed[..at], &trimmed[at + 1..]),
-                _ => (trimmed, "."),
+/// Where a path a caller names is read: the root it resolves under, the path
+/// below that root, and how a result names what it read.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Rooted {
+    /// The root: the workspace (`root`), [`PACKAGE_BASE`], or an absolute
+    /// directory outside the workspace.
+    pub(crate) base: String,
+    /// The path below `base`, `.` for the root itself.
+    pub(crate) below: String,
+    /// What a result puts before `below` to name the file as its caller did:
+    /// none for a path from the workspace root.
+    pub(crate) prefix: Option<String>,
+}
+
+/// The root a path is read under. A path is from the workspace root, `root`;
+/// one beginning [`PACKAGE_BASE`] names its package's file; an absolute one
+/// inside the workspace is that workspace path, admitted as one; and an
+/// absolute one elsewhere, another repository's among them, is read under its
+/// own directory, which the run's reach admits or refuses as it would that
+/// directory.
+pub(crate) fn rooted(
+    root: &str,
+    path: &str,
+    env: &std::collections::BTreeMap<String, String>,
+    skill_directory: &Path,
+) -> Rooted {
+    if let Some(rest) = package_path(path) {
+        return Rooted {
+            base: PACKAGE_BASE.to_owned(),
+            below: if rest.is_empty() { "." } else { rest }.to_owned(),
+            prefix: Some(PACKAGE_BASE.to_owned()),
+        };
+    }
+    let named = Path::new(path);
+    if !named.is_absolute() {
+        return Rooted {
+            base: root.to_owned(),
+            below: path.to_owned(),
+            prefix: None,
+        };
+    }
+    let workspace = crate::RunxPaths::resolve(env, skill_directory)
+        .workspace()
+        .to_path_buf();
+    if let Some(below) = below_workspace(&workspace, named) {
+        // The caller's own words for the workspace, where they end in the
+        // path below it; its resolved path otherwise.
+        let prefix = if below == "." {
+            path.to_owned()
+        } else {
+            path.strip_suffix(below.as_str())
+                .and_then(|prefix| {
+                    prefix
+                        .strip_suffix(std::path::MAIN_SEPARATOR)
+                        .or_else(|| prefix.strip_suffix('/'))
+                })
+                .map_or_else(|| workspace.to_string_lossy().into_owned(), str::to_owned)
+        };
+        return Rooted {
+            base: root.to_owned(),
+            below,
+            prefix: Some(prefix),
+        };
+    }
+    match (named.parent(), named.file_name()) {
+        (Some(parent), Some(name)) => {
+            let parent = parent.to_string_lossy().into_owned();
+            Rooted {
+                base: parent.clone(),
+                below: name.to_string_lossy().into_owned(),
+                prefix: Some(parent),
             }
         }
-        None => (root, path),
+        _ => Rooted {
+            base: path.to_owned(),
+            below: ".".to_owned(),
+            prefix: Some(path.to_owned()),
+        },
     }
+}
+
+/// The path from the workspace root an absolute path names, when it names
+/// the workspace or a path inside it: what exists of it resolved, so a link
+/// can't carry it in or out. A path with `.` or `..` segments is read where it
+/// resolves, never as a workspace path.
+fn below_workspace(workspace: &Path, named: &Path) -> Option<String> {
+    if named.components().any(|component| {
+        matches!(
+            component,
+            std::path::Component::CurDir | std::path::Component::ParentDir
+        )
+    }) {
+        return None;
+    }
+    let workspace = std::fs::canonicalize(workspace).ok()?;
+    let mut existing = named;
+    let mut missing = Vec::new();
+    while !existing.exists() {
+        missing.push(existing.file_name()?);
+        existing = existing.parent()?;
+    }
+    let mut resolved = std::fs::canonicalize(existing).ok()?;
+    resolved.extend(missing.into_iter().rev());
+    let below = resolved.strip_prefix(&workspace).ok()?;
+    let segments = below
+        .components()
+        .map(|component| component.as_os_str().to_str())
+        .collect::<Option<Vec<_>>>()?;
+    Some(if segments.is_empty() {
+        ".".to_owned()
+    } else {
+        segments.join("/")
+    })
 }
 
 /// The directory a native tool works in: the root `requested_root` names in
@@ -445,8 +536,8 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        Reach, WorkspaceFile, WorkspaceFileError, is_secret_path, read_workspace_text,
-        resolve_scoped_root,
+        Reach, Rooted, WorkspaceFile, WorkspaceFileError, is_secret_path, read_workspace_text,
+        resolve_scoped_root, rooted,
     };
 
     fn env(workspace: &Path) -> std::collections::BTreeMap<String, String> {
@@ -454,6 +545,51 @@ mod tests {
             crate::paths::RUNX_CWD_ENV.to_owned(),
             workspace.to_string_lossy().into_owned(),
         )])
+    }
+
+    #[test]
+    fn an_absolute_path_inside_the_workspace_is_a_workspace_path()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let workspace = tempfile::tempdir()?;
+        let elsewhere = tempfile::tempdir()?;
+        std::fs::create_dir_all(workspace.path().join("src"))?;
+        std::fs::write(workspace.path().join("src/a.rs"), "")?;
+        let env = env(workspace.path());
+        let named = workspace.path().to_string_lossy().into_owned();
+        let read = |path: &str| rooted(".", path, &env, workspace.path());
+        // The workspace by its absolute path is the workspace, so a run whose
+        // reach is the workspace reads it, and names it as its caller did.
+        assert_eq!(
+            read(&named),
+            Rooted {
+                base: ".".to_owned(),
+                below: ".".to_owned(),
+                prefix: Some(named.clone()),
+            }
+        );
+        resolve_scoped_root(&read(&named).base, &env, workspace.path(), Reach::Workspace)?;
+        let file = workspace
+            .path()
+            .join("src/a.rs")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(
+            read(&file),
+            Rooted {
+                base: ".".to_owned(),
+                below: "src/a.rs".to_owned(),
+                prefix: Some(named.clone()),
+            }
+        );
+        // A file elsewhere is read under its own directory.
+        let other = elsewhere.path().join("b.txt");
+        let outside = read(&other.to_string_lossy());
+        assert_eq!(outside.base, elsewhere.path().to_string_lossy());
+        assert_eq!(outside.below, "b.txt");
+        assert!(
+            resolve_scoped_root(&outside.base, &env, workspace.path(), Reach::Workspace).is_err()
+        );
+        Ok(())
     }
 
     #[test]

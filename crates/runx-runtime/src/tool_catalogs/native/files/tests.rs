@@ -195,14 +195,16 @@ fn writes_and_proves_one_contained_file() -> Result<(), Box<dyn std::error::Erro
 #[test]
 fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;
-    let alternate = tempfile::tempdir()?;
     let env = BTreeMap::from([(
         RUNX_CWD_ENV.to_owned(),
         workspace.path().to_string_lossy().into_owned(),
     )]);
     let delivery = CredentialDelivery::none();
     let effects = RuntimeEffectRegistry::default();
-    for root in [workspace.path(), alternate.path()] {
+    let root = workspace.path();
+    // Named from the workspace root and by its absolute path inside it, a
+    // kernel file is refused as kernel state either way.
+    for absolute in [false, true] {
         for filename in [
             "kernel-v2.sqlite",
             "kernel-v2.sqlite-wal",
@@ -214,11 +216,10 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
             let protected = root.join(&path);
             fs::create_dir_all(protected.parent().ok_or("missing parent")?)?;
             fs::write(&protected, "protected")?;
-            // A path is from the workspace root, or absolute elsewhere.
-            let path = if root == workspace.path() {
-                path
-            } else {
+            let path = if absolute {
                 protected.to_string_lossy().into_owned()
+            } else {
+                path
             };
             let write_inputs = fixture_input::<FileWriteInput>(JsonObject::from([
                 ("path".to_owned(), JsonValue::String(path.clone())),
@@ -227,19 +228,24 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
                     JsonValue::String("forged".to_owned()),
                 ),
             ]))?;
+            let refused = write(&NativeInvocation {
+                inputs: &write_inputs,
+                observed_at: "2026-01-01T00:00:00Z",
+                env: &env,
+                skill_directory: workspace.path(),
+                credential_delivery: &delivery,
+                local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
+                effects: &effects,
+                reach: runx_contracts::Reach::Inputs,
+                call: None,
+            })
+            .err()
+            .ok_or("a file tool wrote kernel state")?;
             assert!(
-                write(&NativeInvocation {
-                    inputs: &write_inputs,
-                    observed_at: "2026-01-01T00:00:00Z",
-                    env: &env,
-                    skill_directory: workspace.path(),
-                    credential_delivery: &delivery,
-                    local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
-                    effects: &effects,
-                    reach: runx_contracts::Reach::Inputs,
-                    call: None,
-                })
-                .is_err()
+                refused
+                    .to_string()
+                    .contains("kernel state cannot be changed"),
+                "{refused}"
             );
             for (writes, deletes) in [
                 (
@@ -301,6 +307,71 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
             assert!(!protected.exists());
         }
     }
+    Ok(())
+}
+
+#[test]
+fn a_write_stays_in_the_workspace() -> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let elsewhere = tempfile::tempdir()?;
+    let package = workspace.path().join("skills/own");
+    fs::create_dir_all(&package)?;
+    let env = BTreeMap::from([(
+        RUNX_CWD_ENV.to_owned(),
+        workspace.path().to_string_lossy().into_owned(),
+    )]);
+    let delivery = CredentialDelivery::none();
+    let effects = RuntimeEffectRegistry::default();
+    // The path a write names back, or why it was refused.
+    let write_to = |path: String| -> Result<Result<String, String>, Box<dyn std::error::Error>> {
+        let inputs = fixture_input::<FileWriteInput>(JsonObject::from([
+            ("path".to_owned(), JsonValue::String(path)),
+            (
+                "contents".to_owned(),
+                JsonValue::String("written".to_owned()),
+            ),
+        ]))?;
+        Ok(write(&NativeInvocation {
+            inputs: &inputs,
+            observed_at: "2026-01-01T00:00:00Z",
+            env: &env,
+            skill_directory: &package,
+            credential_delivery: &delivery,
+            local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
+            effects: &effects,
+            reach: runx_contracts::Reach::Inputs,
+            call: None,
+        })
+        .map(|written| written.path.as_str().to_owned())
+        .map_err(|error| error.to_string()))
+    };
+    // Its absolute path inside the workspace is that file, named from the root.
+    let inside = workspace.path().join("notes/new.txt");
+    let written = write_to(inside.to_string_lossy().into_owned())??;
+    assert_eq!(written, "notes/new.txt");
+    assert_eq!(fs::read_to_string(&inside)?, "written");
+    // Anywhere else, and the skill's own package, are refused with why.
+    for (path, why) in [
+        (
+            elsewhere
+                .path()
+                .join("new.txt")
+                .to_string_lossy()
+                .into_owned(),
+            "is outside the workspace",
+        ),
+        (
+            "$package/new.txt".to_owned(),
+            "names the skill's own package",
+        ),
+    ] {
+        let refused = write_to(path.clone())?
+            .err()
+            .ok_or("a write left the workspace")?;
+        assert!(refused.contains(why), "{path}: {refused}");
+    }
+    assert!(!elsewhere.path().join("new.txt").exists());
+    assert!(!package.join("new.txt").exists());
     Ok(())
 }
 

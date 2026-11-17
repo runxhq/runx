@@ -27,11 +27,20 @@ pub(super) fn invoke(
     let artifact = match &page_source.source {
         ArtifactPageInput::Path { path, media_type } => {
             let requested_path = take_string_input(&mut request, path)?;
-            let (root, requested_path) = crate::services::rooted(".", &requested_path);
-            let requested_path = requested_path.to_owned();
-            let root =
-                resolve_scoped_root(root, &request.env, &request.skill_directory, request.reach)
-                    .map_err(|error| page_error(error.to_string()))?;
+            let rooted = crate::services::rooted(
+                ".",
+                &requested_path,
+                &request.env,
+                &request.skill_directory,
+            );
+            let requested_path = rooted.below;
+            let root = resolve_scoped_root(
+                &rooted.base,
+                &request.env,
+                &request.skill_directory,
+                request.reach,
+            )
+            .map_err(|error| page_error(error.to_string()))?;
             // A worker isn't a model, so where the source may be shared
             // doesn't bound it.
             artifacts

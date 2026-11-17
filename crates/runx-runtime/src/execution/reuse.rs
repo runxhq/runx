@@ -633,72 +633,53 @@ impl Reads {
 }
 
 /// Whether `read` passes the check its tool makes before it reads, under
-/// `reach`: its root, unless it's the skill's own directory, and each path
-/// it names under the root. A tool that reads beyond the paths it's given
-/// checks only its root, so only its root is checked. A root that no longer
-/// exists isn't refused: what it read changed, which the current check
-/// answers, and authority didn't refuse it.
+/// `reach`: each path it names resolved as the tool resolves it, its root
+/// admitted within reach and the path below that root admitted under it. A
+/// git read's root is its `repository`, and `git.show`'s path is below it. A
+/// tool that reads beyond the paths it's given checks only the directory it
+/// names. A root that no longer exists isn't refused: what it read changed,
+/// which the current check answers, and authority didn't refuse it.
 fn file_read_allowed(
     read: &FileRead,
     reach: runx_contracts::Reach,
     env: &BTreeMap<String, String>,
     skill_directory: &std::path::Path,
 ) -> bool {
-    use crate::services::{ReadArgument, admit_read};
+    use crate::services::{
+        ReadArgument, WorkspaceFileError, admit_read, resolve_scoped_root, rooted,
+    };
     use std::path::Path;
     let text = |name: &str| {
         read.input
             .get(name)
             .and_then(runx_contracts::JsonValue::as_str)
     };
-    // A package's own file is its to read; any other is read within reach,
-    // from the workspace root, as every file tool reads.
-    let package = text("path")
-        .and_then(crate::services::package_path)
-        .is_some();
-    if !package {
-        let named = Path::new(".");
-        let workspace = crate::RunxPaths::resolve(env, skill_directory)
-            .workspace()
-            .to_path_buf();
-        let resolved = std::fs::canonicalize(workspace).and_then(|workspace| {
-            let root = if named.is_absolute() {
-                named.to_path_buf()
-            } else {
-                workspace.join(named)
-            };
-            Ok((std::fs::canonicalize(root)?, workspace))
-        });
-        if let Ok((root, workspace)) = resolved {
-            let root = ReadArgument::Root {
-                named,
-                root: &root,
-                workspace: &workspace,
-            };
-            if admit_read(reach, root).is_err() {
-                return false;
-            }
-        }
-    }
-    let named = match read.tool.as_str() {
-        "fs.read" | "git.show" => text("path").into_iter().collect(),
-        "fs.list" | "fs.search" => vec![text("path").unwrap_or(".")],
+    let root_admitted = |base: &str| match resolve_scoped_root(base, env, skill_directory, reach) {
+        Ok(_) | Err(WorkspaceFileError::RootUnavailable(_)) => true,
+        Err(_) => false,
+    };
+    let admitted = |path: &str| {
+        let rooted = rooted(".", path, env, skill_directory);
+        root_admitted(&rooted.base)
+            && admit_read(reach, ReadArgument::Named(Path::new(&rooted.below))).is_ok()
+    };
+    match read.tool.as_str() {
+        "fs.read" => text("path").is_some_and(admitted),
+        "fs.list" | "fs.search" => admitted(text("path").unwrap_or(".")),
         "fs.read_bundle" => read
             .input
             .get("paths")
             .and_then(runx_contracts::JsonValue::as_array)
-            .map(|paths| {
-                paths
-                    .iter()
-                    .filter_map(runx_contracts::JsonValue::as_str)
-                    .collect()
-            })
-            .unwrap_or_default(),
-        _ => Vec::new(),
-    };
-    named
-        .iter()
-        .all(|path| admit_read(reach, ReadArgument::Named(Path::new(path))).is_ok())
+            .is_some_and(|paths| paths.iter().all(|path| path.as_str().is_some_and(admitted))),
+        // A git tool's root is its repository, as the tool resolves it.
+        tool if tool.starts_with("git.") => {
+            root_admitted(text("repository").unwrap_or("."))
+                && text("path").is_none_or(|path| {
+                    admit_read(reach, ReadArgument::Named(Path::new(path))).is_ok()
+                })
+        }
+        _ => true,
+    }
 }
 
 /// What the source `run_id` of `workflow` read: each operation its steps
@@ -1073,8 +1054,8 @@ mod tests {
     #![allow(clippy::expect_used, clippy::unwrap_used)]
 
     use super::{
-        Source, answer_allowed, call_is_seen, decide, head, index_at, native_read_is_seen,
-        packet_read_runx_made, step_is_seen,
+        FileRead, Source, answer_allowed, call_is_seen, decide, file_read_allowed, head, index_at,
+        native_read_is_seen, packet_read_runx_made, step_is_seen,
     };
     use crate::execution::run_record::{CallOutcome, RecordedCall};
     use crate::kernel::store::KernelStore;
@@ -1085,6 +1066,41 @@ mod tests {
             receipt_id: format!("sha256:{run}"),
             sealed_at: "2026-11-10T00:00:00Z".to_owned(),
         }
+    }
+
+    /// A recorded read is authorized again by the check its tool makes: an
+    /// absolute path inside the workspace is a workspace path, one elsewhere
+    /// is admitted only under `reach: inputs`, and a git read's root is its
+    /// repository.
+    #[test]
+    fn a_reused_read_is_authorized_as_its_tool_would_admit_it() {
+        use runx_contracts::{JsonObject, JsonValue, Reach};
+        let workspace = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        std::fs::write(workspace.path().join("notes.md"), "notes").unwrap();
+        std::fs::write(elsewhere.path().join("other.md"), "other").unwrap();
+        let env = std::collections::BTreeMap::from([(
+            crate::paths::RUNX_CWD_ENV.to_owned(),
+            workspace.path().to_string_lossy().into_owned(),
+        )]);
+        let read = |tool: &str, field: &str, value: &std::path::Path| FileRead {
+            narrowing: None,
+            tool: tool.to_owned(),
+            input: JsonObject::from([(
+                field.to_owned(),
+                JsonValue::String(value.to_string_lossy().into_owned()),
+            )]),
+        };
+        let allowed =
+            |read: &FileRead, reach| file_read_allowed(read, reach, &env, workspace.path());
+        let inside = read("fs.read", "path", &workspace.path().join("notes.md"));
+        let outside = read("fs.read", "path", &elsewhere.path().join("other.md"));
+        let repository = read("git.log", "repository", elsewhere.path());
+        assert!(allowed(&inside, Reach::Workspace));
+        assert!(allowed(&outside, Reach::Inputs));
+        assert!(!allowed(&outside, Reach::Workspace));
+        assert!(allowed(&repository, Reach::Inputs));
+        assert!(!allowed(&repository, Reach::Workspace));
     }
 
     /// Two sources sealing at once each append against the head they read.

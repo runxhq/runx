@@ -2994,6 +2994,8 @@ export type RunReadSummaryContract = {
   readonly skill: string;
   readonly state: RunStateContract;
   readonly updated_at: string;
+  /** Why it stopped, when its last step failed: that step's failure, as the record holds it, read from the run's whole record and never from one page of its events. */
+  readonly why?: string;
 };
 
 /** Where a run stands, from its latest event alone. */

@@ -182,7 +182,7 @@ pub(crate) fn run_package_case_with_effects(
     let receipt_services =
         ReceiptServices::from_signature_config(options.receipt_signature.clone());
     let output = match load_test_case(&test_path).and_then(|(fixture, target)| {
-        test.enter(&fixture, &mut options.env);
+        test.enter(&fixture, &mut options.env)?;
         run_test_case_with_adapter(fixture, target, ExecutableAdapter, options)
     }) {
         Ok(output) => output,
@@ -247,7 +247,10 @@ fn replay_cases(
                 .to_string_lossy()
                 .into_owned(),
         );
-        test.enter(&fixture, &mut options.env);
+        if let Err(error) = test.enter(&fixture, &mut options.env) {
+            report.record(fixture.name, "failed", vec![error.to_string()]);
+            continue;
+        }
         let name = fixture.name.clone();
         let is_workflow = fixture.package.is_some();
         let denial_expected = fixture.expect.status == Some(TestExpectedStatus::PolicyDenied);
@@ -453,16 +456,40 @@ impl PackageTestEnvironment {
     }
 
     /// The workspace root `fixture` runs in: the test's own, or the staged
-    /// fixture directory it names as its workspace.
-    fn enter(&self, fixture: &super::TestFixture, env: &mut BTreeMap<String, String>) {
-        if let Some(workspace) = &fixture.workspace {
-            env.insert(
-                RUNX_CWD_ENV.to_owned(),
-                self.workspace
-                    .join(workspace)
-                    .to_string_lossy()
-                    .into_owned(),
-            );
+    /// fixture directory it names as its workspace, which must resolve to a
+    /// directory inside the staged `fixtures/`.
+    fn enter(
+        &self,
+        fixture: &super::TestFixture,
+        env: &mut BTreeMap<String, String>,
+    ) -> Result<(), SkillRunError> {
+        let Some(workspace) = &fixture.workspace else {
+            return Ok(());
+        };
+        let staged = fs::canonicalize(self.workspace.join("fixtures")).ok();
+        let selected = fs::canonicalize(self.workspace.join(workspace))
+            .ok()
+            .filter(|selected| selected.is_dir());
+        match staged.zip(selected) {
+            Some((staged, selected)) if selected.starts_with(&staged) && selected != staged => {
+                env.insert(
+                    RUNX_CWD_ENV.to_owned(),
+                    selected.to_string_lossy().into_owned(),
+                );
+                Ok(())
+            }
+            _ => Err(RuntimeError::Failed(Box::new(
+                crate::Failure::new(
+                    "the test",
+                    format!(
+                        "its workspace {workspace} isn't a directory the package stages under fixtures/"
+                    ),
+                )
+                .next(format!(
+                    "add {workspace}/ to the package's fixtures, or name one that's there"
+                )),
+            ))
+            .into()),
         }
     }
 

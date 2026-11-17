@@ -62,7 +62,7 @@ pub trait Turn {
     fn status(&self) -> Result<TurnStatus, RuntimeError> {
         Ok(TurnStatus {
             invocation: TurnView::from(self.invocation()),
-            tools: self.tools()?,
+            tools: self.tools()?.iter().map(TurnTool::viewed).collect(),
             calls: self.calls()?.iter().map(TurnCallView::from).collect(),
         })
     }

@@ -159,7 +159,7 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
         outcome,
         reason,
         criteria: seal_criteria,
-        failure: (outcome == RunOutcome::Failed).then(|| seal_failure(output)),
+        failure: (outcome == RunOutcome::Failed).then(|| seal_failure(output, step_id)),
     };
     let mut receipt = build_unsealed_receipt(BuildReceipt {
         issuer: signature_policy.signer()?.issuer(),
@@ -194,11 +194,13 @@ fn step_receipt_with_outcome_projection_authority_and_policy(
 /// it, with the code, whether a retry is offered and the fields of the record
 /// the runtime kept of it, or where it kept none, what the step's diagnostics
 /// say. Each source has already recorded a never-persist value by its digest
-/// and removed a presented credential.
-fn seal_failure(output: &InvocationOutput) -> SealFailure {
+/// and removed a presented credential. The failure is placed at the step it
+/// sealed, so a receipt always says where, whatever its source named.
+fn seal_failure(output: &InvocationOutput, step_id: &str) -> SealFailure {
     let failure = output
         .failure("its process")
-        .unwrap_or_else(|| crate::Failure::new("runx", "the step failed and said nothing of why"));
+        .unwrap_or_else(|| crate::Failure::new("runx", "the step failed and said nothing of why"))
+        .at_step(step_id);
     let text = |value: &str| NonEmptyString::new(value.trim());
     let record = output.observations.failure.as_ref();
     let (code, fields) = match (record, &output.diagnostics) {

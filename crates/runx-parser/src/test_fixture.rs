@@ -294,8 +294,11 @@ pub struct TestExpectation {
     pub step_outputs: BTreeMap<String, TestJsonExpectation>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged, deny_unknown_fields)]
+/// What a value must be: `{exact: <value>}`, or `{subset: <value>, absent?:
+/// [<pointer>, ...]}`. Anything else is refused saying which shape it takes,
+/// with the keys it was given.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(untagged)]
 pub enum TestJsonExpectation {
     Exact {
         exact: JsonValue,
@@ -308,6 +311,55 @@ pub enum TestJsonExpectation {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         absent: Vec<String>,
     },
+}
+
+impl<'de> Deserialize<'de> for TestJsonExpectation {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let mut given = JsonObject::deserialize(deserializer).map_err(|_| {
+            D::Error::custom(
+                "an expectation is {exact: <value>} or {subset: <value>, absent?: [<pointer>]}",
+            )
+        })?;
+        let keys = given
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let shape = || {
+            D::Error::custom(format!(
+                "an expectation is {{exact: <value>}} or {{subset: <value>, absent?: [<pointer>]}}, the value's whole shape under exact or subset; this one has {keys}"
+            ))
+        };
+        match (given.remove("exact"), given.remove("subset")) {
+            (Some(exact), None) if given.is_empty() => Ok(Self::Exact { exact }),
+            (None, Some(subset)) => {
+                let absent = match given.remove("absent") {
+                    None => Vec::new(),
+                    Some(JsonValue::Array(pointers)) => pointers
+                        .into_iter()
+                        .map(|pointer| match pointer {
+                            JsonValue::String(pointer) => Ok(pointer),
+                            _ => Err(D::Error::custom(
+                                "absent lists JSON pointers, each a string",
+                            )),
+                        })
+                        .collect::<Result<_, _>>()?,
+                    Some(_) => {
+                        return Err(D::Error::custom(
+                            "absent lists JSON pointers, each a string",
+                        ));
+                    }
+                };
+                if given.is_empty() {
+                    Ok(Self::Subset { subset, absent })
+                } else {
+                    Err(shape())
+                }
+            }
+            _ => Err(shape()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -446,13 +498,17 @@ fn validate_fixture(fixture: RawTestFixture) -> Result<TestFixture, TestFixtureE
     if let Some(method) = &fixture.method {
         require_non_empty(method, "method")?;
     }
-    // A fixture directory is named as fixtures/<directory>, never above it.
+    // A fixture directory is named as fixtures/<directory>, never above it,
+    // in names every platform reads the same: no separator but `/`, and no
+    // drive or stream prefix.
     let fixture_directory = |value: &str| {
         value.strip_prefix("fixtures/").is_some_and(|rest| {
             !rest.is_empty()
-                && rest
-                    .split('/')
-                    .all(|segment| !segment.is_empty() && !matches!(segment, "." | ".."))
+                && rest.split('/').all(|segment| {
+                    !segment.is_empty()
+                        && !matches!(segment, "." | "..")
+                        && !segment.contains(['\\', ':', '\0'])
+                })
         })
     };
     if let Some(package) = &fixture.package

@@ -227,12 +227,34 @@ fn input(value: serde_json::Value) -> TestResult<JsonObject> {
     Ok(serde_json::from_value(value)?)
 }
 
-fn loaded(call: &impl crate::support::Viewed) -> TestResult<TurnLoad> {
-    let runx_contracts::TurnCallViewOutcome::Completed { output, .. } = &call.viewed().outcome
-    else {
+/// What a load bound, from runx's own record of the call: the package and
+/// manual by their digests, and each tool's bound closure.
+fn loaded(call: &TurnCallResult) -> TestResult<TurnLoad> {
+    let TurnCallOutcome::Completed { output, .. } = &call.outcome else {
         return Err(format!("the load completed: {call:?}").into());
     };
     Ok(JsonValue::Object(output.clone()).deserialize_into()?)
+}
+
+/// A load as its agent reads it: the package by name, its manual's text, its
+/// methods and tools, and nothing runx binds it by.
+fn viewed_load(call: &impl crate::support::Viewed) -> TestResult<runx_contracts::TurnLoadView> {
+    let view = call.viewed();
+    let runx_contracts::TurnCallViewOutcome::Completed { output, .. } = &view.outcome else {
+        return Err(format!("the load completed: {call:?}").into());
+    };
+    // The view's own shape has no place for a package or manual digest, a
+    // connector binding or a project directory, so reading it as the view
+    // proves they're gone; a tool's target is checked for its closure.
+    let load: runx_contracts::TurnLoadView =
+        JsonValue::Object(output.clone()).deserialize_into()?;
+    assert!(
+        load.tools
+            .iter()
+            .all(|tool| !matches!(&tool.target, CallTarget::Skill { bound: Some(_), .. })),
+        "a load's view holds no bound closure: {load:?}"
+    );
+    Ok(load)
 }
 
 fn refused(call: &impl crate::support::Viewed) -> TestResult<String> {
@@ -300,6 +322,8 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
         None,
         input(serde_json::json!({"skill": "acme/echo@1.0.0"}))?,
     )?;
+    // Its agent reads the load without what runx binds it by.
+    viewed_load(&load)?;
     let bound = loaded(&load)?;
     assert!(
         matches!(
@@ -481,7 +505,7 @@ fn a_package_below_the_rule_waits_on_trust_once_per_closure() -> TestResult {
     )?;
     let turn = project.open(&run_id)?;
     let status = turn.status(TURN)?;
-    loaded(status.calls.first().ok_or("the load is recorded")?)?;
+    viewed_load(status.calls.first().ok_or("the load is recorded")?)?;
     drop(turn);
 
     // The person trusts that closure now: a later session loads it at once.
@@ -762,7 +786,7 @@ fn a_skill_of_several_methods_is_read_without_trust_and_binds_the_method_named()
     )?;
     let turn = project.open(&run_id)?;
     let status = turn.status(TURN)?;
-    let bound = loaded(status.calls.get(1).ok_or("the second load is recorded")?)?;
+    let bound = viewed_load(status.calls.get(1).ok_or("the second load is recorded")?)?;
     let [tool] = bound.tools.as_slice() else {
         return Err(format!("one bound method: {bound:?}").into());
     };

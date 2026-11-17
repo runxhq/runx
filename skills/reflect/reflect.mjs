@@ -611,12 +611,14 @@ export async function propose(ctx, { survey, findings }) {
     const afterValidation = await validate(target_dir, applied(old, bundle));
     const after = outcomes(afterValidation, names);
     const proof = { before, after, passed: afterValidation?.test?.status ?? null };
-    // A case that never ran proves nothing either way, and its package's
-    // validation says why.
-    const unrun = names.filter((name) => before[name] === "absent" || after[name] === "absent");
-    if (unrun.length > 0) {
-      const why = [beforeValidation, afterValidation].map((validation) => validation?.test?.reason).find(Boolean);
-      proposals.push({ criterion, target_dir, dropped: `its case ${unrun.join(", ")} didn't run: ${why ?? "the package's tests didn't run"}`, proof, changed, removed });
+    // A case that never ran, or ran to no verdict, proves nothing either way:
+    // its own failures say why, or its package's validation does.
+    const validations = [beforeValidation, afterValidation];
+    const unproven = names.filter((name) => ![before[name], after[name]].every((status) => status === "passed" || status === "failed"));
+    if (unproven.length > 0) {
+      const failures = unproven.flatMap((name) => validations.flatMap((validation) => validation?.test?.cases?.find((entry) => entry.name === name)?.failures ?? []));
+      const why = failures.find(Boolean) ?? validations.map((validation) => validation?.test?.reason).find(Boolean);
+      proposals.push({ criterion, target_dir, dropped: `its case ${unproven.join(", ")} reached no verdict: ${why ?? "the package's tests didn't run"}`, proof, changed, removed });
       continue;
     }
     if (!names.every((name) => before[name] === "failed")) {

@@ -55,6 +55,11 @@ pub struct RunReadSummary {
     pub driver: RunDriver,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt_id: Option<NonEmptyString>,
+    /// Why it stopped, when its last step failed: that step's failure, as the
+    /// record holds it, read from the run's whole record and never from one
+    /// page of its events.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub why: Option<NonEmptyString>,
     /// Whether a process holds the run's driver lock now. A host that
     /// restarts reconciles once this is false.
     pub driven: bool,

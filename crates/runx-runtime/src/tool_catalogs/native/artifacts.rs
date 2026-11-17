@@ -18,13 +18,18 @@ const ADMIT_TOOL: &str = "artifact.admit";
 const READ_TOOL: &str = "artifact.read";
 
 fn admit(invocation: &NativeInvocation<'_, ArtifactAdmitInput>) -> Result<Artifact, RuntimeError> {
-    let (base, path) = crate::services::rooted(".", &invocation.inputs.path);
-    let root = super::files::root(ADMIT_TOOL, base, invocation)?;
+    let rooted = crate::services::rooted(
+        ".",
+        &invocation.inputs.path,
+        invocation.env,
+        invocation.skill_directory,
+    );
+    let root = super::files::root(ADMIT_TOOL, &rooted.base, invocation)?;
     invocation
         .local_artifacts
         .admit(
             &root,
-            Path::new(path),
+            Path::new(&rooted.below),
             &invocation.inputs.media_type,
             invocation.reach,
             invocation.inputs.labels,

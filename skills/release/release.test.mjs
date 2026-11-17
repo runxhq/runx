@@ -82,3 +82,31 @@ test("unsupported profile command fields are refused rather than silently ignore
     /supports only/,
   );
 });
+/** A profile whose publish command runs in `cwd`, for the project at packages/app. */
+function inspectIn(cwd) {
+  const command = (phase) => ({ argv: ["node", "./provider.mjs", phase], cwd: ".", timeout_ms: 10_000 });
+  return inspectProfile({
+    channel: "fixture",
+    version: "1.2.3",
+    project_root: "packages/app",
+    profile_file: {
+      path: "packages/app/release.json",
+      content_digest: digest,
+      contents: JSON.stringify({
+        schema: "runx/release.profile.v1",
+        id: "qa",
+        channel: "fixture",
+        commands: { prepare: command("prepare"), publish: { ...command("publish"), cwd }, verify: command("verify") },
+      }),
+    },
+  });
+}
+test("a release command runs in its project, from the workspace root", () => {
+  assert.equal(inspectIn("tools").release_context.commands.publish.cwd, "packages/app/tools");
+  assert.equal(inspectIn(".").release_context.commands.publish.cwd, "packages/app");
+});
+test("a release command's cwd never leaves its project", () => {
+  for (const cwd of ["../../other", "/etc", "tools/../../..", "..\\other"]) {
+    assert.throws(() => inspectIn(cwd), /commands\.publish\.cwd must stay inside the project/, cwd);
+  }
+});

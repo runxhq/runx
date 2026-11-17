@@ -195,11 +195,20 @@ function commandIntent(value) {
   };
 }
 
-/** A path under the project, from the workspace root, as every tool takes it. */
-function underProject(projectRoot, relative) {
+/**
+ * A path under the project, from the workspace root, as every tool takes it.
+ * A command runs in its project: its cwd is a path below the project, never
+ * absolute and never above it. The run's reach still bounds the workspace.
+ */
+function underProject(projectRoot, relative, field) {
+  const segments = relative.split("/");
+  if (relative.startsWith("/") || relative.includes("\\") || segments.includes("..")) {
+    throw new Error(`${field} must stay inside the project: a path below ${projectRoot}, without ..`);
+  }
+  const below = segments.filter((segment) => segment !== "" && segment !== ".").join("/");
   const root = projectRoot.replace(/\/+$/, "");
-  if (root === "" || root === ".") return relative;
-  return relative === "." ? root : `${root}/${relative}`;
+  if (root === "" || root === ".") return below === "" ? "." : below;
+  return below === "" ? root : `${root}/${below}`;
 }
 
 function normalizeCommand(value, phase, identity, projectRoot) {
@@ -214,7 +223,7 @@ function normalizeCommand(value, phase, identity, projectRoot) {
   }
   return {
     command: value.argv[0], args: value.argv.slice(1),
-    cwd: underProject(projectRoot, value.cwd ?? "."), timeout_ms: value.timeout_ms ?? 120_000,
+    cwd: underProject(projectRoot, value.cwd ?? ".", `commands.${phase}.cwd`), timeout_ms: value.timeout_ms ?? 120_000,
     env: {
       RUNX_RELEASE_PHASE: phase,
       RUNX_RELEASE_VERSION: identity.version,

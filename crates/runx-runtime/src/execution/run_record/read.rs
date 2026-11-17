@@ -99,6 +99,7 @@ pub fn read_run(
             closure_digest: started.closure_digest.into(),
             driver: started.driver,
             receipt_id: receipt_id.map(Into::into),
+            why: why(&store, run_id)?,
             driven: driven(&paths, run_id)?,
             created_at: started.created_at.into(),
             updated_at: updated_at.into(),
@@ -405,6 +406,7 @@ fn project(
             let (outcome, receipt_id) = step_status(store, &event.record, &event.receipt)?;
             let StepOutput { contract, usage } = store.blob_json(&event.record)?;
             let TurnStatements { model, host } = turn_statements(store, stream, &event.answers)?;
+            let reason = (!outcome.succeeded()).then(|| failed_at(&outcome, &event.step_id));
             RunEventFact::Step {
                 model,
                 usage,
@@ -414,8 +416,7 @@ fn project(
                 succeeded: outcome.succeeded(),
                 receipt_id,
                 output: contract,
-                reason: (!outcome.succeeded())
-                    .then(|| reason(outcome.failure_message().unwrap_or_default())),
+                reason,
             }
         }
         RunEvent::Skipped(skipped) => RunEventFact::Skipped {
@@ -582,6 +583,35 @@ fn step_status(
     let status: StepStatus = store.blob_json(record)?;
     let receipt: ReceiptId = store.blob_json(receipt)?;
     Ok((status.outcome, receipt.id.into()))
+}
+
+/// Why run `run_id` stopped, when its last step on its own stream failed:
+/// that step's failure. Its children's steps are theirs.
+fn why(store: &KernelStore, run_id: &str) -> Result<Option<NonEmptyString>, RunRecordError> {
+    let Some(last) = store
+        .read::<RunEvent>(run_id)?
+        .into_iter()
+        .rev()
+        .find_map(|recorded| match recorded.event {
+            RunEvent::Step(step) => Some(step),
+            _ => None,
+        })
+    else {
+        return Ok(None);
+    };
+    let (outcome, _) = step_status(store, &last.record, &last.receipt)?;
+    Ok((!outcome.succeeded()).then(|| failed_at(&outcome, &last.step_id)))
+}
+
+/// A failed step's failure as a reader of its record is told it: placed at
+/// its step, as the run's own error names it, so the record says where.
+fn failed_at(outcome: &StepOutcome, step_id: &str) -> NonEmptyString {
+    reason(
+        outcome
+            .failure("its process")
+            .map(|failure| failure.at_step(step_id).to_string())
+            .unwrap_or_default(),
+    )
 }
 
 /// A recorded reason, which is never empty on the wire.

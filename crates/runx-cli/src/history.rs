@@ -266,22 +266,9 @@ fn render_run(read: &RunRead) -> String {
     if let Some(receipt_id) = &run.receipt_id {
         lines.push(format!("     receipt  {receipt_id}"));
     }
-    // Why it stopped: its last failed step's failure, said once, as the
-    // record holds it.
-    if let Some(reason) = read
-        .events
-        .iter()
-        .rev()
-        .find_map(|record| match &record.event {
-            runx_contracts::RunEventFact::Step {
-                succeeded: false,
-                reason: Some(reason),
-                ..
-            } if record.stream == run.run_id => Some(reason),
-            _ => None,
-        })
-    {
-        lines.push(format!("     why  {reason}"));
+    // Why it stopped, said once, as the record holds it.
+    if let Some(why) = &run.why {
+        lines.push(format!("     why  {why}"));
     }
     for waited in &read.waiting {
         lines.push(format!("     waits on  {}", waited.address));
@@ -327,32 +314,32 @@ mod tests {
         Ok(())
     }
 
-    /// A failed run says why, once, from its last failed step as the record
-    /// holds it; a child's failure is its parent step's to say.
+    /// A failed run says why, once: what its summary holds, which the
+    /// runtime reads from the run's whole record, whichever page of events
+    /// this read shows.
     #[test]
     fn a_failed_run_says_why_it_stopped() -> Result<(), Box<dyn std::error::Error>> {
-        let step = |stream: &str, version: u64, reason: &str| {
-            serde_json::json!({"stream": stream, "version": version, "committed_at": "2026-11-17T00:00:00Z",
-                "event": {"kind": "step", "step_id": "draft", "attempt": 1, "succeeded": false,
-                    "receipt_id": "sha256:step", "reason": reason}})
-        };
+        let why =
+            "it made 4 rounds of calls and never answered (the driven turn, at draft/author).";
         let read: RunRead = serde_json::from_value(serde_json::json!({
             "schema": "runx.run_read.v1",
             "run": {"run_id": "rx_one", "skill": "skill-lab", "method": "improve", "state": "sealed",
                 "outcome": "failed", "package_digest": "sha256:p", "closure_digest": "sha256:c",
-                "driver": "managed", "receipt_id": "sha256:r", "driven": false,
+                "driver": "managed", "receipt_id": "sha256:r", "why": why, "driven": false,
                 "created_at": "2026-11-17T00:00:00Z", "updated_at": "2026-11-17T00:00:00Z"},
             "waiting": [],
+            // This page holds only a child's failed step, which isn't the run's.
             "events": [
-                step("rx_one/draft@1", 1, "the child's own words (the driven turn, at author)."),
-                step("rx_one", 2, "it made 4 rounds of calls and never answered (the driven turn, at draft/author)."),
+                {"stream": "rx_one/draft@1", "version": 1, "committed_at": "2026-11-17T00:00:00Z",
+                    "event": {"kind": "step", "step_id": "draft", "attempt": 1, "succeeded": false,
+                        "receipt_id": "sha256:step", "reason": "the child's own words (the driven turn, at author)."}},
             ],
-            "cursor": "rx_one@2",
-            "more": false,
+            "cursor": "rx_one@1",
+            "more": true,
         }))?;
         let rendered = render_run(&read);
         assert_eq!(rendered.matches("     why  ").count(), 1, "{rendered}");
-        assert!(rendered.contains("     why  it made 4 rounds of calls and never answered (the driven turn, at draft/author)."), "{rendered}");
+        assert!(rendered.contains(&format!("     why  {why}")), "{rendered}");
         Ok(())
     }
 

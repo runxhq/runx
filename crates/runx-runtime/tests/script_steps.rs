@@ -2257,6 +2257,17 @@ fn a_returned_local_only_descriptor_no_call_of_the_step_returned_fails_the_step(
         requests(&failed)?.is_empty(),
         "no turn is asked: {rendered}"
     );
+    // The run's summary says why it stopped, from its record, so a reader
+    // holding any page of its events is told.
+    let run_id = text(output, "run_id").ok_or("the run has an id")?;
+    let read = runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), run_id, None)?;
+    let why = read.run.why.as_ref().ok_or("a failed run says why")?;
+    assert!(
+        why.as_str()
+            .contains("names no artifact a call of the step returned")
+            && why.as_str().contains("at prepare)."),
+        "{why}"
+    );
     Ok(())
 }
 

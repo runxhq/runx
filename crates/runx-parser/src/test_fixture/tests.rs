@@ -41,7 +41,7 @@ fn a_subset_names_absent_fields_by_json_pointer() -> Result<(), Box<dyn std::err
 
 #[test]
 fn every_json_expectation_requires_exactly_one_mode() {
-    for invalid in ["{}", "{exact: 1, subset: 1}"] {
+    for invalid in ["{}", "{exact: 1, subset: 1}", "{quote: {exact: 1}}"] {
         for fixture in [
             format!("name: output\nexpect:\n  output: {invalid}\n"),
             format!("name: step\nexpect:\n  step_outputs:\n    work: {invalid}\n"),
@@ -52,6 +52,17 @@ fn every_json_expectation_requires_exactly_one_mode() {
             assert!(parse_test_fixture(&fixture).is_err(), "{fixture}");
         }
     }
+    // A refusal names the shape an expectation takes, and the keys it got,
+    // so its author can see the value's shape belongs under exact.
+    let refused = parse_test_fixture("name: field\nexpect:\n  output: {quote: {exact: 1}}\n")
+        .expect_err("a field-keyed expectation parsed");
+    assert!(
+        refused
+            .to_string()
+            .contains("an expectation is {exact: <value>}")
+            && refused.to_string().contains("this one has quote"),
+        "{refused}"
+    );
 }
 
 #[test]

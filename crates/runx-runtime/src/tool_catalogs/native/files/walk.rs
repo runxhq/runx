@@ -41,9 +41,17 @@ pub(super) fn list(
     invocation: &NativeInvocation<'_, FileListInput>,
 ) -> Result<FileList, RuntimeError> {
     let inputs = invocation.inputs;
-    let (base, path) = crate::services::rooted(super::WORKSPACE, &inputs.path);
-    let named = super::Named::of(base);
-    let root = super::root(LIST_TOOL, base, invocation)?;
+    let rooted = crate::services::rooted(
+        super::WORKSPACE,
+        &inputs.path,
+        invocation.env,
+        invocation.skill_directory,
+    );
+    let named = super::Named {
+        prefix: rooted.prefix.as_deref(),
+    };
+    let path = rooted.below.as_str();
+    let root = super::root(LIST_TOOL, &rooted.base, invocation)?;
     let depth = bounded(LIST_TOOL, "depth", inputs.depth, MAX_DEPTH)?;
     let limit = bounded(
         LIST_TOOL,
@@ -102,9 +110,17 @@ pub(super) fn search(
     invocation: &NativeInvocation<'_, FileSearchInput>,
 ) -> Result<FileSearch, RuntimeError> {
     let inputs = invocation.inputs;
-    let (base, path) = crate::services::rooted(super::WORKSPACE, &inputs.path);
-    let named = super::Named::of(base);
-    let root = super::root(SEARCH_TOOL, base, invocation)?;
+    let rooted = crate::services::rooted(
+        super::WORKSPACE,
+        &inputs.path,
+        invocation.env,
+        invocation.skill_directory,
+    );
+    let named = super::Named {
+        prefix: rooted.prefix.as_deref(),
+    };
+    let path = rooted.below.as_str();
+    let root = super::root(SEARCH_TOOL, &rooted.base, invocation)?;
     let limit = bounded(
         SEARCH_TOOL,
         "max_results",

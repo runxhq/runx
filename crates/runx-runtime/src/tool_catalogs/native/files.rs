@@ -48,9 +48,17 @@ const MAX_FILE_BUNDLE_BYTES: u64 = FS_BUNDLE_MAX_BYTES;
 
 fn read(invocation: &NativeInvocation<'_, FileReadInput>) -> Result<FileRead, RuntimeError> {
     let inputs = invocation.inputs;
-    let (base, path) = crate::services::rooted(WORKSPACE, &inputs.path);
-    let named = Named::of(base);
-    let root = root(READ_TOOL, base, invocation)?;
+    let rooted = crate::services::rooted(
+        WORKSPACE,
+        &inputs.path,
+        invocation.env,
+        invocation.skill_directory,
+    );
+    let named = Named {
+        prefix: rooted.prefix.as_deref(),
+    };
+    let path = rooted.below.as_str();
+    let root = root(READ_TOOL, &rooted.base, invocation)?;
     if inputs.start_line == 0 {
         return Err(invalid_input(READ_TOOL, "start_line counts from 1"));
     }
@@ -173,9 +181,13 @@ fn read_bundle_files(
                 format!("paths contains a duplicate: {path}"),
             ));
         }
-        let (base, below) = crate::services::rooted(WORKSPACE, path);
-        let named = Named::of(base);
-        let file = match root(READ_BUNDLE_TOOL, base, invocation).and_then(|root| {
+        let rooted =
+            crate::services::rooted(WORKSPACE, path, invocation.env, invocation.skill_directory);
+        let named = Named {
+            prefix: rooted.prefix.as_deref(),
+        };
+        let below = rooted.below.as_str();
+        let file = match root(READ_BUNDLE_TOOL, &rooted.base, invocation).and_then(|root| {
             read_one(
                 READ_BUNDLE_TOOL,
                 &root,
@@ -267,7 +279,7 @@ fn write(invocation: &NativeInvocation<'_, FileWriteInput>) -> Result<FileWrite,
     let report = apply_text_bundle(
         WRITE_TOOL,
         &root,
-        &write_bundle(invocation.inputs)?,
+        &write_bundle(&root, invocation.inputs)?,
         invocation.reach,
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
@@ -325,15 +337,16 @@ fn expectation(
 }
 
 /// The one-file bundle `fs.write` applies.
-fn write_bundle(inputs: &FileWriteInput) -> Result<TextBundle, RuntimeError> {
+fn write_bundle(workspace: &Path, inputs: &FileWriteInput) -> Result<TextBundle, RuntimeError> {
+    let path = in_workspace(WRITE_TOOL, workspace, &inputs.path)?;
     Ok(TextBundle {
         writes: vec![TextFileWrite {
-            path: inputs.path.clone(),
+            path: path.clone(),
             contents: inputs.contents.clone(),
         }],
         deletes: Vec::new(),
         expected: std::collections::BTreeMap::from([(
-            inputs.path.clone(),
+            path,
             expectation(
                 WRITE_TOOL,
                 &inputs.path,
@@ -342,6 +355,65 @@ fn write_bundle(inputs: &FileWriteInput) -> Result<TextBundle, RuntimeError> {
             )?,
         )]),
     })
+}
+
+/// The path a change names, as its bundle admits it: from the workspace root.
+/// Writes stay in the workspace (rule 2), so an absolute path is admitted only
+/// inside it, as the path from its root, and a path into the skill's own
+/// package is refused. What exists of an absolute path is resolved first, so a
+/// link can't carry it out of the workspace; the bundle then checks the path
+/// below the root as it checks every other.
+fn in_workspace(tool: &str, workspace: &Path, path: &str) -> Result<String, RuntimeError> {
+    if crate::services::package_path(path).is_some() {
+        return Err(invalid_input(
+            tool,
+            format!(
+                "{path} names the skill's own package, and writes stay in the workspace: name the file from the workspace root"
+            ),
+        ));
+    }
+    let named = Path::new(path);
+    if !named.is_absolute() {
+        return Ok(path.to_owned());
+    }
+    let outside = || {
+        invalid_input(
+            tool,
+            format!("{path} is outside the workspace, and writes stay in the workspace"),
+        )
+    };
+    if named.components().any(|component| {
+        matches!(
+            component,
+            std::path::Component::CurDir | std::path::Component::ParentDir
+        )
+    }) {
+        return Err(invalid_input(
+            tool,
+            format!("{path} names its file without . or .. segments"),
+        ));
+    }
+    let mut existing = named;
+    let mut below = Vec::new();
+    while !existing.exists() {
+        below.push(existing.file_name().ok_or_else(outside)?);
+        existing = existing.parent().ok_or_else(outside)?;
+    }
+    let mut resolved = std::fs::canonicalize(existing).map_err(|_| outside())?;
+    resolved.extend(below.into_iter().rev());
+    let workspace = std::fs::canonicalize(workspace).map_err(|_| outside())?;
+    let relative = resolved.strip_prefix(&workspace).map_err(|_| outside())?;
+    let segments = relative
+        .components()
+        .map(|component| component.as_os_str().to_str().ok_or_else(outside))
+        .collect::<Result<Vec<_>, _>>()?;
+    if segments.is_empty() {
+        return Err(invalid_input(
+            tool,
+            format!("{path} names the workspace itself, not a file in it"),
+        ));
+    }
+    Ok(segments.join("/"))
 }
 
 /// What `fs.write` would change.
@@ -358,7 +430,7 @@ fn write_effect(
     text_bundle_effect(
         WRITE_TOOL,
         &root,
-        &write_bundle(invocation.inputs)?,
+        &write_bundle(&root, invocation.inputs)?,
         invocation.reach,
     )
 }
@@ -383,11 +455,12 @@ fn edited(invocation: &NativeInvocation<'_, FileEditInput>) -> Result<Edited, Ru
         invocation.skill_directory,
         invocation.reach,
     )?;
+    let path = in_workspace(EDIT_TOOL, &root, &inputs.path)?;
     let file = read_one(
         EDIT_TOOL,
         &root,
         &Named { prefix: None },
-        &inputs.path,
+        &path,
         LineRange::WHOLE,
         MAX_FILE_READ_BYTES,
         invocation.reach,
@@ -489,12 +562,21 @@ fn edit_effect(
     )
 }
 
-/// The bundle `fs.apply_bundle` applies.
-fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeError> {
+/// The bundle `fs.apply_bundle` applies, each path from the workspace root.
+fn files_bundle(
+    workspace: &Path,
+    inputs: &FileApplyBundleInput,
+) -> Result<TextBundle, RuntimeError> {
     let mut expected = std::collections::BTreeMap::new();
+    let mut writes = Vec::with_capacity(inputs.writes.len());
     for write in &inputs.writes {
+        let path = in_workspace(APPLY_BUNDLE_TOOL, workspace, write.path.as_str())?;
+        writes.push(TextFileWrite {
+            path: path.clone(),
+            contents: write.contents.clone(),
+        });
         expected.insert(
-            write.path.as_str().to_owned(),
+            path,
             expectation(
                 APPLY_BUNDLE_TOOL,
                 write.path.as_str(),
@@ -505,21 +587,15 @@ fn files_bundle(inputs: &FileApplyBundleInput) -> Result<TextBundle, RuntimeErro
     }
     let mut deletes = Vec::with_capacity(inputs.deletes.len());
     for delete in &inputs.deletes {
+        let path = in_workspace(APPLY_BUNDLE_TOOL, workspace, delete.path.as_str())?;
         expected.insert(
-            delete.path.as_str().to_owned(),
+            path.clone(),
             Expected::Digest(delete.expected_digest.as_str().to_owned()),
         );
-        deletes.push(delete.path.as_str().to_owned());
+        deletes.push(path);
     }
     Ok(TextBundle {
-        writes: inputs
-            .writes
-            .iter()
-            .map(|write| TextFileWrite {
-                path: write.path.as_str().to_owned(),
-                contents: write.contents.clone(),
-            })
-            .collect(),
+        writes,
         deletes,
         expected,
     })
@@ -538,7 +614,7 @@ fn apply_files(
     let report = apply_text_bundle(
         APPLY_BUNDLE_TOOL,
         &base,
-        &files_bundle(invocation.inputs)?,
+        &files_bundle(&base, invocation.inputs)?,
         invocation.reach,
         Journal::of_run(invocation.env, invocation.skill_directory)?.as_ref(),
     )?;
@@ -559,7 +635,7 @@ fn files_effect(
     text_bundle_effect(
         APPLY_BUNDLE_TOOL,
         &base,
-        &files_bundle(invocation.inputs)?,
+        &files_bundle(&base, invocation.inputs)?,
         invocation.reach,
     )
 }
@@ -571,16 +647,7 @@ pub(super) struct Named<'a> {
     pub(super) prefix: Option<&'a str>,
 }
 
-impl<'a> Named<'a> {
-    /// How a read under `base`, the root its path was read under, names what
-    /// it read.
-    pub(super) fn of(base: &'a str) -> Self {
-        Self {
-            prefix: (base == crate::services::PACKAGE_BASE || Path::new(base).is_absolute())
-                .then_some(base),
-        }
-    }
-
+impl Named<'_> {
     pub(super) fn path(&self, relative: &str) -> String {
         match self.prefix {
             None => relative.to_owned(),

@@ -9059,6 +9059,11 @@ export const runxSchemaArtifacts = {
           "updated_at": {
             "minLength": 1,
             "type": "string"
+          },
+          "why": {
+            "description": "Why it stopped, when its last step failed: that step's failure, as the record holds it, read from the run's whole record and never from one page of its events.",
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [

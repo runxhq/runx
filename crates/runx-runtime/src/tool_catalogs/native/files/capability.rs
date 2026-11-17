@@ -263,7 +263,7 @@ const READ_BUNDLE_FIELDS: &[CapabilityField] = &[
 const WRITE_FIELDS: &[CapabilityField] = &[
     CapabilityField {
         name: "path",
-        description: "UTF-8 file path: from the workspace root, $package/<path> for a file of the skill's own package, or an absolute path the run's reach admits.",
+        description: "UTF-8 file path from the workspace root, or its absolute path inside the workspace; writes stay in the workspace.",
     },
     CapabilityField {
         name: "contents",
@@ -282,7 +282,7 @@ const WRITE_FIELDS: &[CapabilityField] = &[
 const EDIT_FIELDS: &[CapabilityField] = &[
     CapabilityField {
         name: "path",
-        description: "UTF-8 file path from the workspace root; the file must exist.",
+        description: "UTF-8 file path from the workspace root, or its absolute path inside the workspace; the file must exist.",
     },
     CapabilityField {
         name: "edits",
@@ -293,11 +293,11 @@ const EDIT_FIELDS: &[CapabilityField] = &[
 const APPLY_FIELDS: &[CapabilityField] = &[
     CapabilityField {
         name: "writes",
-        description: "Bounded array of UTF-8 text writes, each path from the workspace root, each with the expected_digest of what it replaces or create for a new file.",
+        description: "Bounded array of UTF-8 text writes, each path from the workspace root or absolute inside it, each with the expected_digest of what it replaces or create for a new file.",
     },
     CapabilityField {
         name: "deletes",
-        description: "Bounded array of file paths to delete, from the workspace root, each a path or {path, expected_digest}.",
+        description: "Bounded array of file paths to delete, each from the workspace root or absolute inside it, as {path, expected_digest}.",
     },
 ];
 

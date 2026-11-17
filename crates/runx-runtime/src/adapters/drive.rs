@@ -10,7 +10,8 @@ use std::path::PathBuf;
 
 use runx_contracts::{
     AgentContextEnvelope, CallTarget, JsonObject, JsonValue, LoadedPackage, OutputField,
-    TurnCallOutcome, TurnCallResult, TurnLoad, TurnLocator, TurnViewEnvelope,
+    TurnCallOutcome, TurnCallResult, TurnCallView, TurnCallViewOutcome, TurnLoad, TurnLocator,
+    TurnViewEnvelope,
 };
 use serde::Serialize;
 
@@ -355,7 +356,7 @@ impl ToolExecutor for TurnCalls<'_> {
             )
         })?;
         let input = input.as_object().cloned().unwrap_or_default();
-        let mut result = self.turn.call(&mut *self.host, None, target, input)?;
+        let result = self.turn.call(&mut *self.host, None, target, input)?;
         let is_error = match &result.outcome {
             TurnCallOutcome::Pending { .. } => return Ok(ToolOutcome::Paused),
             TurnCallOutcome::Completed { .. } => false,
@@ -365,32 +366,37 @@ impl ToolExecutor for TurnCalls<'_> {
             | TurnCallOutcome::Cancelled => true,
         };
         self.refresh()?;
-        let guidance = project_load(&mut result, &mut self.given)?;
+        let (view, guidance) = project_load(&result, &mut self.given)?;
         Ok(ToolOutcome::Result {
-            content: json_text(&runx_contracts::TurnCallView::from(&result))?,
+            content: json_text(&view)?,
             is_error,
             guidance,
         })
     }
 }
 
-/// A completed load in the managed transcript. Its manual becomes guidance,
-/// once per pass, and its tool schemas already travel as callable definitions.
-/// The native call record keeps the complete load.
+/// A completed load in the driven transcript, as its agent reads it: the
+/// call's view, its manual given as guidance once per pass and its tools left
+/// out, since their schemas already travel as callable definitions. runx's
+/// record keeps the whole load.
 fn project_load(
-    result: &mut TurnCallResult,
+    result: &TurnCallResult,
     given: &mut BTreeSet<String>,
-) -> Result<Option<String>, RuntimeError> {
+) -> Result<(TurnCallView, Option<String>), RuntimeError> {
+    let mut view = TurnCallView::from(result);
     let reading = |error: String| RuntimeError::effect_state("reading a load", error);
-    let (CallTarget::Load, TurnCallOutcome::Completed { output, .. }) =
-        (&result.target, &mut result.outcome)
+    let (
+        CallTarget::Load,
+        TurnCallOutcome::Completed { output, .. },
+        TurnCallViewOutcome::Completed { output: viewed, .. },
+    ) = (&result.target, &result.outcome, &mut view.outcome)
     else {
-        return Ok(None);
+        return Ok((view, None));
     };
-    let mut load = JsonValue::Object(output.clone())
+    let load = JsonValue::Object(output.clone())
         .deserialize_into::<TurnLoad>()
         .map_err(|error| reading(error.to_string()))?;
-    let guidance = match (load.manual.take(), &load.package) {
+    let guidance = match (&load.manual, &load.package) {
         (Some(manual), LoadedPackage::Skill { skill, .. }) => {
             given.insert(manual.digest.as_str().to_owned()).then(|| {
                 format!(
@@ -401,14 +407,9 @@ fn project_load(
         }
         _ => None,
     };
-    let JsonValue::Object(mut stripped) =
-        JsonValue::from_serialize(&load).map_err(|error| reading(error.to_string()))?
-    else {
-        return Err(reading("a load is an object".to_owned()));
-    };
-    stripped.remove("tools");
-    *output = stripped;
-    Ok(guidance)
+    viewed.remove("manual");
+    viewed.remove("tools");
+    Ok((view, guidance))
 }
 
 /// `turn_read`'s input: the locator, and where and how much to read.
@@ -564,15 +565,14 @@ fn build_prompt(
     let mut manuals = String::new();
     let mut made = String::new();
     for call in calls {
-        let mut call = call.clone();
-        if let Some(manual) = project_load(&mut call, given)
-            .map_err(|error| DriveError::sanitized(format!("a load could not be read: {error}")))?
-        {
+        let (view, manual) = project_load(call, given)
+            .map_err(|error| DriveError::sanitized(format!("a load could not be read: {error}")))?;
+        if let Some(manual) = manual {
             manuals.push_str("\n\n");
             manuals.push_str(&manual);
         }
         made.push_str("\n- ");
-        made.push_str(&call_line(&call)?);
+        made.push_str(&call_line(&view)?);
     }
     let made = if made.is_empty() {
         String::new()
@@ -622,18 +622,18 @@ fn build_prompt(
 /// its locator.
 const CALL_START_CHARS: usize = 2_000;
 
-/// An earlier call of the turn as one line: its locator, what it called, how it
-/// ended, and the start of its result.
-fn call_line(call: &TurnCallResult) -> Result<String, DriveError> {
+/// An earlier call of the turn as one line, from its agent's view: its
+/// locator, what it called, how it ended, and the start of its result.
+fn call_line(call: &TurnCallView) -> Result<String, DriveError> {
     let (status, result) = match &call.outcome {
-        TurnCallOutcome::Completed { output, .. } => ("completed", pretty(output)?),
-        TurnCallOutcome::Failed { reason, .. } => ("failed", reason.as_str().to_owned()),
-        TurnCallOutcome::Refused { reason } => ("refused", reason.as_str().to_owned()),
-        TurnCallOutcome::Declined { reason } => ("declined", reason.as_str().to_owned()),
-        TurnCallOutcome::Pending { waiting } => {
+        TurnCallViewOutcome::Completed { output, .. } => ("completed", pretty(output)?),
+        TurnCallViewOutcome::Failed { reason, .. } => ("failed", reason.as_str().to_owned()),
+        TurnCallViewOutcome::Refused { reason } => ("refused", reason.as_str().to_owned()),
+        TurnCallViewOutcome::Declined { reason } => ("declined", reason.as_str().to_owned()),
+        TurnCallViewOutcome::Pending { waiting } => {
             ("pending", format!("waits on {} request(s)", waiting.len()))
         }
-        TurnCallOutcome::Cancelled => ("cancelled", "its host cancelled it".to_owned()),
+        TurnCallViewOutcome::Cancelled => ("cancelled", "its host cancelled it".to_owned()),
     };
     let total = result.chars().count();
     let start = result.chars().take(CALL_START_CHARS).collect::<String>();
@@ -953,9 +953,14 @@ mod tests {
         assert!(!instructions.contains("sha256:"), "{instructions}");
         assert_eq!(given, BTreeSet::from(["sha256:manual".to_owned()]));
         // A load later in the pass gives a manual already given no second time.
-        let mut later = load(2)?;
-        assert_eq!(project_load(&mut later, &mut given)?, None);
-        assert!(!serde_json::to_string(&later)?.contains("Write each note"));
+        let (later, manual) = project_load(&load(2)?, &mut given)?;
+        assert_eq!(manual, None);
+        // The agent reads the load's view: never its manual twice, nor the
+        // digests runx bound it by.
+        let later = serde_json::to_string(&later)?;
+        assert!(!later.contains("Write each note"), "{later}");
+        assert!(!later.contains("sha256:"), "{later}");
+        assert!(!prompt.contains("sha256:"), "{prompt}");
         Ok(())
     }
 

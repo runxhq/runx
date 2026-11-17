@@ -609,6 +609,21 @@ pub enum CallTarget {
     },
 }
 
+impl CallTarget {
+    /// The target as its agent reads it: what it calls, never the closure
+    /// runx bound it to.
+    pub fn viewed(&self) -> Self {
+        match self {
+            Self::Skill { skill, method, .. } => Self::Skill {
+                skill: skill.clone(),
+                method: method.clone(),
+                bound: None,
+            },
+            target => target.clone(),
+        }
+    }
+}
+
 /// The exact package and closure a load bound for one method.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
@@ -648,6 +663,72 @@ pub struct TurnLoad {
     /// package.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projects: Vec<ProjectBinding>,
+}
+
+/// A completed load as its agent reads it: the package by name, its manual's
+/// text, its methods and the calls it adds. The digests, bindings and
+/// directories runx binds it by stay in runx's record.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TurnLoadView {
+    pub package: LoadedPackageView,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub methods: Vec<LoadedMethod>,
+    pub tools: Vec<TurnTool>,
+}
+
+/// The package a load bound, as its agent reads it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum LoadedPackageView {
+    Skill {
+        skill: NonEmptyString,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        trust_tier: Option<crate::TrustTier>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        publisher: Option<NonEmptyString>,
+    },
+    Connector {
+        connector: NonEmptyString,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        trust_tier: Option<crate::TrustTier>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        publisher: Option<NonEmptyString>,
+    },
+}
+
+impl From<&TurnLoad> for TurnLoadView {
+    fn from(load: &TurnLoad) -> Self {
+        Self {
+            package: match &load.package {
+                LoadedPackage::Skill {
+                    skill,
+                    trust_tier,
+                    publisher,
+                    ..
+                } => LoadedPackageView::Skill {
+                    skill: skill.clone(),
+                    trust_tier: *trust_tier,
+                    publisher: publisher.clone(),
+                },
+                LoadedPackage::Connector {
+                    connector,
+                    trust_tier,
+                    publisher,
+                    ..
+                } => LoadedPackageView::Connector {
+                    connector: connector.clone(),
+                    trust_tier: *trust_tier,
+                    publisher: publisher.clone(),
+                },
+            },
+            manual: load.manual.as_ref().map(|manual| manual.content.clone()),
+            methods: load.methods.clone(),
+            tools: load.tools.iter().map(TurnTool::viewed).collect(),
+        }
+    }
 }
 
 /// A skill package of the person's own, as a run binds it (D30): it is
@@ -846,21 +927,26 @@ pub struct TurnArtifactView {
 
 impl From<&TurnCallResult> for TurnCallView {
     fn from(call: &TurnCallResult) -> Self {
-        let target = match &call.target {
-            CallTarget::Skill { skill, method, .. } => CallTarget::Skill {
-                skill: skill.clone(),
-                method: method.clone(),
-                bound: None,
-            },
-            target => target.clone(),
-        };
         let outcome = match &call.outcome {
             TurnCallOutcome::Completed {
                 output,
                 receipt_id,
                 artifacts,
             } => TurnCallViewOutcome::Completed {
-                output: output.clone(),
+                output: match call.target {
+                    // A load's output is runx's binding; its agent reads the view.
+                    CallTarget::Load => JsonValue::Object(output.clone())
+                        .deserialize_into::<TurnLoad>()
+                        .ok()
+                        .and_then(|load| {
+                            match JsonValue::from_serialize(&TurnLoadView::from(&load)) {
+                                Ok(JsonValue::Object(view)) => Some(view),
+                                _ => None,
+                            }
+                        })
+                        .unwrap_or_else(|| output.clone()),
+                    _ => output.clone(),
+                },
                 receipt_id: receipt_id.clone(),
                 artifacts: artifacts
                     .iter()
@@ -894,7 +980,7 @@ impl From<&TurnCallResult> for TurnCallView {
         };
         Self {
             index: call.index,
-            target,
+            target: call.target.viewed(),
             call_id: call.call_id.clone(),
             outcome,
         }
@@ -911,6 +997,16 @@ pub struct TurnTool {
     pub description: NonEmptyString,
     pub target: CallTarget,
     pub input_schema: JsonObject,
+}
+
+impl TurnTool {
+    /// The call as its agent is offered it: its target viewed.
+    pub fn viewed(&self) -> Self {
+        Self {
+            target: self.target.viewed(),
+            ..self.clone()
+        }
+    }
 }
 
 /// An open turn as its agent reads it: the act it answers (its id is the
