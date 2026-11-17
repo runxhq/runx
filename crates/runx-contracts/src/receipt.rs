@@ -255,6 +255,9 @@ pub enum SealReason {
     ResolutionPending,
     /// A driven turn's model provider request failed.
     DriveProviderFailed,
+    /// A driven turn's model couldn't be reached, or stayed unavailable on
+    /// every attempt: the model was down, not the turn wrong.
+    DriveProviderUnavailable,
     /// runx could not drive the turn it was given.
     DriveResolutionFailed,
     /// A driven turn's model answered without progress for every turn
@@ -285,6 +288,7 @@ impl SealReason {
             Self::ReceiptBudgetExceeded => "receipt_budget_exceeded",
             Self::ResolutionPending => "resolution_pending",
             Self::DriveProviderFailed => "drive_provider_failed",
+            Self::DriveProviderUnavailable => "drive_provider_unavailable",
             Self::DriveResolutionFailed => "drive_resolution_failed",
             Self::DriveEmptyTurnBudgetExhausted => "drive_empty_turn_budget_exhausted",
             Self::DriveToolExecutionFailed => "drive_tool_execution_failed",

@@ -3124,7 +3124,7 @@ export type SealFailureContract = {
 };
 
 /** Why a receipt's subject ended as it did, beyond its outcome. */
-export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "approval_declined" | "cost_limit_exceeded" | "receipt_budget_exceeded" | "resolution_pending" | "drive_provider_failed" | "drive_resolution_failed" | "drive_empty_turn_budget_exhausted" | "drive_tool_execution_failed" | "drive_round_budget_exhausted" | "host_closed" | "cancelled";
+export type SealReasonContract = "preflight_refused" | "input_contract_invalid" | "workflow_step_failed" | "workflow_blocked" | "authority_denied" | "approval_declined" | "cost_limit_exceeded" | "receipt_budget_exceeded" | "resolution_pending" | "drive_provider_failed" | "drive_provider_unavailable" | "drive_resolution_failed" | "drive_empty_turn_budget_exhausted" | "drive_tool_execution_failed" | "drive_round_budget_exhausted" | "host_closed" | "cancelled";
 
 /** A local session: authority the person already holds on this machine. */
 export type SessionAuthContract = {

@@ -49,6 +49,8 @@ their declared methods and never widen the owning task, tools, output contract o
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AgentLoopFailureReason {
     ProviderFailed,
+    /// The model stayed unavailable on every attempt.
+    ProviderUnavailable,
     EmptyTurnBudgetExhausted,
     ToolExecutionFailed,
     RoundBudgetExhausted,
@@ -60,6 +62,7 @@ impl AgentLoopFailureReason {
     pub const fn seal_reason(self) -> SealReason {
         match self {
             Self::ProviderFailed => SealReason::DriveProviderFailed,
+            Self::ProviderUnavailable => SealReason::DriveProviderUnavailable,
             Self::EmptyTurnBudgetExhausted => SealReason::DriveEmptyTurnBudgetExhausted,
             Self::ToolExecutionFailed => SealReason::DriveToolExecutionFailed,
             Self::RoundBudgetExhausted => SealReason::DriveRoundBudgetExhausted,
@@ -371,6 +374,8 @@ pub struct AgentLoopConfig {
 enum TurnStop {
     /// The provider failed, with what it may report of why.
     Provider(Option<String>),
+    /// The model stayed unavailable on every attempt it was given.
+    Unavailable(String),
     EmptyTurns,
 }
 
@@ -432,10 +437,10 @@ where
             }) => {
                 *usage = None;
                 if retried >= limits.retries {
-                    return Err(TurnStop::Provider(Some(format!(
+                    return Err(TurnStop::Unavailable(format!(
                         "{detail}, on each of {} attempts",
                         retried + 1
-                    ))));
+                    )));
                 }
                 let backoff = FIRST_RETRY_WAIT.saturating_mul(1_u32 << retried.min(16));
                 wait.wait(retry_after.unwrap_or(backoff).min(MAX_RETRY_WAIT));
@@ -549,6 +554,20 @@ where
             &mut usage,
         ) {
             Ok(uses) => uses,
+            Err(TurnStop::Unavailable(detail)) => {
+                return Err(AgentLoopFailure::new(
+                    AgentLoopFailureReason::ProviderUnavailable,
+                    format!("its model was unavailable: {detail}"),
+                    telemetry(
+                        round,
+                        model_calls,
+                        usage,
+                        tool_calls,
+                        tools,
+                        tool_executions,
+                    ),
+                ));
+            }
             Err(TurnStop::Provider(detail)) => {
                 return Err(AgentLoopFailure::new(
                     AgentLoopFailureReason::ProviderFailed,
@@ -2211,7 +2230,7 @@ mod tests {
         let (result, waits) = drive(&model, limits);
         assert!(
             matches!(&result, Err(error)
-                if error.reason() == AgentLoopFailureReason::ProviderFailed
+                if error.reason() == AgentLoopFailureReason::ProviderUnavailable
                 && error.sanitized_message().contains("status 503, on each of 3 attempts")
                 && error.telemetry().model_calls == Some(3)),
             "got: {result:?}"

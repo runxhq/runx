@@ -739,8 +739,11 @@ impl Loops {
                         reason: why.clone().unwrap_or_else(|| reason.replace('_', " ")),
                     },
                     // Its model was unavailable and it changed nothing: the
-                    // loop couldn't run, no failure of its skill's.
-                    (RunOutcome::Failed, Some("drive_provider_failed")) if changes.done == 0 => {
+                    // loop couldn't run, no failure of its skill's. A cut
+                    // reply or a provider's refusal is the run's own failure.
+                    (RunOutcome::Failed, Some("drive_provider_unavailable"))
+                        if changes.done == 0 =>
+                    {
                         Ending::Unavailable {
                             outcome: label,
                             why,

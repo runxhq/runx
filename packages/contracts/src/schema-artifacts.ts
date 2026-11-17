@@ -9337,6 +9337,7 @@ export const runxSchemaArtifacts = {
           "receipt_budget_exceeded",
           "resolution_pending",
           "drive_provider_failed",
+          "drive_provider_unavailable",
           "drive_resolution_failed",
           "drive_empty_turn_budget_exhausted",
           "drive_tool_execution_failed",
