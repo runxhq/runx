@@ -4249,3 +4249,100 @@ fn a_claim_is_made_after_approval_and_a_moved_record_refuses_the_write_unsent() 
     );
     Ok(())
 }
+
+/// A claim is an act of its own, admitted as any store append is: under a
+/// store delegation that bounds its uses, the claim takes a use of that
+/// bound, kept in custody, so it's counted when its write settles and never
+/// slips past the bound (Codex, 18 November).
+#[test]
+fn a_claim_counts_against_a_bound_on_the_runs_store_authority() {
+    let fixture = Fixture::new(&["channel.post", "channel.post.read"]);
+    let chain = [crate::identity::ChainLink {
+        package: runx_contracts::PackagePattern::new("project:deals").unwrap(),
+        owner: "project:deals".to_owned(),
+        root: fixture.root.path().to_path_buf(),
+        digest: format!("sha256:{}", "0".repeat(64)),
+    }];
+    // The store's own instance, as a plain append of the package's admits it.
+    let note: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"stream": "deals", "key": "d1", "expected_version": 0, "type": "deal.noted", "data": {}},
+        "idempotency_key": "note-1",
+    }))
+    .unwrap();
+    let plain = fixture
+        .admit_from("note", &note, None, false, &chain)
+        .unwrap();
+    let store_instance = plain
+        .context::<OperationAdmission>()
+        .unwrap()
+        .admitted
+        .capability
+        .term
+        .resource_ref
+        .clone();
+    let actor_ref = Reference::with_uri(ReferenceType::Principal, "runx:principal:assistant:test");
+    let bounds = |operation: &str, scope: &str, uses: Option<u64>| AuthorityBounds {
+        operations: vec![operation.into()],
+        scopes: vec![scope.into()],
+        targets: vec!["*".into()],
+        uses: uses.map(|total| runx_contracts::AuthorityUseLimit {
+            total: Some(total),
+            per_day: None,
+        }),
+        packages: vec![runx_contracts::PackagePattern::new("project:deals").unwrap()],
+    };
+    let authority = crate::RunAuthority {
+        actor_ref: Some(actor_ref.clone()),
+        mandate_ref: Some(Reference::runx(ReferenceType::Mandate, "test-mandate")),
+        delegations: vec![
+            delegation(
+                "fixture/chat",
+                Reference::runx(
+                    ReferenceType::ConnectorInstance,
+                    crate::kernel::instances::instance_id(&[
+                        "hosted",
+                        "fixture/chat",
+                        "grant_chat",
+                    ])
+                    .unwrap()
+                    .as_str(),
+                ),
+                actor_ref.clone(),
+                vec![AuthorityVerb::Write],
+                bounds("fixture/chat/channel.post", "channel.post", None),
+            ),
+            delegation(
+                "store",
+                store_instance,
+                actor_ref,
+                vec![AuthorityVerb::Write],
+                bounds("store/events.append", "store.append", Some(1)),
+            ),
+        ],
+        ..crate::RunAuthority::default()
+    };
+    let claimed: JsonObject = serde_json::from_value(serde_json::json!({
+        "inputs": {"channel_locator": "chat://T123/C456", "text": "deal moved on"},
+        "idempotency_key": "post-1",
+        "claim": {"stream": "deals", "key": "d1", "expected_version": 0, "type": "deal.sending", "data": {}},
+    }))
+    .unwrap();
+    let admitted = fixture
+        .admit_from("claimed_post", &claimed, Some(&authority), false, &chain)
+        .unwrap();
+    let claim = admitted
+        .context::<OperationAdmission>()
+        .unwrap()
+        .claim
+        .as_deref()
+        .expect("the post claims its record");
+    assert!(
+        claim.admitted.custody.is_some(),
+        "the claim is kept in custody"
+    );
+    assert_eq!(
+        claim.admitted.usage_covers.len(),
+        1,
+        "the claim takes a use of the store's bound"
+    );
+}

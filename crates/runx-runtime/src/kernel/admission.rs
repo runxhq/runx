@@ -348,19 +348,6 @@ impl Authorized {
     pub(crate) fn intent_digest(&self) -> &Digest {
         &self.intent_digest
     }
-
-    /// What a call made from this authorization alone is made with: its
-    /// connector, operation, instance and placed target.
-    pub(crate) fn into_call(
-        self,
-    ) -> (
-        Arc<LoadedConnector>,
-        OperationName,
-        ConnectorInstance,
-        String,
-    ) {
-        (self.connector, self.operation, self.instance, self.target)
-    }
 }
 
 /// Authorize one exact call.

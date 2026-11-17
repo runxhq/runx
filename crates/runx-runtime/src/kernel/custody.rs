@@ -523,6 +523,7 @@ impl EffectCustody {
             receipt_id,
             bounded: bounded.to_vec(),
             spend,
+            with: Vec::new(),
         }
     }
 
@@ -567,9 +568,17 @@ pub struct Settlement {
     receipt_id: String,
     bounded: Vec<UseCover>,
     spend: Option<(String, String)>,
+    /// The acts settled with this one, in the same batch: a write's claim.
+    with: Vec<Settlement>,
 }
 
 impl Settlement {
+    /// This settlement and `other`'s together, committed as one.
+    pub(crate) fn with(mut self, other: Settlement) -> Self {
+        self.with.push(other);
+        self
+    }
+
     /// The appends that settle the act, for a batch committed through
     /// `store`, which must be the store that keeps the act's custody. An act
     /// this receipt already settled needs none.
@@ -579,12 +588,15 @@ impl Settlement {
                 "the act's custody is kept in another store than the run that consumed it",
             ));
         }
+        let mut batch = Vec::new();
+        for other in &self.with {
+            batch.extend(other.appends(store)?);
+        }
         if let Some(latest) = store.latest::<EffectEvent>(&self.custody.key)?
             && matches!(&latest.event, EffectEvent::Finalized { receipt_id } if *receipt_id == self.receipt_id)
         {
-            return Ok(Vec::new());
+            return Ok(batch);
         }
-        let mut batch = Vec::with_capacity(2 + self.bounded.len());
         for cover in &self.bounded {
             batch.push(cover.consume(store)?);
         }

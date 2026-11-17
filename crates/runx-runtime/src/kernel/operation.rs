@@ -528,8 +528,9 @@ pub(crate) struct OperationAdmission {
     caller: Option<crate::identity::ChainLink>,
     /// How a claimed call whose run stopped is taken further, when it is.
     reconciliation: Option<crate::effects::Reconciliation>,
-    /// The record the write claims before it acts, when it claims one.
-    claim: Option<claim::Claim>,
+    /// The record the write claims before it acts, when it claims one: an
+    /// admitted store append of its own, which settles with the write.
+    claim: Option<Box<OperationAdmission>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -820,7 +821,14 @@ impl RuntimeEffect for OperationEffect {
             return Ok(());
         };
         let call = OperationCall::decode(request.inputs).map_err(invalid)?;
-        self.claim(request, target, &call)?;
+        if let Some(step) = claim::claim_step(request, target, &call)? {
+            self.authorize(EffectStepRequest {
+                step: &step,
+                inputs: &step.inputs,
+                held_by_effects: false,
+                ..request
+            })?;
+        }
         let grounds = Grounds::of(request, target)?;
         admission::authorize(&self.evaluation(request, target, &call, &grounds))
             .map(|_| ())
@@ -1145,17 +1153,27 @@ impl RuntimeEffect for OperationEffect {
         if context.admitted.done.is_some() {
             return Ok(None);
         }
-        Ok(Some(
-            custody.settlement(
-                request.receipt.id.as_str().to_owned(),
-                &context.admitted.usage_covers,
-                context
-                    .admitted
-                    .spend
-                    .as_ref()
-                    .map(|spending| (spending.run_id.clone(), spending.spend_key.clone())),
-            ),
-        ))
+        let receipt_id = request.receipt.id.as_str().to_owned();
+        let settlement = custody.settlement(
+            receipt_id.clone(),
+            &context.admitted.usage_covers,
+            context
+                .admitted
+                .spend
+                .as_ref()
+                .map(|spending| (spending.run_id.clone(), spending.spend_key.clone())),
+        );
+        // A write's claim settles with it, under the write's receipt, its
+        // uses consumed as any store append's are.
+        Ok(Some(match context.claim.as_deref() {
+            Some(claim) if claim.admitted.done.is_none() => match &claim.admitted.custody {
+                Some(held) => {
+                    settlement.with(held.settlement(receipt_id, &claim.admitted.usage_covers, None))
+                }
+                None => settlement,
+            },
+            _ => settlement,
+        }))
     }
 
     fn authority(
@@ -1529,18 +1547,16 @@ pub(crate) fn execute(
     if context.admitted.pending.is_none()
         && let Some(claim) = &context.claim
     {
-        claim
-            .append(env, cwd, context.caller.as_ref())
-            .map_err(|refusal| match refusal {
-                // runx's refusal, not the provider's: the decision the write
-                // carries out no longer stands, and nothing was sent.
-                claim::Refusal::Moved(reason) => RuntimeError::AuthorityDenied {
-                    verb: admitted.operation().verb.authority_verb(),
-                    step_id: step_id.to_owned(),
-                    reason,
-                },
-                claim::Refusal::Failed(reason) => preflight(reason),
-            })?;
+        claim::make(claim, step_id, env, cwd, tools).map_err(|refusal| match refusal {
+            // runx's refusal, not the provider's: the decision the write
+            // carries out no longer stands, and nothing was sent.
+            claim::Refusal::Moved(reason) => RuntimeError::AuthorityDenied {
+                verb: admitted.operation().verb.authority_verb(),
+                step_id: step_id.to_owned(),
+                reason,
+            },
+            claim::Refusal::Failed(reason) => preflight(reason),
+        })?;
     }
     if let Some(custody) = &context.admitted.custody {
         record_attempt(
