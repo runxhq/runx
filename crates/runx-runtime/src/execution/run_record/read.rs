@@ -99,7 +99,10 @@ pub fn read_run(
             closure_digest: started.closure_digest.into(),
             driver: started.driver,
             receipt_id: receipt_id.map(Into::into),
-            why: why(&store, run_id)?,
+            why: match outcome {
+                Some(runx_contracts::RunOutcome::Failed) => why(&store, run_id)?,
+                _ => None,
+            },
             driven: driven(&paths, run_id)?,
             created_at: started.created_at.into(),
             updated_at: updated_at.into(),
@@ -585,19 +588,33 @@ fn step_status(
     Ok((status.outcome, receipt.id.into()))
 }
 
+/// How far back from its head a run's stream is first read for its last
+/// step, a span that grows until one is found.
+const WHY_TAIL: u64 = 16;
+
 /// Why run `run_id` stopped, when its last step on its own stream failed:
-/// that step's failure. Its children's steps are theirs.
+/// that step's failure. Its children's steps are theirs. A run's last step
+/// sits just before its seal, so the stream is read from its tail, a few
+/// events at first, and never whole unless its last step is that far back.
 fn why(store: &KernelStore, run_id: &str) -> Result<Option<NonEmptyString>, RunRecordError> {
-    let Some(last) = store
-        .read::<RunEvent>(run_id)?
-        .into_iter()
-        .rev()
-        .find_map(|recorded| match recorded.event {
-            RunEvent::Step(step) => Some(step),
-            _ => None,
-        })
-    else {
-        return Ok(None);
+    let head = store.version::<RunEvent>(run_id)?;
+    let mut span = WHY_TAIL;
+    let last = loop {
+        let after = head.saturating_sub(span);
+        let limit = usize::try_from(head - after).unwrap_or(usize::MAX);
+        let step = store
+            .read_after::<RunEvent>(run_id, after, limit)?
+            .into_iter()
+            .rev()
+            .find_map(|recorded| match recorded.event {
+                RunEvent::Step(step) => Some(step),
+                _ => None,
+            });
+        match step {
+            Some(step) => break step,
+            None if after == 0 => return Ok(None),
+            None => span = span.saturating_mul(4),
+        }
     };
     let (outcome, _) = step_status(store, &last.record, &last.receipt)?;
     Ok((!outcome.succeeded()).then(|| failed_at(&outcome, &last.step_id)))

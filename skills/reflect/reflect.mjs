@@ -616,8 +616,15 @@ export async function propose(ctx, { survey, findings }) {
     const validations = [beforeValidation, afterValidation];
     const unproven = names.filter((name) => ![before[name], after[name]].every((status) => status === "passed" || status === "failed"));
     if (unproven.length > 0) {
-      const failures = unproven.flatMap((name) => validations.flatMap((validation) => validation?.test?.cases?.find((entry) => entry.name === name)?.failures ?? []));
-      const why = failures.find(Boolean) ?? validations.map((validation) => validation?.test?.reason).find(Boolean);
+      // The reason is the side's that reached no verdict: a case that failed
+      // as expected before the change says nothing of why it didn't run after.
+      const verdictless = (entry) => entry && entry.status !== "passed" && entry.status !== "failed";
+      const failures = unproven.flatMap((name) => validations.flatMap((validation) => {
+        const entry = validation?.test?.cases?.find((found) => found.name === name);
+        return verdictless(entry) ? entry.failures ?? [] : [];
+      }));
+      const absent = (validation) => unproven.some((name) => !validation?.test?.cases?.some((found) => found.name === name));
+      const why = failures.find(Boolean) ?? validations.filter(absent).map((validation) => validation?.test?.reason).find(Boolean);
       proposals.push({ criterion, target_dir, dropped: `its case ${unproven.join(", ")} reached no verdict: ${why ?? "the package's tests didn't run"}`, proof, changed, removed });
       continue;
     }

@@ -62,6 +62,16 @@ methods:
           cwd: $steps.inspect-profile.release_context.commands.verify.cwd
           env: $steps.inspect-profile.release_context.commands.verify.env
           timeout_ms: $steps.inspect-profile.release_context.commands.verify.timeout_ms
+      # A command runs where its profile says, never through a link out of it.
+      - id: admit-plans
+        inputs:
+          release_context: $steps.inspect-profile.release_context
+          prepare: $steps.plan-prepare.command_plan
+          publish: $steps.plan-publish.command_plan
+          verify: $steps.plan-verify.command_plan
+        tool: {module: release.mjs, export: admitPlans}
+        outputs:
+          plans: {type: string}
       - id: execute-prepare
         tool: command.execute
         inputs:

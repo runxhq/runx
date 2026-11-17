@@ -41,6 +41,24 @@ export function inspectProfile(inputs) {
   };
 }
 
+/**
+ * Each planned command runs in the directory its profile names. runx plans a
+ * command where its cwd really is, so a cwd that names a link resolves
+ * somewhere else, and is refused before anything runs.
+ */
+export function admitPlans(inputs) {
+  const context = object(inputs.release_context);
+  if (context.schema !== "runx/release.context.v1") throw new Error("release_context is required");
+  for (const phase of ["prepare", "publish", "verify"]) {
+    const named = text(object(context.commands?.[phase]).cwd, 4_000);
+    const planned = text(object(inputs[phase]).cwd, 4_000);
+    if (planned !== named) {
+      throw new Error(`commands.${phase}.cwd names ${named}, which is really ${planned || "nowhere runx planned"}: name the directory itself, inside the project`);
+    }
+  }
+  return { plans: "admitted" };
+}
+
 export function interpretPhase(inputs) {
   const context = object(inputs.release_context);
   if (context.schema !== "runx/release.context.v1") throw new Error("release_context is required");

@@ -310,6 +310,64 @@ fn native_file_tools_cannot_change_kernel_state() -> Result<(), Box<dyn std::err
     Ok(())
 }
 
+/// A kernel file that is a link to another file is still kernel state by its
+/// name: naming it by its absolute path never swaps in the file it links to.
+#[cfg(unix)]
+#[test]
+fn a_linked_kernel_file_is_refused_by_the_name_it_was_given()
+-> Result<(), Box<dyn std::error::Error>> {
+    let workspace = tempfile::tempdir()?;
+    let root = fs::canonicalize(workspace.path())?;
+    fs::create_dir_all(root.join("receipts"))?;
+    fs::write(root.join("state.sqlite"), "protected")?;
+    std::os::unix::fs::symlink(
+        root.join("state.sqlite"),
+        root.join("receipts/kernel-v2.sqlite"),
+    )?;
+    let env = BTreeMap::from([(RUNX_CWD_ENV.to_owned(), root.to_string_lossy().into_owned())]);
+    let delivery = CredentialDelivery::none();
+    let effects = RuntimeEffectRegistry::default();
+    for path in [
+        "receipts/kernel-v2.sqlite".to_owned(),
+        root.join("receipts/kernel-v2.sqlite")
+            .to_string_lossy()
+            .into_owned(),
+    ] {
+        let inputs = fixture_input::<FileWriteInput>(JsonObject::from([
+            ("path".to_owned(), JsonValue::String(path.clone())),
+            (
+                "contents".to_owned(),
+                JsonValue::String("forged".to_owned()),
+            ),
+            (
+                "expected_digest".to_owned(),
+                JsonValue::String(runx_contracts::sha256_prefixed(b"protected")),
+            ),
+        ]))?;
+        let refused = write(&NativeInvocation {
+            inputs: &inputs,
+            observed_at: "2026-01-01T00:00:00Z",
+            env: &env,
+            skill_directory: &root,
+            credential_delivery: &delivery,
+            local_artifacts: crate::tool_catalogs::native::fixture_local_artifacts(),
+            effects: &effects,
+            reach: runx_contracts::Reach::Inputs,
+            call: None,
+        })
+        .err()
+        .ok_or("a file tool wrote through a linked kernel file")?;
+        assert!(
+            refused
+                .to_string()
+                .contains("kernel state cannot be changed"),
+            "{path}: {refused}"
+        );
+        assert_eq!(fs::read_to_string(root.join("state.sqlite"))?, "protected");
+    }
+    Ok(())
+}
+
 #[test]
 fn a_write_stays_in_the_workspace() -> Result<(), Box<dyn std::error::Error>> {
     let workspace = tempfile::tempdir()?;

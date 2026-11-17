@@ -359,10 +359,10 @@ fn write_bundle(workspace: &Path, inputs: &FileWriteInput) -> Result<TextBundle,
 
 /// The path a change names, as its bundle admits it: from the workspace root.
 /// Writes stay in the workspace (rule 2), so an absolute path is admitted only
-/// inside it, as the path from its root, and a path into the skill's own
-/// package is refused. What exists of an absolute path is resolved first, so a
-/// link can't carry it out of the workspace; the bundle then checks the path
-/// below the root as it checks every other.
+/// inside it, and a path into the skill's own package is refused. The path
+/// below the workspace is taken as it was written, never resolved, so the
+/// bundle's own admission sees the name and checks it as it checks every
+/// other: a protected name, or a link out of the workspace, is refused there.
 fn in_workspace(tool: &str, workspace: &Path, path: &str) -> Result<String, RuntimeError> {
     if crate::services::package_path(path).is_some() {
         return Err(invalid_input(
@@ -382,30 +382,27 @@ fn in_workspace(tool: &str, workspace: &Path, path: &str) -> Result<String, Runt
             format!("{path} is outside the workspace, and writes stay in the workspace"),
         )
     };
-    if named.components().any(|component| {
-        matches!(
-            component,
-            std::path::Component::CurDir | std::path::Component::ParentDir
-        )
-    }) {
-        return Err(invalid_input(
-            tool,
-            format!("{path} names its file without . or .. segments"),
-        ));
-    }
-    let mut existing = named;
-    let mut below = Vec::new();
-    while !existing.exists() {
-        below.push(existing.file_name().ok_or_else(outside)?);
-        existing = existing.parent().ok_or_else(outside)?;
-    }
-    let mut resolved = std::fs::canonicalize(existing).map_err(|_| outside())?;
-    resolved.extend(below.into_iter().rev());
-    let workspace = std::fs::canonicalize(workspace).map_err(|_| outside())?;
-    let relative = resolved.strip_prefix(&workspace).map_err(|_| outside())?;
-    let segments = relative
+    // The workspace is whichever directory in the path's own name resolves to
+    // it, so a caller may name it by any alias (`/var` for `/private/var`).
+    // Only that directory is resolved; what's below it stays as written.
+    let canonical = std::fs::canonicalize(workspace).map_err(|_| outside())?;
+    let root = named
+        .ancestors()
+        .skip(1)
+        .find(|ancestor| {
+            std::fs::canonicalize(ancestor).is_ok_and(|resolved| resolved == canonical)
+        })
+        .ok_or_else(outside)?;
+    let below = named.strip_prefix(root).map_err(|_| outside())?;
+    let segments = below
         .components()
-        .map(|component| component.as_os_str().to_str().ok_or_else(outside))
+        .map(|component| match component {
+            std::path::Component::Normal(segment) => segment.to_str().ok_or_else(outside),
+            _ => Err(invalid_input(
+                tool,
+                format!("{path} names its file without . or .. segments"),
+            )),
+        })
         .collect::<Result<Vec<_>, _>>()?;
     if segments.is_empty() {
         return Err(invalid_input(

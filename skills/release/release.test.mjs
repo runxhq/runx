@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inspectProfile, interpretPhase } from "./release.mjs";
+import { admitPlans, inspectProfile, interpretPhase } from "./release.mjs";
 const digest = "sha256:" + "a".repeat(64);
 const execution = (version) => ({
   schema: "runx.command.execution.v1",
@@ -109,4 +109,15 @@ test("a release command's cwd never leaves its project", () => {
   for (const cwd of ["../../other", "/etc", "tools/../../..", "..\\other"]) {
     assert.throws(() => inspectIn(cwd), /commands\.publish\.cwd must stay inside the project/, cwd);
   }
+});
+test("a command planned somewhere other than its profile names is refused before it runs", () => {
+  const release_context = inspectIn("tools").release_context;
+  const plan = (phase) => ({ cwd: release_context.commands[phase].cwd });
+  const plans = { prepare: plan("prepare"), publish: plan("publish"), verify: plan("verify") };
+  assert.deepEqual(admitPlans({ release_context, ...plans }), { plans: "admitted" });
+  // packages/app/tools is a link to another directory of the workspace.
+  assert.throws(
+    () => admitPlans({ release_context, ...plans, publish: { cwd: "other" } }),
+    /commands\.publish\.cwd names packages\/app\/tools, which is really other/,
+  );
 });

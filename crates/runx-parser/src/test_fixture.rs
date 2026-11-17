@@ -315,44 +315,61 @@ pub enum TestJsonExpectation {
 
 impl<'de> Deserialize<'de> for TestJsonExpectation {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_map(ExpectationVisitor)
+    }
+}
+
+/// Reads an expectation key by key, so a key written twice is refused and
+/// never the last one silently kept.
+struct ExpectationVisitor;
+
+impl<'de> serde::de::Visitor<'de> for ExpectationVisitor {
+    type Value = TestJsonExpectation;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(
+            "an expectation, {exact: <value>} or {subset: <value>, absent?: [<pointer>]}",
+        )
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
         use serde::de::Error;
-        let mut given = JsonObject::deserialize(deserializer).map_err(|_| {
-            D::Error::custom(
-                "an expectation is {exact: <value>} or {subset: <value>, absent?: [<pointer>]}",
-            )
-        })?;
+        let mut given = JsonObject::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if given.contains_key(&key) {
+                return Err(A::Error::custom(format!(
+                    "an expectation names {key} once; this one names it twice"
+                )));
+            }
+            given.insert(key, map.next_value::<JsonValue>()?);
+        }
         let keys = given
             .keys()
             .map(String::as_str)
             .collect::<Vec<_>>()
             .join(", ");
         let shape = || {
-            D::Error::custom(format!(
+            A::Error::custom(format!(
                 "an expectation is {{exact: <value>}} or {{subset: <value>, absent?: [<pointer>]}}, the value's whole shape under exact or subset; this one has {keys}"
             ))
         };
         match (given.remove("exact"), given.remove("subset")) {
-            (Some(exact), None) if given.is_empty() => Ok(Self::Exact { exact }),
+            (Some(exact), None) if given.is_empty() => Ok(TestJsonExpectation::Exact { exact }),
             (None, Some(subset)) => {
+                let pointers = || A::Error::custom("absent lists JSON pointers, each a string");
                 let absent = match given.remove("absent") {
                     None => Vec::new(),
-                    Some(JsonValue::Array(pointers)) => pointers
+                    Some(JsonValue::Array(listed)) => listed
                         .into_iter()
                         .map(|pointer| match pointer {
                             JsonValue::String(pointer) => Ok(pointer),
-                            _ => Err(D::Error::custom(
-                                "absent lists JSON pointers, each a string",
-                            )),
+                            _ => Err(pointers()),
                         })
                         .collect::<Result<_, _>>()?,
-                    Some(_) => {
-                        return Err(D::Error::custom(
-                            "absent lists JSON pointers, each a string",
-                        ));
-                    }
+                    Some(_) => return Err(pointers()),
                 };
                 if given.is_empty() {
-                    Ok(Self::Subset { subset, absent })
+                    Ok(TestJsonExpectation::Subset { subset, absent })
                 } else {
                     Err(shape())
                 }

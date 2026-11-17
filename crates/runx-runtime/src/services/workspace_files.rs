@@ -364,11 +364,12 @@ pub(crate) struct Rooted {
 }
 
 /// The root a path is read under. A path is from the workspace root, `root`;
-/// one beginning [`PACKAGE_BASE`] names its package's file; an absolute one
-/// inside the workspace is that workspace path, admitted as one; and an
-/// absolute one elsewhere, another repository's among them, is read under its
-/// own directory, which the run's reach admits or refuses as it would that
-/// directory.
+/// one beginning [`PACKAGE_BASE`] names its package's file; and an absolute
+/// one is read under the directory it names, another repository's among
+/// them, which the run's reach admits or refuses as it would that directory.
+/// A file's directory is its named parent, so a result names what it read as
+/// its caller did, through any link in that name. The workspace named by its
+/// absolute path, however it's written, is the workspace.
 pub(crate) fn rooted(
     root: &str,
     path: &str,
@@ -393,24 +394,15 @@ pub(crate) fn rooted(
     let workspace = crate::RunxPaths::resolve(env, skill_directory)
         .workspace()
         .to_path_buf();
-    if let Some(below) = below_workspace(&workspace, named) {
-        // The caller's own words for the workspace, where they end in the
-        // path below it; its resolved path otherwise.
-        let prefix = if below == "." {
-            path.to_owned()
-        } else {
-            path.strip_suffix(below.as_str())
-                .and_then(|prefix| {
-                    prefix
-                        .strip_suffix(std::path::MAIN_SEPARATOR)
-                        .or_else(|| prefix.strip_suffix('/'))
-                })
-                .map_or_else(|| workspace.to_string_lossy().into_owned(), str::to_owned)
-        };
+    let is_workspace = std::fs::canonicalize(named)
+        .ok()
+        .zip(std::fs::canonicalize(workspace).ok())
+        .is_some_and(|(named, workspace)| named == workspace);
+    if is_workspace {
         return Rooted {
             base: root.to_owned(),
-            below,
-            prefix: Some(prefix),
+            below: ".".to_owned(),
+            prefix: Some(path.to_owned()),
         };
     }
     match (named.parent(), named.file_name()) {
@@ -428,40 +420,6 @@ pub(crate) fn rooted(
             prefix: Some(path.to_owned()),
         },
     }
-}
-
-/// The path from the workspace root an absolute path names, when it names
-/// the workspace or a path inside it: what exists of it resolved, so a link
-/// can't carry it in or out. A path with `.` or `..` segments is read where it
-/// resolves, never as a workspace path.
-fn below_workspace(workspace: &Path, named: &Path) -> Option<String> {
-    if named.components().any(|component| {
-        matches!(
-            component,
-            std::path::Component::CurDir | std::path::Component::ParentDir
-        )
-    }) {
-        return None;
-    }
-    let workspace = std::fs::canonicalize(workspace).ok()?;
-    let mut existing = named;
-    let mut missing = Vec::new();
-    while !existing.exists() {
-        missing.push(existing.file_name()?);
-        existing = existing.parent()?;
-    }
-    let mut resolved = std::fs::canonicalize(existing).ok()?;
-    resolved.extend(missing.into_iter().rev());
-    let below = resolved.strip_prefix(&workspace).ok()?;
-    let segments = below
-        .components()
-        .map(|component| component.as_os_str().to_str())
-        .collect::<Option<Vec<_>>>()?;
-    Some(if segments.is_empty() {
-        ".".to_owned()
-    } else {
-        segments.join("/")
-    })
 }
 
 /// The directory a native tool works in: the root `requested_root` names in
@@ -548,47 +506,48 @@ mod tests {
     }
 
     #[test]
-    fn an_absolute_path_inside_the_workspace_is_a_workspace_path()
+    fn an_absolute_path_is_read_under_the_directory_it_names()
     -> Result<(), Box<dyn std::error::Error>> {
         let workspace = tempfile::tempdir()?;
         let elsewhere = tempfile::tempdir()?;
         std::fs::create_dir_all(workspace.path().join("src"))?;
         std::fs::write(workspace.path().join("src/a.rs"), "")?;
         let env = env(workspace.path());
-        let named = workspace.path().to_string_lossy().into_owned();
         let read = |path: &str| rooted(".", path, &env, workspace.path());
-        // The workspace by its absolute path is the workspace, so a run whose
-        // reach is the workspace reads it, and names it as its caller did.
-        assert_eq!(
-            read(&named),
-            Rooted {
-                base: ".".to_owned(),
-                below: ".".to_owned(),
-                prefix: Some(named.clone()),
-            }
-        );
-        resolve_scoped_root(&read(&named).base, &env, workspace.path(), Reach::Workspace)?;
-        let file = workspace
+        // The workspace by its absolute path, however it's written, is the
+        // workspace, so a run whose reach is the workspace reads it, and a
+        // result names it as its caller did.
+        let named = workspace.path().to_string_lossy().into_owned();
+        let name = workspace
             .path()
-            .join("src/a.rs")
-            .to_string_lossy()
-            .into_owned();
-        assert_eq!(
-            read(&file),
-            Rooted {
-                base: ".".to_owned(),
-                below: "src/a.rs".to_owned(),
-                prefix: Some(named.clone()),
-            }
-        );
-        // A file elsewhere is read under its own directory.
-        let other = elsewhere.path().join("b.txt");
-        let outside = read(&other.to_string_lossy());
+            .file_name()
+            .ok_or("the workspace has a name")?;
+        let around = workspace.path().join("..").join(name);
+        for written in [named.clone(), around.to_string_lossy().into_owned()] {
+            assert_eq!(
+                read(&written),
+                Rooted {
+                    base: ".".to_owned(),
+                    below: ".".to_owned(),
+                    prefix: Some(written.clone()),
+                }
+            );
+        }
+        // A file inside it is read under its named directory, which a
+        // workspace reach admits, and is named as its caller named it.
+        let inside = read(&workspace.path().join("src/a.rs").to_string_lossy());
+        assert_eq!(inside.base, workspace.path().join("src").to_string_lossy());
+        assert_eq!(inside.below, "a.rs");
+        assert_eq!(inside.prefix.as_deref(), Some(inside.base.as_str()));
+        resolve_scoped_root(&inside.base, &env, workspace.path(), Reach::Workspace)?;
+        // A file elsewhere is read under its own directory, which only a
+        // reach of inputs admits.
+        let outside = read(&elsewhere.path().join("b.txt").to_string_lossy());
         assert_eq!(outside.base, elsewhere.path().to_string_lossy());
-        assert_eq!(outside.below, "b.txt");
         assert!(
             resolve_scoped_root(&outside.base, &env, workspace.path(), Reach::Workspace).is_err()
         );
+        resolve_scoped_root(&outside.base, &env, workspace.path(), Reach::Inputs)?;
         Ok(())
     }
 

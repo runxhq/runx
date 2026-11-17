@@ -41,7 +41,14 @@ fn a_subset_names_absent_fields_by_json_pointer() -> Result<(), Box<dyn std::err
 
 #[test]
 fn every_json_expectation_requires_exactly_one_mode() {
-    for invalid in ["{}", "{exact: 1, subset: 1}", "{quote: {exact: 1}}"] {
+    for invalid in [
+        "{}",
+        "{exact: 1, subset: 1}",
+        "{quote: {exact: 1}}",
+        // A key written twice is refused, never the last one kept.
+        "{exact: 1, exact: 2}",
+        "{subset: {}, absent: [/a], absent: [/b]}",
+    ] {
         for fixture in [
             format!("name: output\nexpect:\n  output: {invalid}\n"),
             format!("name: step\nexpect:\n  step_outputs:\n    work: {invalid}\n"),
