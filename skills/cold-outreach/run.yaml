@@ -391,6 +391,8 @@ methods:
         description: The evaluation time of every lead's enrichment. No host clock is read, so an unchanged lead is qualified from the same packet in a revised batch.
         format: date-time
       memory: {}
+      brand_context: {packet: runx/brand-voice.context.v1, description: 'Scoped validated brand voice every lead is drafted in, selected by the caller.', optional: true}
+      taste_context: {packet: runx/taste-profile.context.v1, description: 'Scoped validated taste every lead is drafted with, selected by the caller.', optional: true}
       leads:
         type: array
         description: The leads, each prepared on its own. One lead's hold or failure is that lead's outcome. A run's inputs are at most 64 MiB in all, the most its record holds, so 300 leads average at most about 220 KB each.
@@ -498,6 +500,8 @@ methods:
         requested_fields: $input.requested_fields
         as_of: $input.as_of
         memory: $input.memory
+        brand_context: $input.brand_context
+        taste_context: $input.taste_context
         leads: $input.leads
       calls:
         skills: [../lead-enrichment#enrich, ../lead-qualify#qualify, .#prepare]

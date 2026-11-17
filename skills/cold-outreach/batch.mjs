@@ -76,6 +76,8 @@ async function outcome(ctx, item, inputs) {
       contact_policy: lead.contact_policy,
       qualification: lead_qualification,
       ...(inputs.memory === undefined ? {} : { memory: inputs.memory }),
+      ...(inputs.brand_context == null ? {} : { brand_context: inputs.brand_context }),
+      ...(inputs.taste_context == null ? {} : { taste_context: inputs.taste_context }),
       ...(lead.facts === undefined ? {} : { facts: lead.facts }),
     });
     return { ...named, status: "fulfilled", outreach_review };

@@ -40,7 +40,7 @@ the `idempotency_key` its send is made under, made from the campaign and the
 recipient and never the draft, so a revised batch never sends a lead twice. The
 batch runs under `effects: none` and sends nothing: a mail capability sends each
 approved draft under its key. Memory levels it's given go to each lead's
-`prepare`.
+`prepare`, and so do the brand and taste contexts.
 
 A lead's qualification is reused for up to a week (604,800 seconds). A
 revised batch, say with a new offer, then keeps each lead's fit and drafts
