@@ -490,7 +490,7 @@ fn write_pending_requests(
 
 /// What a purchase asks its buyer to decide (N10): what, from whom, for how
 /// much until when, and each method that can pay it.
-fn write_purchase(writer: &mut dyn Write, purchase: &JsonObject) -> io::Result<()> {
+pub(crate) fn write_purchase(writer: &mut dyn Write, purchase: &JsonObject) -> io::Result<()> {
     let text = |key: &str| object_string(purchase, key).unwrap_or("<unknown>");
     let amount = match purchase.get("amount_minor") {
         Some(JsonValue::Number(amount)) => {

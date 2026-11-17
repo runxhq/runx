@@ -77,9 +77,10 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         name: "resume",
         top_level_usage: &[],
         usage: &[
-            "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
+            "runx resume <run-id> [answers.json|-] [--receipt-dir dir] [--package-digest sha256] [--closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
         ],
         notes: &[
+            "At a terminal with no answers file, it shows each request the run waits on, whole, and takes the answer: approve or decline with your reason, an option by its number, or your own words.",
             crate::resume::ANSWER_DOCUMENT_EXAMPLE,
             crate::resume::ANSWER_DOCUMENT_GUIDANCE,
             crate::resume::APPROVAL_DOCUMENT_GUIDANCE,

@@ -49,7 +49,7 @@ fn top_level_help_and_version_are_native() {
     );
     assert_help_line(
         &help,
-        "runx resume <run-id> <answers.json|-> [--receipt-dir dir] [--package-digest sha256] [--closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
+        "runx resume <run-id> [answers.json|-] [--receipt-dir dir] [--package-digest sha256] [--closure-digest sha256] [--drive [--drive-rounds n]] [--diagnostics] [-j|--json]",
     );
     assert_help_line(
         &help,
@@ -224,7 +224,7 @@ fn filesystem_paths_do_not_require_utf8() {
         route_args(vec!["resume".into(), "gx_test".into(), path.clone(),]),
         RouterAction::RunResume(ResumePlan {
             run_id: "gx_test".to_owned(),
-            answers_path: path_buf.clone(),
+            answers_path: Some(path_buf.clone()),
             receipt_dir: None,
             expected_package_digest: None,
             expected_closure_digest: None,
@@ -818,7 +818,7 @@ fn routes_doctor_history_list_new_and_init_to_native_plans() {
         ]),
         RouterAction::RunResume(ResumePlan {
             run_id: "run_123".to_owned(),
-            answers_path: PathBuf::from("answers.json"),
+            answers_path: Some(PathBuf::from("answers.json")),
             receipt_dir: Some(PathBuf::from("receipts")),
             expected_package_digest: None,
             expected_closure_digest: None,

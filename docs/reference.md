@@ -116,7 +116,11 @@ runx secret set openai
 runx config set agent.secret openai
 ```
 
-`runx resume` continues a paused run from its run record. A host reads a run
+`runx resume` continues a paused run from its run record. At a terminal with
+no answers file, `runx resume <run-id>` shows each request the run waits on,
+whole, and takes the person's answer in place: approve or decline with their
+reason, an option by its number, or their own words. It builds the same
+answers document a file holds. A host reads a run
 with `runx history <run-id> --json` (`runx.run_read.v1`): its state, every
 request it waits on with the digest an answer binds to, whether a process
 drives it, and its events stream by stream. A turn call's event carries the

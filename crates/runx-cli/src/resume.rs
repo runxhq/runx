@@ -16,7 +16,8 @@ pub(crate) const APPROVAL_DOCUMENT_GUIDANCE: &str = r#"Explicit human decisions 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ResumePlan {
     pub run_id: String,
-    pub answers_path: PathBuf,
+    /// The answers document; none when the person answers at their terminal.
+    pub answers_path: Option<PathBuf>,
     pub receipt_dir: Option<PathBuf>,
     pub expected_package_digest: Option<String>,
     pub expected_closure_digest: Option<String>,
@@ -146,15 +147,16 @@ pub fn parse_resume_plan(args: &[OsString]) -> Result<ResumePlan, String> {
             }
         }
     }
-    if positionals.len() != 2 {
-        return Err("runx resume requires <run-id> <answers.json|->".to_owned());
+    if !(1..=2).contains(&positionals.len()) {
+        return Err("runx resume requires <run-id> [answers.json|-]".to_owned());
     }
+    let answers_path = (positionals.len() == 2).then(|| PathBuf::from(positionals.remove(1)));
     Ok(ResumePlan {
         run_id: positionals
             .remove(0)
             .into_string()
             .map_err(|_| "runx resume run id must be UTF-8".to_owned())?,
-        answers_path: PathBuf::from(positionals.remove(0)),
+        answers_path,
         receipt_dir,
         expected_package_digest,
         expected_closure_digest,
@@ -176,7 +178,11 @@ pub fn run_native_resume_with_workspace(
         .receipt_dir
         .take()
         .map(|dir| workspace.typed_path(&dir));
-    let answers = match read_answers(&plan.answers_path, workspace) {
+    let answers = match plan.answers_path.as_deref() {
+        Some(path) => read_answers(path, workspace),
+        None => answer_at_terminal(&plan.run_id, workspace),
+    };
+    let answers = match answers {
         Ok(answers) => answers,
         Err(error) => return write_resume_failure(&error, plan.json, 1),
     };
@@ -211,7 +217,7 @@ pub fn run_native_resume_with_workspace(
                 json: plan.json,
                 diagnostics: plan.diagnostics,
                 receipt_dir: plan.receipt_dir.as_deref(),
-                answers_path: Some(&plan.answers_path),
+                answers_path: plan.answers_path.as_deref(),
                 artifacts: &workspace.paths().artifacts(),
             },
         ),
@@ -224,6 +230,24 @@ pub fn run_native_resume_with_workspace(
 /// The resume document (`runx.resume.v1`) at `path`, or on stdin for `-`,
 /// read under the same bound as a skill's inputs. Nothing is written: the run
 /// records what it consumes.
+/// The person's answers, typed at their terminal to each request the run
+/// waits on. Anywhere else an answers document is given.
+fn answer_at_terminal(run_id: &str, workspace: &WorkspaceEnv) -> Result<ResumeDocument, String> {
+    use std::io::IsTerminal;
+    if !(std::io::stdin().is_terminal() && std::io::stdout().is_terminal()) {
+        return Err(
+            "runx resume <run-id> answers at a terminal; elsewhere give it <answers.json|->"
+                .to_owned(),
+        );
+    }
+    let read = runx_runtime::run_record::read_run(workspace.env(), workspace.cwd(), run_id, None)
+        .map_err(|error| error.to_string())?;
+    if read.waiting.is_empty() {
+        return Err(format!("run {run_id} waits on nothing"));
+    }
+    crate::answer::answer_at_this_terminal(&read.waiting)
+}
+
 fn read_answers(path: &Path, workspace: &WorkspaceEnv) -> Result<ResumeDocument, String> {
     let text = if path == Path::new("-") {
         crate::document_input::read_document_input(
