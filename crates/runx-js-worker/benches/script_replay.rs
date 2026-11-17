@@ -85,6 +85,7 @@ impl Worker {
             max_calls: calls,
             settled: settled.to_vec(),
             now: 0,
+            context: serde_json::Value::Null,
         })))?;
         ending(response)
     }
