@@ -159,6 +159,20 @@ impl Process<'_> {
                 JsonValue::Object(self.call.parameters.clone()),
             );
         }
+        if inputs.contains_key(CONNECTOR_OPERATION) {
+            return Err(Unperformed::NotSent {
+                code: "invalid_context",
+                reason: format!("{CONNECTOR_OPERATION} is kernel-supplied process context"),
+            });
+        }
+        // A tool that serves several of its connector's operations declares
+        // the input, and is told which one it performs.
+        if declares_input(self.manifest, CONNECTOR_OPERATION) {
+            inputs.insert(
+                CONNECTOR_OPERATION.to_owned(),
+                JsonValue::String(self.call.operation.to_owned()),
+            );
+        }
         if self.call.mutation() {
             inputs.insert("phase".to_owned(), JsonValue::String(phase.to_owned()));
             if let Some(key) = self.call.idempotency_key {
@@ -174,6 +188,18 @@ impl Process<'_> {
         self.tools
             .run(self.tool, self.manifest, inputs, self.delivery)
     }
+}
+
+/// The input a tool declares to be told which of its connector's operations
+/// it performs.
+const CONNECTOR_OPERATION: &str = "connector_operation";
+
+/// Whether the tool whose manifest is at `manifest` declares `input`.
+fn declares_input(manifest: &Path, input: &str) -> bool {
+    std::fs::read(manifest)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .is_some_and(|manifest| manifest.get("inputs").and_then(|inputs| inputs.get(input)).is_some())
 }
 
 fn refusal(answer: &JsonValue) -> Option<String> {
