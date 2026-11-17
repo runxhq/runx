@@ -27,6 +27,11 @@
       "phase1_state": "keep",
       "decision": "The resource-bounded deterministic JavaScript worker stays Apache-2.0; it has no host or provider capabilities."
     },
+    "runx-loops": {
+      "class": "apache-oss",
+      "phase1_state": "keep",
+      "decision": "The loop model stays Apache-2.0: loop files, records, clocks and settlement over the runtime's public API, with no brokerage or provider calls of its own."
+    },
     "runx-parser": {
       "class": "apache-oss",
       "phase1_state": "keep",
