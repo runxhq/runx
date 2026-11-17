@@ -1052,6 +1052,7 @@ where
             idempotency_key,
             connector,
             claim,
+            act,
         } => {
             let (requirement, operation) = operation.rsplit_once('/').ok_or_else(|| {
                 format!("ctx.operation names <connector>/<operation>, not {operation:?}")
@@ -1071,6 +1072,9 @@ where
             }
             if let Some(claim) = claim {
                 input.insert("claim".to_owned(), claim.clone());
+            }
+            if let Some(act) = act {
+                input.insert("act".to_owned(), act.clone());
             }
             (
                 CallTarget::Operation {

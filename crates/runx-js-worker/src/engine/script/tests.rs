@@ -281,6 +281,7 @@ fn a_call_that_did_not_succeed_rejects_with_its_reason_code_and_message() -> Res
             idempotency_key: Some("k".to_owned()),
             connector: None,
             claim: None,
+            act: None,
         }
     );
     Ok(())
@@ -490,13 +491,14 @@ fn a_script_reads_its_runs_context() -> Result<(), String> {
 }
 
 /// A requirement chosen per run is named by the call, beside its key, and a
-/// write names the record it claims before it acts.
+/// write names the record it claims before it acts and why it's made.
 #[test]
-fn an_operation_call_names_its_chosen_connector_and_its_claim() -> Result<(), String> {
+fn an_operation_call_names_its_chosen_connector_its_claim_and_its_act() -> Result<(), String> {
     let passed = run(
         r#"export default async function (ctx) {
             const claim = { stream: "opportunities", key: "o1", expected_version: 3, type: "sending", data: {} };
-            await ctx.operation("mail/message.send", { to: "a@b.example" }, { idempotency_key: "k", connector: "mailsim", claim });
+            const act = { purpose: "First email to Priya" };
+            await ctx.operation("mail/message.send", { to: "a@b.example" }, { idempotency_key: "k", connector: "mailsim", claim, act });
             return {};
         }"#,
         &[],
@@ -511,6 +513,7 @@ fn an_operation_call_names_its_chosen_connector_and_its_claim() -> Result<(), St
             claim: Some(
                 json!({"stream": "opportunities", "key": "o1", "expected_version": 3, "type": "sending", "data": {}})
             ),
+            act: Some(json!({"purpose": "First email to Priya"})),
         }
     );
     Ok(())

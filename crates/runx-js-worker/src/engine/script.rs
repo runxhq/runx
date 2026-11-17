@@ -622,8 +622,8 @@ fn operation(
     )?;
     let inputs = inputs(arguments.get_or_undefined(1), "ctx.operation", context)?;
     let options = arguments.get_or_undefined(2);
-    let (idempotency_key, connector, claim) = match options.as_object() {
-        None if options.is_undefined() => (None, None, None),
+    let (idempotency_key, connector, claim, act) = match options.as_object() {
+        None if options.is_undefined() => (None, None, None, None),
         None => {
             return Err(JsNativeError::typ()
                 .with_message("ctx.operation's options are an object")
@@ -633,15 +633,15 @@ fn operation(
             // A read is the world read again, so it never takes `reuse`.
             for key in options.own_property_keys(context)? {
                 let key = key.to_string();
-                if !["idempotency_key", "connector", "claim"].contains(&key.as_str()) {
+                if !OPERATION_OPTIONS.contains(&key.as_str()) {
                     return Err(JsNativeError::typ()
                         .with_message(format!(
-                            "ctx.operation's options take an idempotency_key, a connector and a claim, not {key}"
+                            "ctx.operation's options take an idempotency_key, a connector, a claim and an act, not {key}"
                         ))
                         .into());
                 }
             }
-            let option = |name, what, context: &mut Context| -> JsResult<Option<String>> {
+            let text_option = |name, what, context: &mut Context| -> JsResult<Option<String>> {
                 let value = options.get(js_string!(name), context)?;
                 if value.is_undefined() {
                     Ok(None)
@@ -649,24 +649,31 @@ fn operation(
                     Ok(Some(text(&value, "ctx.operation", what)?))
                 }
             };
-            // A write claims a record of its own package before it acts;
-            // the kernel checks the claim's shape.
-            let claim = options.get(js_string!("claim"), context)?;
-            let claim = if claim.is_undefined() {
-                None
-            } else {
-                if !claim.is_object() {
-                    return Err(JsNativeError::typ()
-                        .with_message("ctx.operation's claim is an object: {stream, key, expected_version, type, data}")
-                        .into());
+            // An object the kernel checks the shape of.
+            let object_option = |name: &str, what, context: &mut Context| {
+                let value = options.get(boa_engine::JsString::from(name), context)?;
+                if value.is_undefined() {
+                    return Ok(None);
                 }
-                Some(self::inputs(&claim, "ctx.operation's claim", context)?)
+                if !value.is_object() {
+                    return Err(JsError::from(JsNativeError::typ().with_message(format!(
+                        "ctx.operation's {name} is an object: {what}"
+                    ))));
+                }
+                self::inputs(&value, &format!("ctx.operation's {name}"), context).map(Some)
             };
             (
-                option("idempotency_key", "an idempotency_key string", context)?,
+                text_option("idempotency_key", "an idempotency_key string", context)?,
                 // A requirement chosen per run names the connector it chose.
-                option("connector", "a connector's name", context)?,
-                claim,
+                text_option("connector", "a connector's name", context)?,
+                // A write claims a record of its own package before it acts.
+                object_option(
+                    "claim",
+                    "{stream, key, expected_version, type, data}",
+                    context,
+                )?,
+                // Why the call is made, which a person approving it is shown.
+                object_option("act", "{form, purpose, reason, target}", context)?,
             )
         }
     };
@@ -678,10 +685,14 @@ fn operation(
             idempotency_key,
             connector,
             claim,
+            act,
         },
         context,
     )
 }
+
+/// What `ctx.operation`'s options may name.
+const OPERATION_OPTIONS: &[&str] = &["idempotency_key", "connector", "claim", "act"];
 
 /// `ctx.now()`: what the record holds at this position, or the pass's time,
 /// which the kernel then records there.
