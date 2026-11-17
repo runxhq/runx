@@ -138,25 +138,31 @@ pub(crate) fn checked(
     };
     let mut events = Vec::new();
     if let Some(wake) = parsed.wake {
-        let refused = match DateTime::parse_from_rfc3339(&wake.at).map(|at| at.with_timezone(&Utc))
-        {
-            Err(_) => Some(format!("{} isn't a time with its offset", wake.at)),
-            Ok(at) if at < now + file.policy.min_interval.0 => Some(format!(
-                "it's sooner than the loop's min_interval of {}",
-                file.policy.min_interval
-            )),
-            Ok(at) if at > now + file.policy.horizon.0 => Some(format!(
-                "it's further than the loop's horizon of {}",
-                file.policy.horizon
-            )),
-            Ok(_) => None,
+        // The loop's min_interval paces its wakes: one asked for sooner is
+        // the soonest it allows. Only one past its horizon is refused.
+        let earliest = now + file.policy.min_interval.0;
+        let parsed_at = DateTime::parse_from_rfc3339(&wake.at).map(|at| at.with_timezone(&Utc));
+        let (at, refused) = match parsed_at {
+            Err(_) => {
+                let refused = format!("{} isn't a time with its offset", wake.at);
+                (wake.at, Some(refused))
+            }
+            Ok(at) if at > now + file.policy.horizon.0 => (
+                wake.at,
+                Some(format!(
+                    "it's further than the loop's horizon of {}",
+                    file.policy.horizon
+                )),
+            ),
+            Ok(at) => (
+                at.max(earliest)
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                None,
+            ),
         };
         events.push(proposed(
             "wake",
-            Proposal::Wake {
-                at: wake.at,
-                why: wake.why,
-            },
+            Proposal::Wake { at, why: wake.why },
             refused,
         ));
     }

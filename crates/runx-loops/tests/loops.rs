@@ -154,7 +154,7 @@ fn a_loop_wakes_on_the_person_its_clock_and_its_own_proposal_and_keeps_its_recor
     write_loop(
         root,
         "beta",
-        "calls: ./skills/ticker#tick\nbrief: Count Beta's ticks.\ninputs: {label: acme}\n",
+        "calls: ./skills/ticker#tick\nbrief: Count Beta's ticks.\ninputs: {label: acme}\npolicy: {min_interval: 30m}\n",
     )?;
     let loops = Loops::open(env(root), root, orchestrator()?)?;
     let acme = LoopName::new("acme")?;
@@ -213,6 +213,14 @@ fn a_loop_wakes_on_the_person_its_clock_and_its_own_proposal_and_keeps_its_recor
     let other = loops.pass(&beta, start + Duration::minutes(62))?;
     let run = other.woke.ok_or("beta didn't run")?;
     assert_eq!(result(root, &run)?["count"], 1);
+    // It asked to wake in ten minutes; its min_interval paces it to thirty.
+    let wakes: Vec<_> = loops
+        .state(&beta)?
+        .wakes
+        .into_values()
+        .map(|wake| wake.at)
+        .collect();
+    assert_eq!(wakes, [start + Duration::minutes(92)]);
     Ok(())
 }
 
