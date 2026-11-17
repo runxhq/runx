@@ -282,3 +282,39 @@ fn a_failing_wake_is_tried_again_on_the_ladder_and_pauses_after_three() -> TestR
     assert_eq!(loops.state(&acme)?.position, 2);
     Ok(())
 }
+
+/// The loop runs the file as written now: going back to an earlier revision
+/// runs it again, and a file that doesn't validate starts nothing, the
+/// revision before it included, until it's fixed, which clears its
+/// couldn't-run (Codex, review 3, finding 11).
+#[test]
+fn the_loop_runs_its_file_as_written_now_and_an_invalid_one_starts_nothing() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    write_skill(root)?;
+    let a = "calls: ./skills/ticker#tick\nbrief: A.\ninputs: {label: a}\n";
+    let b = "calls: ./skills/ticker#tick\nbrief: B.\ninputs: {label: b}\n";
+    write_loop(root, "acme", a)?;
+    let loops = Loops::open(env(root), root, orchestrator()?)?;
+    let acme = LoopName::new("acme")?;
+    let start = at("2026-11-17T00:00:00Z")?;
+    loops.start(&acme, "person:kam", start)?;
+    let first = loops.state(&acme)?.active;
+    write_loop(root, "acme", b)?;
+    loops.pass(&acme, start)?;
+    assert_ne!(loops.state(&acme)?.active, first, "B is the loop's now");
+    write_loop(root, "acme", a)?;
+    loops.pass(&acme, start)?;
+    assert_eq!(loops.state(&acme)?.active, first, "back to A, A runs again");
+
+    write_loop(root, "acme", "calls: [not a skill\n")?;
+    loops.run_now(&acme, "person:kam")?;
+    let invalid = loops.pass(&acme, start + Duration::minutes(1))?;
+    assert_eq!(invalid.woke, None, "nothing starts on a file that doesn't validate");
+    assert!(loops.state(&acme)?.couldnt.is_some());
+    write_loop(root, "acme", a)?;
+    let fixed = loops.pass(&acme, start + Duration::minutes(2))?;
+    assert!(fixed.woke.is_some(), "the person's run now goes once it's fixed");
+    assert_eq!(loops.state(&acme)?.couldnt, None);
+    Ok(())
+}

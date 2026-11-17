@@ -133,6 +133,8 @@ pub struct LoopState {
     /// run starts.
     pub couldnt: Option<String>,
     pub couldnts: u32,
+    /// Whether the loop's file, as written now, doesn't validate.
+    pub invalid_file: bool,
     /// Wakes in a row whose model was unavailable, which space the next try;
     /// a wake that answers or is closed clears them.
     pub outages: u32,
@@ -168,6 +170,11 @@ impl LoopState {
         self.version = version;
         match event {
             RecordEvent::Revision { digest, bytes, .. } => {
+                // A valid file clears the couldn't-run its invalid one left.
+                if self.invalid_file {
+                    self.invalid_file = false;
+                    self.couldnt = None;
+                }
                 let widens = self.widens(bytes);
                 self.revisions
                     .insert(digest.clone(), (bytes.clone(), widens));
@@ -400,7 +407,13 @@ impl LoopState {
             RecordEvent::Cursor { feed, cursor, .. } => {
                 self.cursors.insert(feed.clone(), cursor.clone());
             }
-            RecordEvent::Couldnt { why, retry_at, .. } => {
+            RecordEvent::Couldnt {
+                why,
+                retry_at,
+                file,
+                ..
+            } => {
+                self.invalid_file = *file;
                 self.couldnt = Some(why.clone());
                 self.couldnts += 1;
                 self.retry_at = instant(retry_at);

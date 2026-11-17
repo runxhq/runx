@@ -340,6 +340,9 @@ pub enum RecordEvent {
         why: String,
         at: String,
         retry_at: String,
+        /// Whether its file doesn't validate, which a valid file clears.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        file: bool,
     },
     /// A webhook's token, kept by digest only.
     Token {

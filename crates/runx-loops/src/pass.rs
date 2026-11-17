@@ -94,11 +94,17 @@ impl Loops {
     /// One pass over loop `name` at `now`.
     pub fn pass(&self, name: &LoopName, now: DateTime<Utc>) -> Result<Passed, LoopError> {
         let mut passed = Passed::default();
-        self.take_revision(name, now)?;
+        let valid = self.take_revision(name, now)?;
         let mut state = self.read(name)?;
         // A stopped or paused loop still settles what its runs finish with.
         self.settle_live(name, &mut state, now, &mut passed)?;
         self.settle_people(name, &mut state, now, &mut passed)?;
+        // A file that doesn't validate starts nothing until it does: no wake
+        // runs on the revision before it as if nothing were wrong.
+        if !valid {
+            passed.couldnt = state.couldnt.clone();
+            return Ok(passed);
+        }
         if let Some(file) = state.active_file().transpose()? {
             let running = state.status == Status::Running;
             if running {
@@ -119,21 +125,27 @@ impl Loops {
         Ok(passed)
     }
 
-    /// The loop's file as written, kept as a revision when it validates and
-    /// is new. One that doesn't validate is the loop's "couldn't run" until
-    /// it does.
-    fn take_revision(&self, name: &LoopName, now: DateTime<Utc>) -> Result<(), LoopError> {
+    /// The loop's file as written, taken as its revision when it validates
+    /// and isn't the one the loop runs or holds pending, an earlier one it
+    /// went back to among them. One that doesn't validate is the loop's
+    /// "couldn't run" until it does. Whether the file validates.
+    fn take_revision(&self, name: &LoopName, now: DateTime<Utc>) -> Result<bool, LoopError> {
         let Some(crate::Written {
             bytes,
             file: parsed,
         }) = self.written(name)?
         else {
-            return Ok(());
+            return Ok(true);
         };
         let state = self.read(name)?;
         let file_digest = digest(bytes.as_bytes());
-        if state.revisions.contains_key(&file_digest) {
-            return Ok(());
+        let valid = parsed.is_ok();
+        if valid
+            && !state.invalid_file
+            && [state.active.as_deref(), state.pending.as_deref()]
+                .contains(&Some(file_digest.as_str()))
+        {
+            return Ok(true);
         }
         let event = match parsed {
             Ok(_) => RecordEvent::Revision {
@@ -144,17 +156,18 @@ impl Loops {
             Err(error) => {
                 let why = format!("its file doesn't validate: {error}");
                 if state.couldnt.as_deref() == Some(why.as_str()) {
-                    return Ok(());
+                    return Ok(false);
                 }
                 RecordEvent::Couldnt {
                     why,
                     at: stamp(now),
                     retry_at: stamp(now),
+                    file: true,
                 }
             }
         };
         self.commit(name, &state, &[event], None)?;
-        Ok(())
+        Ok(valid)
     }
 
     /// Put each clock time that came due in the inbox, moving its frontier
@@ -457,6 +470,7 @@ impl Loops {
                 why: why.clone(),
                 at: stamp(now),
                 retry_at: stamp(retry_at),
+                file: false,
             }],
             None,
         )?;
