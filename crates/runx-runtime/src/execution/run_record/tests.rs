@@ -1754,4 +1754,50 @@ fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
             unknown: 0
         }
     );
+    // Sent with its end unknown, a retry waits on the person; another step
+    // claimed while it waited at its approval gate. The person closes the
+    // run: only the claim at the gate is stopped there, and the send whose
+    // end is unknown stays unknown.
+    let retry_of = |step_id: &str| {
+        crate::execution::engine::unsettled_retry(
+            log.address(&format!("{step_id}/retry")),
+            &format!("step {step_id}"),
+            runx_contracts::RetryResend::Unsafe,
+        )
+    };
+    let claim = |step_id: &str| {
+        log.record_claim(
+            step_id,
+            1,
+            &retry_of(step_id),
+            &[],
+            crate::kernel::store::Durability::Durable,
+            Leaves::World,
+        )
+        .unwrap();
+    };
+    claim("mail");
+    log.record_request("mail", 1, &retry_of("mail")).unwrap();
+    log.record_request("post", 1, &approval("post.approval"))
+        .unwrap();
+    claim("post");
+    let mut receipt = workflow_receipt(
+        RunScope {
+            run_id: "run_changes",
+            workflow_name: "changes",
+        },
+        &[step("run_changes", "send")],
+        "2026-10-09T00:00:00.000Z",
+        signature().signature_policy(),
+    )
+    .unwrap();
+    receipt.seal.outcome = runx_contracts::RunOutcome::Declined;
+    log.record_sealed(&receipt, None).unwrap();
+    assert_eq!(
+        read(),
+        RunChanges {
+            done: 1,
+            unknown: 1
+        }
+    );
 }

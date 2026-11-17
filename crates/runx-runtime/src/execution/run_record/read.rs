@@ -10,7 +10,7 @@
 //! waits on are read after the events, so they are never older than the last
 //! event returned.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -154,6 +154,11 @@ pub fn changes(
     // call's index: true once it settled done, false while it may have run.
     // A claim that settled as nothing done is dropped.
     let mut claims = BTreeMap::<(String, String, u32, Option<u32>), bool>::new();
+    // The claims made while their step waited at its approval gate, which
+    // nothing has dispatched: the person's no at that gate stops them there.
+    let mut at_gate = BTreeSet::<(String, String, u32, Option<u32>)>::new();
+    // The steps waiting at an approval gate now, by stream.
+    let mut gated = BTreeSet::<(String, String)>::new();
     let settle = |claims: &mut BTreeMap<_, bool>, at, done: Option<bool>| {
         if claims.get(&at) == Some(&false) {
             match done {
@@ -178,6 +183,7 @@ pub fn changes(
             let key = event.key;
             match event.recorded.event {
                 RunEvent::Suspended(suspended) => {
+                    let step = (key.clone(), suspended.step_id.clone());
                     let at = (key, suspended.step_id, suspended.attempt, None);
                     match suspended.hold {
                         HoldEvent::Claimed {
@@ -185,22 +191,40 @@ pub fn changes(
                             own_state: false,
                             ..
                         } => {
+                            if gated.contains(&step) {
+                                at_gate.insert(at.clone());
+                            }
                             claims.insert(at, false);
                         }
-                        // The step went to its gate: what it claimed before
-                        // hadn't reached the world.
-                        HoldEvent::Request { .. } => settle(&mut claims, at, Some(false)),
+                        // The step went to its approval gate: what it claimed
+                        // before hadn't reached the world. Any other request,
+                        // a retry of an act whose end is unknown among them,
+                        // leaves the claim as it stands.
+                        HoldEvent::Request { request, .. } => {
+                            if matches!(
+                                store.blob_json::<ResolutionRequest>(&request)?,
+                                ResolutionRequest::Approval { .. }
+                            ) {
+                                settle(&mut claims, at, Some(false));
+                                gated.insert(step);
+                            } else {
+                                gated.remove(&step);
+                            }
+                        }
                         _ => {}
                     }
                 }
-                // A run the person declined at a gate stopped there: what its
-                // steps had claimed never ran.
+                // A run the person declined at a gate stopped there: only
+                // what was claimed while its step waited at that gate never
+                // ran. A claim on an act already sent, whose end is unknown,
+                // stays unknown whoever closes the run.
                 RunEvent::Sealed(sealed)
                     if sealed.outcome == runx_contracts::RunOutcome::Declined =>
                 {
-                    claims.retain(|at, done| at.0 != key || *done);
+                    claims.retain(|at, done| at.0 != key || *done || !at_gate.contains(at));
                 }
                 RunEvent::Step(step) => {
+                    gated.remove(&(key.clone(), step.step_id.clone()));
                     let at = (key, step.step_id.clone(), step.attempt, None);
                     if claims.get(&at) == Some(&false) {
                         let (outcome, _) = step_status(&store, &step.record, &step.receipt)?;
