@@ -178,14 +178,27 @@ pub fn changes(
             let key = event.key;
             match event.recorded.event {
                 RunEvent::Suspended(suspended) => {
-                    if let HoldEvent::Claimed {
-                        effect: true,
-                        own_state: false,
-                        ..
-                    } = suspended.hold
-                    {
-                        claims.insert((key, suspended.step_id, suspended.attempt, None), false);
+                    let at = (key, suspended.step_id, suspended.attempt, None);
+                    match suspended.hold {
+                        HoldEvent::Claimed {
+                            effect: true,
+                            own_state: false,
+                            ..
+                        } => {
+                            claims.insert(at, false);
+                        }
+                        // The step went to its gate: what it claimed before
+                        // hadn't reached the world.
+                        HoldEvent::Request { .. } => settle(&mut claims, at, Some(false)),
+                        _ => {}
                     }
+                }
+                // A run the person declined at a gate stopped there: what its
+                // steps had claimed never ran.
+                RunEvent::Sealed(sealed)
+                    if sealed.outcome == runx_contracts::RunOutcome::Declined =>
+                {
+                    claims.retain(|at, done| at.0 != key || *done);
                 }
                 RunEvent::Step(step) => {
                     let at = (key, step.step_id.clone(), step.attempt, None);

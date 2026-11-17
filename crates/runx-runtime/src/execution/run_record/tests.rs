@@ -1727,6 +1727,24 @@ fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
             unknown: 1
         }
     );
+    // The step went to its gate: what it claimed hadn't reached the world.
+    log.record_request("send", 1, &approval("send.approval"))
+        .unwrap();
+    assert_eq!(read(), RunChanges::default());
+    let retry = crate::execution::engine::unsettled_retry(
+        log.address("send/retry"),
+        "step send",
+        runx_contracts::RetryResend::Safe,
+    );
+    log.record_claim(
+        "send",
+        1,
+        &retry,
+        &[],
+        crate::kernel::store::Durability::Durable,
+        Leaves::World,
+    )
+    .unwrap();
     log.record_step(&step("run_changes", "send"), &[]).unwrap();
     assert_eq!(
         read(),
