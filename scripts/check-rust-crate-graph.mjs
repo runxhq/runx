@@ -11,6 +11,7 @@ const expectedMembers = [
   "runx-contracts-derive",
   "runx-core",
   "runx-js-worker",
+  "runx-loops",
   "runx-parser",
   "runx-receipts",
   "runx-runtime",
@@ -30,6 +31,7 @@ const allowedRunxDeps = new Map([
     new Set([
       "runx-runtime",
       "runx-contracts",
+      "runx-loops",
       "runx-parser",
       "runx-receipts",
     ]),
@@ -38,6 +40,8 @@ const allowedRunxDeps = new Map([
   ["runx-contracts-derive", new Set()],
   ["runx-core", new Set(["runx-contracts"])],
   ["runx-js-worker", new Set(["runx-contracts", "runx-parser"])],
+  // The loop layer, above the engine: built on what any host could use.
+  ["runx-loops", new Set(["runx-contracts", "runx-parser", "runx-runtime"])],
   ["runx-parser", new Set(["runx-contracts", "runx-core"])],
   ["runx-receipts", new Set(["runx-contracts"])],
   ["runx-runtime", new Set(["runx-contracts", "runx-core", "runx-parser", "runx-receipts"])],
@@ -46,6 +50,7 @@ const allowedRunxDeps = new Map([
 const requiredRunxDeps = new Map([
   ["runx-core", new Set(["runx-contracts"])],
   ["runx-js-worker", new Set(["runx-contracts", "runx-parser"])],
+  ["runx-loops", new Set(["runx-runtime"])],
   ["runx-parser", new Set(["runx-contracts", "runx-core"])],
   ["runx-receipts", new Set(["runx-contracts"])],
   ["runx-runtime", new Set(["runx-contracts", "runx-core", "runx-parser", "runx-receipts"])],

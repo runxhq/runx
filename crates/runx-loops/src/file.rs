@@ -443,7 +443,9 @@ struct Written {
 impl LoopFile {
     /// Parse a loop file's bytes, refusing it in its own words.
     pub fn parse(bytes: &[u8]) -> Result<Self, LoopError> {
-        let written: Written = serde_norway::from_slice(bytes)
+        let text = std::str::from_utf8(bytes)
+            .map_err(|_| LoopError::Invalid("the loop file isn't UTF-8 text".to_owned()))?;
+        let written: Written = runx_parser::parse_yaml_document(text)
             .map_err(|error| LoopError::Invalid(format!("the loop file: {error}")))?;
         if written.brief.trim().is_empty() {
             return Err(LoopError::Invalid("brief: say the job in words".to_owned()));

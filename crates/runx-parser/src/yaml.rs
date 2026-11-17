@@ -3,6 +3,7 @@
 // splitting the scanner from the rules trades clarity for two-file traversal.
 use std::collections::HashSet;
 
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::ParseError;
@@ -18,6 +19,20 @@ where
         field: "yaml".to_owned(),
         message: error.to_string(),
     })
+}
+
+/// `value` as a YAML document: the one writer beside the one reader, so what
+/// runx writes is always in the subset it reads back.
+pub fn write_yaml_document<T>(value: &T) -> Result<String, ParseError>
+where
+    T: Serialize,
+{
+    let source = serde_norway::to_string(value).map_err(|error| ParseError::InvalidYaml {
+        field: "yaml".to_owned(),
+        message: error.to_string(),
+    })?;
+    assert_yaml_supported_subset("yaml", &source)?;
+    Ok(source)
 }
 
 pub fn assert_yaml_supported_subset(field: &str, source: &str) -> Result<(), ParseError> {

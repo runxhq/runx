@@ -308,7 +308,7 @@ fn new_loop_bytes(new: &NewLoop, authority: Option<&str>) -> Result<Vec<u8>, Str
     if let Some(authority) = authority {
         written.insert("authority".to_owned(), Value::String(authority.to_owned()));
     }
-    serde_norway::to_string(&Value::Object(written))
+    runx_parser::write_yaml_document(&Value::Object(written))
         .map(String::into_bytes)
         .map_err(|error| error.to_string())
 }
@@ -345,7 +345,7 @@ impl Loops {
                         "loop {name}'s file changed since proposal {id} was made: decline it, and its next run proposes against the file as it is"
                     )));
                 }
-                let mut written: Value = serde_norway::from_str(&bytes)
+                let mut written: Value = runx_parser::parse_yaml_document(&bytes)
                     .map_err(|error| LoopError::Invalid(format!("the loop file: {error}")))?;
                 let Some(map) = written.as_object_mut() else {
                     return Err(LoopError::Invalid("the loop file isn't a map".to_owned()));
@@ -356,7 +356,7 @@ impl Loops {
                 if let Some(inputs) = inputs {
                     map.insert("inputs".to_owned(), Value::Object(inputs));
                 }
-                let next = serde_norway::to_string(&written)
+                let next = runx_parser::write_yaml_document(&written)
                     .map_err(|error| LoopError::Invalid(error.to_string()))?;
                 LoopFile::parse(next.as_bytes())?;
                 let revision = RecordEvent::Revision {

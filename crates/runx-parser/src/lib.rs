@@ -63,4 +63,5 @@ pub use workflow::{
 };
 pub use yaml::{
     assert_execution_profile_yaml_subset, assert_yaml_supported_subset, parse_yaml_document,
+    write_yaml_document,
 };
