@@ -29,7 +29,8 @@ pub use file::{
 pub use pass::{Passed, Waiting};
 pub use records::{Action, Ending, HOST, InboxEvent, Proposal, RecordEvent};
 pub use state::{
-    Frontier, Last, Live, LoopState, Notice, Pending, PersonRun, ProposedWake, Reservation, Status,
+    Answer, Frontier, Last, Live, LoopState, Notice, Pending, PersonRun, ProposedWake, Reservation,
+    Status,
 };
 
 use runx_runtime::orchestrator::LocalOrchestrator;

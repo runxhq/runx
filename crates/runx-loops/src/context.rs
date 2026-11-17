@@ -43,15 +43,16 @@ fn entry(
 }
 
 /// The loop, as the person wrote it: its name and brief, the time now with
-/// its offset, when it last settled with an answer, and whether this wake is
-/// late. A mandate the person confirmed.
+/// its offset, when it last settled with an answer, whether this wake is
+/// late, and how the person answered its latest proposals, in their words. A
+/// mandate the person confirmed.
 pub(crate) fn wake(
     name: &str,
     brief: &str,
     revision: &str,
     now: &str,
-    last_settled_at: Option<&str>,
-    late: Option<Value>,
+    (last_settled_at, late): (Option<&str>, Option<Value>),
+    answers: &[crate::state::Answer],
 ) -> Result<ContextEntry, LoopError> {
     entry(
         "runx.loop.wake",
@@ -63,6 +64,7 @@ pub(crate) fn wake(
             "now": now,
             "last_settled_at": last_settled_at,
             "late": late,
+            "answers": answers,
         }),
         ("mandate", "person_confirmed"),
         &format!("runx:loop:{name}@{revision}"),

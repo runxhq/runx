@@ -403,8 +403,8 @@ impl Loops {
                 &file.brief,
                 &revision,
                 &now_text,
-                state.last_answered_at.as_deref(),
-                late,
+                (state.last_answered_at.as_deref(), late),
+                &state.answers,
             )?,
             context::batch(name.as_str(), batch, (from, through), &now_text)?,
         ];
@@ -1188,8 +1188,8 @@ impl Loops {
             &file.brief,
             state.active.as_deref().unwrap_or_default(),
             &now_text,
-            state.last_answered_at.as_deref(),
-            None,
+            (state.last_answered_at.as_deref(), None),
+            &state.answers,
         )?];
         let request = self.request(&bound, &run, &inputs, current_context, authority)?;
         let claim = HostEvents {

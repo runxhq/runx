@@ -88,6 +88,17 @@ pub struct Pending {
     pub at: String,
 }
 
+/// A person's answer to a change or a new loop a run proposed.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+pub struct Answer {
+    pub id: String,
+    pub proposal: Proposal,
+    pub accepted: bool,
+    pub by: String,
+    pub words: Option<String>,
+    pub at: String,
+}
+
 /// A run's share of a day's budget, outstanding until it settles.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Reservation {
@@ -132,6 +143,8 @@ pub struct LoopState {
     pub wakes: BTreeMap<String, ProposedWake>,
     pub notices: Vec<Notice>,
     pub proposals: BTreeMap<String, Pending>,
+    /// How a person answered the loop's latest proposals, newest last.
+    pub answers: Vec<Answer>,
     pub reservations: BTreeMap<String, Reservation>,
     /// What settled runs spent, by day.
     pub spent: BTreeMap<String, u64>,
@@ -318,8 +331,25 @@ impl LoopState {
                     }
                 }
             }
-            RecordEvent::Answered { id, .. } => {
-                self.proposals.remove(id);
+            RecordEvent::Answered {
+                id,
+                accepted,
+                by,
+                words,
+                at,
+            } => {
+                if let Some(pending) = self.proposals.remove(id) {
+                    self.answers.push(Answer {
+                        id: id.clone(),
+                        proposal: pending.proposal,
+                        accepted: *accepted,
+                        by: by.clone(),
+                        words: words.clone(),
+                        at: at.clone(),
+                    });
+                    let excess = self.answers.len().saturating_sub(NOTICES);
+                    self.answers.drain(..excess);
+                }
             }
             RecordEvent::Frontier {
                 trigger,
