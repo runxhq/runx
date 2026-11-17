@@ -53,15 +53,19 @@ pub(crate) fn wake(
     now: &str,
     (last_settled_at, late): (Option<&str>, Option<Value>),
     answers: &[crate::state::Answer],
+    (date, start, end): (&str, &str, &str),
 ) -> Result<ContextEntry, LoopError> {
     entry(
         "runx.loop.wake",
-        &format!("Loop {name}: its brief, the time now and when it last settled"),
+        &format!("Loop {name}: its brief, the time now, its day and when it last settled"),
         json!({
             "loop": name,
             "brief": brief,
             "revision": revision,
             "now": now,
+            // The loop's day in its own zone, so a method counts what it did
+            // today with no zone of its own.
+            "day": {"date": date, "start": start, "end": end},
             "last_settled_at": last_settled_at,
             "late": late,
             "answers": answers,

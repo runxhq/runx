@@ -397,6 +397,7 @@ impl Loops {
             })
             .collect::<Result<Vec<_>, LoopError>>()?;
         let now_text = stamp(now);
+        let (date, start, end) = file.day_zone().day_bounds(now);
         let current_context = vec![
             context::wake(
                 name.as_str(),
@@ -405,6 +406,7 @@ impl Loops {
                 &now_text,
                 (state.last_answered_at.as_deref(), late),
                 &state.answers,
+                (&date, &stamp(start), &stamp(end)),
             )?,
             context::batch(name.as_str(), batch, (from, through), &now_text)?,
         ];
@@ -1204,6 +1206,7 @@ impl Loops {
             at: stamp(now),
         };
         let now_text = stamp(now);
+        let (date, start, end) = file.day_zone().day_bounds(now);
         let current_context = vec![context::wake(
             name.as_str(),
             &file.brief,
@@ -1211,6 +1214,7 @@ impl Loops {
             &now_text,
             (state.last_answered_at.as_deref(), None),
             &state.answers,
+            (&date, &stamp(start), &stamp(end)),
         )?];
         let request = self.request(&bound, &run, &inputs, current_context, authority)?;
         let claim = HostEvents {

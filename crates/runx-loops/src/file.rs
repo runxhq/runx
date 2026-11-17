@@ -537,10 +537,50 @@ impl DayZone {
     /// The day `at` falls on here, as `YYYY-MM-DD`.
     #[must_use]
     pub fn day_of(self, at: chrono::DateTime<chrono::Utc>) -> String {
+        self.date_of(at).to_string()
+    }
+
+    fn date_of(self, at: chrono::DateTime<chrono::Utc>) -> chrono::NaiveDate {
         match self {
-            Self::Zone(zone) => at.with_timezone(&zone).date_naive().to_string(),
-            Self::Machine => at.with_timezone(&chrono::Local).date_naive().to_string(),
+            Self::Zone(zone) => at.with_timezone(&zone).date_naive(),
+            Self::Machine => at.with_timezone(&chrono::Local).date_naive(),
         }
+    }
+
+    /// The day `at` falls on here, and the instants it began and ends, so a
+    /// method counts what it did today with no zone of its own.
+    #[must_use]
+    pub fn day_bounds(
+        self,
+        at: chrono::DateTime<chrono::Utc>,
+    ) -> (
+        String,
+        chrono::DateTime<chrono::Utc>,
+        chrono::DateTime<chrono::Utc>,
+    ) {
+        let date = self.date_of(at);
+        let next = date.succ_opt().unwrap_or(date);
+        (date.to_string(), self.midnight(date), self.midnight(next))
+    }
+
+    /// The first instant of `date` here: its midnight, or, where a clock
+    /// change skips midnight, the first minute after it that exists.
+    fn midnight(self, date: chrono::NaiveDate) -> chrono::DateTime<chrono::Utc> {
+        use chrono::TimeZone;
+        let start = date.and_time(chrono::NaiveTime::MIN);
+        (0..=180)
+            .map(|minutes| start + chrono::Duration::minutes(minutes))
+            .find_map(|local| match self {
+                Self::Zone(zone) => zone
+                    .from_local_datetime(&local)
+                    .earliest()
+                    .map(|at| at.with_timezone(&chrono::Utc)),
+                Self::Machine => chrono::Local
+                    .from_local_datetime(&local)
+                    .earliest()
+                    .map(|at| at.with_timezone(&chrono::Utc)),
+            })
+            .unwrap_or_else(|| start.and_utc())
     }
 }
 
@@ -597,5 +637,18 @@ mod tests {
         assert_eq!(Span::parse("90m")?.to_string(), "90m");
         assert_eq!(Span::parse("120m")?.to_string(), "2h");
         Ok(())
+    }
+
+    /// A loop's day is its zone's: in Hobart's daylight time, 20:00 UTC is
+    /// the next morning there, and that day began at 13:00 UTC.
+    #[test]
+    fn a_day_is_bounded_in_the_loops_own_zone() {
+        let at = chrono::DateTime::parse_from_rfc3339("2026-11-17T20:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let (date, start, end) = super::DayZone::Zone(chrono_tz::Australia::Hobart).day_bounds(at);
+        assert_eq!(date, "2026-11-18");
+        assert_eq!(start.to_rfc3339(), "2026-11-17T13:00:00+00:00");
+        assert_eq!(end.to_rfc3339(), "2026-11-18T13:00:00+00:00");
     }
 }
