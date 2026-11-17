@@ -78,6 +78,11 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   tool: annotation("external-stub", ["tool-catalog"], ["tool.search.validate", "tool.inspect.validate"]),
   registry: annotation("external-stub", ["registry", "cli-presentation"], ["registry.validate"]),
   trust: annotation("filesystem", ["trust", "cli-presentation"], ["trust.validate"]),
+  loops: annotation("none", ["loops", "cli-presentation"], ["loops.execute"]),
+  loop: annotation("filesystem", ["loops", "cli-presentation"], ["loop.new.validate", "loop.accept.validate", "loop.show.validate"]),
+  start: annotation("filesystem", ["loops", "always-on", "cli-presentation"], ["start.validate", "stop.validate"], "none"),
+  run: annotation("local-runtime", ["loops", "workflow-runtime", "caller-mediated-resolution", "receipts", "always-on", "cli-presentation"], ["run.wake.validate", "run.method.validate"], "none"),
+  on: annotation("local-runtime", ["always-on", "cli-presentation"], ["on.status.execute", "on.off.validate"], "none"),
 };
 
 const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
@@ -109,6 +114,8 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("skill-authoring", "runx-runtime + skill-lab", "fixture-backed", "Skill creation uses one digest-bound inspect, plan, bind, validate, test, and transactional apply lane."),
   surface("list", "runx-cli", "semantic", "Inventory output for tools, skills and packets stays represented."),
   surface("trust", "runx-cli + runx-runtime registry", "schema-exact", "A person states trust in a package ahead of any turn that loads it, as the record an approval writes, and a run can't state it."),
+  surface("loops", "runx-loops + runx-cli", "fixture-backed", "A loop is a file in loops/ with a record of its own: listed, started, stopped, woken and answered natively; its runs are the engine's, and only the person accepts what it proposes."),
+  surface("always-on", "runx-cli always-on runx", "semantic", "One per runx home serves every started loop where its workspace lies, each on its own, sleeping until something is due; once off, no loop claims a wake."),
 ];
 
 export interface CliFeatureParityContract {
@@ -148,6 +155,8 @@ function oracleCases(commands: readonly CommandMatrixEntry[]): readonly OracleCa
     execute(commands, "list.tools.execute", "list", ["list", "tools", "--json"], 0, true, [], []),
     execute(commands, "process.list.execute", "process", ["process", "list", "--json"], 0, true, ["\"processes\": []"], []),
     execute(commands, "connector.list.execute", "connector", ["connector", "list", "--json"], 0, true, ["\"github\""], []),
+    execute(commands, "loops.execute", "loops", ["loops", "--json"], 0, true, ["\"loops\": []", "\"schema\": \"runx.loops.v1\""], []),
+    execute(commands, "on.status.execute", "on", ["status"], 0, false, ["runx is off"], []),
   ];
   const executableCaseIds = new Set(executableCases.map((testCase) => testCase.id));
 

@@ -229,7 +229,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
         top_level_usage: &["runx on|off|status"],
         usage: &["runx on", "runx off", "runx status"],
         notes: &[
-            "`on` starts the always-on runx in the background: one per runx home, running every started loop's wakes as they come due, and nothing else while it sleeps. A sleeping or switched-off machine runs nothing; when it's back, what came due runs once, marked late. `off` lets the wake it's in reach its end, then stops. `status` says whether it's on.",
+            "`on` starts the always-on runx in the background: one per runx home, running every started loop's wakes as they come due, and nothing else while it sleeps. A sleeping or switched-off machine runs nothing; when it's back, what came due runs once, marked late. `off` stops it: no loop claims a wake after it, and a wake still running gets thirty seconds to reach its end, else it's taken up from its record when runx is next on. `status` says whether it's on.",
         ],
         options: &[],
     },
