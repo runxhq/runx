@@ -300,6 +300,8 @@ pub struct RuntimeOptions {
     /// The packages a bound run admitted, which it executes; none for a
     /// runtime no binding made (a test replay reads packages as they are).
     pub(crate) packages: Option<crate::skill_package::AdmittedPackages>,
+    /// The run's scope for one package's streams, which its child runs keep.
+    pub(crate) stream_scope: Option<crate::identity::StreamScope>,
     /// The packages from the root run's to this child run's own, as each
     /// child step reached its package. Empty for a root run, whose package is
     /// the one its steps run from.
@@ -530,7 +532,7 @@ impl RuntimeOptions {
                     .map_err(|reason| identity_refused(directory, &reason))?,
             };
             crate::identity::ChainLink::of(&identity, &package)
-                .map(|link| vec![link])
+                .map(|link| vec![self.placed(link)])
                 .map_err(|reason| identity_refused(directory, &reason))
         })
     }
@@ -542,6 +544,14 @@ pub(crate) fn identity_refused(directory: &Path, reason: &str) -> RuntimeError {
 }
 
 impl RuntimeOptions {
+    /// `link` as the run's stream scope places it (the loop contract's E3).
+    pub(crate) fn placed(&self, link: crate::identity::ChainLink) -> crate::identity::ChainLink {
+        match &self.stream_scope {
+            Some(scope) => scope.place(link),
+            None => link,
+        }
+    }
+
     /// Options sealing under `receipt_signature`. The environment's signing
     /// variables are dropped: no step sees the key a run seals under.
     #[must_use]
@@ -562,6 +572,7 @@ impl RuntimeOptions {
             run,
             call_stops: std::sync::Arc::default(),
             packages: None,
+            stream_scope: None,
             chain: Vec::new(),
             reads: RunReads::default(),
             workspace: None,

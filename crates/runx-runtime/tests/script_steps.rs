@@ -4876,8 +4876,11 @@ fn a_hosts_claim_and_the_run_it_starts_commit_together() -> TestResult {
             }],
         })
     };
-    let sealed =
-        LocalOrchestrator::default().run_claimed(&request("run_claimed"), None, claim(None)?)?;
+    let sealed = LocalOrchestrator::default().run_claimed(
+        &request("run_claimed"),
+        None,
+        (claim(None)?, None),
+    )?;
     assert_eq!(
         object(object(&sealed.output)?.get("result").ok_or("no result")?)?.get("answered"),
         Some(&JsonValue::Bool(true))
@@ -4889,7 +4892,8 @@ fn a_hosts_claim_and_the_run_it_starts_commit_together() -> TestResult {
     )?;
     assert_eq!(streams.version("acme/record")?, 1);
     // The same claim again finds the record moved: no run starts.
-    let stale = LocalOrchestrator::default().run_claimed(&request("run_stale"), None, claim(None)?);
+    let stale =
+        LocalOrchestrator::default().run_claimed(&request("run_stale"), None, (claim(None)?, None));
     assert!(stale.is_err(), "a stale claim started a run: {stale:?}");
     assert!(
         runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), "run_stale", None)

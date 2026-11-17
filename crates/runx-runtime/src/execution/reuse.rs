@@ -38,8 +38,10 @@ pub(crate) struct Source {
 }
 
 /// What makes two calls ask for the same result: the method, the closure
-/// it runs over, the implementation that runs it, the act it's given, and
-/// what it's given, the context it gives its child among it.
+/// it runs over, the implementation that runs it, the act it's given, what
+/// it's given, the context it gives its child among it, and the run's scope
+/// for its streams, so two loops on one skill never share a result (the loop
+/// contract's E3).
 #[derive(Serialize)]
 struct Identity<'a> {
     method: &'a str,
@@ -48,6 +50,8 @@ struct Identity<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     act: Option<&'a CallAct>,
     input_digest: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream_scope: Option<&'a crate::identity::StreamScope>,
 }
 
 /// The reuse identity of a call of `skill` given `inputs` and `act`.
@@ -62,7 +66,10 @@ pub(crate) fn identity(
     skill: &LoadedStepSkill,
     inputs: &JsonObject,
     act: Option<&CallAct>,
-    context: &[runx_contracts::ContextEntry],
+    (context, stream_scope): (
+        &[runx_contracts::ContextEntry],
+        Option<&crate::identity::StreamScope>,
+    ),
     env: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let method = &skill.method.name;
@@ -91,6 +98,7 @@ pub(crate) fn identity(
         implementation: &implementation,
         act,
         input_digest: &input_digest,
+        stream_scope,
     })
     .map_err(|error| error.to_string())
 }

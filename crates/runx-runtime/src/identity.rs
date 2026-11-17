@@ -90,6 +90,54 @@ impl PackageIdentity {
     }
 }
 
+/// A run's scope for one package's streams (the loop contract's E3): the
+/// run, its child runs and the packages it loads address `owner`'s `store`
+/// and `private` streams under `<owner>#<scope>`, so two loops on one skill
+/// never share a stream, and every other package's streams stay the
+/// workspace's. `#` is in no package, stream or key, so no name collides.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StreamScope {
+    owner: String,
+    scope: String,
+}
+
+impl StreamScope {
+    /// `owner`'s streams under `scope`: a package name, and lowercase
+    /// letters, digits and hyphens, starting with a letter or digit, at most
+    /// 64 characters.
+    pub fn new(owner: &str, scope: &str) -> Result<Self, String> {
+        if runx_contracts::PackagePattern::new(owner.to_owned()).is_none() || owner.contains('*') {
+            return Err(format!("{owner} is not a package name"));
+        }
+        let named = !scope.is_empty()
+            && scope.len() <= 64
+            && scope
+                .starts_with(|first: char| first.is_ascii_lowercase() || first.is_ascii_digit())
+            && scope
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+        if !named {
+            return Err(format!(
+                "{scope} is not a scope: lowercase letters, digits and hyphens, at most 64 characters"
+            ));
+        }
+        Ok(Self {
+            owner: owner.to_owned(),
+            scope: scope.to_owned(),
+        })
+    }
+
+    /// `link` as this scope places it: its owner scoped when its package is
+    /// the scoped one.
+    pub(crate) fn place(&self, mut link: ChainLink) -> ChainLink {
+        if link.package.as_str() == self.owner && link.owner == self.owner {
+            link.owner = format!("{}#{}", self.owner, self.scope);
+        }
+        link
+    }
+}
+
 /// One package of a run's chain (D31): who it is, where its streams live,
 /// and the digest of the exact bytes it runs from. A run's chain runs from
 /// its root's package to its own, and every call it makes is covered by a
@@ -612,5 +660,43 @@ mod tests {
             Some(TrustTier::FirstParty)
         );
         assert_eq!(project.tier(Some(TrustTier::FirstParty)), None);
+    }
+}
+
+#[cfg(test)]
+mod stream_scope_tests {
+    use super::{ChainLink, StreamScope};
+
+    fn link(package: &str, owner: &str) -> Option<ChainLink> {
+        Some(ChainLink {
+            package: runx_contracts::PackagePattern::new(package.to_owned())?,
+            owner: owner.to_owned(),
+            root: std::path::PathBuf::from(package),
+            digest: "sha256:package".to_owned(),
+        })
+    }
+
+    #[test]
+    fn a_scope_places_only_its_own_packages_streams() -> Result<(), String> {
+        let acme = StreamScope::new("acme/outreach", "acme")?;
+        let placed = |package, owner| link(package, owner).map(|link| acme.place(link).owner);
+        assert_eq!(
+            placed("acme/outreach", "acme/outreach").as_deref(),
+            Some("acme/outreach#acme")
+        );
+        // Another package's streams stay the workspace's: consent, memory.
+        assert_eq!(
+            placed("runx/memory", "runx/memory").as_deref(),
+            Some("runx/memory")
+        );
+        // A link placed once is never scoped twice.
+        assert_eq!(
+            placed("acme/outreach", "acme/outreach#acme").as_deref(),
+            Some("acme/outreach#acme")
+        );
+        assert!(StreamScope::new("acme/outreach", "Acme").is_err());
+        assert!(StreamScope::new("acme/outreach", "").is_err());
+        assert!(StreamScope::new("not a package", "acme").is_err());
+        Ok(())
     }
 }

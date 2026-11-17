@@ -148,6 +148,9 @@ pub(crate) struct Started {
     /// What started it: the source-tree digest each of its binaries reports.
     /// A resume under another is refused.
     pub implementation: runx_contracts::RunImplementation,
+    /// The run's scope for one package's streams, which a continuation keeps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_scope: Option<crate::identity::StreamScope>,
     /// Where it ran, as it was started.
     pub ran_on: runx_contracts::RanOn,
     pub created_at: String,
@@ -1424,6 +1427,7 @@ impl RunLog {
             prepared: started.prepared.cloned(),
             purchase: started.purchase.map(str::to_owned),
             implementation: started.implementation.clone(),
+            stream_scope: started.stream_scope.cloned(),
             ran_on: started.ran_on,
             created_at: started.created_at.to_owned(),
         };
@@ -2231,6 +2235,8 @@ pub(crate) struct StartRequest<'a> {
     pub purchase: Option<&'a str>,
     /// The implementation it runs on.
     pub implementation: &'a runx_contracts::RunImplementation,
+    /// Its scope for one package's streams.
+    pub stream_scope: Option<&'a crate::identity::StreamScope>,
     /// Where it runs.
     pub ran_on: runx_contracts::RanOn,
     pub created_at: &'a str,

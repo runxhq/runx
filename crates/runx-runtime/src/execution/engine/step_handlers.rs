@@ -744,13 +744,15 @@ pub(crate) fn child_chain_at(
             Some(signed) => crate::identity::PackageIdentity::Signed(signed.clone()),
             None => crate::identity::skill_identity(&package, &options.env).map_err(refused)?,
         };
-        return Ok(vec![
+        return Ok(vec![options.placed(
             crate::identity::ChainLink::of(&identity, &package).map_err(refused)?,
-        ]);
+        )]);
     };
-    let link = parent
-        .child(&reference, &package, signed, &options.env)
-        .map_err(refused)?;
+    let link = options.placed(
+        parent
+            .child(&reference, &package, signed, &options.env)
+            .map_err(refused)?,
+    );
     if link.root != parent.root {
         chain.push(link);
     }

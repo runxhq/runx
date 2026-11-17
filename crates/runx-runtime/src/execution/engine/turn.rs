@@ -1833,7 +1833,7 @@ where
                 &skill,
                 &call.step.inputs,
                 call.act.as_ref(),
-                &call.context,
+                (&call.context, options.stream_scope.as_ref()),
                 &options.env,
             ),
             workflow,

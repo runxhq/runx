@@ -184,10 +184,16 @@ impl BoundRun {
         // The run holds what its host gave it, narrowed by its method's own
         // effects and reach.
         let run_authority = RunAuthority::of_method(run_authority, &self.method.workflow);
+        // A continuation keeps the scope its run started with; a start takes
+        // the one its host brings (the loop contract's E3).
+        let stream_scope = match &started {
+            Some(started) => started.stream_scope.clone(),
+            None => self.overrides.stream_scope.clone(),
+        };
         let runtime = self.runtime(
             &log,
             run_context,
-            run_authority,
+            (run_authority, stream_scope),
             prepared.as_ref(),
             host,
             javascript,
@@ -240,6 +246,7 @@ impl BoundRun {
                     prepared: prepared.as_ref(),
                     purchase: self.purchase(),
                     implementation: &start.implementation,
+                    stream_scope: self.overrides.stream_scope.as_ref(),
                     ran_on: crate::execution_environment::ran_on(&request.env),
                     created_at: &crate::time::now_iso8601(),
                 },
@@ -437,7 +444,7 @@ impl BoundRun {
         &self,
         log: &RunLog,
         context: CallerContext,
-        run_authority: Option<RunAuthority>,
+        (run_authority, stream_scope): (Option<RunAuthority>, Option<crate::identity::StreamScope>),
         prepared: Option<&PreparedContext>,
         host: &RunHost,
         javascript: crate::adapters::javascript::JavaScriptAdapter,
@@ -464,6 +471,7 @@ impl BoundRun {
             run: log.clone(),
             call_stops: host.stops.clone().unwrap_or_default(),
             packages: Some(self.packages.clone()),
+            stream_scope,
             chain: Vec::new(),
             reads: crate::execution::engine::RunReads::default(),
             workspace: Some(self.workspace.paths().clone()),
@@ -1444,6 +1452,7 @@ methods:
                     runtime: "sha256:runtime".into(),
                     worker: None,
                 },
+                stream_scope: None,
                 ran_on: runx_contracts::RanOn::Local,
                 created_at: "2026-07-24T00:00:00Z",
             })?;

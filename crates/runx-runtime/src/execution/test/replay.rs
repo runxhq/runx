@@ -103,6 +103,7 @@ impl TestOptions {
             run,
             call_stops: std::sync::Arc::default(),
             packages: None,
+            stream_scope: None,
             chain: Vec::new(),
             reads: crate::execution::engine::RunReads::default(),
             workspace: None,

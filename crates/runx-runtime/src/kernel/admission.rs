@@ -2167,7 +2167,16 @@ fn store_stream(
                 caller.package
             ));
         }
-        Some(package) => (package, package != caller.owner),
+        // A package the run's chain holds is read where the chain places
+        // its streams, its run's scope with it (the loop contract's E3).
+        Some(package) => {
+            let owner = evaluation
+                .chain
+                .iter()
+                .find(|link| link.package.as_str() == package)
+                .map_or(package, |link| link.owner.as_str());
+            (owner, owner != caller.owner)
+        }
         None => (caller.owner.as_str(), false),
     };
     Ok(Some(StoreStream {
