@@ -331,9 +331,18 @@ function isDigest(value) {
 
 // Source readiness and digests are mechanical; applicability of prose-scoped
 // writing guidance is the writer’s bounded judgment, recorded for each context.
-/** Every run of digits in `value`: the numbers a text states. */
+/** The numbers written in words a quantity is stated with; "one" is mostly a pronoun. */
+const NUMBER_WORDS =
+  "two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen";
+
+/**
+ * The numbers a text states: each figure with the currency or percent it's
+ * stated in, so "$40" is never "40 pipelines", and each written in words.
+ */
 function numbersIn(value) {
-  return text(value).match(/\d+/gu) ?? [];
+  const figures = text(value).match(/[$€£¥]?\d+(?:[.,]\d+)*%?/gu) ?? [];
+  const words = text(value).toLowerCase().match(new RegExp(`\\b(?:${NUMBER_WORDS})\\b`, "gu")) ?? [];
+  return [...figures, ...words];
 }
 
 /**

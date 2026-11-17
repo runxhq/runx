@@ -282,4 +282,7 @@ test("a draft states only numbers something admitted holds", () => {
   assert.deepEqual(inventedNumbers(context, draft("Tuesday at 2 PM works, for 15 minutes.")), ["2"]);
   // Text the draft carries unchanged, as a footer, is the caller's, not invented.
   assert.deepEqual(inventedNumbers(context, draft("Thanks.\n12 Salamanca Place"), ["12 Salamanca Place"]), []);
+  // A figure is its currency's, and a number written in words counts.
+  assert.deepEqual(inventedNumbers(context, draft("Reviews start at $40.")), ["$40"]);
+  assert.deepEqual(inventedNumbers(context, draft("It takes two weeks.")), ["two"]);
 });
