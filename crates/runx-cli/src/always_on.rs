@@ -1,13 +1,16 @@
 //! The always-on runx (the loop contract §15): one per runx home, holding a
-//! lock on a file in it, serving every workspace with a started loop. It
-//! sleeps until the earliest time anything of theirs is due, and wakes
-//! sooner when a command here rings it, on a loopback port, after changing
-//! something. A timed wait doesn't count the time a machine sleeps, so it
-//! reads the wall clock again at least every minute: a sleeping machine
-//! runs nothing, and on waking runx runs what came due, marked late.
-//! `runx on` starts it, `runx off` asks it to stop after the pass it's in,
-//! `runx status` says what it's doing.
+//! lock on a file in it, serving every workspace with a started loop, each
+//! where it lies and each loop on its own, so one's long wake never holds
+//! another's due work. It sleeps until the earliest time anything is due,
+//! and wakes sooner when a command here rings it, on a loopback port, after
+//! changing something. A timed wait doesn't count the time a machine sleeps,
+//! so it reads the wall clock again at least every minute: a sleeping
+//! machine runs nothing, and on waking runx runs what came due, marked late.
+//! `runx on` starts it; `runx off` asks it to stop, after which no loop
+//! claims a wake and a wake in hand has a grace to end; `runx status` says
+//! what it's doing.
 
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::io::{BufRead as _, BufReader, Write as _};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
@@ -18,7 +21,8 @@ use std::time::Duration as StdDuration;
 
 use chrono::{DateTime, Utc};
 use fs2::FileExt;
-use runx_runtime::WorkspaceEnv;
+use runx_loops::LoopName;
+use runx_runtime::{WorkspaceEnv, WorkspaceLocation};
 use serde::{Deserialize, Serialize};
 
 /// The longest it waits before reading the wall clock again.
@@ -85,8 +89,8 @@ fn running(dir: &Path) -> bool {
     }
 }
 
-/// The workspaces it serves.
-fn workspaces(dir: &Path) -> Vec<PathBuf> {
+/// The workspaces it serves, each where it lies.
+fn workspaces(dir: &Path) -> Vec<WorkspaceLocation> {
     std::fs::read(dir.join("workspaces.json"))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
@@ -105,8 +109,11 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
 pub(crate) fn serve_workspace(workspace: &WorkspaceEnv) -> Result<(), String> {
     let dir = dir(workspace);
     std::fs::create_dir_all(&dir).map_err(|error| format!("making {}: {error}", dir.display()))?;
-    let path = workspace
-        .cwd()
+    // Where it lies, its own state and receipt roots among it, so the host
+    // loads it there and never where the host was started.
+    let mut location = workspace.location();
+    location.workspace = location
+        .workspace
         .canonicalize()
         .map_err(|error| format!("reading {}: {error}", workspace.cwd().display()))?;
     // Registration is one change at a time: two starts at once never lose
@@ -121,8 +128,8 @@ pub(crate) fn serve_workspace(workspace: &WorkspaceEnv) -> Result<(), String> {
     lock.lock_exclusive()
         .map_err(|error| format!("taking the workspaces' lock: {error}"))?;
     let mut served = workspaces(&dir);
-    if !served.contains(&path) {
-        served.push(path);
+    if !served.contains(&location) {
+        served.push(location);
         let bytes = serde_json::to_vec_pretty(&served).map_err(|error| error.to_string())?;
         write_atomic(&dir.join("workspaces.json"), &bytes)?;
     }
@@ -229,7 +236,10 @@ fn stop(workspace: &WorkspaceEnv) -> Result<String, String> {
 
 #[derive(Default)]
 struct Bell {
+    /// A command here changed something: every loop not in a pass is passed.
     rung: bool,
+    /// A loop's pass ended: what it found is taken.
+    ended: bool,
     off: bool,
 }
 
@@ -286,45 +296,75 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
         }
     });
     let binary = Binary::now();
+    let mut served: BTreeMap<Key, Served> = BTreeMap::new();
+    // What each loop's pass found, sent before it rings the bell.
+    let (found, ended) = std::sync::mpsc::channel::<(Key, Option<DateTime<Utc>>)>();
+    let take_ended = |served: &mut BTreeMap<Key, Served>| {
+        let now = Utc::now();
+        for (key, next) in ended.try_iter() {
+            if let Some(entry) = served.get_mut(&key) {
+                entry.ended(next, now);
+            }
+        }
+    };
+    let in_pass = |served: &BTreeMap<Key, Served>| served.values().any(|entry| entry.in_pass);
+    let mut rung = true;
     loop {
-        // Each pass runs beside the bell, so `off` is heard while a wake
-        // drives: no loop is claimed after it, and a wake still running past
-        // the grace is left for recovery.
-        let pass = {
-            let dir = dir.clone();
-            let bell = Arc::clone(&bell);
-            std::thread::spawn(move || pass_all(&dir, &bell))
-        };
-        let Some(next) = finished(pass, &bell)? else {
+        take_ended(&mut served);
+        if off(&bell) {
+            let deadline = std::time::Instant::now() + OFF_GRACE;
+            while in_pass(&served) && std::time::Instant::now() < deadline {
+                std::thread::sleep(StdDuration::from_millis(100));
+                take_ended(&mut served);
+            }
+            if in_pass(&served) {
+                log("off: a wake still running is left for recovery");
+            }
             break;
-        };
-        // A new runx binary takes over between passes, so no wake runs on a
-        // half-upgraded runx; waiting runs are records it drives on.
-        if binary.changed() {
+        }
+        // A new runx binary takes over once no pass is in hand, so no wake
+        // runs on a half-upgraded runx; waiting runs are records it drives on.
+        let upgrading = binary.changed();
+        if upgrading && !in_pass(&served) {
             let _ = std::fs::remove_file(dir.join("state.json"));
             log("a new runx binary is in place: starting it");
             drop(lock);
             return Err(binary.replace());
         }
+        if !upgrading {
+            let now = Utc::now();
+            let listed = listed(&dir);
+            served.retain(|key, entry| entry.in_pass || listed.contains(key));
+            // Each loop on its own: one's long wake never holds another's
+            // due work. A loop not yet passed is due now.
+            for key in listed {
+                let entry = served.entry(key.clone()).or_insert(Served {
+                    in_pass: false,
+                    next: now,
+                });
+                if !entry.in_pass && (rung || entry.next <= now) {
+                    entry.in_pass = true;
+                    pass(key, Arc::clone(&bell), found.clone());
+                }
+            }
+        }
+        let earliest = served
+            .values()
+            .filter(|entry| !entry.in_pass)
+            .map(|entry| entry.next)
+            .min();
+        let wait = earliest
+            .map(|next| (next - Utc::now()).to_std().unwrap_or(StdDuration::ZERO))
+            .unwrap_or(MOST_WAIT)
+            .min(MOST_WAIT);
         let (state, signal) = &*bell;
-        let mut held = state.lock().map_err(|_| "its bell broke".to_owned())?;
-        if held.off {
-            break;
-        }
-        if !held.rung {
-            let wait = next
-                .map(|next| (next - Utc::now()).to_std().unwrap_or(StdDuration::ZERO))
-                .unwrap_or(MOST_WAIT)
-                .min(MOST_WAIT);
-            held = signal
-                .wait_timeout_while(held, wait, |bell| !bell.rung && !bell.off)
-                .map_err(|_| "its bell broke".to_owned())?
-                .0;
-        }
-        if held.off {
-            break;
-        }
-        held.rung = false;
+        let held = state.lock().map_err(|_| "its bell broke".to_owned())?;
+        let mut held = signal
+            .wait_timeout_while(held, wait, |bell| !bell.rung && !bell.ended && !bell.off)
+            .map_err(|_| "its bell broke".to_owned())?
+            .0;
+        rung = std::mem::take(&mut held.rung);
+        held.ended = false;
     }
     let _ = std::fs::remove_file(dir.join("state.json"));
     log("off");
@@ -389,92 +429,92 @@ fn off(bell: &Ringer) -> bool {
     bell.0.lock().map_or(true, |state| state.off)
 }
 
-/// The pass's earliest next time once it finishes, or none when `off` came
-/// first: the pass then gets its grace, and a wake still running after it is
-/// left for recovery from its record.
-fn finished(
-    pass: std::thread::JoinHandle<Option<DateTime<Utc>>>,
-    bell: &Ringer,
-) -> Result<Option<Option<DateTime<Utc>>>, String> {
-    let (state, signal) = &**bell;
-    loop {
-        if pass.is_finished() {
-            return pass
-                .join()
-                .map(Some)
-                .map_err(|_| "a pass panicked".to_owned());
-        }
-        let held = state.lock().map_err(|_| "its bell broke".to_owned())?;
-        if held.off {
-            drop(held);
-            let deadline = std::time::Instant::now() + OFF_GRACE;
-            while !pass.is_finished() && std::time::Instant::now() < deadline {
-                std::thread::sleep(StdDuration::from_millis(100));
-            }
-            if !pass.is_finished() {
-                log("off: a wake still running is left for recovery");
-            }
-            return Ok(None);
-        }
-        let _ = signal
-            .wait_timeout_while(held, StdDuration::from_millis(250), |bell| !bell.off)
-            .map_err(|_| "its bell broke".to_owned())?;
+/// A loop the host serves, by where its workspace lies and its name.
+type Key = (WorkspaceLocation, LoopName);
+
+/// A loop the host serves: whether a pass of it is in hand, and when it's
+/// next due.
+struct Served {
+    in_pass: bool,
+    next: DateTime<Utc>,
+}
+
+impl Served {
+    /// Its pass ended, finding `next`: when nothing is next, or the pass
+    /// failed, it's looked at again within the longest wait.
+    fn ended(&mut self, next: Option<DateTime<Utc>>, now: DateTime<Utc>) {
+        self.in_pass = false;
+        self.next = next.unwrap_or_else(|| {
+            now + chrono::Duration::from_std(MOST_WAIT).unwrap_or(chrono::Duration::MAX)
+        });
     }
 }
 
-/// One pass over every loop of every workspace served, and the earliest time
-/// anything is next due. `off` stops it claiming another loop.
-fn pass_all(dir: &Path, bell: &Ringer) -> Option<DateTime<Utc>> {
-    let mut next: Option<DateTime<Utc>> = None;
-    for path in workspaces(dir) {
-        if off(bell) {
-            return next;
-        }
-        // Each workspace where it is: never the location this process was
-        // started with.
-        let workspace = match WorkspaceEnv::load_located(path.clone()) {
-            Ok(workspace) => workspace,
-            Err(error) => {
-                log(&format!("{}: {error}", path.display()));
-                continue;
-            }
-        };
-        let loops = match crate::loops::open(&workspace) {
-            Ok(loops) => loops,
-            Err(error) => {
-                log(&format!("{}: {error}", path.display()));
-                continue;
-            }
-        };
-        let names = match loops.names() {
-            Ok(names) => names,
-            Err(error) => {
-                log(&format!("{}: {error}", path.display()));
-                continue;
-            }
-        };
-        for name in names {
-            if off(bell) {
-                return next;
-            }
-            match loops.pass(&name, Utc::now()) {
-                Ok(passed) => {
-                    if let Some(run) = &passed.woke {
-                        log(&format!("{name} woke: {run}"));
-                    }
-                    for (run, ending) in &passed.settled {
-                        log(&format!("{name} settled {run}: {}", ending.outcome()));
-                    }
-                    if let Some(why) = &passed.couldnt {
-                        log(&format!("{name} couldn't run: {why}"));
-                    }
-                    if let Some(at) = passed.next {
-                        next = Some(next.map_or(at, |next| next.min(at)));
-                    }
-                }
-                Err(error) => log(&format!("{name}: {error}")),
-            }
+/// Every loop of every workspace served, by where it lies.
+fn listed(dir: &Path) -> Vec<Key> {
+    let mut listed = Vec::new();
+    for location in workspaces(dir) {
+        let names = WorkspaceEnv::load_located(&location)
+            .map_err(|error| error.to_string())
+            .and_then(|workspace| crate::loops::open(&workspace))
+            .and_then(|loops| loops.names().map_err(|error| error.to_string()));
+        match names {
+            Ok(names) => listed.extend(names.into_iter().map(|name| (location.clone(), name))),
+            Err(error) => log(&format!("{}: {error}", location.workspace.display())),
         }
     }
-    next
+    listed
+}
+
+/// One pass over one loop, on its own thread: what it found, its earliest
+/// next time, is sent, then the bell rung. Going off, it claims no new wake.
+fn pass(key: Key, bell: Ringer, found: std::sync::mpsc::Sender<(Key, Option<DateTime<Utc>>)>) {
+    std::thread::spawn(move || {
+        let next = pass_loop(&key.0, &key.1, &bell);
+        let _ = found.send((key, next));
+        let (state, signal) = &*bell;
+        if let Ok(mut state) = state.lock() {
+            state.ended = true;
+        }
+        signal.notify_all();
+    });
+}
+
+fn pass_loop(
+    location: &WorkspaceLocation,
+    name: &LoopName,
+    bell: &Ringer,
+) -> Option<DateTime<Utc>> {
+    let going_off = {
+        let bell = Arc::clone(bell);
+        Arc::new(move || off(&bell))
+    };
+    let loops = WorkspaceEnv::load_located(location)
+        .map_err(|error| error.to_string())
+        .and_then(|workspace| crate::loops::open(&workspace))
+        .map(|loops| loops.served(going_off));
+    let passed = match loops {
+        Ok(loops) => loops
+            .pass(name, Utc::now())
+            .map_err(|error| error.to_string()),
+        Err(error) => Err(error),
+    };
+    match passed {
+        Ok(passed) => {
+            if let Some(run) = &passed.woke {
+                log(&format!("{name} woke: {run}"));
+            }
+            for (run, ending) in &passed.settled {
+                log(&format!("{name} settled {run}: {}", ending.outcome()));
+            }
+            if let Some(why) = &passed.couldnt {
+                log(&format!("{name} couldn't run: {why}"));
+            }
+            passed.next
+        }
+        Err(error) => {
+            log(&format!("{name}: {error}"));
+            None
+        }
+    }
 }

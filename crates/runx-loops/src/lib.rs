@@ -20,6 +20,7 @@ mod store;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub use clock::{Due, next_after};
 pub use file::{
@@ -81,12 +82,16 @@ struct Written {
     file: Result<LoopFile, LoopError>,
 }
 
+/// A host's word, asked at any moment, that it's going off.
+pub type GoingOff = Arc<dyn Fn() -> bool + Send + Sync>;
+
 /// The loops of one workspace, and the acts on them.
 pub struct Loops {
     env: BTreeMap<String, String>,
     cwd: PathBuf,
     streams: HostStreams,
     orchestrator: LocalOrchestrator,
+    going_off: Option<GoingOff>,
 }
 
 impl Loops {
@@ -103,7 +108,21 @@ impl Loops {
             cwd: cwd.to_path_buf(),
             streams,
             orchestrator,
+            going_off: None,
         })
+    }
+
+    /// These loops as a host serves them, `going_off` saying when it's
+    /// going off: a pass then settles what its runs finish with and claims
+    /// no new wake, which waits for the host's next start.
+    #[must_use]
+    pub fn served(mut self, going_off: GoingOff) -> Self {
+        self.going_off = Some(going_off);
+        self
+    }
+
+    fn going_off(&self) -> bool {
+        self.going_off.as_ref().is_some_and(|going_off| going_off())
     }
 
     #[must_use]

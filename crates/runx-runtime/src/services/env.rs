@@ -3,7 +3,7 @@ use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV, RunxPaths};
+use crate::paths::{RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths};
 use crate::receipts::paths::{ReceiptPathInputs, ResolvedReceiptPath, resolve_receipt_path};
 use crate::services::tool_roots::inferred_tool_roots;
 use thiserror::Error;
@@ -23,6 +23,17 @@ pub(crate) const RUNX_ENV_FILE_DIFFERS_ENV: &str = "RUNX_ENV_FILE_DIFFERS";
 /// environment signs in to a secrets manager or configures it, so a
 /// manager's CLI never sees one of these (`process_environment`).
 pub(crate) const RUNX_ENV_FILE_FILLED_ENV: &str = "RUNX_ENV_FILE_FILLED";
+
+/// Where a workspace lies: its directory, and the state and receipt roots it
+/// was named with when they aren't its own `.runx`, each absolute.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub struct WorkspaceLocation {
+    pub workspace: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipts: Option<PathBuf>,
+}
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct WorkspaceEnv {
@@ -45,19 +56,36 @@ impl WorkspaceEnv {
         Self::load(std::env::vars().collect(), cwd)
     }
 
-    /// The workspace at `cwd`, from the process's environment less what names
-    /// one workspace's location, so a host serving several loads each where
-    /// it is and never where the host itself was started.
-    pub fn load_located(cwd: PathBuf) -> Result<Self, WorkspaceEnvError> {
+    /// The workspace at `location`, from the process's environment less what
+    /// names one workspace's location, so a host serving several loads each
+    /// where it lies, its own state and receipt roots among it, and never
+    /// where the host itself was started.
+    pub fn load_located(location: &WorkspaceLocation) -> Result<Self, WorkspaceEnvError> {
         let mut ambient: BTreeMap<String, String> = std::env::vars().collect();
-        for located in [
-            crate::paths::RUNX_CWD_ENV,
-            crate::paths::RUNX_PROJECT_DIR_ENV,
-            crate::paths::RUNX_RECEIPT_DIR_ENV,
-        ] {
+        for located in [RUNX_CWD_ENV, RUNX_PROJECT_DIR_ENV, RUNX_RECEIPT_DIR_ENV] {
             ambient.remove(located);
         }
-        Self::load(ambient, cwd)
+        for (name, root) in [
+            (RUNX_PROJECT_DIR_ENV, &location.project),
+            (RUNX_RECEIPT_DIR_ENV, &location.receipts),
+        ] {
+            if let Some(root) = root {
+                ambient.insert(name.to_owned(), root.to_string_lossy().into_owned());
+            }
+        }
+        Self::load(ambient, location.workspace.clone())
+    }
+
+    /// Where this workspace lies, as a host serving it loads it again: its
+    /// directory, and the state and receipt roots it was named with.
+    #[must_use]
+    pub fn location(&self) -> WorkspaceLocation {
+        let named = |name: &str| self.env.contains_key(name);
+        WorkspaceLocation {
+            workspace: self.cwd.clone(),
+            project: named(RUNX_PROJECT_DIR_ENV).then(|| self.paths.project().to_path_buf()),
+            receipts: self.paths.receipts_override().map(Path::to_path_buf),
+        }
     }
 
     pub(crate) fn load(
@@ -385,6 +413,40 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{RUNX_CWD_ENV, WorkspaceEnv, WorkspaceEnvError, merge_path_env};
+
+    /// A workspace started with its own state and receipt roots is loaded
+    /// where it lies with them, as a host serving it does; one with neither
+    /// names none and keeps its own `.runx`.
+    #[test]
+    fn a_workspace_is_loaded_again_where_it_lies() -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let workspace = temp.path().join("work");
+        fs::create_dir_all(&workspace)?;
+        let named = BTreeMap::from([
+            (super::RUNX_PROJECT_DIR_ENV.to_owned(), "state".to_owned()),
+            (
+                super::RUNX_RECEIPT_DIR_ENV.to_owned(),
+                temp.path().join("receipts").to_string_lossy().into_owned(),
+            ),
+        ]);
+        let started = WorkspaceEnv::load(named, workspace.clone())?;
+        let location = started.location();
+        assert_eq!(
+            location.project.as_deref(),
+            Some(workspace.join("state").as_path())
+        );
+        let served = WorkspaceEnv::load_located(&location)?;
+        assert_eq!(served.paths().project(), started.paths().project());
+        assert_eq!(served.paths().receipts(), temp.path().join("receipts"));
+
+        let plain = WorkspaceEnv::load(BTreeMap::new(), workspace.clone())?.location();
+        assert_eq!((&plain.project, &plain.receipts), (&None, &None));
+        assert_eq!(
+            WorkspaceEnv::load_located(&plain)?.paths().project(),
+            workspace.join(".runx")
+        );
+        Ok(())
+    }
 
     #[test]
     fn workspace_env_loads_optional_file_without_mutating_process_env()

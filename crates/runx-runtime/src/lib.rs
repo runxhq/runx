@@ -232,7 +232,8 @@ pub use runx_parser::{
 };
 pub use runx_receipts::ReceiptTreeConfig;
 pub use services::{
-    VerifiedReceiptStore, WorkspaceEnv, WorkspaceEnvError, WorkspaceFileError, read_workspace_text,
+    VerifiedReceiptStore, WorkspaceEnv, WorkspaceEnvError, WorkspaceFileError, WorkspaceLocation,
+    read_workspace_text,
 };
 pub use skill_package::{
     LoadedSkillPackage, SkillInspectionError, inspect_skill_package, inspect_skill_readiness,

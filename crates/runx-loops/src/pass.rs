@@ -116,8 +116,12 @@ impl Loops {
                 self.fire(name, &mut state, &file, now)?;
             }
             // The person's "run now" or message wakes the loop whatever its
-            // state: their explicit act. The loop stays as it was.
-            if state.live.is_none() && (running || self.person_waiting(name, &state)?) {
+            // state: their explicit act. The loop stays as it was. A host
+            // going off claims no new wake, however long settling took.
+            if state.live.is_none()
+                && !self.going_off()
+                && (running || self.person_waiting(name, &state)?)
+            {
                 self.wake(name, &mut state, &file, now, &mut passed)?;
             }
             if running {
