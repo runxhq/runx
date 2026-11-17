@@ -210,6 +210,9 @@ pub fn run_native_resume_with_workspace(
         package_digest: plan.expected_package_digest,
         closure_digest: plan.expected_closure_digest,
     });
+    // A resumed run may be a loop's: the always-on runx, when it's on, takes
+    // what it did into the loop's record now rather than at its next pass.
+    crate::always_on::ring(workspace);
     match result {
         Ok(result) => crate::skill::write_run_result(
             &result,
