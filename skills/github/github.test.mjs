@@ -151,9 +151,12 @@ function context({ github, max_calls = 400, store = new Map(), moved = () => {},
       }
       moved(inputs.key, store);
       const current = store.get(inputs.key) ?? [];
-      if (current.length !== inputs.expected_version) throw reject("failed", `${inputs.key} is at version ${current.length}`);
+      // As the store answers: a version that moved is a conflict, not a refusal.
+      if (current.length !== inputs.expected_version) {
+        return { provider_operation: { plan_digest: `sha256:conflict-${inputs.key}-${current.length}`, result: { status: "version_conflict", version: current.length } } };
+      }
       store.set(inputs.key, [...current, { type: inputs.type, data: inputs.data }]);
-      return { provider_operation: { plan_digest: `sha256:append-${inputs.key}-${current.length}` } };
+      return { provider_operation: { plan_digest: `sha256:append-${inputs.key}-${current.length}`, result: { status: "committed", version: current.length + 1 } } };
     },
   };
   return ctx;

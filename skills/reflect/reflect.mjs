@@ -786,7 +786,11 @@ export async function keep(ctx, { reader, survey }) {
       { stream: MARKS, key: reader, expected_version: version, type: "mark.moved", data: { through, at_through, open } },
       { idempotency_key: `mark:${reader}@${version}` },
     );
-    mark = { moved: true, version: moved?.provider_operation?.result?.version ?? version + 1, through };
+    // The store answers a version that moved as a conflict, not a refusal.
+    const answer = moved?.provider_operation?.result;
+    mark = ["committed", "replayed"].includes(answer?.status)
+      ? { moved: true, version: answer.version, through }
+      : { moved: false, reason: `the mark's append answered ${answer?.status ?? "nothing"}` };
   } catch (rejection) {
     if (rejection?.code !== "failed" && rejection?.code !== "refused") throw rejection;
     mark = { moved: false, reason: rejection.message ?? null };

@@ -436,6 +436,12 @@ export async function follow(ctx, { repositories, reader, until, principal }) {
           { stream: POSITIONS, key: keyOf(position.repository), expected_version: version, type: "position.moved", data },
           { idempotency_key: `position:${keyOf(position.repository)}@${version}` },
         );
+        // The store answers a version that moved as a conflict, not a
+        // refusal: it takes the same way back.
+        const status = appended.provider_operation?.result?.status;
+        if (status !== "committed" && status !== "replayed") {
+          throw { code: "refused", message: `the position's append answered ${status}` };
+        }
         evidence.push(appended.provider_operation.plan_digest);
         stored = data;
         fragments = stored_fragments;
