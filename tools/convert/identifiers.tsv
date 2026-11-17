@@ -144,6 +144,7 @@ cloud	heldResource	5	hold	heldResource	English, or a skill's own word: stays	pac
 cloud	holdingStoreContract	5	hold	leaseStoreContract	the lease family	packages/api/src/payments/holdings-postgres.postgres.test.ts packages/api/src/payments/holdings.test-support.ts
 cloud	hr_graph	5	graph	hr_workflow		packages/api/src/least-privilege-job.test.ts packages/receipts-store/src/receipt-tree.test.ts
 cloud	inspectedRunner	5	runner	inspectedMethod		packages/api/src/hosted-runtime-admission.ts
+cloud	managed-agent	5	managed_agent	drive	runx's own trust_boundary text, which now says drive	packages/api/src/protocol-hosted-control-alignment.test.ts packages/api/src/protocol-openapi-control-alignment.test.ts
 cloud	native-harness	5	harness	native-test	the test sense	packages/api/src/index.test.ts packages/api/src/native-runtime.test.ts
 cloud	normalizeHarnessResult	5	harness	normalizeTestResult	the test sense	packages/api/src/admin/service.ts packages/api/src/public/evidence.ts
 cloud	parsePublishHarnessSummary	5	harness	parsePublishTestSummary	the test sense	packages/api/src/registry/native-harness.ts packages/api/src/request-utils.ts
@@ -291,6 +292,11 @@ cloud	held-6	1	hold	held-6	English, or a skill's own word: stays	packages/api/sr
 cloud	held-7	1	hold	held-7	English, or a skill's own word: stays	packages/api/src/payments/skills/run-admission.test.ts
 cloud	Hold	1	hold	?	a bare word: code or prose, read in place	packages/api/src/payments/holdings.ts
 cloud	hold-moving	1	hold	hold-moving	English, or a skill's own word: stays	packages/api/src/payments/holdings.ts
+cloud	managed_agent_empty_turn_budget_exhausted	1	managed_agent	drive_empty_turn_budget_exhausted	runx's own failure code, which is now drive_empty_turn_budget_exhausted	spec/spec.md
+cloud	managed_agent_provider_failed	1	managed_agent	drive_provider_failed	runx's own failure code, which is now drive_provider_failed	spec/spec.md
+cloud	managed_agent_resolution_failed	1	managed_agent	drive_resolution_failed	runx's own failure code, which is now drive_resolution_failed	spec/spec.md
+cloud	managed_agent_round_budget_exhausted	1	managed_agent	drive_round_budget_exhausted	runx's own failure code, which is now drive_round_budget_exhausted	spec/spec.md
+cloud	managed_agent_tool_execution_failed	1	managed_agent	drive_tool_execution_failed	runx's own failure code, which is now drive_tool_execution_failed	spec/spec.md
 cloud	nitrosend-closure-v2	1	closure	nitrosend-closure-v2	a package's closure, closure's one meaning	packages/db/src/index.test.ts
 cloud	non-harness	1	harness	non-test	the test sense	packages/api/src/public/evidence.ts
 cloud	publish-harness	1	harness	publish-test	the test sense	packages/api/src/registry/native-harness.ts
@@ -385,12 +391,6 @@ cloud	turn	0	decided	turn	one thing: an agent's turn, the name agent_act takes
 cloud	turn-invocation		decided	turn-invocation	a renamed name lands here: the turn invocation	
 cloud	TurnEnvelope	0	decided	TurnViewEnvelope	the plan's name (§4.2), in Cloud's copy of the turn schema	
 cloud	TurnInvocation	0	decided	TurnView	the plan's name (§4.2), in Cloud's copy of the turn schema	
-cloud	managed-agent	5	managed_agent	drive	runx's own trust_boundary text, which now says drive	packages/api/src/protocol-hosted-control-alignment.test.ts packages/api/src/protocol-openapi-control-alignment.test.ts
-cloud	managed_agent_empty_turn_budget_exhausted	1	managed_agent	drive_empty_turn_budget_exhausted	runx's own failure code, which is now drive_empty_turn_budget_exhausted	spec/spec.md
-cloud	managed_agent_provider_failed	1	managed_agent	drive_provider_failed	runx's own failure code, which is now drive_provider_failed	spec/spec.md
-cloud	managed_agent_resolution_failed	1	managed_agent	drive_resolution_failed	runx's own failure code, which is now drive_resolution_failed	spec/spec.md
-cloud	managed_agent_round_budget_exhausted	1	managed_agent	drive_round_budget_exhausted	runx's own failure code, which is now drive_round_budget_exhausted	spec/spec.md
-cloud	managed_agent_tool_execution_failed	1	managed_agent	drive_tool_execution_failed	runx's own failure code, which is now drive_tool_execution_failed	spec/spec.md
 fieldwork	held	141	hold	?	a bare word: code or prose, read in place	src/agent/context.ts src/agent/session.ts
 fieldwork	holds	100	hold	?	a bare word: code or prose, read in place	scripts/check-structure.mjs scripts/check-structure.test.mjs
 fieldwork	runner	88	runner	?	a bare word: code or prose, read in place	scripts/env.mjs src/agent/prompts.ts
@@ -473,6 +473,7 @@ frantic	harness_cases	2	harness	test_cases	the test sense	runx/skills/frantic-op
 frantic	harnessUrlCandidates	2	harness	testUrlCandidates	the test sense	packages/verifier/src/checks/runx-skill.ts
 frantic	held_for_human	2	hold	held_for_human	English, or a skill's own word: stays	packages/db/src/operator-auto-review.ts
 frantic	Holds	2	hold	?	a bare word: code or prose, read in place	packages/db/src/schema.ts packages/seed/src/run-playbook.ts
+frantic	managed-agent	2	managed_agent	managed-agent	the CI workflow pinned to runx 0.11.1, whose flags are --managed-agent and --managed-agent-rounds: stays until Stage 6 moves its pins	.github/workflows/auto-review.yml
 frantic	MAX_HOLD_MS	2	hold	MAX_HOLD_MS	English, or a skill's own word: stays	apps/api/src/review-write-routes.ts
 frantic	refusedArtifactHolds	2	hold	refusedArtifactHolds	English, or a skill's own word: stays	runx/skills/frantic-operator/tools/frantic/auto-review-context/context.mjs
 frantic	reviewHolds	2	hold	reviewHolds	English, or a skill's own word: stays	runx/skills/frantic-operator/tools/frantic/auto-review-context/context.mjs
@@ -499,6 +500,7 @@ frantic	HOLD	1	hold	HOLD	an archived handoff's English: stays	.plans/archive/han
 frantic	hold-passes	1	hold	hold-passes	English, or a skill's own word: stays	.plans/archive/handoffs/review-onboarding-handoff.md
 frantic	HOLDS	1	hold	?	a bare word: code or prose, read in place	packages/seed/src/cast.ts
 frantic	LangGraph	1	graph	LangGraph	another graph: stays	.plans/growth-opportunities.md
+frantic	managed-agent-rounds	1	managed_agent	managed-agent-rounds	the CI workflow pinned to runx 0.11.1, whose flags are --managed-agent and --managed-agent-rounds: stays until Stage 6 moves its pins	.github/workflows/auto-review.yml
 frantic	mcp-runner	1	runner	mcp-runner	a GitHub handle in test data: stays	packages/db/src/signup.test.ts
 frantic	next_runner	1	runner	next_method		runx/skills/frantic-broadcast/SKILL.md
 frantic	old-hold	1	hold	old-hold	Frantic review abstention or operator custody, not a Runx lease: stays	packages/db/src/review-abstention-migration.pg.test.ts
@@ -513,8 +515,6 @@ frantic	runx-skill-harness	1	harness	runx-skill-test	the test sense	packages/ver
 frantic	verifier-runner	1	runner	verifier-runner	Frantic's verifier job runner: stays	apps/api/src/scheduled.ts
 frantic	why123-harness-fail	1	harness	why123-test-fail	the test sense	packages/db/src/launch-board.ts
 frantic	wrong_claim_and_rail_held	1	hold	wrong_claim_and_rail_held	English, or a skill's own word: stays	scripts/test-support/payout-native-proof.ts
-frantic	managed-agent	2	managed_agent	managed-agent	the CI workflow pinned to runx 0.11.1, whose flags are --managed-agent and --managed-agent-rounds: stays until Stage 6 moves its pins	.github/workflows/auto-review.yml
-frantic	managed-agent-rounds	1	managed_agent	managed-agent-rounds	the CI workflow pinned to runx 0.11.1, whose flags are --managed-agent and --managed-agent-rounds: stays until Stage 6 moves its pins	.github/workflows/auto-review.yml
 nitrosend	runner	30	runner	?	a bare word: code or prose, read in place	dogfood/inbound-email/bin/run.mjs dogfood/inbound-email/tests/audit-runner.test.ts
 nitrosend	harness-nitrosend-token	17	harness	test-nitrosend-token	the test sense	skills/nitrosend/nitrosend/graph/provider-operation/tests/inbox-read.yaml skills/nitrosend/nitrosend/tests/apply-draft-refuses-intent.yaml
 nitrosend	harness	9	harness	?	a bare word: code or prose, read in place	scripts/editor-battery/support.rb skills/nitrosend/issue-intake/X.yaml
@@ -533,33 +533,24 @@ nitrosend	graph	1	graph	?	a bare word: code or prose, read in place	connectors/n
 nitrosend	harness-authored	1	harness	harness-authored	mcp-authoring-quality's evaluation harness, which drives candidate models: the agent-host sense the plan keeps, so it stays	skills/nitrosend/mcp-authoring-quality/SKILL.md
 nitrosend	held	1	hold	?	a bare word: code or prose, read in place	skills/nitrosend/load-drill/tools/nitrosend/lib/sends.mjs
 nitrosend	nskey_test_harness	1	harness	nskey_test_key	the test sense, but nskey_test_test reads as a typo; it is load-drill's fake API key	skills/nitrosend/load-drill/tests/check-reads-readiness.yaml
-oss	holds	1111	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml .github/workflows/runtime-quality.yml
-oss	held	744	hold	?	a bare word: code or prose, read in place	CONVENTIONS.md SECURITY.md
-oss	closure	559	closure	?	a bare word: code or prose, read in place	CONVENTIONS.md README.md
-oss	hold	409	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml CONVENTIONS.md
-oss	managed_agent	219	managed_agent	drive		crates/runx-cli/src/lib.rs crates/runx-cli/src/resume.rs
-oss	closure_digest	148	closure	closure_digest	a package's closure, closure's one meaning	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/history.rs
-oss	ManagedAgentPolicy	120	managed_agent	DrivePolicy		crates/runx-cli/src/managed_agent.rs crates/runx-cli/src/resume.rs
-oss	holding	110	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/doctor.rs
+oss	holds	1188	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml .github/workflows/runtime-quality.yml
+oss	held	841	hold	?	a bare word: code or prose, read in place	CONVENTIONS.md SECURITY.md
+oss	closure	564	closure	?	a bare word: code or prose, read in place	CONVENTIONS.md README.md
+oss	hold	441	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml CONVENTIONS.md
+oss	closure_digest	149	closure	closure_digest	a package's closure, closure's one meaning	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/history.rs
+oss	holding	117	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/always_on.rs crates/runx-cli/src/command_spec/catalog.rs
 oss	harness	50	harness	?	a bare word: code or prose, read in place	crates/runx-cli/tests/router.rs crates/runx-contracts/src/host_protocol.rs
 oss	Hold	49	hold	Hold	hold's one meaning, a run waiting on an unknown outcome (D34): run_record's Hold, the current word	crates/runx-runtime/src/execution/engine/receipt_budget.rs crates/runx-runtime/src/execution/engine/steps.rs
-oss	Held	44	hold	?	a bare word: code or prose, read in place	crates/runx-cli/tests/skill.rs crates/runx-contracts/src/connector_instance.rs
-oss	held_by_effects	43	hold	held_by_effects	English, or a skill's own word: stays	crates/runx-runtime/src/effects/mod.rs crates/runx-runtime/src/effects/types.rs
+oss	Held	45	hold	?	a bare word: code or prose, read in place	crates/runx-cli/tests/skill.rs crates/runx-contracts/src/connector_instance.rs
+oss	held_by_effects	45	hold	held_by_effects	English, or a skill's own word: stays	crates/runx-runtime/src/effects/mod.rs crates/runx-runtime/src/effects/types.rs
 oss	closure-digest	41	decided	closure-digest	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-cli/src/command_spec/catalog.rs crates/runx-cli/src/export/shim.rs
-oss	ManagedAgentError	36	managed_agent	DriveError		crates/runx-runtime/src/adapters/agent.rs crates/runx-runtime/src/adapters/managed_agent.rs
-oss	load_managed_agent_config	32	managed_agent	load_drive_config		crates/runx-cli/src/doctor.rs crates/runx-cli/tests/doctor.rs
 oss	expected_closure_digest	31	decided	expected_closure_digest	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-cli/src/resume.rs crates/runx-cli/src/skill.rs
 oss	runner	30	runner	?	a bare word: code or prose, read in place	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
-oss	managed-agent	23	managed_agent	drive		crates/runx-cli/tests/doctor.rs crates/runx-runtime/src/adapters/agent_anthropic_messages.rs
 oss	$RUNNER_TEMP	22	runner	$RUNNER_TEMP	GitHub's runner: stays	.github/actions/setup-runx/action.yml .github/workflows/ci.yml
-oss	HoldEvent	20	hold	HoldEvent	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
-oss	ManagedAgentAuthMode	20	managed_agent	DriveAuthMode		crates/runx-runtime/src/adapters/managed_agent.rs crates/runx-runtime/src/agent_config.rs
+oss	HoldEvent	22	hold	HoldEvent	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/read.rs
 oss	graph	19	graph	?	a bare word: code or prose, read in place	crates/deny.toml crates/runx-parser/fuzz/Cargo.toml
-oss	managed_agent_env	19	managed_agent	drive_env		crates/runx-cli/tests/crash_points/revisable_outreach.rs crates/runx-cli/tests/memory_loop.rs
 oss	closureDigest	18	closure	closureDigest	a package's closure, closure's one meaning	packages/client/src/index.ts packages/client/src/inspection.ts
 oss	LocalClosure	17	decided	LocalClosure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs crates/runx-runtime/src/registry/publish_package/bundle.rs
-oss	ManagedAgentConfig	15	managed_agent	DriveConfig		crates/runx-runtime/src/adapters/managed_agent.rs crates/runx-runtime/src/agent_config.rs
-oss	ManagedAgentResolution	14	managed_agent	DriveResolution		crates/runx-runtime/src/error.rs crates/runx-runtime/src/execution/engine.rs
 oss	HELD	11	hold	?	a bare word: code or prose, read in place	crates/runx-runtime/src/registry/tiers.rs scripts/lib/loopback-registry.mjs
 oss	ClosureAccumulator	10	closure	ClosureAccumulator	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	PublishClosureError	10	closure	PublishClosureError	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
@@ -570,18 +561,12 @@ oss	CLOSURE	8	closure	?	a bare word: code or prose, read in place	crates/runx-ru
 oss	ClosureInspector	8	decided	ClosureInspector	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	hold-content	8	hold	hold-content	English, or a skill's own word: stays	skills/message-send/run.yaml skills/message-send/tests/post-delivery-plan-drift.yaml
 oss	holdMessage	8	hold	holdMessage	English, or a skill's own word: stays	skills/message-send/message-send.test.mjs skills/message-send/reply.mjs
-oss	managed_agent_rounds	8	managed_agent	drive_rounds		crates/runx-cli/src/resume.rs crates/runx-cli/src/skill/parser.rs
-oss	Managed-agent	8	managed_agent	Drive		crates/runx-cli/src/doctor.rs docs/core-skill-review.md
-oss	ManagedAgent	8	managed_agent	Drive		crates/runx-contracts/src/run_read.rs crates/runx-runtime/src/adapters/managed_agent.rs
-oss	ManagedAgentRoundBudgetExhausted	8	managed_agent	DriveRoundBudgetExhausted		crates/runx-contracts/src/receipt.rs crates/runx-runtime/src/adapters/agent_loop.rs
 oss	BoundClosure	7	closure	BoundClosure	a package's closure, closure's one meaning	crates/runx-contracts/src/host_protocol.rs crates/runx-contracts/src/lib.rs
 oss	holds_at	7	hold	holds_at	English, or a skill's own word: stays	crates/runx-contracts/src/registry_tier_statement.rs crates/runx-runtime/src/registry/tiers.rs
-oss	parse_managed_agent_rounds	7	managed_agent	parse_drive_rounds		crates/runx-cli/src/managed_agent.rs crates/runx-cli/src/resume.rs
 oss	case_closure_connectors	6	closure	case_closure_connectors	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/engine/step_handlers/load.rs crates/runx-runtime/src/execution/test/replay.rs
 oss	ClosureInvalid	6	closure	ClosureInvalid	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	crate-graph	6	graph	crate-graph	a dependency graph: stays	AGENTS.md docs/trusted-kernel-package-truth.md
 oss	inspect_loaded_closure_binding	6	decided	inspect_loaded_closure_binding	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/execution/prepared_skill.rs crates/runx-runtime/src/export.rs
-oss	managed_agent_policy	6	managed_agent	drive_policy		crates/runx-cli/src/managed_agent.rs crates/runx-cli/src/resume.rs
 oss	materialize_publish_closure	6	closure	materialize_publish_closure	a package's closure, closure's one meaning	crates/runx-cli/src/registry.rs crates/runx-runtime/src/registry.rs
 oss	Closure	5	decided	Closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/execution/outcome.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	closure_of	5	closure	closure_of	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/tests/skill_run.rs
@@ -594,20 +579,15 @@ oss	run_held_1	5	hold	run_held_1	hold's one meaning, a run waiting on an unknown
 oss	tier_held	5	hold	tier_held	English, or a skill's own word: stays	crates/runx-cli/tests/store.rs crates/runx-runtime/tests/registry_fixture.rs
 oss	admit_held	4	hold	admit_held	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	check-rust-crate-graph	4	graph	check-rust-crate-graph	a dependency graph: stays	crates/README.md crates/deny.toml
-oss	DEFAULT_MANAGED_AGENT_MAX_ROUNDS	4	managed_agent	DEFAULT_DRIVE_MAX_ROUNDS		crates/runx-cli/src/managed_agent.rs crates/runx-runtime/src/execution/orchestrator.rs
-oss	for_managed_agent	4	managed_agent	for_drive		crates/runx-runtime/src/adapters/managed_agent.rs crates/runx-runtime/src/http/mod.rs
 oss	hold-plan	4	hold	hold-plan	English, or a skill's own word: stays	skills/message-send/run.yaml
 oss	inspect_method_closure	4	decided	inspect_method_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	install_registry_closure	4	closure	install_registry_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	local_closure	4	closure	local_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_package.rs
-oss	managed_agent_max_rounds	4	managed_agent	drive_max_rounds		crates/runx-cli/src/skill/operator_context.rs crates/runx-runtime/src/execution/prepared_skill.rs
-oss	MANAGED_AGENT_MAX_ROUNDS_LIMIT	4	managed_agent	DRIVE_MAX_ROUNDS_LIMIT		crates/runx-runtime/src/execution/orchestrator.rs crates/runx-runtime/src/lib.rs
 oss	NotHeld	4	hold	NotHeld	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/registry/resolve/skill.rs
 oss	PublishClosure	4	closure	PublishClosure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs crates/runx-runtime/src/registry/publish_closure.rs
 oss	record_child_hold	4	hold	record_child_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/engine/steps.rs crates/runx-runtime/src/execution/run_record.rs
 oss	resumed_hold	4	hold	resumed_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/engine/steps.rs
 oss	suspended_hold	4	hold	suspended_hold	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/engine/steps.rs
-oss	checkManagedAgentDefault	3	managed_agent	checkDriveDefault		scripts/check-runtime-architecture-boundaries.mjs scripts/runtime-architecture/system.mjs
 oss	closure_accumulators	3	closure	closure_accumulators	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	ClosureInspection	3	decided	ClosureInspection	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	packages/client/src/index.ts packages/client/src/inspection.ts
 oss	hasCanonicalClosure	3	decided	hasCanonicalClosure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	scripts/audit-core-skills.mjs
@@ -618,18 +598,8 @@ oss	inspect_method_closure_methods	3	closure	inspect_method_closure_methods	a pa
 oss	InspectedClosureBinding	3	decided	InspectedClosureBinding	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
 oss	into_local_closure	3	decided	into_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	is_governed_step_closure	3	closure	is_governed_step_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/engine.rs crates/runx-runtime/src/execution/engine/steps.rs
-oss	managed_agent_enabled	3	managed_agent	drive_enabled		crates/runx-runtime/src/execution/prepared_skill.rs
-oss	MANAGED_AGENT_MEETS	3	managed_agent	DRIVE_MEETS		crates/runx-runtime/src/adapters/managed_agent.rs
-oss	MANAGED_AGENT_REQUEST_TIMEOUT	3	managed_agent	DRIVE_REQUEST_TIMEOUT		crates/runx-runtime/src/http/mod.rs
-oss	managed_agent_resolution	3	managed_agent	drive_resolution		crates/runx-runtime/src/adapters/managed_agent.rs crates/runx-runtime/src/error.rs
-oss	ManagedAgentEmptyTurnBudgetExhausted	3	managed_agent	DriveEmptyTurnBudgetExhausted		crates/runx-contracts/src/receipt.rs crates/runx-runtime/src/adapters/agent_loop.rs
-oss	managedAgentPath	3	managed_agent	drivePath		scripts/runtime-architecture/system.mjs
-oss	ManagedAgentProviderFailed	3	managed_agent	DriveProviderFailed		crates/runx-contracts/src/receipt.rs crates/runx-runtime/src/adapters/agent_loop.rs
-oss	ManagedAgentResolutionFailed	3	managed_agent	DriveResolutionFailed		crates/runx-contracts/src/receipt.rs crates/runx-runtime/src/adapters/agent.rs
-oss	ManagedAgentToolExecutionFailed	3	managed_agent	DriveToolExecutionFailed		crates/runx-contracts/src/receipt.rs crates/runx-runtime/src/adapters/agent_loop.rs
 oss	MAX_CLOSURE_DEPTH	3	closure	MAX_CLOSURE_DEPTH	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_closure.rs
 oss	merge_local_closure	3	decided	merge_local_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection/closure.rs
-oss	normalize_managed_agent_provider	3	managed_agent	normalize_drive_provider		crates/runx-runtime/src/agent_config.rs crates/runx-runtime/src/config.rs
 oss	read_held_into	3	hold	read_held_into	a call wait or retained content: stays	crates/runx-runtime/src/execution/run_record.rs crates/runx-runtime/src/execution/run_record/claim.rs
 oss	serialize_closure	3	closure	serialize_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	test_runner	3	runner	test_runner	proptest's test_runner module: a test runner, outside runx: stays	crates/runx-contracts/src/canonical_json.rs
@@ -641,15 +611,12 @@ oss	ClosureNotFullyBound	2	closure	ClosureNotFullyBound	a package's closure, clo
 oss	from_copy_closure_with_captures	2	closure	from_copy_closure_with_captures	a package's closure, closure's one meaning	crates/runx-js-worker/src/engine/globals.rs crates/runx-js-worker/src/engine/script.rs
 oss	granted_closure	2	closure	granted_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/test/replay.rs
 oss	held_by_reference	2	hold	held_by_reference	a call wait or retained content: stays	crates/runx-runtime/src/execution/run_record.rs
+oss	held_locally	2	hold	held_locally	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation.rs crates/runx-runtime/src/kernel/operation/credentials.rs
 oss	held_projects	2	hold	held_projects	English, or a skill's own word: stays	crates/runx-runtime/src/execution/engine/turn.rs
 oss	held_types	2	hold	held_types	English, or a skill's own word: stays	crates/runx-contracts-derive/src/lib.rs
 oss	held-source	2	hold	held-source	English, or a skill's own word: stays	skills/github-pr-review/run.yaml
 oss	heldContext	2	hold	heldContext	English, or a skill's own word: stays	skills/github-pr-review/github-pr-review.mjs skills/github-pr-review/run.yaml
 oss	install_candidate_closure	2	closure	install_candidate_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/services/skill_packages/validation.rs
-oss	managed_agent_config_diagnostic	2	managed_agent	drive_config_diagnostic		crates/runx-cli/src/doctor.rs
-oss	managed-agent-workflow-failure	2	managed_agent	drive-workflow-failure		crates/runx-runtime/src/execution/skill_front/workflow.rs
-oss	managedAgentEnvNames	2	managed_agent	driveEnvNames		scripts/generate-rust-doctor-fixtures.ts
-oss	managedAgentSource	2	managed_agent	driveSource		scripts/runtime-architecture/system.mjs
 oss	not-the-closure	2	closure	not-the-closure	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
 oss	publish_closure	2	closure	publish_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry.rs
 oss	read_held	2	hold	read_held	a call wait or retained content: stays	crates/runx-runtime/src/execution/run_record.rs
@@ -660,7 +627,6 @@ oss	$RUNNER_OS	1	runner	$RUNNER_OS	GitHub's runner: stays	.github/actions/setup-
 oss	a_case_grant_refuses_a_connector_its_closure_carries_twice	1	closure	a_case_grant_refuses_a_connector_its_closure_carries_twice	a package's closure, closure's one meaning	crates/runx-cli/tests/registry.rs
 oss	a_changed_act_is_held_by_the_unsettled_attempt_of_another	1	hold	a_changed_act_is_held_by_the_unsettled_attempt_of_another	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/operation/tests.rs
 oss	a_child_run_holds_the_request_its_parent_step_waits_on	1	hold	a_child_run_holds_the_request_its_parent_step_waits_on	hold's one meaning, a run waiting on an unknown outcome (D34): the current word	crates/runx-runtime/src/execution/run_record/tests.rs
-oss	a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason	1	managed_agent	a_child_whose_driven_turn_fails_stops_its_parent_for_the_same_reason	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
 oss	a_closure_digest_leaves_runx_version_out	1	closure	a_closure_digest_leaves_runx_version_out	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/inspection/closure.rs
 oss	a_constraint_beside_a_reference_holds_with_its_target	1	hold	a_constraint_beside_a_reference_holds_with_its_target	English, or a skill's own word: stays	crates/runx-runtime/src/answer_schema.rs
 oss	a_directory_others_can_write_holds_no_private_file	1	hold	a_directory_others_can_write_holds_no_private_file	English, or a skill's own word: stays	crates/runx-runtime/src/private_file.rs
@@ -671,10 +637,6 @@ oss	a_hosted_credential_is_seeded_from_one_secret_holding_every_field	1	hold	a_h
 oss	a_lease_is_held_by_runx_alone	1	hold	a_lease_is_held_by_runx_alone	English, or a skill's own word: stays	crates/runx-parser/src/connector/tests.rs
 oss	a_lease_is_taken_from_the_answer_and_held_per_resource	1	hold	a_lease_is_taken_from_the_answer_and_held_per_resource	English, or a skill's own word: stays	crates/runx-parser/src/connector/tests.rs
 oss	a_load_binding_another_revision_of_a_held_connector_is_refused	1	hold	a_load_binding_another_revision_of_a_held_connector_is_refused	English, or a skill's own word: stays	crates/runx-runtime/src/execution/engine/step_handlers/load.rs
-oss	a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact	1	managed_agent	a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_artifact	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
-oss	a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_read	1	managed_agent	a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_read	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
-oss	a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact	1	managed_agent	a_driven_turn_at_a_loopback_endpoint_reads_a_local_only_artifact	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
-oss	a_managed_agent_reads_the_memory_its_run_is_given_by_locator	1	managed_agent	a_driven_turn_reads_the_memory_its_run_is_given_by_locator	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
 oss	a_model_key_held_by_a_manager_is_one_source_among_the_others	1	hold	a_model_key_held_by_a_manager_is_one_source_among_the_others	English, or a skill's own word: stays	crates/runx-runtime/tests/config.rs
 oss	a_model_key_variable_holding_a_reference_is_refused_not_sent	1	hold	a_model_key_variable_holding_a_reference_is_refused_not_sent	English, or a skill's own word: stays	crates/runx-runtime/tests/config.rs
 oss	a_namespace_holding_a_connector_and_surfaces_is_refused	1	hold	a_namespace_holding_a_connector_and_surfaces_is_refused	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/connectors/tests.rs
@@ -691,7 +653,6 @@ oss	a_statement_holds_from_its_issue_until_it_expires	1	hold	a_statement_holds_f
 oss	a_successful_answer_about_another_purchase_holds	1	hold	a_successful_answer_about_another_purchase_holds	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/purchase/tests.rs
 oss	a_tree_holds_at_most_its_receipt_count	1	hold	a_tree_holds_at_most_its_receipt_count	English, or a skill's own word: stays	crates/runx-receipts/src/tree/structural_tests.rs
 oss	a_tree_holds_its_root_and_descendants_only	1	hold	a_tree_holds_its_root_and_descendants_only	English, or a skill's own word: stays	crates/runx-runtime/src/kernel/store/tests.rs
-oss	a_turn_runxs_managed_agent_worked_leaves_an_eligible_source	1	managed_agent	a_turn_runx_drove_leaves_an_eligible_source	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
 oss	a_variable_holding_a_reference_is_refused_not_sent	1	hold	a_variable_holding_a_reference_is_refused_not_sent	English, or a skill's own word: stays	crates/runx-cli/tests/connector.rs
 oss	an_acts_legitimacy_names_a_term_the_authority_holds	1	hold	an_acts_legitimacy_names_a_term_the_authority_holds	English, or a skill's own word: stays	crates/runx-receipts/tests/receipt_contracts.rs
 oss	an_agent_step_declares_no_output_its_answer_holds_for_runx	1	hold	an_agent_step_declares_no_output_its_answer_holds_for_runx	English: an answer holds its fields	crates/runx-parser/tests/parser_step_kinds.rs
@@ -713,8 +674,6 @@ oss	closure_projects_transitive_environment_requirements	1	decided	closure_proje
 oss	closure_uses_validated_names_and_transitive_native_tools	1	decided	closure_uses_validated_names_and_transitive_native_tools	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/skill_package/inspection.rs
 oss	closure-bound	1	decided	closure-bound	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	docs/agent-skills.md
 oss	code-plan-invalid-phase-holds	1	hold	code-plan-invalid-phase-holds	English, or a skill's own word: stays	skills/code-plan/tests/code-plan-invalid-phase-holds.yaml
-oss	config_loads_the_managed_agent_key_from_its_one_source	1	managed_agent	config_loads_the_drive_key_from_its_one_source		crates/runx-runtime/tests/config.rs
-oss	configured_model_credentials_do_not_enable_managed_agent_without_run_consent	1	managed_agent	configured_model_credentials_do_not_enable_drive_without_run_consent		crates/runx-runtime/tests/skill_run.rs
 oss	conversation-review-holds-incomplete-thread	1	hold	conversation-review-holds-incomplete-thread	English, or a skill's own word: stays	skills/conversation-review/tests/conversation-review-holds-incomplete-thread.yaml
 oss	facts-to-qualified-fit-with-contact-hold	1	hold	facts-to-qualified-fit-with-contact-hold	English, or a skill's own word: stays	skills/lead-enrichment/tests/qualify.yaml
 oss	Graph	1	graph	?	a bare word: code or prose, read in place	skills/run-history/eval_queries.json
@@ -731,22 +690,10 @@ oss	holds-unknown-contact-policy	1	hold	holds-unknown-contact-policy	English, or
 oss	holds-weak-match	1	hold	holds-weak-match	English, or a skill's own word: stays	skills/lead-enrichment/tests/holds-weak-match.yaml
 oss	holds-work-for-a-different-bound-occurrence	1	hold	holds-work-for-a-different-bound-occurrence	English, or a skill's own word: stays	skills/attention-review/tests/holds-work-for-a-different-bound-occurrence.yaml
 oss	holds-wrong-entity	1	hold	holds-wrong-entity	English, or a skill's own word: stays	skills/lead-enrichment/tests/holds-wrong-entity.yaml
-oss	managed_agent_empty_turn_budget_exhausted	1	managed_agent	drive_empty_turn_budget_exhausted		crates/runx-contracts/src/receipt.rs
-oss	managed_agent_provider_failed	1	managed_agent	drive_provider_failed		crates/runx-contracts/src/receipt.rs
-oss	managed_agent_requires_explicit_consent_and_binds_round_budget	1	managed_agent	drive_requires_explicit_consent_and_binds_round_budget		crates/runx-cli/src/skill/parser.rs
-oss	managed_agent_resolution_failed	1	managed_agent	drive_resolution_failed		crates/runx-contracts/src/receipt.rs
-oss	managed_agent_round_budget_exhausted	1	managed_agent	drive_round_budget_exhausted		crates/runx-contracts/src/receipt.rs
-oss	managed_agent_rounds_need_explicit_managed_agent_consent	1	managed_agent	drive_rounds_need_explicit_drive_consent		crates/runx-cli/tests/router.rs
-oss	managed_agent_step_executes_governed_tool_round_trip	1	managed_agent	a_driven_turn_executes_a_governed_tool_round_trip	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
-oss	managed_agent_tool_execution_failed	1	managed_agent	drive_tool_execution_failed		crates/runx-contracts/src/receipt.rs
-oss	managed_agent_workflow_failure_is_typed_sealed_and_visible_in_history	1	managed_agent	a_driven_turns_failure_is_typed_sealed_and_visible_in_history	the driven turn (Kam, 17 November)	crates/runx-runtime/src/execution/skill_front/workflow.rs
-oss	managed-agent-intake	1	managed_agent	drive-intake	the driven turn (Kam, 17 November)	examples/managed-agent/SKILL.md
-oss	mcp_server_never_treats_configured_model_credentials_as_managed_agent_consent	1	managed_agent	mcp_server_never_treats_configured_model_credentials_as_drive_consent		crates/runx-runtime/tests/mcp_server.rs
 oss	mismatched-audit-is-held	1	hold	mismatched-audit-is-held	English, or a skill's own word: stays	skills/receipt-audit/tests/mismatched-audit-is-held.yaml
 oss	missing-source-holds	1	hold	missing-source-holds	English, or a skill's own word: stays	skills/skill-adopt/tests/missing-source-holds.yaml
 oss	missing-source-holds-before-authoring	1	hold	missing-source-holds-before-authoring	English, or a skill's own word: stays	skills/skill-adopt/tests/missing-source-holds.yaml
 oss	native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold	1	hold	native_workflow_skill_run_rejects_a_nested_registry_skill_the_project_does_not_hold	English, or a skill's own word: stays	crates/runx-runtime/tests/skill_run.rs
-oss	no-managed-agent	1	managed_agent	no-drive		docs/skill-quality-standard.md
 oss	offer_terms_name_the_lease_a_buyer_holds	1	hold	offer_terms_name_the_lease_a_buyer_holds	English, or a skill's own word: stays	crates/runx-contracts/src/paid_skill_listing.rs
 oss	only_the_runtime_holds_a_network_client	1	hold	only_the_runtime_holds_a_network_client	English, or a skill's own word: stays	crates/runx-cli/tests/locality.rs
 oss	open-graph	1	graph	open-graph	vuln-triage's dependency graph: stays	docs/core-skill-review.md
@@ -755,7 +702,6 @@ oss	packets_holds_only_packet_schemas	1	hold	packets_holds_only_packet_schemas	E
 oss	partial-source-holds	1	hold	partial-source-holds	English, or a skill's own word: stays	skills/skill-adopt/tests/partial-source-holds.yaml
 oss	partial-source-holds-before-authoring	1	hold	partial-source-holds-before-authoring	English, or a skill's own word: stays	skills/skill-adopt/tests/partial-source-holds.yaml
 oss	policy-held	1	hold	policy-held	English, or a skill's own word: stays	docs/core-skill-review.md
-oss	prepared_skill_binds_and_reports_managed_agent_consent	1	managed_agent	prepared_skill_binds_and_reports_drive_consent		crates/runx-runtime/src/execution/prepared_skill.rs
 oss	prepared_skill_rechecks_sibling_closure_at_execution_boundary	1	closure	prepared_skill_rechecks_sibling_closure_at_execution_boundary	a package's closure, closure's one meaning	crates/runx-runtime/src/execution/prepared_skill.rs
 oss	prepared_skill_rejects_closure_drift	1	decided	prepared_skill_rejects_closure_drift	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/execution/prepared_skill.rs
 oss	publish_test_preserves_local_sibling_closure	1	decided	publish_test_preserves_local_sibling_closure	a package's closure, closure's one meaning: a renamed name lands here (rename ruling 3)	crates/runx-runtime/src/registry/publish_package.rs
@@ -763,8 +709,6 @@ oss	records_a_host_holds_install_verified_and_a_run_reads_them	1	hold	records_a_
 oss	reddit-ineligible-target-held	1	hold	reddit-ineligible-target-held	English, or a skill's own word: stays	skills/reddit/tests/reddit-ineligible-target-held.yaml
 oss	reply-holds-incomplete-source-before-effect	1	hold	reply-holds-incomplete-source-before-effect	English, or a skill's own word: stays	skills/message-send/tests/reply-holds-incomplete-source-before-effect.yaml
 oss	resolves_the_one_publish_token_the_environment_and_login_hold	1	hold	resolves_the_one_publish_token_the_environment_and_login_hold	English, or a skill's own word: stays	crates/runx-cli/src/notarize_tests.rs
-oss	resume_managed_agent_requires_fresh_explicit_consent	1	managed_agent	resume_drive_requires_fresh_explicit_consent		crates/runx-cli/src/resume.rs
-oss	run_managed_agent_failure	1	managed_agent	run_drive_failure		crates/runx-runtime/src/execution/skill_front/workflow.rs
 oss	runx-publish-closure	1	closure	runx-publish-closure	a package's closure, closure's one meaning	crates/runx-runtime/src/registry/publish_closure.rs
 oss	runx-skill-inspect-registry-closure	1	closure	runx-skill-inspect-registry-closure	a package's closure, closure's one meaning	crates/runx-cli/tests/skill.rs
 oss	sealing_rejects_an_issuer_its_verifier_does_not_hold	1	hold	sealing_rejects_an_issuer_its_verifier_does_not_hold	English, or a skill's own word: stays	crates/runx-runtime/tests/receipt_signing.rs
@@ -775,12 +719,10 @@ oss	source_issue_closure_without_verification	1	closure	source_issue_closure_wit
 oss	stripe-dispute-holds-missing-fulfillment	1	hold	stripe-dispute-holds-missing-fulfillment	English, or a skill's own word: stays	skills/dispute-respond/tests/holds-missing-evidence.yaml
 oss	text_mode_carries_output_past_the_capture_limit_as_far_as_it_held	1	hold	text_mode_carries_output_past_the_capture_limit_as_far_as_it_held	English, or a skill's own word: stays	crates/runx-runtime/src/tool_catalogs/native/command/result.rs
 oss	the_agent_names_a_set_secret_and_config_never_holds_its_value	1	hold	the_agent_names_a_set_secret_and_config_never_holds_its_value	English, or a skill's own word: stays	crates/runx-cli/src/config.rs
+oss	the_drive_holds_up_as_its_operator_set_it	1	hold	the_drive_holds_up_as_its_operator_set_it	English, or a skill's own word: stays	crates/runx-runtime/tests/config.rs
 oss	the_floor_holds_a_process_start_on_its_exact_argv_and_reads_run_free	1	hold	the_floor_holds_a_process_start_on_its_exact_argv_and_reads_run_free	English, or a skill's own word: stays	crates/runx-runtime/tests/agent_turns.rs
 oss	the_floor_holds_a_skills_workflow_step_before_it_is_claimed	1	hold	the_floor_holds_a_skills_workflow_step_before_it_is_claimed	English, or a skill's own word: stays	crates/runx-runtime/tests/agent_turns.rs
 oss	the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff	1	hold	the_floor_holds_an_agents_edit_until_the_person_approves_its_exact_diff	English, or a skill's own word: stays	crates/runx-runtime/tests/agent_turns.rs
-oss	the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance	1	managed_agent	a_driven_turn_calls_the_method_it_loads_and_reads_its_manual_as_guidance	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
-oss	the_managed_agent_meets_a_fresh_context_and_refuses_what_it_cannot	1	managed_agent	a_driven_turn_meets_a_fresh_context_and_refuses_what_it_cannot	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
-oss	the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill	1	managed_agent	runx_drives_the_turn_its_own_call_opens_in_a_child_skill	the driven turn (Kam, 17 November)	crates/runx-runtime/tests/managed_chat_completions.rs
 oss	the_run_record_holds_each_step_contract_and_never_its_ephemeral_overlay	1	hold	the_run_record_holds_each_step_contract_and_never_its_ephemeral_overlay	English, or a skill's own word: stays	crates/runx-runtime/src/execution/engine.rs
 oss	trust_recorded_in_a_home_holds_for_the_same_closure_from_another_workspace	1	hold,closure	trust_recorded_in_a_home_holds_for_the_same_closure_from_another_workspace	English, or a skill's own word: stays; a package's closure, or English: stays	crates/runx-runtime/tests/turn_trust.rs
 oss	version_listings_page_by_cursor_and_hold_to_their_contract	1	hold	version_listings_page_by_cursor_and_hold_to_their_contract	English, or a skill's own word: stays	crates/runx-runtime/tests/registry_client.rs
@@ -789,6 +731,7 @@ oss	wrong-closure	1	closure	wrong-closure	a package's closure, closure's one mea
 oss	$held	0	hold	?	a bare word: code or prose, read in place	
 oss	a_candidates_harness_reads_its_registry_children_from_the_operators_registry	0	harness	a_candidates_test_reads_its_registry_children_from_the_operators_registry	the test sense	
 oss	a_child_skill_runs_the_runner_its_parent_admitted	0	runner	a_child_skill_runs_the_method_its_parent_admitted		
+oss	a_child_whose_managed_agent_fails_stops_its_parent_for_the_same_reason	0	managed_agent	a_child_whose_driven_turn_fails_stops_its_parent_for_the_same_reason	the driven turn (Kam, 17 November)	
 oss	a_composed_runner_returns_its_steps_not_runner_outputs	0	runner	a_composed_method_returns_its_steps_not_method_outputs		
 oss	a_connector_whose_credential_only_connect_holds_takes_its_hosted_placement	0	hold	a_connector_whose_credential_only_connect_leases_takes_its_hosted_placement	the lease family	
 oss	a_credential_with_a_local_home_stays_local_though_connect_could_hold_it	0	hold	a_credential_with_a_local_home_stays_local_though_connect_could_lease_it	the lease family	
@@ -798,6 +741,10 @@ oss	a_graph_outside_a_skill_allows_nothing	0	graph	a_workflow_outside_a_skill_al
 oss	a_harness_case_works_a_turn_call_by_call	0	harness	a_test_case_works_a_turn_call_by_call	the test sense	
 oss	a_held_value_never_reaches_the_call_s_result	0	hold	a_leased_value_never_reaches_the_call_s_result	the lease family	
 oss	a_hosted_declared_write_sends_the_purchase_connect_holds	0	hold	a_hosted_declared_write_sends_the_purchase_connect_leases	the lease family	
+oss	a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_artifact	0	managed_agent	a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_artifact	the driven turn (Kam, 17 November)	
+oss	a_managed_agent_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_read	0	managed_agent	a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_read	the driven turn (Kam, 17 November)	
+oss	a_managed_agent_at_a_loopback_endpoint_reads_a_local_only_artifact	0	managed_agent	a_driven_turn_at_a_loopback_endpoint_reads_a_local_only_artifact	the driven turn (Kam, 17 November)	
+oss	a_managed_agent_reads_the_memory_its_run_is_given_by_locator	0	managed_agent	a_driven_turn_reads_the_memory_its_run_is_given_by_locator	the driven turn (Kam, 17 November)	
 oss	a_one_turn_runner_hands_its_agent_the_run_inputs	0	runner	a_one_turn_method_hands_its_agent_the_run_inputs		
 oss	a_paused_graph_reads_its_original_snapshot_after_process_exit	0	graph	a_paused_workflow_reads_its_original_snapshot_after_process_exit		
 oss	a_purchase_credential_is_held_by_runx_alone	0	hold	a_purchase_credential_is_leased_by_runx_alone	the lease family	
@@ -813,6 +760,7 @@ oss	a_skill_of_several_runners_is_read_without_trust_and_binds_the_runner_named	
 oss	a_skill_whose_harness_grants_a_plugin_connector_publishes	0	harness	a_skill_whose_test_grants_a_plugin_connector_publishes	the test sense	
 oss	a_take_answers_the_hold_s_evidence_in_place_of_what_it_holds	0	hold	a_take_answers_the_lease_s_evidence_in_place_of_what_it_leases	the lease family	
 oss	a_take_holds_nothing_from_an_error_or_an_answer_without_its_fields	0	hold	a_take_leases_nothing_from_an_error_or_an_answer_without_its_fields	the lease family	
+oss	a_turn_runxs_managed_agent_worked_leaves_an_eligible_source	0	managed_agent	a_turn_runx_drove_leaves_an_eligible_source	the driven turn (Kam, 17 November)	
 oss	add_inline_harness_case	0	harness	add_inline_test_case	the test sense	
 oss	admits_request_sensitive_harness_http_exchanges	0	harness	admits_request_sensitive_test_http_exchanges	the test sense	
 oss	admitted_artifact_pages_run_through_real_store_open_and_child_graphs	0	graph	admitted_artifact_pages_run_through_real_store_open_and_child_workflows		
@@ -826,6 +774,7 @@ oss	agent_act_invocation_corpus	0	agent_act	turn_invocation_corpus
 oss	agent_act_resolution_request	0	agent_act	turn_resolution_request		
 oss	agent_acts	0	decided	turns	the count of turns: an agent's unit of work is its turn; an act is what a call is told to do (the coordinator's ruling on agent act, 10 November)	
 oss	agent_graph	0	graph	agent_workflow		
+oss	agent_turns	0	decided	agent_turns	a renamed name lands here: an agent's unit of work is its turn; an act is what a call is told to do (the coordinator's ruling on agent act, 10 November)	
 oss	agent-act	0	agent_act	turn-invocation	the contracts module of the turn invocation's schema; turn.ts holds the turn's calls	
 oss	agent-act-invocation	0	agent_act	turn-invocation	the turn invocation's schema file, as its $id names it (vocabulary §4.2, turn)	
 oss	agent-session	0	agent_session	agent	the plan's name	
@@ -893,6 +842,7 @@ oss	CatalogRunnerContract	0	runner	CatalogMethodContract
 oss	charge-composes-in-graph	0	graph	charge-composes-in-workflow		
 oss	check-inline-harness-summary-snapshot	0	harness	check-inline-test-summary-snapshot	the test sense	
 oss	check-runtime-perf-harness	0	harness	check-runtime-perf-test	the test sense	
+oss	checkManagedAgentDefault	0	managed_agent	checkDriveDefault		
 oss	child_graph	0	graph	child_workflow		
 oss	child_policy_graph	0	graph	child_policy_workflow		
 oss	claims_graph	0	graph	claims_workflow		
@@ -914,7 +864,9 @@ oss	complete_graph	0	graph	complete_workflow
 oss	complete_runner_rejects_missing_required_and_conditional_nested_values	0	runner	complete_method_rejects_missing_required_and_conditional_nested_values		
 oss	composed_reuse_harness	0	harness	composed_reuse_test	the test sense	
 oss	composes-in-graph	0	graph	composes-in-workflow		
+oss	config_loads_the_managed_agent_key_from_its_one_source	0	managed_agent	config_loads_the_drive_key_from_its_one_source		
 oss	configured_model_credentials_do_not_enable_graph_agent_without_run_consent	0	graph	configured_model_credentials_do_not_enable_workflow_agent_without_run_consent		
+oss	configured_model_credentials_do_not_enable_managed_agent_without_run_consent	0	managed_agent	configured_model_credentials_do_not_enable_drive_without_run_consent		
 oss	ConflictingRunnerManifest	0	runner	ConflictingMethodManifest		
 oss	contact-consent-review-composes-in-graph	0	graph	contact-consent-review-composes-in-workflow		
 oss	content-package-composes-in-graph	0	graph	content-package-composes-in-workflow		
@@ -933,6 +885,7 @@ oss	credential_graph	0	graph	credential_workflow
 oss	crm-update-plan-composes-in-graph	0	graph	crm-update-plan-composes-in-workflow		
 oss	declared_runner_packet_ids	0	runner	declared_method_packet_ids		
 oss	DeclaredHold	0	hold	DeclaredLease	the lease family	
+oss	DEFAULT_MANAGED_AGENT_MAX_ROUNDS	0	managed_agent	DEFAULT_DRIVE_MAX_ROUNDS		
 oss	default_runner	0	runner	default_method		
 oss	default_runner_is_planning_only	0	runner	default_method_is_planning_only		
 oss	defaultRunner	0	runner	defaultMethod		
@@ -941,6 +894,8 @@ oss	diagnose-skill-run-composes-in-graph	0	graph	diagnose-skill-run-composes-in-
 oss	diagnose-skill-run-passes-on-paused-graph	0	graph	diagnose-skill-run-passes-on-paused-workflow		
 oss	DIGEST_RUNNER	0	runner	DIGEST_METHOD		
 oss	discover_skill_and_graph_list_items	0	graph	discover_skill_and_workflow_list_items		
+oss	drive	0		drive	the verb and `--drive`, the one thing the rename names: runx driving a turn	
+oss	Drive	0		Drive	the verb, which the rename makes the name of runx driving a turn: one thing	
 oss	ecosystem-composes-in-graph	0	graph	ecosystem-composes-in-workflow		
 oss	empty_package_harness_remains_not_declared	0	harness	empty_package_test_remains_not_declared	the test sense	
 oss	env_shim_process_parts_turns_portable_runner_into_windows_command	0	runner	env_shim_process_parts_turns_portable_method_into_windows_command		
@@ -991,6 +946,7 @@ oss	fixture_selects_runner	0	runner	fixture_selects_method
 oss	fixture_sequential_create_graph	0	graph	fixture_sequential_create_workflow		
 oss	fixture-runner	0	runner	fixture-evaluator	the kernel fixture evaluation (rename ruling 6)	
 oss	focused_harness	0	harness	focused_test	the test sense	
+oss	for_managed_agent	0	managed_agent	for_drive		
 oss	from_graph	0	graph	from_workflow		
 oss	generate_harness_spine_fixtures	0	harness	generate_run_spine_fixtures	the run sense	
 oss	generate-rust-harness-fixtures	0	harness	generate-rust-test-fixtures	the test sense	
@@ -1325,6 +1281,7 @@ oss	list_marks_a_graph_stage_internal_with_its_own_description	0	graph	list_mark
 oss	list-graph-stage	0	graph	list-workflow-stage		
 oss	load_harness_case	0	harness	load_test_case	the test sense	
 oss	load_harness_fixture	0	harness	load_test_fixture	the test sense	
+oss	load_managed_agent_config	0	managed_agent	load_drive_config		
 oss	LoadedRunner	0	runner	LoadedMethod		
 oss	LoadedRunnerContract	0	runner	LoadedMethodContract		
 oss	LoadedRunnerInput	0	runner	LoadedMethodInput		
@@ -1340,10 +1297,47 @@ oss	LocalExecutionClosure	0	closure	LocalClosure	closure is the one name for a p
 oss	loop-harness-refusal	0	harness	loop-test-refusal	the test sense	
 oss	loop-harness-success	0	harness	loop-test-success	the test sense	
 oss	malformed-state-runner-error	0	runner	malformed-state-evaluation-error	the kernel fixture evaluation (rename ruling 6)	
+oss	managed_agent	0	managed_agent	drive		
 oss	managed_agent_acts	0	decided	agent_turns	the count of turns: an agent's unit of work is its turn; an act is what a call is told to do (the coordinator's ruling on agent act, 10 November)	
+oss	managed_agent_config_diagnostic	0	managed_agent	drive_config_diagnostic		
+oss	managed_agent_empty_turn_budget_exhausted	0	managed_agent	drive_empty_turn_budget_exhausted		
+oss	managed_agent_enabled	0	managed_agent	drive_enabled		
+oss	managed_agent_env	0	managed_agent	drive_env		
 oss	managed_agent_graph_failure_is_typed_sealed_and_visible_in_history	0	graph	managed_agent_workflow_failure_is_typed_sealed_and_visible_in_history		
-oss	agent_turns	0	decided	agent_turns	a renamed name lands here: an agent's unit of work is its turn; an act is what a call is told to do (the coordinator's ruling on agent act, 10 November)	
+oss	managed_agent_max_rounds	0	managed_agent	drive_max_rounds		
+oss	MANAGED_AGENT_MAX_ROUNDS_LIMIT	0	managed_agent	DRIVE_MAX_ROUNDS_LIMIT		
+oss	MANAGED_AGENT_MEETS	0	managed_agent	DRIVE_MEETS		
+oss	managed_agent_policy	0	managed_agent	drive_policy		
+oss	managed_agent_provider_failed	0	managed_agent	drive_provider_failed		
+oss	MANAGED_AGENT_REQUEST_TIMEOUT	0	managed_agent	DRIVE_REQUEST_TIMEOUT		
+oss	managed_agent_requires_explicit_consent_and_binds_round_budget	0	managed_agent	drive_requires_explicit_consent_and_binds_round_budget		
+oss	managed_agent_resolution	0	managed_agent	drive_resolution		
+oss	managed_agent_resolution_failed	0	managed_agent	drive_resolution_failed		
+oss	managed_agent_round_budget_exhausted	0	managed_agent	drive_round_budget_exhausted		
+oss	managed_agent_rounds	0	managed_agent	drive_rounds		
+oss	managed_agent_rounds_need_explicit_managed_agent_consent	0	managed_agent	drive_rounds_need_explicit_drive_consent		
+oss	managed_agent_step_executes_governed_tool_round_trip	0	managed_agent	a_driven_turn_executes_a_governed_tool_round_trip	the driven turn (Kam, 17 November)	
+oss	managed_agent_tool_execution_failed	0	managed_agent	drive_tool_execution_failed		
+oss	managed_agent_workflow_failure_is_typed_sealed_and_visible_in_history	0	managed_agent	a_driven_turns_failure_is_typed_sealed_and_visible_in_history	the driven turn (Kam, 17 November)	
+oss	managed-agent	0	managed_agent	drive		
+oss	Managed-agent	0	managed_agent	Drive		
 oss	managed-agent-graph-failure	0	graph	managed-agent-workflow-failure		
+oss	managed-agent-intake	0	managed_agent	drive-intake	the driven turn (Kam, 17 November)	
+oss	managed-agent-workflow-failure	0	managed_agent	drive-workflow-failure		
+oss	ManagedAgent	0	managed_agent	Drive		
+oss	ManagedAgentAuthMode	0	managed_agent	DriveAuthMode		
+oss	ManagedAgentConfig	0	managed_agent	DriveConfig		
+oss	ManagedAgentEmptyTurnBudgetExhausted	0	managed_agent	DriveEmptyTurnBudgetExhausted		
+oss	managedAgentEnvNames	0	managed_agent	driveEnvNames		
+oss	ManagedAgentError	0	managed_agent	DriveError		
+oss	managedAgentPath	0	managed_agent	drivePath		
+oss	ManagedAgentPolicy	0	managed_agent	DrivePolicy		
+oss	ManagedAgentProviderFailed	0	managed_agent	DriveProviderFailed		
+oss	ManagedAgentResolution	0	managed_agent	DriveResolution		
+oss	ManagedAgentResolutionFailed	0	managed_agent	DriveResolutionFailed		
+oss	ManagedAgentRoundBudgetExhausted	0	managed_agent	DriveRoundBudgetExhausted		
+oss	managedAgentSource	0	managed_agent	driveSource		
+oss	ManagedAgentToolExecutionFailed	0	managed_agent	DriveToolExecutionFailed		
 oss	marketplace_paid_and_free_runners_share_one_manifest	0	runner	marketplace_paid_and_free_methods_share_one_manifest		
 oss	marketplace_rejects_undeclared_runner_and_unknown_rail_fields	0	runner	marketplace_rejects_undeclared_method_and_unknown_rail_fields		
 oss	materialize_complete_runner_inputs	0	runner	materialize_complete_method_inputs		
@@ -1352,6 +1346,7 @@ oss	materialize_present_runner_inputs	0	runner	materialize_present_method_inputs
 oss	max_cost_micro	0		max_spend_micro_usd	the authority's spend ceiling, in micro-USD (authority.md)	
 oss	mcp_runner_error	0	runner	mcp_method_error		
 oss	mcp_server_graph_approval_pauses_with_request	0	graph	mcp_server_workflow_approval_pauses_with_request		
+oss	mcp_server_never_treats_configured_model_credentials_as_managed_agent_consent	0	managed_agent	mcp_server_never_treats_configured_model_credentials_as_drive_consent		
 oss	mcp-approval-graph	0	graph	mcp-approval-workflow		
 oss	memory_holds_across_the_horizon	0	hold	memory_holds_across_the_horizon	a call wait or retained content: stays	
 oss	merge_local_execution_closure	0	closure	merge_local_closure	closure is the one name for a package's closure (rename ruling 3)	
@@ -1407,6 +1402,8 @@ oss	nested-graph	0	graph	nested-workflow
 oss	NestedGraph	0	graph	NestedWorkflow		
 oss	next_harness_checks	0	harness	next_test_checks	the test sense	
 oss	nnext_harness_checks	0	harness	nnext_test_checks	the test sense	
+oss	no-managed-agent	0	managed_agent	no-drive		
+oss	normalize_managed_agent_provider	0	managed_agent	normalize_drive_provider		
 oss	nws-weather-composes-in-graph	0	graph	nws-weather-composes-in-workflow		
 oss	offer_terms_name_what_a_runner_acts_on	0	runner	offer_terms_name_what_a_method_acts_on		
 oss	omits_multi_runner_skill_without_default	0	runner	omits_multi_method_skill_without_default		
@@ -1457,6 +1454,7 @@ oss	PaidSkillRunnerOfferContract	0	runner	PaidSkillMethodOfferContract
 oss	parse_harness_caller	0	harness	parse_test_caller	the test sense	
 oss	parse_harness_expectation	0	harness	parse_test_expectation	the test sense	
 oss	parse_harness_fixture	0	harness	parse_test_fixture	the test sense	
+oss	parse_managed_agent_rounds	0	managed_agent	parse_drive_rounds		
 oss	parse_runner_examples	0	runner	parse_method_examples		
 oss	parse_runner_manifest_yaml	0	runner	parse_method_manifest_yaml		
 oss	ParseGraph	0	graph	ParseWorkflow		
@@ -1481,6 +1479,7 @@ oss	positional_runner_without_inputs_executes_runner	0	runner	positional_method_
 oss	postmortem-draft-composes-in-graph	0	graph	postmortem-draft-composes-in-workflow		
 oss	prepared_governance_consumes_typed_graph_step_contract	0	graph	prepared_governance_consumes_typed_workflow_step_contract		
 oss	prepared_governance_includes_terminal_runner_scopes	0	runner	prepared_governance_includes_terminal_method_scopes		
+oss	prepared_skill_binds_and_reports_managed_agent_consent	0	managed_agent	prepared_skill_binds_and_reports_drive_consent		
 oss	prepared_skill_rejects_execution_closure_drift	0	closure	prepared_skill_rejects_closure_drift	closure is the one name for a package's closure (rename ruling 3)	
 oss	prior-art-composes-in-graph	0	graph	prior-art-composes-in-workflow		
 oss	privacy-request-review-composes-in-graph	0	graph	privacy-request-review-composes-in-workflow		
@@ -1539,6 +1538,7 @@ oss	research-composes-in-graph	0	graph	research-composes-in-workflow
 oss	resolution-agent-act-request	0	agent_act	resolution-turn-request	the host protocol fixture of a turn's resolution request	
 oss	resolution-turn-request	0	decided	resolution-turn-request	a renamed name lands here: the turn invocation	
 oss	resolve_runner	0	runner	resolve_method		
+oss	resume_managed_agent_requires_fresh_explicit_consent	0	managed_agent	resume_drive_requires_fresh_explicit_consent		
 oss	review-to-advisory-in-open-graph	0	graph	review-to-advisory-in-open-workflow		
 oss	revoke_holding	0	hold	revoke_lease	the lease family	
 oss	root_runner	0	runner	root_method		
@@ -1557,6 +1557,7 @@ oss	run_harness_case_with_adapter	0	harness	run_test_case_with_adapter	the test 
 oss	run_harness_fixture	0	harness	run_test_fixture	the test sense	
 oss	run_harness_fixture_with_adapter	0	harness	run_test_fixture_with_adapter	the test sense	
 oss	run_hello_graph_parity	0	graph	run_hello_workflow_parity		
+oss	run_managed_agent_failure	0	managed_agent	run_drive_failure		
 oss	run_native_harness	0	harness	run_native_test	the test sense	
 oss	run_nested_graph_skill_step	0	graph	run_nested_workflow_skill_step		
 oss	run_package_harness	0	harness	run_package_test	the test sense	
@@ -1764,7 +1765,10 @@ oss	test-graph	0	graph	test-workflow
 oss	the_executable_adapter_refuses_an_agent_act	0	agent_act	the_executable_adapter_refuses_an_turn		
 oss	the_floor_holds_a_skills_graph_step_before_it_is_claimed	0	hold,graph	the_floor_holds_a_skills_workflow_step_before_it_is_claimed	English, or a skill's own word: stays	
 oss	the_isolated_harness_carries_the_registry_selection_and_nothing_else	0	harness	the_isolated_test_carries_the_registry_selection_and_nothing_else	the test sense	
+oss	the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance	0	managed_agent	a_driven_turn_calls_the_method_it_loads_and_reads_its_manual_as_guidance	the driven turn (Kam, 17 November)	
 oss	the_managed_agent_calls_the_runner_it_loads_and_reads_its_manual_as_guidance	0	runner	the_managed_agent_calls_the_method_it_loads_and_reads_its_manual_as_guidance		
+oss	the_managed_agent_meets_a_fresh_context_and_refuses_what_it_cannot	0	managed_agent	a_driven_turn_meets_a_fresh_context_and_refuses_what_it_cannot	the driven turn (Kam, 17 November)	
+oss	the_managed_agent_works_the_turn_its_own_call_opens_in_a_child_skill	0	managed_agent	runx_drives_the_turn_its_own_call_opens_in_a_child_skill	the driven turn (Kam, 17 November)	
 oss	throughput_graph	0	graph	throughput_workflow		
 oss	tool_runner	0	runner	tool_method	the method a server's tool name carries	
 oss	tool_source_closure	0	closure	tool_source_closure	a package's closure, closure's one meaning	
@@ -1866,5 +1870,3 @@ oss	write_skill_with_runner_inputs	0	runner	write_skill_with_method_inputs
 oss	writes_runner_manifest	0	runner	writes_method_manifest		
 runx-action	runner	5	runner	?	a bare word: code or prose, read in place	.github/workflows/smoke.yml README.md
 runx-action	$RUNNER_TEMP	4	runner	$RUNNER_TEMP	another runner: stays	.github/workflows/smoke.yml
-oss	drive	0		drive	the verb and `--drive`, the one thing the rename names: runx driving a turn	
-oss	Drive	0		Drive	the verb, which the rename makes the name of runx driving a turn: one thing	

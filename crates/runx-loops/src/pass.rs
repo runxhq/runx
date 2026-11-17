@@ -302,7 +302,7 @@ impl Loops {
         Ok(self
             .inbox_after(name, state.position, limit, u64::MAX)?
             .iter()
-            .any(|(version, event)| is_persons(event) && Some(*version) > state.held_through))
+            .any(|(version, event)| is_persons(event) && Some(*version) > state.retry_through))
     }
 
     /// When something of the loop is next due.
@@ -352,7 +352,7 @@ impl Loops {
         // since the batch that failed.
         let asked = events
             .iter()
-            .any(|(version, event)| is_persons(event) && Some(*version) > state.held_through);
+            .any(|(version, event)| is_persons(event) && Some(*version) > state.retry_through);
         if !asked && state.retry_at.is_some_and(|retry| retry > now) {
             return Ok(());
         }
@@ -1139,7 +1139,7 @@ impl Loops {
                 "loop {name} isn't paused: nothing to skip"
             )));
         };
-        let through = state.held_through.unwrap_or(state.position);
+        let through = state.retry_through.unwrap_or(state.position);
         self.commit(
             name,
             &state,

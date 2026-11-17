@@ -140,9 +140,9 @@ pub struct LoopState {
     /// Wakes in a row whose model was unavailable, which space the next try;
     /// a wake that answers or is closed clears them.
     pub outages: u32,
-    /// The end of the batch a wake that didn't move the loop held, which a
-    /// person's skip moves past.
-    pub held_through: Option<u64>,
+    /// The end of the batch the next try takes up: a wake that didn't move
+    /// the loop leaves it, and a person's skip moves past it.
+    pub retry_through: Option<u64>,
     pub last: Option<Last>,
     /// When a run last settled with an answer of its own.
     pub last_answered_at: Option<String>,
@@ -278,9 +278,9 @@ impl LoopState {
                         self.failures = 0;
                         self.outages = 0;
                         self.retry_at = None;
-                        self.held_through = None;
+                        self.retry_through = None;
                     } else {
-                        self.held_through = Some(live.through);
+                        self.retry_through = Some(live.through);
                         match ending {
                             Ending::Failed { .. } => {
                                 self.failures += 1;
@@ -403,7 +403,7 @@ impl LoopState {
             }
             RecordEvent::Skipped { through, .. } => {
                 self.position = self.position.max(*through);
-                self.held_through = None;
+                self.retry_through = None;
                 self.failures = 0;
                 self.retry_at = None;
             }
