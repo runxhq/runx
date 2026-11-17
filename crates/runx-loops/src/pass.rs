@@ -1106,6 +1106,30 @@ impl Loops {
         by: &str,
         now: DateTime<Utc>,
     ) -> Result<RunResult, LoopError> {
+        // Every check is made on the record the start commits at: one that
+        // moved under the decision, another start among what moved it, is
+        // decided again from what's there.
+        for _ in 0..PERSON_RUN_TRIES {
+            if let Some(result) = self.try_person_run(name, method, &given, by, now)? {
+                return Ok(result);
+            }
+        }
+        Err(LoopError::Refused(format!(
+            "{name}'s record kept moving while {method} was being started; try again"
+        )))
+    }
+
+    /// One decision to start, or open, the person's run of `method`, made on
+    /// one reading of the record and committed at its version. None when the
+    /// record moved under it.
+    fn try_person_run(
+        &self,
+        name: &LoopName,
+        method: &str,
+        given: &Map<String, Value>,
+        by: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<RunResult>, LoopError> {
         // One that ended since is settled first, so it isn't taken as open.
         let mut state = self.read(name)?;
         self.settle_people(name, &mut state, now, &mut Passed::default())?;
@@ -1130,7 +1154,7 @@ impl Loops {
             .filter(|(key, _)| declared.contains(key.as_str()))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect::<Map<_, _>>();
-        inputs.extend(given);
+        inputs.extend(given.clone());
         if let Some(live) = state.people.get(method) {
             // The live one, opened where it waits.
             return self
@@ -1141,8 +1165,28 @@ impl Loops {
                     None,
                     None,
                 )
+                .map(Some)
                 .map_err(|error| LoopError::Runtime(error.to_string()));
         }
+        let Some(revision) = state.active.clone() else {
+            // A loop that isn't ready keeps its file's revision first, and
+            // the start is decided again on the record that holds it.
+            let bytes = self
+                .written(name)?
+                .ok_or_else(|| LoopError::Unknown(name.to_string()))?
+                .bytes;
+            self.commit(
+                name,
+                &state,
+                &[RecordEvent::Revision {
+                    digest: digest(bytes.as_bytes()),
+                    bytes,
+                    at: stamp(now),
+                }],
+                None,
+            )?;
+            return Ok(None);
+        };
         let day = file.day_zone().day_of(now);
         let reserved = state.left_today(file.policy.spend.per_day_micro_usd(), &day);
         let authority = self
@@ -1150,29 +1194,6 @@ impl Loops {
             .map_err(LoopError::Refused)?;
         let run = runx_runtime::run_record::mint_run_id(&file.calls.skill)
             .map_err(|error| LoopError::Runtime(error.to_string()))?;
-        let revision = match &state.active {
-            Some(active) => active.clone(),
-            None => {
-                // A loop that isn't ready keeps its file's revision first.
-                let bytes = self
-                    .written(name)?
-                    .ok_or_else(|| LoopError::Unknown(name.to_string()))?
-                    .bytes;
-                let revision = digest(bytes.as_bytes());
-                self.commit(
-                    name,
-                    &state,
-                    &[RecordEvent::Revision {
-                        digest: revision.clone(),
-                        bytes,
-                        at: stamp(now),
-                    }],
-                    None,
-                )?;
-                revision
-            }
-        };
-        let state = self.read(name)?;
         let ran = RecordEvent::Ran {
             run: run.clone(),
             method: method.to_owned(),
@@ -1199,14 +1220,19 @@ impl Loops {
                 .collect(),
         };
         let scope = StreamScope::new(&bound.owner, name.as_str()).map_err(LoopError::Invalid)?;
-        let result = self
+        let started = self
             .orchestrator
-            .run_claimed(&request, Some(method), (claim, Some(scope)))
-            .map_err(|error| LoopError::Runtime(error.to_string()))?;
-        let mut state = self.read(name)?;
+            .run_claimed(&request, Some(method), (claim, Some(scope)));
+        let mut after = self.read(name)?;
+        let ours = after.people.get(method).is_some_and(|live| live.run == run);
+        let result = match started {
+            // The record moved before the claim committed: no run started.
+            Err(_) if !ours && after.version != state.version => return Ok(None),
+            started => started.map_err(|error| LoopError::Runtime(error.to_string()))?,
+        };
         let mut passed = Passed::default();
-        self.settle_people(name, &mut state, now, &mut passed)?;
-        Ok(result)
+        self.settle_people(name, &mut after, now, &mut passed)?;
+        Ok(Some(result))
     }
 
     /// The package a loop's `calls` names, as a run resolves it.
@@ -1214,6 +1240,9 @@ impl Loops {
         self.bind(calls).map(|bound| bound.skill_path)
     }
 }
+
+/// How often a person's start is decided again on a record that keeps moving.
+const PERSON_RUN_TRIES: u32 = 4;
 
 /// Whether `event` is the person's own: their "run now" or a message.
 fn is_persons(event: &InboxEvent) -> bool {
