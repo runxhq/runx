@@ -76,6 +76,12 @@ methods:
         minLength: 1
         maxLength: 512
         optional: true
+      replying_to:
+        type: string
+        description: The message this draft answers, as its writer wrote it, with who wrote it and when. The writing turn reads it to answer it. It's never evidence, so nothing it states, a number included, is a claim the draft may make.
+        minLength: 1
+        maxLength: 8000
+        optional: true
     result_from:
       - reject
       - finalize
@@ -238,6 +244,7 @@ methods:
           audience: $input.audience
           channel: $input.channel
           voice_guide: $input.voice_guide
+          replying_to: $input.replying_to
           evidence_context: $steps.admit.evidence_context
           evidence_pack: $input.evidence_pack
           brand_context: $input.brand_context

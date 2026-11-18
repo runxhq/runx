@@ -76,6 +76,10 @@ connector.
   the writer what's already known, such as what someone has said before, and
   it's never evidence: a claim cites only admitted sources, so a fact from
   memory a draft may state has to come in among its `facts`.
+- `replying_to`, optional, is the message a reply answers, with who wrote it
+  and when. The writer reads it to answer it, and it's never evidence: what it
+  claims isn't the sender's to vouch for, so a number only it holds withholds
+  the draft.
 - `verify` takes the evidence context `admit` returned and the candidate draft
   written from it. The admitted context, not the candidate, is the authority
   for source digests and context rules.
@@ -121,6 +125,11 @@ record each exact packet digest and only rules actually applied. Return
 add publication state, provider claims, or facts absent from the evidence.
 Respect each context's applicability, structured profile and stop conditions.
 Profile examples guide style; they are not evidence for new factual claims.
+
+When `replying_to` is given, it's the message you answer: answer what it asks
+and says. It isn't evidence. Never state what it claims as a fact, and never
+repeat a number from it, because its writer's words aren't the sender's to
+vouch for.
 
 Memory entries in your context say what's already known: what the person has
 said before, what they asked, what was agreed. Use them to judge, for example
