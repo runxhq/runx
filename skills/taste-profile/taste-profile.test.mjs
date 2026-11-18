@@ -99,3 +99,11 @@ test("a context remains held when its distinguishing source requirement is missi
   }).evidence_index;
   assert.equal(result.decision, "needs_more_evidence");
 });
+
+test("one rule the person stated is a profile of that rule; one example alone is no pattern", () => {
+  const one = (kind) => indexEvidence({ subject: "maintainer", evidence: [{ kind, content: "Never use exclamation marks." }] }).evidence_index;
+  assert.equal(one("instruction").decision, "ready");
+  assert.deepEqual(one("instruction").blockers, []);
+  assert.equal(one("liked").decision, "needs_more_evidence");
+  assert.deepEqual(one("liked").blockers, ["at least two evidence items are required, or one explicit instruction"]);
+});

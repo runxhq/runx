@@ -52,7 +52,8 @@ their own evidence.
 
 - `subject` names whose taste is being modeled.
 - `evidence` supplies at least two typed examples or explicit statements with
-  enough provenance to distinguish them.
+  enough provenance to distinguish them, or one explicit instruction, which
+  is a profile of that one rule.
 - `surface`, `audience`, and `constraints` define where the guidance applies.
 
 The result is a `runx/taste-profile.context.v1` packet containing scope,
@@ -104,7 +105,9 @@ its provenance and intended scope. This is a selected-example analysis: up to
 material upstream and select relevant examples for this channel/surface; do not
 claim that an omitted archive was analyzed.
 
-At least two records are required. Return `taste_profile_draft` with `decision`,
+At least two records are required, or one explicit instruction, which makes a
+profile of that rule alone: its decision rule, bound to it, and nothing
+inferred beyond it. Return `taste_profile_draft` with `decision`,
 the unchanged `subject`, `applicability: {surfaces, audience, expires_when}`,
 and `taste_profile: {principles, likes, dislikes, decision_rules,
 examples_to_emulate, examples_to_avoid}`. Every collection contains bound entries

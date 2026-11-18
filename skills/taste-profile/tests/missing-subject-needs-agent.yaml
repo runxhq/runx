@@ -3,8 +3,8 @@ method: profile
 inputs:
   subject: runx maintainer
   evidence:
-    - kind: instruction
-      content: Keep it clean.
+    - kind: liked
+      content: A clean release note with one claim.
 expect:
   status: sealed
   steps: [index, digest, reject]

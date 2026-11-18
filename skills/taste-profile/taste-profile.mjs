@@ -6,7 +6,10 @@ export function indexEvidence(inputs) {
   const allowedKinds = new Set(["liked", "disliked", "correction", "instruction"]);
 
   if (!subject) blockers.push("subject is missing");
-  if (supplied.length < 2) blockers.push("at least two evidence items are required");
+  // A pattern needs two records to be one; one rule the person stated in
+  // their own words is a profile already, of that rule.
+  const stated = supplied.length === 1 && text(object(supplied[0]).kind) === "instruction";
+  if (supplied.length < 2 && !stated) blockers.push("at least two evidence items are required, or one explicit instruction");
   if (supplied.length > 50) blockers.push("evidence exceeds 50 items");
 
   for (const [position, raw] of supplied.slice(0, 50).entries()) {
