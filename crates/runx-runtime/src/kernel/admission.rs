@@ -1059,8 +1059,8 @@ pub(crate) fn admit_declared(
         } else {
             vec![key]
         };
-        let mut refused = None;
-        for reference in references {
+        let mut refusals = Vec::new();
+        for reference in &references {
             let (projected, verb) = readiness(
                 key,
                 reference,
@@ -1071,24 +1071,58 @@ pub(crate) fn admit_declared(
                 context,
             );
             if projected.ready {
-                refused = None;
+                refusals.clear();
                 break;
             }
-            refused.get_or_insert(Refusal {
-                check: projected
-                    .reasons
-                    .iter()
-                    .find(|reason| reason.outcome == CheckOutcome::Fail)
-                    .map_or(AdmissionCheck::Requirement, |reason| reason.check),
-                reasons: projected.reasons,
-                verb,
-            });
+            refusals.push((
+                *reference,
+                Refusal {
+                    check: projected
+                        .reasons
+                        .iter()
+                        .find(|reason| reason.outcome == CheckOutcome::Fail)
+                        .map_or(AdmissionCheck::Requirement, |reason| reason.check),
+                    reasons: projected.reasons,
+                    verb,
+                },
+            ));
         }
-        if let Some(refusal) = refused {
+        if let Some(refusal) = every_choice_refused(key, &operation, refusals) {
             return Err(AdmitError::Refused(refusal));
         }
     }
     Ok(())
+}
+
+/// The refusal of a step whose every choice for `key` refused `operation`:
+/// the one choice's own, or, when the run may choose among several, one
+/// naming each choice with why it can't serve, so whichever the run meant
+/// to choose, its reason is there.
+fn every_choice_refused(
+    key: &str,
+    operation: &OperationName,
+    refusals: Vec<(&str, Refusal)>,
+) -> Option<Refusal> {
+    if refusals.len() < 2 {
+        return refusals.into_iter().next().map(|(_, refusal)| refusal);
+    }
+    let detail = refusals
+        .iter()
+        .map(|(reference, refusal)| format!("{reference}: {}", refusal.message()))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let (_, first) = refusals.into_iter().next()?;
+    let mut reasons = Reasons(Vec::new(), None);
+    reasons.push(
+        first.check,
+        CheckOutcome::Fail,
+        format!("no connector the run may choose for {key} can serve {key}/{operation}: {detail}"),
+    );
+    Some(Refusal {
+        check: first.check,
+        reasons: reasons.0,
+        verb: first.verb,
+    })
 }
 
 /// The readiness of every operation of one connector in the workspace at
@@ -1410,10 +1444,13 @@ fn readiness(
                 AdmissionCheck::Cost,
                 "the quote fits; the exact amount is checked at admission",
             ),
-            Ok(_) => reasons.push(
+            Ok(charge) => reasons.push(
                 AdmissionCheck::Cost,
                 CheckOutcome::Fail,
-                "the operation's quote exceeds the run's money limit",
+                format!(
+                    "the call quotes {} micro-USD, over the run's money limit of {limit}",
+                    charge.usd_micro
+                ),
             ),
             Err(detail) => reasons.push(AdmissionCheck::Cost, CheckOutcome::Fail, detail),
         },
@@ -2661,5 +2698,51 @@ operations:
         super::input_conforms(read, &input("acme/app")).unwrap();
         let refused = super::input_conforms(read, &input("acme/..")).unwrap_err();
         assert!(refused.contains("\"/repository\""), "{refused}");
+    }
+
+    /// A step whose run chooses among connectors is refused only when none
+    /// of them can serve it, and then with each one's reason: the choice the
+    /// run meant is among them, whichever it is, never hidden by the first.
+    #[test]
+    fn every_choice_refused_names_each_choice_and_its_reason() {
+        use runx_contracts::{AdmissionCheck, CheckOutcome};
+        let refusal = |check, detail: &str| {
+            let mut reasons = super::Reasons(Vec::new(), None);
+            reasons.push(check, CheckOutcome::Fail, detail);
+            super::Refusal {
+                check,
+                reasons: reasons.0,
+                verb: None,
+            }
+        };
+        let send = runx_contracts::connector::OperationName::new("message.send").unwrap();
+        let alone = super::every_choice_refused(
+            "mail",
+            &send,
+            vec![("mailsim", refusal(AdmissionCheck::Instance, "no instance"))],
+        )
+        .unwrap();
+        assert_eq!(
+            alone.message(),
+            "no instance",
+            "one choice keeps its own refusal"
+        );
+        let both = super::every_choice_refused(
+            "mail",
+            &send,
+            vec![
+                ("mailsim", refusal(AdmissionCheck::Instance, "no instance")),
+                ("nitrosend", refusal(AdmissionCheck::Cost, "over the limit")),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            both.message(),
+            "no connector the run may choose for mail can serve mail/message.send: mailsim: no instance; nitrosend: over the limit"
+        );
+        assert!(
+            super::every_choice_refused("mail", &send, Vec::new()).is_none(),
+            "a choice that serves refuses nothing"
+        );
     }
 }
