@@ -1467,7 +1467,8 @@ mod tests {
                 &mut OkExecutor,
                 vec![AgentTurn::User("draft".to_owned())],
             )
-            .expect_err("the invalid answer cannot complete the turn");
+            .err()
+            .ok_or("the invalid answer cannot complete the turn")?;
             assert_eq!(
                 stopped.reason(),
                 AgentLoopFailureReason::RoundBudgetExhausted
