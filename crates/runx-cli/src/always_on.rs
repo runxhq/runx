@@ -11,9 +11,11 @@
 //! (the loop contract's E4). Its port, kept in the home so its address stays
 //! the same, also takes each loop's webhooks (§5.2): a request carrying a
 //! loop's token puts its payload in that loop's inbox before it's answered.
-//! `runx on` starts it; `runx off` asks it to stop, after which no loop
-//! claims a wake and a wake in hand has a grace to end; `runx status` says
-//! what it's doing.
+//! `runx on` starts it, and asks once whether it comes on at login
+//! (`at_login`); `runx off` asks it to stop, after which no loop claims a
+//! wake and a wake in hand has a grace to end; `runx status` says what it's
+//! doing. While it's on it keeps the configured local model up
+//! (`local_model`).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
@@ -46,9 +48,11 @@ const FEED_RETRY: (StdDuration, StdDuration) =
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AlwaysOnPlan {
-    /// Start it in the background, or with `foreground`, be it.
+    /// Start it in the background, or with `foreground`, be it; with
+    /// `at_login`, whether it comes on at login too.
     On {
         foreground: bool,
+        at_login: Option<bool>,
     },
     Off,
     Status,
@@ -60,11 +64,28 @@ pub fn parse_always_on_plan(args: &[OsString]) -> Result<AlwaysOnPlan, String> {
         .map(|arg| arg.to_str().ok_or("arguments must be UTF-8"))
         .collect::<Result<Vec<_>, _>>()?;
     match words.as_slice() {
-        ["on"] => Ok(AlwaysOnPlan::On { foreground: false }),
-        ["on", "--foreground"] => Ok(AlwaysOnPlan::On { foreground: true }),
+        ["on"] => Ok(AlwaysOnPlan::On {
+            foreground: false,
+            at_login: None,
+        }),
+        ["on", "--foreground"] => Ok(AlwaysOnPlan::On {
+            foreground: true,
+            at_login: None,
+        }),
+        ["on", "--at-login"] => Ok(AlwaysOnPlan::On {
+            foreground: false,
+            at_login: Some(true),
+        }),
+        ["on", "--not-at-login"] => Ok(AlwaysOnPlan::On {
+            foreground: false,
+            at_login: Some(false),
+        }),
         ["off"] => Ok(AlwaysOnPlan::Off),
         ["status"] => Ok(AlwaysOnPlan::Status),
-        _ => Err("usage: runx on [--foreground] | runx off | runx status".to_owned()),
+        _ => Err(
+            "usage: runx on [--foreground | --at-login | --not-at-login] | runx off | runx status"
+                .to_owned(),
+        ),
     }
 }
 
@@ -211,24 +232,54 @@ fn listen(dir: &Path) -> Result<TcpListener, String> {
     Ok(listener)
 }
 
-/// A line saying whether runx is on.
+/// This runx home's login unit, on a system runx writes one for.
+fn login_unit(workspace: &WorkspaceEnv) -> Option<crate::at_login::Unit> {
+    let os = crate::at_login::Os::current()?;
+    let user = crate::at_login::UserDirs::from_env(workspace.env())?;
+    let binary = std::env::current_exe().ok()?;
+    Some(crate::at_login::unit(
+        os,
+        &user,
+        workspace.paths().home(),
+        &binary,
+    ))
+}
+
+/// A line saying whether runx is on, and when it is, how the local model it
+/// keeps up stands; then whether it comes on at login.
 pub(crate) fn status_line(workspace: &WorkspaceEnv) -> String {
     let dir = dir(workspace);
-    match read_serving(&dir).filter(|_| running(&dir)) {
-        Some(serving) => format!(
-            "runx is on (process {}, since {}), serving {} workspace(s)",
-            serving.pid,
-            serving.started_at,
-            workspaces(&dir).len()
-        ),
+    let on = match read_serving(&dir).filter(|_| running(&dir)) {
+        Some(serving) => {
+            let model = crate::local_model::read_state(&dir)
+                .and_then(|state| crate::local_model::status_line(&state))
+                .map(|line| format!("\n{line}"))
+                .unwrap_or_default();
+            format!(
+                "runx is on (process {}, since {}), serving {} workspace(s){model}",
+                serving.pid,
+                serving.started_at,
+                workspaces(&dir).len()
+            )
+        }
         None => "runx is off: `runx on` runs your loops while this machine is awake".to_owned(),
-    }
+    };
+    let binary = std::env::current_exe().unwrap_or_default();
+    format!(
+        "{on}\n{}",
+        crate::at_login::status_line(&dir, login_unit(workspace).as_ref(), &binary)
+    )
 }
 
 pub fn run_native_always_on(plan: AlwaysOnPlan, workspace: &WorkspaceEnv) -> ExitCode {
     let result = match plan {
-        AlwaysOnPlan::On { foreground: true } => serve(workspace),
-        AlwaysOnPlan::On { foreground: false } => start(workspace),
+        AlwaysOnPlan::On {
+            foreground: true, ..
+        } => serve(workspace),
+        AlwaysOnPlan::On {
+            foreground: false,
+            at_login,
+        } => start(workspace, at_login),
         AlwaysOnPlan::Off => stop(workspace),
         AlwaysOnPlan::Status => Ok(status_line(workspace) + "\n"),
     };
@@ -238,12 +289,16 @@ pub fn run_native_always_on(plan: AlwaysOnPlan, workspace: &WorkspaceEnv) -> Exi
     }
 }
 
-/// Start the always-on runx in the background, its output in its log.
-fn start(workspace: &WorkspaceEnv) -> Result<String, String> {
+/// Start the always-on runx in the background, its output in its log, after
+/// settling whether it comes on at login.
+fn start(workspace: &WorkspaceEnv, at_login: Option<bool>) -> Result<String, String> {
     let dir = dir(workspace);
     std::fs::create_dir_all(&dir).map_err(|error| format!("making {}: {error}", dir.display()))?;
+    let login = crate::at_login::settle(&dir, at_login, login_unit(workspace))?
+        .map(|line| format!("{line}\n"))
+        .unwrap_or_default();
     if running(&dir) {
-        return Ok(status_line(workspace) + "\n");
+        return Ok(login + &status_line(workspace) + "\n");
     }
     let log = std::fs::OpenOptions::new()
         .create(true)
@@ -269,7 +324,7 @@ fn start(workspace: &WorkspaceEnv) -> Result<String, String> {
         .map_err(|error| format!("starting runx: {error}"))?;
     for _ in 0..50 {
         if read_serving(&dir).is_some() && running(&dir) {
-            return Ok(status_line(workspace) + "\n");
+            return Ok(login + &status_line(workspace) + "\n");
         }
         std::thread::sleep(StdDuration::from_millis(100));
     }
@@ -339,6 +394,11 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
         &serde_json::to_vec_pretty(&serving).map_err(|error| error.to_string())?,
     )?;
     log(&format!("on, process {}, port {port}", serving.pid));
+    let mut model = Some(crate::local_model::Keeper::start(
+        &dir,
+        workspace.env().clone(),
+        workspace.cwd().to_path_buf(),
+    ));
     let bell = Arc::new((Mutex::new(Bell::default()), Condvar::new()));
     let ringer = Arc::clone(&bell);
     let home = dir.clone();
@@ -383,6 +443,10 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
         if upgrading && !in_pass(&served) {
             let _ = std::fs::remove_file(dir.join("state.json"));
             log("a new runx binary is in place: starting it");
+            // The model runx serves stops, and the new runx starts it.
+            if let Some(model) = model.take() {
+                model.stop();
+            }
             drop(lock);
             return Err(binary.replace());
         }
@@ -448,6 +512,9 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
                 entry.next = entry.next.min(now);
             }
         }
+    }
+    if let Some(model) = model.take() {
+        model.stop();
     }
     let _ = std::fs::remove_file(dir.join("state.json"));
     log("off");

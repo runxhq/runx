@@ -8,9 +8,9 @@ use std::path::Path;
 use crate::cli_args::{os_arg, split_flag};
 use runx_runtime::{
     ConfigError, ConfigKey, RunxConfigFile, RunxPaths, clear_runx_agent_dialect,
-    clear_runx_agent_endpoint_url, clear_runx_agent_secret, clear_runx_drive_setting,
-    load_runx_config_file, lookup_runx_config_value, mask_runx_config_file, parse_config_key,
-    update_runx_config_value, write_runx_config_file,
+    clear_runx_agent_endpoint_url, clear_runx_agent_secret, clear_runx_agent_serve,
+    clear_runx_drive_setting, load_runx_config_file, lookup_runx_config_value,
+    mask_runx_config_file, parse_config_key, update_runx_config_value, write_runx_config_file,
 };
 use serde::Serialize;
 
@@ -159,7 +159,7 @@ pub fn parse_config_plan(args: &[OsString]) -> Result<ConfigPlan, String> {
             let key = key(name)?;
             if !matches!(
                 key.as_str(),
-                "agent.endpoint_url" | "agent.dialect" | "agent.secret"
+                "agent.endpoint_url" | "agent.dialect" | "agent.secret" | "agent.serve"
             ) && !matches!(parse_config_key(&key), Ok(ConfigKey::Drive(_)))
             {
                 return Err(UNSET_ONLY.to_owned());
@@ -195,6 +195,7 @@ fn normalize_config_key(key: &str) -> &str {
         "model" => "agent.model",
         "secret" => "agent.secret",
         "endpoint-url" => "agent.endpoint_url",
+        "serve" => "agent.serve",
         "auth-mode" => "agent.auth_mode",
         "thinking" => "agent.thinking",
         "api-key" | "agent-key" => "agent.api_key",
@@ -262,6 +263,7 @@ fn execute_config_plan(
                 "agent.endpoint_url" => clear_runx_agent_endpoint_url(config),
                 "agent.dialect" => clear_runx_agent_dialect(config),
                 "agent.secret" => clear_runx_agent_secret(config),
+                "agent.serve" => clear_runx_agent_serve(config),
                 key => match parse_config_key(key) {
                     Ok(ConfigKey::Drive(setting)) => clear_runx_drive_setting(config, setting),
                     _ => return Err(ConfigCliError::InvalidArgs(UNSET_ONLY.to_owned())),
@@ -279,7 +281,7 @@ fn execute_config_plan(
 
 /// The settings whose absence means something: the provider's own profile,
 /// or a drive whose model names no key.
-const UNSET_ONLY: &str = "runx config unset clears only endpoint-url, dialect, secret or a drive setting (agent.retries, agent.output_tokens, agent.max_output_tokens, agent.request_timeout_seconds, agent.rounds); set another value with runx config set";
+const UNSET_ONLY: &str = "runx config unset clears only endpoint-url, dialect, secret, serve or a drive setting (agent.retries, agent.output_tokens, agent.max_output_tokens, agent.request_timeout_seconds, agent.rounds); set another value with runx config set";
 
 fn required_key(plan: &ConfigPlan) -> Result<&str, ConfigCliError> {
     plan.key
@@ -335,6 +337,9 @@ fn flatten_config(config: &RunxConfigFile) -> Vec<(&'static str, String)> {
         }
         if let Some(thinking) = agent.thinking.as_deref() {
             rows.push(("agent.thinking", thinking));
+        }
+        if let Some(serve) = agent.serve.as_deref() {
+            rows.push(("agent.serve", serve));
         }
         if let Some(secret) = agent.secret.as_ref() {
             rows.push(("agent.secret", secret.as_str()));

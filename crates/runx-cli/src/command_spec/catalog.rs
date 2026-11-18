@@ -122,16 +122,17 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     CommandSpec {
         name: "config",
         top_level_usage: &[
-            "runx config set|get <provider|dialect|model|secret|endpoint-url> [value] | list | unset endpoint-url|dialect|secret [-j|--json]",
+            "runx config set|get <provider|dialect|model|secret|endpoint-url|serve> [value] | list | unset endpoint-url|dialect|secret|serve [-j|--json]",
         ],
         usage: &[
             "runx config set <key> <value> [-j|--json]",
             "runx config get <key> [-j|--json]",
             "runx config list [-j|--json]",
-            "runx config unset endpoint-url|dialect|secret [-j|--json]",
+            "runx config unset endpoint-url|dialect|secret|serve [-j|--json]",
         ],
         notes: &[
-            "Short keys: provider, dialect, model, secret, endpoint-url and auth-mode. Fully qualified config keys are also accepted, among them how a driven turn holds up: agent.retries, agent.output_tokens, agent.max_output_tokens, agent.request_timeout_seconds and agent.rounds. Config holds settings, never a secret.",
+            "`serve` is the command that serves the model at its loopback endpoint, as you'd type it, such as `mlx_lm.server --model <model> --port 8080`. While runx is on, it starts the command when nothing answers there and starts it again when it fails.",
+            "Short keys: provider, dialect, model, secret, endpoint-url, serve and auth-mode. Fully qualified config keys are also accepted, among them how a driven turn holds up: agent.retries, agent.output_tokens, agent.max_output_tokens, agent.request_timeout_seconds and agent.rounds. Config holds settings, never a secret.",
             "`secret` names the secret holding the model key, kept with `runx secret set <name>`. RUNX_AGENT_API_KEY or the provider's own variable (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) also supplies it; two places holding different keys are refused.",
             "A runx account credential is stored by runx login, never set here; RUNX_PUBLIC_API_TOKEN supplies one for a single process.",
             "anthropic, openai and gemini are built-in providers. Any other provider also sets dialect (chat_completions, anthropic_messages or openai_responses) and endpoint-url.",
@@ -228,10 +229,16 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "on",
-        top_level_usage: &["runx on|off|status"],
-        usage: &["runx on", "runx off", "runx status"],
+        top_level_usage: &["runx on [--at-login|--not-at-login]|off|status"],
+        usage: &[
+            "runx on [--at-login|--not-at-login]",
+            "runx off",
+            "runx status",
+        ],
         notes: &[
             "`on` starts the always-on runx in the background: one per runx home, running every started loop's wakes as they come due, and nothing else while it sleeps. A sleeping or switched-off machine runs nothing; when it's back, what came due runs once, marked late. `off` stops it: no loop claims a wake after it, and a wake still running gets thirty seconds to reach its end, else it's taken up from its record when runx is next on. `status` says whether it's on.",
+            "The first `on` at a terminal asks whether runx comes on when you log in, and keeps the answer. `--at-login` says yes outright: it writes a launchd agent on macOS, or an enabled systemd user unit on Linux, that starts this runx for this home at login and never restarts it, so `off` stays off until you next log in. `--not-at-login` takes it away.",
+            "While it's on, runx keeps the configured local model up when `runx config set serve \"<command>\"` names the command that serves it: it asks the model for one token on start and every five minutes, starts the command when nothing answers, and starts it again when its own process fails. A model another process serves is never runx's to restart; `status` says how it stands.",
         ],
         options: &[],
     },

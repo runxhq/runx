@@ -77,6 +77,11 @@ pub struct RunxAgentConfig {
     /// The rounds a driven turn has, unless a run says otherwise.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rounds: Option<u32>,
+    /// The command that serves the model at its loopback endpoint, as the
+    /// person would type it, which the always-on runx keeps up (the loop
+    /// contract §15).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub serve: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -108,6 +113,7 @@ pub enum ConfigKey {
     AgentEndpointUrl,
     AgentAuthMode,
     AgentThinking,
+    AgentServe,
     Drive(DriveSetting),
 }
 
@@ -393,6 +399,7 @@ pub fn parse_config_key(key: &str) -> Result<ConfigKey, ConfigError> {
         "agent.endpoint_url" => Ok(ConfigKey::AgentEndpointUrl),
         "agent.auth_mode" => Ok(ConfigKey::AgentAuthMode),
         "agent.thinking" => Ok(ConfigKey::AgentThinking),
+        "agent.serve" => Ok(ConfigKey::AgentServe),
         key => DriveSetting::ALL
             .into_iter()
             .find(|setting| setting.key() == key)
@@ -501,6 +508,31 @@ pub fn update_runx_config_value(
             agent.thinking = Some(value.trim().to_owned());
             config.agent = Some(agent);
         }
+        ConfigKey::AgentServe => {
+            // runx serves only a model on this machine, at its loopback endpoint.
+            let local = config
+                .agent
+                .as_ref()
+                .and_then(|agent| agent.endpoint_url.as_deref())
+                .is_some_and(|endpoint| {
+                    crate::http::validate_exact_loopback_agent_endpoint(endpoint).is_ok()
+                });
+            if !local {
+                return Err(ConfigError::InvalidAgentSetting {
+                    key: "agent.serve",
+                    message: "serves only a model on this machine: set endpoint-url to its loopback address first",
+                });
+            }
+            if value.trim().is_empty() {
+                return Err(ConfigError::InvalidAgentSetting {
+                    key: "agent.serve",
+                    message: "is the command that serves the model",
+                });
+            }
+            let mut agent = config.agent.unwrap_or_default();
+            agent.serve = Some(value.trim().to_owned());
+            config.agent = Some(agent);
+        }
         ConfigKey::Drive(setting) => {
             let mut agent = config.agent.unwrap_or_default();
             setting.set(&mut agent, Some(setting.parse(value)?));
@@ -526,6 +558,14 @@ pub fn clear_runx_drive_setting(
 pub fn clear_runx_agent_endpoint_url(mut config: RunxConfigFile) -> RunxConfigFile {
     if let Some(agent) = config.agent.as_mut() {
         agent.endpoint_url = None;
+    }
+    config
+}
+
+/// runx no longer serves the model; what serves it now is the person's.
+pub fn clear_runx_agent_serve(mut config: RunxConfigFile) -> RunxConfigFile {
+    if let Some(agent) = config.agent.as_mut() {
+        agent.serve = None;
     }
     config
 }
@@ -559,6 +599,7 @@ pub fn lookup_runx_config_value(config: &RunxConfigFile, key: ConfigKey) -> Opti
         ConfigKey::AgentEndpointUrl => config.agent.as_ref()?.endpoint_url.clone(),
         ConfigKey::AgentAuthMode => config.agent.as_ref()?.auth_mode.clone(),
         ConfigKey::AgentThinking => config.agent.as_ref()?.thinking.clone(),
+        ConfigKey::AgentServe => config.agent.as_ref()?.serve.clone(),
         ConfigKey::Drive(setting) => setting
             .get(config.agent.as_ref()?)
             .map(|value| value.to_string()),
@@ -592,6 +633,39 @@ pub(crate) fn normalize_drive_provider(value: &str) -> Option<NonEmptyString> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runx_serves_only_a_model_on_this_machine() -> Result<(), Box<dyn std::error::Error>> {
+        let command = "mlx_lm.server --port 8080";
+        let refused =
+            update_runx_config_value(RunxConfigFile::default(), ConfigKey::AgentServe, command)
+                .err()
+                .ok_or("no endpoint yet")?;
+        assert!(refused.to_string().contains("loopback"), "{refused}");
+        let remote = update_runx_config_value(
+            RunxConfigFile::default(),
+            ConfigKey::AgentEndpointUrl,
+            "https://models.example.test/v1/chat/completions",
+        )?;
+        assert!(update_runx_config_value(remote, ConfigKey::AgentServe, command).is_err());
+        let local = update_runx_config_value(
+            RunxConfigFile::default(),
+            ConfigKey::AgentEndpointUrl,
+            "http://127.0.0.1:8080/v1/chat/completions",
+        )?;
+        let served = update_runx_config_value(local, ConfigKey::AgentServe, command)?;
+        assert_eq!(
+            lookup_runx_config_value(&served, ConfigKey::AgentServe).as_deref(),
+            Some(command)
+        );
+        assert_eq!(
+            clear_runx_agent_serve(served)
+                .agent
+                .and_then(|agent| agent.serve),
+            None
+        );
+        Ok(())
+    }
 
     #[test]
     fn a_config_of_the_wrong_shape_is_not_called_invalid_json()

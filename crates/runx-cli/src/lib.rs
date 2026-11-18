@@ -1,5 +1,6 @@
 pub mod always_on;
 mod answer;
+mod at_login;
 pub mod authority;
 pub mod cli_args;
 pub mod cli_error;
@@ -13,6 +14,7 @@ mod drive;
 pub mod export;
 pub mod history;
 pub mod list;
+mod local_model;
 pub mod login;
 pub mod loops;
 pub mod mcp;
