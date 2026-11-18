@@ -87,6 +87,13 @@ export function prepareEvidence(inputs) {
       blockers.push("evidence log cites an unknown source digest");
     }
   }
+  // The message a reply answers is evidence of what its writer said, by its
+  // own digest: a claim may report it as theirs, and none made for the
+  // sender rests on it.
+  const theirs = text(inputs.replying_to);
+  const theirDigest = text(inputs.their_message_digest);
+  if (theirs && !isDigest(theirDigest)) blockers.push("the message it answers has no digest");
+  const theirMessage = theirs && isDigest(theirDigest) ? { digest: theirDigest, text: theirs } : null;
 
   const scope = { audience, channel };
   const writingContexts = [
@@ -126,7 +133,8 @@ export function prepareEvidence(inputs) {
       decision_support: Array.isArray(evidence.decision_support)
         ? evidence.decision_support
         : [],
-      source_digests: sourceDigests,
+      source_digests: theirMessage ? [...sourceDigests, theirMessage.digest] : sourceDigests,
+      ...(theirMessage ? { their_message: theirMessage } : {}),
       writing_contexts: writingContexts,
       context_requirements: writingContexts.map(
         ({
@@ -447,6 +455,13 @@ function quantitiesIn(value, admitting) {
  * a writer made up is one of them.
  */
 export function inventedNumbers(context, draft, quoted = []) {
+  // What the message it answers says counts only where a claim reports it
+  // as theirs: a quantity of theirs such a claim states.
+  const theirs = quantitiesIn(object(context.their_message).text, true);
+  const reported = (Array.isArray(draft.claims) ? draft.claims : [])
+    .filter((claim) => object(claim).said_by === "them")
+    .flatMap((claim) => quantitiesIn(object(claim).claim, false))
+    .filter((stated) => theirs.some((known) => known.value === stated.value && (stated.unit === null || known.window.includes(stated.unit))));
   const admitted = [
     context.objective,
     context.audience,
@@ -455,7 +470,8 @@ export function inventedNumbers(context, draft, quoted = []) {
     ...strings(quoted),
   ].flatMap((value) => quantitiesIn(value, true));
   const held = (stated) =>
-    admitted.some((known) => known.value === stated.value && (stated.unit === null || known.window.includes(stated.unit)));
+    admitted.some((known) => known.value === stated.value && (stated.unit === null || known.window.includes(stated.unit))) ||
+    reported.some((known) => known.value === stated.value && (stated.unit === null || known.unit === stated.unit));
   const stated = [draft.title, draft.body].flatMap((value) => quantitiesIn(value, false));
   return [...new Set(stated.filter((quantity) => !held(quantity)).map((quantity) => quantity.said))];
 }
@@ -477,6 +493,18 @@ export function reviewContextUse({ evidence_context, content_draft, quoted }) {
         `The writer returned ${text(candidate.decision) || "no decision"}: the evidence supports no draft.`,
       );
   } else {
+    // A claim reporting what they said cites their message alone; one made
+    // for the sender never cites it: what they say isn't the sender's to vouch for.
+    const theirDigest = text(object(context.their_message).digest);
+    for (const claim of Array.isArray(object(candidate.draft).claims) ? candidate.draft.claims : []) {
+      const cited = strings(object(claim).source_digests);
+      if (object(claim).said_by === "them") {
+        if (!theirDigest || cited.length !== 1 || cited[0] !== theirDigest)
+          blockers.push("A claim of what their message says cites that message alone.");
+      } else if (theirDigest && cited.includes(theirDigest)) {
+        blockers.push("A claim made for the sender rests on the sender's evidence, never on their message: what they say isn't the sender's to vouch for.");
+      }
+    }
     const invented = inventedNumbers(context, object(candidate.draft), quoted);
     if (invented.length > 0)
       blockers.push(

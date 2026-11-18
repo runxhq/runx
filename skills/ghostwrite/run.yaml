@@ -25,6 +25,12 @@ shared_inputs:
       minLength: 1
       maxLength: 4000
     optional: true
+  replying_to:
+    type: string
+    description: The message this draft answers, as its writer wrote it, with who wrote it and when. It's admitted as evidence of what its writer said, never of what's true and never of what the sender agreed, so a claim may report it as theirs, and no claim made for the sender rests on it.
+    minLength: 1
+    maxLength: 8000
+    optional: true
   brand_context:
     packet: runx/brand-voice.context.v1
     description: Validated runx/brand-voice.context.v1 packet.
@@ -76,12 +82,7 @@ methods:
         minLength: 1
         maxLength: 512
         optional: true
-      replying_to:
-        type: string
-        description: The message this draft answers, as its writer wrote it, with who wrote it and when. The writing turn reads it to answer it. It's never evidence, so nothing it states, a number included, is a claim the draft may make.
-        minLength: 1
-        maxLength: 8000
-        optional: true
+      replying_to: {}
     result_from:
       - reject
       - finalize
@@ -100,6 +101,7 @@ methods:
           channel: $input.channel
           evidence_pack: $input.evidence_pack
           facts: $input.facts
+          replying_to: $input.replying_to
           brand_context: $input.brand_context
           taste_context: $input.taste_context
       - id: reject
@@ -177,6 +179,10 @@ methods:
                           type: array
                           items:
                             type: string
+                        said_by:
+                          type: string
+                          enum: [them]
+                          description: Set when the claim reports what the message it answers says, citing that message's digest alone.
                       required:
                         - claim
                         - source_digests
@@ -244,7 +250,6 @@ methods:
           audience: $input.audience
           channel: $input.channel
           voice_guide: $input.voice_guide
-          replying_to: $input.replying_to
           evidence_context: $steps.admit.evidence_context
           evidence_pack: $input.evidence_pack
           brand_context: $input.brand_context
@@ -270,6 +275,7 @@ methods:
         description: Intended content channel.
       evidence_pack: {}
       facts: {}
+      replying_to: {}
       brand_context: {}
       taste_context: {}
     result_from:
@@ -288,6 +294,12 @@ methods:
         tool: data.digest
         inputs:
           value: $steps.select-source.selected_source.evidence
+      - id: digest-their-message
+        tool: data.digest
+        inputs:
+          value:
+            type: their_message
+            text: $input.replying_to
       - id: digest-brand-context
         tool: data.digest
         inputs:
@@ -307,8 +319,10 @@ methods:
           channel: $input.channel
           evidence_pack: $steps.select-source.selected_source.evidence
           evidence_kind: $steps.select-source.selected_source.kind
+          replying_to: $input.replying_to
           brand_context: $input.brand_context
           taste_context: $input.taste_context
+          their_message_digest: $steps.digest-their-message.digest_result.digest
           evidence_packet_digest: $steps.digest-evidence.digest_result.digest
           brand_context_digest: $steps.digest-brand-context.digest_result.digest
           taste_context_digest: $steps.digest-taste-context.digest_result.digest
