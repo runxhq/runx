@@ -459,9 +459,9 @@ fn reflection_judges_the_window_repairs_a_wrong_result_and_drops_a_finding_the_r
 /// What skill-lab's author drafts for one objective: the fix and its case
 /// for the stopped run, and no change for any other, such as a decline.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
-fn drafted(objective: &str) -> serde_json::Value {
+fn drafted(objective: &str, target_dir: &str) -> serde_json::Value {
     if objective.contains("sealed_blocked") {
-        return fixed_greet();
+        return fixed_greet(target_dir);
     }
     serde_json::json!({
         "schema": "runx.skill.change_draft.v1", "decision": "no_change",
@@ -473,7 +473,7 @@ fn drafted(objective: &str) -> serde_json::Value {
 /// The author's draft for the stopped run: the compare made to agree, and a
 /// case that expects both steps, which the old revision's guard stops.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
-fn fixed_greet() -> serde_json::Value {
+fn fixed_greet(target_dir: &str) -> serde_json::Value {
     let fixed = GREET
         .replacen(
             "minimum_runx: 0.12.0\n",
@@ -485,8 +485,8 @@ fn fixed_greet() -> serde_json::Value {
         "schema": "runx.skill.change_draft.v1", "decision": "write",
         "summary": "Make broken's compare agree, so its guard lets insist run.",
         "writes": [
-            {"path": "skills/greet/run.yaml", "contents": fixed},
-            {"path": "skills/greet/tests/broken-insists.yaml", "contents": "name: broken-insists\nmethod: broken\nexpect:\n  status: sealed\n  steps: [compare, insist]\n"},
+            {"path": format!("{target_dir}/run.yaml"), "contents": fixed},
+            {"path": format!("{target_dir}/tests/broken-insists.yaml"), "contents": "name: broken-insists\nmethod: broken\nexpect:\n  status: sealed\n  steps: [compare, insist]\n"},
         ],
         "deletes": [],
     })
@@ -527,7 +527,8 @@ fn reflection_model(
             |output: serde_json::Value| tool_call("call-final", "turn_complete", &output);
         if offered.get("change_draft").is_some() {
             let objective = inputs["objective"].as_str().unwrap_or_default();
-            return complete(serde_json::json!({"change_draft": drafted(objective)}));
+            let target_dir = inputs["target_dir"].as_str().unwrap_or_default();
+            return complete(serde_json::json!({"change_draft": drafted(objective, target_dir)}));
         }
         if let Some(resistance) = inputs.get("resistance") {
             // Misdirected, the stopped run's diagnosis cites a receipt no
@@ -885,6 +886,74 @@ fn a_fix_for_a_package_the_workspace_doesn_t_own_is_kept_for_its_owner() -> Test
             .contains("0 fixes proven by their cases and applied, 0 declined, 1 observation kept"),
         "{notice}"
     );
+    Ok(())
+}
+
+/// An installed package is fixed in the person's own copy of it, which runx
+/// runs in its place: with none, its fix is kept for its publisher and says
+/// how to make one; once the person copies it, the next reflection proves and
+/// applies the fix there, and the installed package is never touched.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+#[test]
+fn an_installed_package_is_fixed_in_the_persons_own_copy() -> TestResult {
+    let model = reflection_model(Diagnoses::Faithful)?;
+    let endpoint = model.endpoint().to_owned();
+    let temp = tempdir()?;
+    let root = temp.path();
+    brain(root)?;
+    let installed = root.join(".runx/added-skills/acme/greet/1.0.0");
+    crate::support::write_test_skill_package(
+        &installed,
+        "---\nname: greet\ndescription: The greet skill.\n---\n# greet\n",
+        GREET,
+    )?;
+    let broken = run(
+        root,
+        installed.clone(),
+        "broken",
+        serde_json::json!({}),
+        None,
+    )?;
+    assert_eq!(broken["outcome"], "blocked", "{broken}");
+
+    let kept = drive(
+        root,
+        &endpoint,
+        reflect_as(root, &endpoint, "before")?,
+        |_| serde_json::json!(true),
+    )?;
+    assert_eq!(kept["outcome"], "completed", "{kept}");
+    assert!(
+        kept["result"]["proposals"][0]["dropped"]
+            .as_str()
+            .is_some_and(|why| why.contains("copy it to skills/acme/greet/")),
+        "{kept}"
+    );
+
+    // The person makes their own copy, which runx now runs in its place.
+    let copy = root.join("skills/acme/greet");
+    std::fs::create_dir_all(&copy)?;
+    for file in ["SKILL.md", "run.yaml"] {
+        std::fs::copy(installed.join(file), copy.join(file))?;
+    }
+    let fixed = drive(
+        root,
+        &endpoint,
+        reflect_as(root, &endpoint, "after")?,
+        |_| serde_json::json!(true),
+    )?;
+    assert_eq!(fixed["outcome"], "completed", "{fixed}");
+    model.finish()?;
+    let applied = fixed["result"]["proposals"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|entry| entry["applied"].is_object())
+        .ok_or("an applied fix")?;
+    assert_eq!(applied["target_dir"], "skills/acme/greet", "{fixed}");
+    assert!(std::fs::read_to_string(copy.join("run.yaml"))?.contains("{expected: b, actual: b}"));
+    assert!(copy.join("tests/broken-insists.yaml").exists());
+    assert_eq!(std::fs::read_to_string(installed.join("run.yaml"))?, GREET);
     Ok(())
 }
 

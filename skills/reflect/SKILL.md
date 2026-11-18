@@ -58,9 +58,11 @@ then can't be met, and the mark it returns moves only past what it read.
   each kept diagnosis, and each sampled success its purpose-only reader found
   didn't do what its purpose asks, since a run that succeeded at the wrong
   thing needs fixing as a failure does. Only a package the workspace owns is
-  changed: one runx installed or bundles, or one outside the workspace, is
-  never, and its repair is kept as an observation for whoever owns it, saying
-  why. `skill-lab`'s own turns write the fix and its case. Code keeps the
+  changed. An installed one is fixed in your own copy of it at
+  `skills/<publisher>/<name>/`, which runx runs in its place, once you've made
+  one: a copy pins its version, so reflection never makes one itself. Until
+  then, and for one runx bundles or one outside the workspace, its repair is
+  kept as an observation for whoever owns it, saying why. `skill-lab`'s own turns write the fix and its case. Code keeps the
   draft only when it adds a case, names each case it changes or removes, and
   two validations prove the new case where the package lies, so the skills it
   calls resolve as they do for it: the new case fails on the package as the

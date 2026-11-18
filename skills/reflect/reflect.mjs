@@ -27,7 +27,11 @@ export function ownerOf(skillPath) {
   const path = String(skillPath ?? "");
   if (path === "" || path.startsWith("/") || path === ".." || path.startsWith("../")) return { owned: false, why: `its package lies outside this workspace, at ${path || "an unrecorded path"}, so its fix belongs where it lives` };
   if (path === ".runx" || path.startsWith(".runx/")) {
-    if (path.startsWith(".runx/added-skills/")) return { owned: false, why: `its package is one runx installed, at ${path}: its fix belongs to its publisher, or to your own copy at skills/<publisher>/<name>, which runx runs in its place` };
+    const installed = /^\.runx\/added-skills\/([^/]+)\/([^/]+)\//.exec(`${path}/`);
+    if (installed) {
+      const copy = `skills/${installed[1]}/${installed[2]}`;
+      return { owned: false, copy, why: `its package is one runx installed, at ${path}: copy it to ${copy}/, which runx then runs in its place, and reflection fixes it there; until then its fix is kept for its publisher` };
+    }
     return { owned: false, why: `its package is runx's own, at ${path}, which reflection never changes` };
   }
   return { owned: true, target_dir: path };
@@ -581,6 +585,18 @@ export async function propose(ctx, { survey, findings }) {
       .filter((entry) => entry.kind === "file" && /^tests\/[^/]+$/.test(fromPackage(target_dir, entry.path)))
       .map((entry) => entry.path));
   };
+  // Whether the workspace holds the directory at `path`, from listings of
+  // each directory above it, which a path that isn't there never fails.
+  const holds = async (path) => {
+    let parent = ".";
+    for (const segment of path.split("/")) {
+      const listed = await ctx.read((await ctx.tool("fs.list", { path: parent, depth: 1, max_entries: 5000 })).file_list);
+      const child = parent === "." ? segment : `${parent}/${segment}`;
+      if (!listed.entries.some((entry) => entry.kind === "directory" && entry.path === child)) return false;
+      parent = child;
+    }
+    return true;
+  };
   // The package as it would stand with a change, validated beside where it
   // lies, so the skills it calls resolve as they do for it. A change's paths
   // are named from the package's root.
@@ -599,12 +615,16 @@ export async function propose(ctx, { survey, findings }) {
     // Only the workspace's own package is changed here; the fix for one runx
     // installed or bundles, or one outside the workspace, is kept for its
     // owner as the repair's observation.
+    // An installed package is fixed in the person's own copy of it, which
+    // runx runs in its place, once they've made one: a copy pins its version,
+    // so reflection never makes one itself.
     const owner = ownerOf(item.skill_path);
-    if (!owner.owned) {
+    const copied = owner.copy !== undefined && (await holds(owner.copy));
+    if (!owner.owned && !copied) {
       proposals.push({ criterion, target_dir: null, dropped: owner.why });
       continue;
     }
-    const target_dir = owner.target_dir;
+    const target_dir = owner.owned ? owner.target_dir : owner.copy;
     // Facts only, never a model's words, so a change the person declined is
     // the same change however its cause is put.
     const key = (await digest({ target_dir, kind: item.kind, evidence: item.evidence })).slice(7);
