@@ -2179,6 +2179,8 @@ export type ProcessOutputChunkContract = {
 
 /** What a process tool's readback must match. */
 export type ProcessReadbackContract = {
+  /** The tool also finds a write by the key it was sent with: run with `phase: lookup` and that `idempotency_key`, it answers the acknowledgement the write was given, or null when it holds nothing under the key. A lost acknowledgement is then read back by key, and what's found is confirmed as any acknowledgement is. */
+  readonly by_key?: true;
   readonly matches: readonly ReadbackMatchContract[];
 };
 

@@ -12,7 +12,12 @@
 //! the call is compared, leaves the outcome unknown. A write the provider
 //! cannot read back declares no readbacks: its evidence is its recorded
 //! acknowledgement, which the receipt seals as evidence of the effect, never
-//! as its finality.
+//! as its finality. A write whose acknowledgement was lost, because the
+//! provider's answer never arrived or a run stopped before recording it, is
+//! read back by its key where the implementation can find it so (E8): found,
+//! what the provider holds is its acknowledgement, confirmed as any is;
+//! absent, it's sent again only where the provider dedupes by key and someone
+//! asked for it to go on; unanswered, it holds.
 //!
 //! A repeated write is one approved call over an exact list of items. Each
 //! item's outcome is recorded as it lands, a refused item does not stop the
@@ -152,8 +157,13 @@ pub(crate) struct Checks {
 /// What custody knows of an earlier attempt at this call.
 pub(crate) struct Recovery {
     pub acknowledged: Option<Acknowledgement>,
+    /// An earlier attempt custody holds with no acknowledgement: it may have
+    /// reached the provider.
+    pub unacknowledged: bool,
     /// Whether a request that may have landed can be sent again.
     pub resend_safe: bool,
+    /// Whether the implementation finds a write by the key it was sent with.
+    pub finds_by_key: bool,
     /// A missing response may leave a provider charge even for a read.
     pub may_charge: bool,
 }
@@ -174,6 +184,13 @@ pub(crate) trait Driver {
     /// precondition sees null. A read that answers with what contradicts the
     /// call in what the driver itself compares reports it as contradicted.
     fn check(&self, check: Check, write: &JsonValue) -> Result<Observed, Unconfirmed>;
+
+    /// The write the call's key was sent with, as the provider holds it: the
+    /// acknowledgement it was given, or None when the provider holds nothing
+    /// under the key. Only an implementation that declares it is asked.
+    fn lookup(&self) -> Result<Option<Observed>, Unconfirmed> {
+        Err("the implementation can't find a write by its key".into())
+    }
 
     /// The operation's result and the provider's id for it, from the
     /// acknowledgement and what confirmed it.
@@ -275,6 +292,19 @@ impl Driver for Custody<'_> {
             })
     }
 
+    fn lookup(&self) -> Result<Option<Observed>, Unconfirmed> {
+        self.driver
+            .lookup()
+            .map(|found| found.map(|observed| self.observed(observed)))
+            .map_err(|unconfirmed| match (unconfirmed, self.credential) {
+                (Unconfirmed::Contradicted(contradiction), Some(secret)) => {
+                    Unconfirmed::Contradicted(contradiction.scrub(secret))
+                }
+                (Unconfirmed::Unanswered(reason), _) => Unconfirmed::Unanswered(self.text(reason)),
+                (contradicted, None) => contradicted,
+            })
+    }
+
     fn result(
         &self,
         write: &JsonValue,
@@ -361,55 +391,75 @@ fn once(
 ) -> Result<Settled, Failure> {
     let mutation = call.mutation();
     let mut evidence = Vec::new();
-    let write = match recovery.acknowledged {
-        Some(acknowledgement) => acknowledgement.write_result,
-        None => {
+    let earlier = match (
+        &recovery.acknowledged,
+        mutation && recovery.unacknowledged && recovery.finds_by_key,
+    ) {
+        (None, true) => found_by_key(driver, recovery.resend_safe)?,
+        _ => None,
+    };
+    let write = match (recovery.acknowledged, earlier) {
+        (Some(acknowledgement), _) => acknowledgement.write_result,
+        (None, Some(found)) => {
+            record(&acknowledgement(found.clone())).map_err(Failure::Unknown)?;
+            found
+        }
+        (None, None) => {
             preconditions(driver, call, checks, recovery.may_charge)?;
-            let performed = driver.perform(None).map_err(|failure| match failure {
-                // Nothing of this call left, but a priced check before it may have been charged.
-                Unperformed::NotSent { code, reason } => Failure::Rejected {
-                    status: 0,
-                    code: code.to_owned(),
-                    reason,
-                    release: !recovery.may_charge || checks.preconditions.is_empty(),
-                    conflict: None,
-                },
-                Unperformed::Halted {
-                    reason,
-                    partial: true,
-                    ..
-                } if recovery.may_charge => Failure::Unknown(reason),
-                Unperformed::Halted {
-                    code,
-                    reason,
-                    partial,
-                    ..
-                } => Failure::Rejected {
-                    status: 0,
-                    code: code.to_owned(),
-                    reason,
-                    release: !partial && !recovery.may_charge,
-                    conflict: None,
-                },
-                Unperformed::Refused { code, reason, .. } => Failure::Rejected {
-                    status: 0,
-                    code: code.to_owned(),
-                    reason,
-                    release: !recovery.may_charge,
-                    conflict: None,
-                },
-                Unperformed::MaybeSent { reason, .. } if mutation || recovery.may_charge => {
-                    Failure::Unknown(reason)
+            let performed = match driver.perform(None) {
+                // The provider's answer was lost: what it holds under the
+                // key is the answer, when it can be asked.
+                Err(Unperformed::MaybeSent { reason, .. }) if mutation && recovery.finds_by_key => {
+                    lost(driver, reason)
                 }
-                Unperformed::MaybeSent { code, reason } => Failure::Rejected {
-                    status: 0,
-                    code: code.to_owned(),
-                    reason,
-                    release: false,
-                    conflict: None,
-                },
-                Unperformed::Contradicted(contradiction) => Failure::Contradicted(contradiction),
-            })?;
+                performed => performed.map_err(|failure| match failure {
+                    // Nothing of this call left, but a priced check before it may have been charged.
+                    Unperformed::NotSent { code, reason } => Failure::Rejected {
+                        status: 0,
+                        code: code.to_owned(),
+                        reason,
+                        release: !recovery.may_charge || checks.preconditions.is_empty(),
+                        conflict: None,
+                    },
+                    Unperformed::Halted {
+                        reason,
+                        partial: true,
+                        ..
+                    } if recovery.may_charge => Failure::Unknown(reason),
+                    Unperformed::Halted {
+                        code,
+                        reason,
+                        partial,
+                        ..
+                    } => Failure::Rejected {
+                        status: 0,
+                        code: code.to_owned(),
+                        reason,
+                        release: !partial && !recovery.may_charge,
+                        conflict: None,
+                    },
+                    Unperformed::Refused { code, reason, .. } => Failure::Rejected {
+                        status: 0,
+                        code: code.to_owned(),
+                        reason,
+                        release: !recovery.may_charge,
+                        conflict: None,
+                    },
+                    Unperformed::MaybeSent { reason, .. } if mutation || recovery.may_charge => {
+                        Failure::Unknown(reason)
+                    }
+                    Unperformed::MaybeSent { code, reason } => Failure::Rejected {
+                        status: 0,
+                        code: code.to_owned(),
+                        reason,
+                        release: false,
+                        conflict: None,
+                    },
+                    Unperformed::Contradicted(contradiction) => {
+                        Failure::Contradicted(contradiction)
+                    }
+                }),
+            }?;
             if mutation {
                 record(&acknowledgement(performed.value.clone())).map_err(Failure::Unknown)?;
             } else {
@@ -446,6 +496,41 @@ fn once(
     Ok((write, confirmed, evidence))
 }
 
+/// The write an earlier attempt may have made, read back by its key. Found,
+/// what the provider holds is the acknowledgement the attempt never recorded.
+/// Absent, the act is sent again only where `resend_safe`: the provider
+/// dedupes by key and someone asked for it to go on; otherwise it holds, as
+/// one still in flight would read absent too. Unanswered, it holds.
+fn found_by_key(driver: &dyn Driver, resend_safe: bool) -> Result<Option<JsonValue>, Failure> {
+    match driver.lookup() {
+        Ok(Some(found)) => Ok(Some(found.value)),
+        Ok(None) if resend_safe => Ok(None),
+        Ok(None) => Err(Failure::Unknown(
+            "the provider holds nothing under the act's key yet, and sending it again could repeat it, so it waits on its retry".to_owned(),
+        )),
+        Err(unconfirmed) => Err(Failure::Unknown(format!(
+            "reading the act back by its key: {}",
+            unconfirmed.reason()
+        ))),
+    }
+}
+
+/// A write whose answer was lost, `reason` saying how, read back by its key
+/// at once: found, it's what the provider answered; otherwise it holds, and
+/// its retry reads it back again.
+fn lost(driver: &dyn Driver, reason: String) -> Result<Observed, Failure> {
+    match driver.lookup() {
+        Ok(Some(found)) => Ok(found),
+        Ok(None) => Err(Failure::Unknown(format!(
+            "{reason}; the provider holds nothing under the act's key yet"
+        ))),
+        Err(unconfirmed) => Err(Failure::Unknown(format!(
+            "{reason}; reading it back by its key: {}",
+            unconfirmed.reason()
+        ))),
+    }
+}
+
 /// A repeated write: every item's outcome, then a readback of every applied
 /// item. The acknowledgement is the list of outcomes, recorded after each.
 fn repeated(
@@ -464,6 +549,12 @@ fn repeated(
             .ok_or_else(|| {
                 Failure::Unknown("the recorded batch is not a list of outcomes".to_owned())
             })?,
+        // An earlier attempt with no outcome recorded may have sent any item.
+        None if recovery.unacknowledged && !recovery.resend_safe => {
+            return Err(Failure::Unknown(
+                "an earlier attempt has an unknown outcome and this operation cannot be resent safely; reconcile the provider result before resuming".to_owned(),
+            ));
+        }
         None => {
             preconditions(driver, call, checks, recovery.may_charge)?;
             Vec::new()
@@ -983,6 +1074,135 @@ mod tests {
         })
     }
 
+    /// A provider whose answers are lost: each send lands, then reports it
+    /// may have been sent. `held` is what a lookup by its key finds.
+    struct Lossy {
+        performed: Cell<usize>,
+        held: RefCell<Option<JsonValue>>,
+        unanswered: bool,
+    }
+
+    impl Lossy {
+        fn holding(held: Option<JsonValue>, unanswered: bool) -> Self {
+            Self {
+                performed: Cell::new(0),
+                held: RefCell::new(held),
+                unanswered,
+            }
+        }
+    }
+
+    impl Driver for Lossy {
+        fn perform(&self, _item: Option<usize>) -> Result<Observed, Unperformed> {
+            self.performed.set(self.performed.get() + 1);
+            *self.held.borrow_mut() = Some(id("m-1"));
+            Err(Unperformed::MaybeSent {
+                code: "timeout",
+                reason: "the answer never came".to_owned(),
+            })
+        }
+
+        fn check(&self, _check: Check, _write: &JsonValue) -> Result<Observed, Unconfirmed> {
+            self.held
+                .borrow()
+                .clone()
+                .map(|value| Observed {
+                    value,
+                    evidence: vec!["sha256:read".to_owned()],
+                })
+                .ok_or_else(|| "nothing is held".into())
+        }
+
+        fn lookup(&self) -> Result<Option<Observed>, Unconfirmed> {
+            if self.unanswered {
+                return Err("the provider timed out".into());
+            }
+            Ok(self.held.borrow().clone().map(|value| Observed {
+                value,
+                evidence: Vec::new(),
+            }))
+        }
+
+        fn result(
+            &self,
+            write: &JsonValue,
+            _confirmed: &[JsonValue],
+        ) -> Result<(JsonValue, Option<String>), String> {
+            Ok((write.clone(), None))
+        }
+    }
+
+    /// Run a write on `driver` as recovery finds it, returning the outcome
+    /// and each acknowledgement recorded.
+    fn keyed(
+        driver: &Lossy,
+        unacknowledged: bool,
+        resend_safe: bool,
+    ) -> (Result<Readback, Failure>, Vec<JsonValue>) {
+        let mut recorded = Vec::new();
+        let outcome = admitted(OperationAccess::Mutate, |call| {
+            run(
+                driver,
+                call,
+                &identity(),
+                Recovery {
+                    acknowledged: None,
+                    unacknowledged,
+                    resend_safe,
+                    finds_by_key: true,
+                    may_charge: false,
+                },
+                &mut |acknowledgement| {
+                    recorded.push(acknowledgement.write_result.clone());
+                    Ok(())
+                },
+            )
+        });
+        (outcome, recorded)
+    }
+
+    /// E8: a write whose answer was lost is read back by its key. Found, it's
+    /// acknowledged and confirmed, and never sent again; absent, it's sent
+    /// again only where that's safe; unanswered, it holds.
+    #[test]
+    fn a_write_whose_answer_was_lost_is_read_back_by_its_key() {
+        let unknown = |outcome: &Result<Readback, Failure>| match outcome {
+            Err(Failure::Unknown(reason)) => reason.clone(),
+            _ => String::new(),
+        };
+        // Lost as it's sent: found under its key, it's what the send answered.
+        let lost = Lossy::holding(None, false);
+        let (outcome, recorded) = keyed(&lost, false, false);
+        assert!(outcome.is_ok(), "{}", unknown(&outcome));
+        assert_eq!((lost.performed.get(), recorded), (1, vec![id("m-1")]));
+
+        // An earlier attempt that landed is found, and never sent again.
+        let landed = Lossy::holding(Some(id("m-1")), false);
+        let (outcome, recorded) = keyed(&landed, true, true);
+        assert!(outcome.is_ok(), "{}", unknown(&outcome));
+        assert_eq!((landed.performed.get(), recorded), (0, vec![id("m-1")]));
+
+        // Absent: sent again under its key where the provider dedupes by it.
+        let absent = Lossy::holding(None, false);
+        let (outcome, _) = keyed(&absent, true, true);
+        assert!(outcome.is_ok(), "{}", unknown(&outcome));
+        assert_eq!(absent.performed.get(), 1);
+
+        // Absent where sending again could repeat it: it holds, unsent.
+        let absent = Lossy::holding(None, false);
+        let (outcome, recorded) = keyed(&absent, true, false);
+        assert!(unknown(&outcome).contains("holds nothing under the act's key"));
+        assert_eq!((absent.performed.get(), recorded.len()), (0, 0));
+
+        // Unanswered: it holds, unsent, whatever resending would risk.
+        let silent = Lossy::holding(Some(id("m-1")), true);
+        let (outcome, _) = keyed(&silent, true, true);
+        assert!(
+            unknown(&outcome).contains("reading the act back by its key: the provider timed out")
+        );
+        assert_eq!(silent.performed.get(), 0);
+    }
+
     #[test]
     fn a_providers_failure_never_repeats_the_presented_credential() {
         let secret = CredentialSecret::new(
@@ -1028,6 +1248,8 @@ mod tests {
             &Checks::default(),
             Recovery {
                 acknowledged: None,
+                unacknowledged: false,
+                finds_by_key: false,
                 resend_safe: false,
                 may_charge: false,
             },
@@ -1061,6 +1283,8 @@ mod tests {
                 &identity(),
                 Recovery {
                     acknowledged: Some(recorded),
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },
@@ -1090,6 +1314,8 @@ mod tests {
                 &identity(),
                 Recovery {
                     acknowledged: None,
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },
@@ -1104,6 +1330,8 @@ mod tests {
                 &Checks::default(),
                 Recovery {
                     acknowledged: None,
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },
@@ -1118,6 +1346,8 @@ mod tests {
                 &Checks::default(),
                 Recovery {
                     acknowledged: None,
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: true,
                 },
@@ -1149,6 +1379,8 @@ mod tests {
                     &Checks::default(),
                     Recovery {
                         acknowledged: None,
+                        unacknowledged: false,
+                        finds_by_key: false,
                         resend_safe: false,
                         may_charge,
                     },
@@ -1364,6 +1596,8 @@ mod tests {
                 &identity(),
                 Recovery {
                     acknowledged: None,
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },
@@ -1478,6 +1712,8 @@ mod tests {
                 &identity(),
                 Recovery {
                     acknowledged: None,
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },
@@ -1519,6 +1755,8 @@ mod tests {
                         response: JsonObject::new(),
                         write_result: first.clone(),
                     }),
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },
@@ -1541,6 +1779,8 @@ mod tests {
                         response: JsonObject::new(),
                         write_result: first,
                     }),
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: true,
                     may_charge: false,
                 },
@@ -1569,6 +1809,8 @@ mod tests {
                 &identity(),
                 Recovery {
                     acknowledged: None,
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },
@@ -1612,6 +1854,8 @@ mod tests {
                         response: JsonObject::new(),
                         write_result: outcomes,
                     }),
+                    unacknowledged: false,
+                    finds_by_key: false,
                     resend_safe: false,
                     may_charge: false,
                 },

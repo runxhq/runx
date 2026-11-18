@@ -422,7 +422,15 @@ process carries out, or a priced read its provider doesn't deduplicate, is
 not). When the run is driven again, runx first reconciles the call from what
 custody holds of its act, with nobody asked: an answer it read back, an
 acknowledgement it reads back, an act already done under its key, or no
-attempt at all, which never reached its provider and so runs. Only when
+attempt at all, which never reached its provider and so runs. A write whose
+answer was lost, as it was sent or by a run that stopped before recording it,
+is read back by its key where its process implementation declares `readback:
+{by_key: true}`: run with `phase: lookup` and the key, the tool answers the
+acknowledgement the write was given, or `null` when it holds nothing under the
+key. Found, that is the acknowledgement, confirmed by the readback as any is;
+absent, the call goes again under its key only where its provider deduplicates
+and someone asked for it to go on, and otherwise waits; unanswered, it waits.
+Only when
 nothing settles it does a person answer it, under `approvals`: `{"retry":
 true}` runs it again with the same input, which for an unsafe one is their
 saying it didn't take effect, so it goes again under the same key, and a

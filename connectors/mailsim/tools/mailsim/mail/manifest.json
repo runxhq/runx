@@ -9,7 +9,7 @@
   },
   "inputs": {
     "connector_operation": {"type": "string", "description": "The operation runx performs, which runx supplies."},
-    "phase": {"type": "string", "description": "perform or readback, for a write.", "optional": true},
+    "phase": {"type": "string", "description": "perform, readback or lookup, for a write.", "optional": true},
     "idempotency_key": {"type": "string", "description": "runx's key for a write.", "optional": true},
     "acknowledgement": {"type": "object", "description": "A write's acknowledgement, for its readback.", "optional": true},
     "to": {"type": "string", "optional": true},

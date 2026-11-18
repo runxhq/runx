@@ -7022,6 +7022,11 @@ export const runxSchemaArtifacts = {
         "additionalProperties": false,
         "description": "What a process tool's readback must match.",
         "properties": {
+          "by_key": {
+            "const": true,
+            "description": "The tool also finds a write by the key it was sent with: run with `phase: lookup` and that `idempotency_key`, it answers the acknowledgement the write was given, or null when it holds nothing under the key. A lost acknowledgement is then read back by key, and what's found is confirmed as any acknowledgement is.",
+            "type": "boolean"
+          },
           "matches": {
             "items": {
               "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ReadbackMatch"

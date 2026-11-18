@@ -722,6 +722,19 @@ impl ConnectorOperation {
     /// quote declares no charge. An operation with no declaration has no known
     /// charge: it recovers as its verb and guarantees say, and only a money
     /// limit refuses it, for want of a quote.
+    /// Whether a write of this operation can be found by the key it was
+    /// sent with, so a lost acknowledgement is read back by key.
+    #[must_use]
+    pub fn finds_by_key(&self) -> bool {
+        matches!(
+            &self.implementation,
+            Some(Implementation::Process(ProcessImplementation {
+                readback: Some(ProcessReadback { by_key: true, .. }),
+                ..
+            }))
+        )
+    }
+
     #[must_use]
     pub fn is_metered(&self) -> bool {
         self.cost
@@ -1488,6 +1501,13 @@ pub enum ProcessResultSource {
 #[serde(deny_unknown_fields)]
 pub struct ProcessReadback {
     pub matches: NonEmptyVec<ReadbackMatch>,
+    /// The tool also finds a write by the key it was sent with: run with
+    /// `phase: lookup` and that `idempotency_key`, it answers the
+    /// acknowledgement the write was given, or null when it holds nothing
+    /// under the key. A lost acknowledgement is then read back by key, and
+    /// what's found is confirmed as any acknowledgement is.
+    #[serde(default, skip_serializing_if = "crate::schema::is_default")]
+    pub by_key: bool,
 }
 
 fn default_true() -> bool {

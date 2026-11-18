@@ -66,6 +66,12 @@ function send(input) {
     if (!message) throw new Error(`no message is held under key ${key}`);
     return publicMessage(message);
   }
+  // What was sent under the key, for a send whose answer was lost: the
+  // message as its send answered, or null when none was.
+  if (input.phase === "lookup") {
+    const message = sentByKey(key);
+    return message ? publicMessage(message) : null;
+  }
   const held = sentByKey(key);
   // One message per key: the same one again is the original; another is refused.
   if (held) return same(held, input) ? publicMessage(held) : { refused: "key_reused" };

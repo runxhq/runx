@@ -43,6 +43,7 @@ operations:
       process:
         tool: mailsim.mail
         readback:
+          by_key: true
           matches:
             - {expected: {source: argument, path: to}, observed: to}
             - {expected: {source: argument, path: from_email}, observed: from_email}

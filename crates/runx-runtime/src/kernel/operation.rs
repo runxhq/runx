@@ -885,7 +885,9 @@ impl RuntimeEffect for OperationEffect {
         };
         let recovery = confirm::Recovery {
             acknowledged: None,
+            unacknowledged: false,
             resend_safe: true,
+            finds_by_key: false,
             may_charge: false,
         };
         let Implementation::Store(_) = implementation else {
@@ -1422,9 +1424,14 @@ pub(crate) fn execute(
     // settles it: an answer it read back, an acknowledgement to read back,
     // or no attempt at all, since custody records each before anything is
     // sent, so the act never reached its provider or its provider refused
-    // it. Anything else waits on its retry, and nothing is sent.
+    // it. A write its provider can find by key is read back by it, and only
+    // what's found settles it. Anything else waits on its retry, and nothing
+    // is sent.
+    let finds_by_key = admitted.operation().finds_by_key();
     let settles = match (&context.admitted.custody, &context.admitted.pending) {
-        (_, Some(pending)) => pending.readback.is_some() || pending.acknowledgement.is_some(),
+        (_, Some(pending)) => {
+            pending.readback.is_some() || pending.acknowledgement.is_some() || finds_by_key
+        }
         (Some(_), None) => true,
         (None, None) => false,
     };
@@ -1501,7 +1508,7 @@ pub(crate) fn execute(
                 None,
             );
         }
-        if pending.acknowledgement.is_none() && !context.resend_safe() {
+        if pending.acknowledgement.is_none() && !context.resend_safe() && !finds_by_key {
             return Err(unknown(
                 "an earlier attempt has an unknown outcome and this operation cannot be resent safely; reconcile the provider result before resuming".to_owned(),
             ));
@@ -1902,13 +1909,21 @@ fn dispatch(
         access: operation.access(),
         _sealed: Sealed,
     };
+    let acknowledged = context
+        .admitted
+        .pending
+        .as_ref()
+        .and_then(|pending| pending.acknowledgement.clone());
+    let unacknowledged = context.admitted.pending.is_some() && acknowledged.is_none();
     let recovery = confirm::Recovery {
-        acknowledged: context
-            .admitted
-            .pending
-            .as_ref()
-            .and_then(|pending| pending.acknowledgement.clone()),
-        resend_safe: context.resend_safe(),
+        acknowledged,
+        unacknowledged,
+        // With nobody asked, an attempt that may have landed is never sent
+        // again: only what's found under its key settles it.
+        resend_safe: context.resend_safe()
+            && !(unacknowledged
+                && context.reconciliation == Some(crate::effects::Reconciliation::Evidence)),
+        finds_by_key: operation.finds_by_key(),
         may_charge: operation.is_metered(),
     };
     let mut record = |acknowledgement: &Acknowledgement| match &context.admitted.custody {

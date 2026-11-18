@@ -1861,6 +1861,106 @@ fn a_fixed_operation_step_in_flight_at_a_kill_reconciles_from_custody() -> TestR
     Ok(())
 }
 
+/// [`mail_project`] whose mailbox finds a send by its key (E8), loses a
+/// send's answer while `mail/lose` exists, and doesn't answer a lookup while
+/// `mail/silent` does.
+fn keyed_mail_project(root: &Path) -> TestResult<PathBuf> {
+    let skill = mail_project(root)?;
+    let tool = root.join("connectors/fixture/mail/tools/mail/send");
+    let send = MAIL_SEND.replacen(
+        "if grep -qx",
+        r#"if [ "$RUNX_INPUT_PHASE" = lookup ]; then
+  if [ -e "$mailbox/silent" ]; then
+    echo "the mailbox didn't answer" >&2
+    exit 1
+  fi
+  while read -r sent to; do
+    if [ "$sent" = "$key" ]; then
+      printf '{"message_ref":"mail://%s","to":"%s"}\n' "$key" "$to"
+      exit 0
+    fi
+  done < "$mailbox/sent"
+  echo null
+  exit 0
+fi
+if grep -qx"#,
+        1,
+    );
+    let send = send.replacen(
+        "printf '%s %s\\n' \"$key\" \"$RUNX_INPUT_TO\" >> \"$mailbox/sent\"\nprintf '{\"message_ref\":\"mail://%s\",\"to\":\"%s\"}\\n' \"$key\" \"$RUNX_INPUT_TO\"\n",
+        "printf '%s %s\\n' \"$key\" \"$RUNX_INPUT_TO\" >> \"$mailbox/sent\"\nif [ -e \"$mailbox/lose\" ]; then echo 'the connection dropped' >&2; exit 1; fi\nprintf '{\"message_ref\":\"mail://%s\",\"to\":\"%s\"}\\n' \"$key\" \"$RUNX_INPUT_TO\"\n",
+        1,
+    );
+    assert!(
+        send.contains("PHASE\" = lookup") && send.contains("mailbox/lose"),
+        "{send}"
+    );
+    fs::write(tool.join("send.sh"), send)?;
+    fs::write(
+        root.join("connectors/fixture/mail/connector.yaml"),
+        LOCAL_MAIL.replacen(
+            "        readback:\n",
+            "        readback:\n          by_key: true\n",
+            1,
+        ),
+    )?;
+    Ok(skill)
+}
+
+/// Send ann one message as run `run_id`.
+fn send_one(root: &Path, skill: &Path, run_id: &str) -> TestResult<Output> {
+    Ok(unsigned_runx_command_at(root)
+        .env("MAIL_TOKEN", "local-mailbox-token")
+        .arg("skill")
+        .arg(skill)
+        .args(["--run-id", run_id, "--receipt-dir"])
+        .arg(root.join("receipts"))
+        .arg("--json")
+        .output()?)
+}
+
+/// A send whose answer was lost is read back by its key (E8). The mailbox
+/// sends ann's message and the connection drops before its answer: runx
+/// finds the message under its key at once, and the run completes with one
+/// message sent. When the mailbox doesn't answer the lookup either, the send
+/// waits on its retry with nothing sent again; driven again once it answers,
+/// it's found and completes, still one message, with nobody asked.
+#[test]
+fn a_send_whose_answer_was_lost_is_read_back_by_its_key() -> TestResult {
+    let root = crate::support::temp_root("lost-answer");
+    keyed_mail_project(&root)?;
+    let skill = write_send_one(&root)?;
+    fs::create_dir_all(root.join("mail"))?;
+    fs::write(root.join("mail/lose"), "")?;
+    let sealed = status(&send_one(&root, &skill, "lost_answer")?)?;
+    assert_eq!(sealed["outcome"], "completed", "{sealed}");
+    assert_eq!(sent_to(&root, "ann@example.test")?, 1);
+
+    let root = crate::support::temp_root("lost-and-unanswered");
+    keyed_mail_project(&root)?;
+    let skill = write_send_one(&root)?;
+    fs::create_dir_all(root.join("mail"))?;
+    fs::write(root.join("mail/lose"), "")?;
+    fs::write(root.join("mail/silent"), "")?;
+    let held = status(&send_one(&root, &skill, "lost_unanswered")?)?;
+    let requests = held["requests"].as_array().cloned().unwrap_or_default();
+    assert!(
+        matches!(&requests[..], [request] if request["id"] == "send/retry"),
+        "{held}"
+    );
+    assert_eq!(sent_to(&root, "ann@example.test")?, 1);
+    fs::remove_file(root.join("mail/silent"))?;
+    fs::remove_file(root.join("mail/lose"))?;
+    let sealed = status(&send_one(&root, &skill, "lost_unanswered")?)?;
+    assert_eq!(sealed["outcome"], "completed", "{sealed}");
+    assert_eq!(
+        sent_to(&root, "ann@example.test")?,
+        1,
+        "found, never resent"
+    );
+    Ok(())
+}
+
 /// Drive run `run_id` again, answering nothing, with the mailbox's token.
 fn drive_mail(root: &Path, run_id: &str) -> TestResult<serde_json::Value> {
     let nothing = root.join("nothing.json");

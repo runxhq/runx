@@ -6,9 +6,11 @@
 //! `phase: "perform"` and runx's provider key as `idempotency_key`; its output
 //! is the acknowledgement. The write is
 //! confirmed by running the tool again with `phase: "readback"` and the
-//! `acknowledgement`, and the kernel matches what it observes. A tool that
-//! prints `{"refused": "<reason>"}` refused to act; any other failure may
-//! have acted.
+//! `acknowledgement`, and the kernel matches what it observes. A tool whose
+//! readback declares `by_key` also answers `phase: "lookup"` with the key
+//! alone: the acknowledgement the write under it was given, or null when it
+//! holds none. A tool that prints `{"refused": "<reason>"}` refused to act;
+//! any other failure may have acted.
 
 use std::path::Path;
 
@@ -97,6 +99,18 @@ impl Driver for Process<'_> {
             return Err(format!("the implementation declares no {check:?}").into());
         };
         observed(self.run("readback", Some(write))?).map_err(Unconfirmed::from)
+    }
+
+    fn lookup(&self) -> Result<Option<Observed>, Unconfirmed> {
+        match self.run("lookup", None)? {
+            JsonValue::Null => Ok(None),
+            answer => match refusal(&answer) {
+                Some(reason) => {
+                    Err(format!("the tool refused to look the write up: {reason}").into())
+                }
+                None => observed(answer).map(Some).map_err(Unconfirmed::from),
+            },
+        }
     }
 
     fn result(
