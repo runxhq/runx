@@ -2,7 +2,7 @@
   "schema": "runx.tool.manifest.v1",
   "name": "mailsim.mail",
   "version": "0.1.0",
-  "description": "The rehearsal mail provider: every operation of the mailsim connector, over the append-only files in the workspace's world/ folder.",
+  "description": "The rehearsal mail provider: every operation of the mailsim connector, both sides, over append-only files in its own folder or the workspace's world/ folder.",
   "process": {
     "command": "node",
     "args": ["./mail.mjs"]
@@ -19,12 +19,19 @@
     "subject": {"type": "string", "optional": true},
     "body": {"type": "string", "optional": true},
     "in_reply_to": {"type": "string", "optional": true},
+    "outreach": {"type": "boolean", "optional": true},
+    "unless_inbound_since": {"type": "string", "optional": true},
     "id": {"type": "string", "optional": true},
     "thread_id": {"type": "string", "optional": true},
     "after": {"type": "string", "optional": true},
     "limit": {"type": "integer", "optional": true},
     "address": {"type": "string", "optional": true},
     "basis": {"type": "object", "optional": true},
-    "reason": {"type": "string", "optional": true}
+    "reason": {"type": "string", "optional": true},
+    "parameters": {"type": "object", "description": "The instance's parameters, which runx supplies: where the state is kept, and the two loops' webhooks.", "optional": true},
+    "type": {"type": "string", "optional": true},
+    "from": {"type": "string", "optional": true},
+    "text": {"type": "string", "optional": true},
+    "auto_submitted": {"type": "string", "optional": true}
   }
 }

@@ -1,7 +1,7 @@
 schema: runx.connector.v1
 name: mailsim
 title: Mail rehearsal
-description: A rehearsal mail provider kept in the workspace's world/ folder, speaking the same mail contract a real one does. It sends nothing anywhere; the world simulator answers as the people written to.
+description: A rehearsal mail provider, speaking the same mail contract a real one does. It sends nothing anywhere. Its company side sends and reads as any mail connector does; its outside side is the world's, which reads what was sent and adds what the people written to send back. Its state is kept in its own folder, outside every workspace, or in the workspace's world/ folder when none is set.
 category: communication
 auth:
   credentials:
@@ -11,12 +11,32 @@ auth:
         - {name: api_key, label: "The rehearsal world's key, from world/key", prefixes: [mailsim_]}
       delivery: {env: MAILSIM_API_KEY}
       audience: [mailsim.local]
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    dir:
+      description: The folder its state is kept in, an absolute path outside every workspace that reaches it, as a provider is outside both parties. Without one, the workspace's world/ folder.
+      type: string
+      minLength: 1
+      maxLength: 1024
+      pattern: "^/"
+    company_webhook:
+      description: The company loop's mail webhook, from runx loop token, which each message added on the outside side is posted to.
+      type: string
+      maxLength: 2048
+      pattern: "^http://127\\.0\\.0\\.1:[0-9]+/"
+    world_webhook:
+      description: The world loop's webhook, from runx loop token, which each message sent is posted to.
+      type: string
+      maxLength: 2048
+      pattern: "^http://127\\.0\\.0\\.1:[0-9]+/"
 placements:
   local:
     auth: [credentials]
 operations:
   message.send:
-    description: Send one email to one recipient. One message per key, so a retry under the same key never sends twice.
+    description: Send one email to one recipient, at once. One message per key, so a retry under the same key never sends twice. Refused when the recipient is suppressed, or has written since unless_inbound_since.
     verb: write
     scopes: [mail.send]
     credentials: [api_key]
@@ -38,6 +58,8 @@ operations:
         subject: {type: string, minLength: 1, maxLength: 998}
         body: {type: string, minLength: 1, maxLength: 262144}
         in_reply_to: {type: string, maxLength: 998, pattern: "^<[^<>\\s]+>$"}
+        outreach: {type: boolean, description: A first contact, or a follow-up to someone who hasn't written.}
+        unless_inbound_since: {type: string, format: date-time, description: "Not sent when the recipient has written since this time."}
     result_fields: [id, thread_id, rfc_message_id, to, from_email, from_name, reply_to, subject, body, in_reply_to, sent_at]
     implementation:
       process:
@@ -51,7 +73,7 @@ operations:
             - {expected: {source: argument, path: body}, observed: body}
             - {expected: {source: acknowledgement, path: id}, observed: id}
   message.read:
-    description: Read one sent message by its send key or its id. No item means no message has that key.
+    description: Read one sent message by its send key or its id, with its status, which is sent, since mailsim sends at once. No item means no message has that key.
     verb: read
     scopes: [mail.read]
     credentials: [api_key]
@@ -173,3 +195,54 @@ operations:
           matches:
             - {expected: {source: argument, path: address}, observed: address}
             - {expected: {source: literal, value: true}, observed: suppressed}
+  outbox.read:
+    description: The outside side. Read what was sent after a cursor, oldest first, at most limit of it, with the cursor to read on from. Each is an envelope {id, type, timestamp, data} of type email.sent, its data the message as it went.
+    verb: read
+    scopes: [mail.outside]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: 'https://runx.ai'}
+    target:
+      template: "mailsim://outbox"
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        after: {type: string, maxLength: 64, pattern: "^[0-9]+$"}
+        limit: {type: integer, minimum: 1, maximum: 500}
+    result_fields: [events, cursor, more]
+    implementation:
+      process:
+        tool: mailsim.mail
+  inbound.add:
+    description: "The outside side. Add one thing a person written to sends back, once per key: email.received, a reply or an away message, threaded on the message it answers; email.bounced or email.complained, for an address written to; or unsubscribe, a click on the link, which suppresses the address and is never mail."
+    verb: write
+    scopes: [mail.outside]
+    credentials: [api_key]
+    cost: {usd_micro: 0, per: success, source: docs, source_url: 'https://runx.ai'}
+    guarantees:
+      provider_idempotency: enforced
+    target:
+      template: {"$argument": "/type"}
+    input_schema:
+      type: object
+      required: [type]
+      additionalProperties: false
+      properties:
+        type: {enum: [email.received, email.bounced, email.complained, unsubscribe]}
+        from: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        to: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        address: {type: string, maxLength: 320, pattern: "^[^\\s<>@,;]+@[^\\s<>@,;]+$"}
+        subject: {type: string, maxLength: 998}
+        text: {type: string, maxLength: 262144}
+        in_reply_to: {type: [string, "null"], maxLength: 998}
+        thread_id: {type: [string, "null"], maxLength: 255}
+        auto_submitted: {type: string, maxLength: 64}
+    result_fields: [id, type]
+    implementation:
+      process:
+        tool: mailsim.mail
+        readback:
+          by_key: true
+          matches:
+            - {expected: {source: argument, path: type}, observed: type}
+            - {expected: {source: acknowledgement, path: id}, observed: id}
