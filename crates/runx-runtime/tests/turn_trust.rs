@@ -1,8 +1,8 @@
 //! A load adds no capability by where a file sits (D12), and a person's trust
 //! is theirs, kept in their runx home (identity contract, "Trust").
 //!
-//! The probe of 6 November, as regression tests: a session started as
-//! Fieldwork starts one, the bundled agent skill's `read` method with
+//! The probe of 6 November, as regression tests: a session started as a
+//! host app starts one, the bundled agent skill's `read` method with
 //! `effects: ask`, `reach: workspace` and no standing approval, in a
 //! workspace holding a connector whose `read` is a process that writes a
 //! marker, and a skill that reaches it. No network, no credential, no model.
@@ -156,7 +156,7 @@ impl Workspace {
         ))
     }
 
-    /// Start the agent skill's `read` method as Fieldwork starts a session:
+    /// Start the agent skill's `read` method as a host app starts a session:
     /// agent bounds, no standing approval. Return its run's id.
     fn start(&self) -> TestResult<String> {
         self.start_as(TURN)

@@ -13,7 +13,7 @@ use crate::skill::MethodRef;
 
 /// `runx mcp`: the one governed MCP server. It serves skills, and the turns
 /// their own calls open, or the open turns of one run (`--run`), for a host
-/// such as Fieldwork that hands its agent that run alone.
+/// that hands its agent that run alone.
 #[derive(Debug, Eq, PartialEq)]
 pub struct McpPlan {
     /// The skills served, each `<ref>` or `<ref>#<method>`.

@@ -752,7 +752,7 @@ fn a_driven_turn_reads_the_memory_its_run_is_given_by_locator()
     // loopback endpoint, so it may read it.
     let memory: runx_contracts::ContextEntry = serde_json::from_value(json!({
         "schema": "runx.context_entry.v1",
-        "type": "fieldwork.memory",
+        "type": "host.memory",
         "summary": "Kam's launch date",
         "data": {"quote": "We launch on the third of November."},
         "labels": {
@@ -765,7 +765,7 @@ fn a_driven_turn_reads_the_memory_its_run_is_given_by_locator()
             "artifact_id": "memory:1",
             "run_id": "rx_host",
             "step_id": null,
-            "producer": {"skill": "fieldwork", "method": "memory"},
+            "producer": {"skill": "host", "method": "memory"},
             "created_at": "2026-10-20T00:00:00Z",
             "digest": "sha256:memory",
             "size_bytes": 48,

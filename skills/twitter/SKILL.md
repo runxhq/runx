@@ -139,7 +139,7 @@ operator when retry timing is unknown. Inspect native failure evidence for
 calls that fail before a settled batch result. Do not loop on permission,
 billing, account restrictions or unknown acknowledgement. The host owns
 scheduling and may choose a stricter cadence or spending cap. A CLI host can
-return the wait to its operator; Fieldwork can persist a wakeup on its Work.
+return the wait to its operator; a loop can persist a wakeup in its record.
 The skill contains no sleeping process, scheduler or personal memory service.
 
 ### Direct CLI use
@@ -165,7 +165,7 @@ artifact references come from runx, never guessed filesystem layouts.
 The operating sequence is evidence → grounded plan or deterministic selection
 → exact native approval → bounded execution → status or native recovery.
 Codex supplies judgment and relays the person's decisions. It needs no X HTTP,
-SQL, batching, canonical hashing or private operator scripts. Fieldwork owns
+SQL, batching, canonical hashing or private operator scripts. The host owns
 ongoing goals, brand/taste context, longer-lived memory and future wakeups;
 the same skill and native evidence work from either host.
 

@@ -50,7 +50,7 @@ The owning host resolves each roster skill and method through native inspection
 once before supplying the roster. Native admission validates a receiver call
 before it runs; a delegation proposal does not certify an uninspected target.
 
-The caller or Fieldwork owns continuing work, dependencies, pending assignments,
+The caller or its host owns continuing work, dependencies, pending assignments,
 retry policy and recovery. This package has no case database, event reducer,
 turn counter, TTL, scheduling loop, approval ledger or execution lease. It cannot
 advance an old standing case or accept a caller's assertion as verified child

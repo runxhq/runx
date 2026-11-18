@@ -324,7 +324,7 @@ in `runx mcp` too. A secret acts as the account its value holds, as a variable
 does. `rm` removes it; whatever still names it, in any project or the agent's
 config, refuses until it is set again. `read` prints the value, as `gh auth
 token` and `op read` print theirs, for a host that sends it itself, such as
-Fieldwork's model keys through `@runxhq/client`'s `secrets.read`.
+a host app's model keys through `@runxhq/client`'s `secrets.read`.
 
 A variable set in the environment or the workspace `.env` needs no secret and
 no setup: a connector whose credential it holds runs as it with no instance

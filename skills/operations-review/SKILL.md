@@ -295,8 +295,8 @@ state, secret leakage, or hidden private workarounds.
 ## State and continuation ownership
 
 This is one bounded review. The calling product supplies its current work and
-state, or selects the explicit read adapter. Fieldwork and other host products
-own continuing objectives, assignments, schedules and recovery. A proposal is
+state, or selects the explicit read adapter. Host products own continuing
+objectives, assignments, schedules and recovery. A proposal is
 not an approval, and a caller-supplied approval record cannot authorize a runx
 act. The named execution owner checks actual grants, policy and approval and
 returns its own receipt. Pass that evidence into a later review without
