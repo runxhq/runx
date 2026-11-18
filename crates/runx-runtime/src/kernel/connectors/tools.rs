@@ -10,7 +10,7 @@
 //! digest, written from bytes that still match the digest the call was
 //! admitted with, so the program that runs is the one the receipt names.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use runx_contracts::connector::{Digest, tool_package_digest};
@@ -55,6 +55,21 @@ impl ConnectorTool {
             ));
         }
         Ok(files)
+    }
+
+    /// The inputs this tool's manifest declares, the only ones it's given.
+    pub(crate) fn inputs(&self, tool: &str) -> Result<BTreeSet<String>, String> {
+        let files = self.files(tool)?;
+        let manifest = files
+            .get(MANIFEST)
+            .ok_or_else(|| format!("tool {tool} has no {MANIFEST}"))?;
+        let manifest = serde_json::from_slice::<serde_json::Value>(manifest)
+            .map_err(|error| format!("tool {tool}'s {MANIFEST}: {error}"))?;
+        Ok(manifest
+            .get("inputs")
+            .and_then(serde_json::Value::as_object)
+            .map(|inputs| inputs.keys().cloned().collect())
+            .unwrap_or_default())
     }
 
     /// The manifest of this tool's copy under the home of `paths`, written
@@ -246,6 +261,32 @@ mod tests {
             .err()
             .ok_or("a misnamed tool loaded")?;
         assert!(refused.contains("does not name it acme.other"), "{refused}");
+        Ok(())
+    }
+
+    /// A connector whose operation takes an argument its tool doesn't declare
+    /// is refused when it's loaded: the tool would never be given it.
+    #[test]
+    fn an_argument_the_tool_never_takes_refuses_the_connector() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|error| error.to_string())?;
+        let connector = root.path().join("connectors/acme");
+        plugin_tool(&connector, "")?;
+        std::fs::write(
+            connector.join("connector.yaml"),
+            "schema: runx.connector.v1\nname: acme\ntitle: Acme\ndescription: Syncs.\nauth: {none: {}}\nplacements: {local: {auth: [none]}}\noperations:\n  sync.run:\n    description: Sync.\n    verb: read\n    scopes: [acme.read]\n    target: {template: \"acme://sync\"}\n    input_schema: {type: object, additionalProperties: false, properties: {since: {type: string}}}\n    result_fields: [synced]\n    cost: {usd_micro: 0, per: request, source: observed}\n    implementation: {process: {tool: acme.sync}}\n",
+        )
+        .map_err(|error| error.to_string())?;
+        let refused = super::super::ConnectorScope::at(root.path())
+            .and_then(|scope| scope.connector("acme"))
+            .err()
+            .ok_or("a connector whose tool never takes `since` loaded")?
+            .to_string();
+        assert!(
+            refused.contains(
+                "operation sync.run takes since, which its tool acme.sync doesn't declare"
+            ),
+            "{refused}"
+        );
         Ok(())
     }
 

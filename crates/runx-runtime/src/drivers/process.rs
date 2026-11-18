@@ -168,8 +168,19 @@ impl Process<'_> {
                 "session_account".to_owned(),
                 JsonValue::String(account.to_owned()),
             );
+        }
+        // A tool told its account, or one that declares the input, is given
+        // the instance's parameters: where its provider is, as the operator
+        // set it.
+        if self.session_account.is_some() || declares_input(self.manifest, PARAMETERS) {
+            if self.session_account.is_none() && inputs.contains_key(PARAMETERS) {
+                return Err(Unperformed::NotSent {
+                    code: "invalid_context",
+                    reason: format!("{PARAMETERS} is kernel-supplied process context"),
+                });
+            }
             inputs.insert(
-                "parameters".to_owned(),
+                PARAMETERS.to_owned(),
                 JsonValue::Object(self.call.parameters.clone()),
             );
         }
@@ -207,6 +218,8 @@ impl Process<'_> {
 /// The input a tool declares to be told which of its connector's operations
 /// it performs.
 const CONNECTOR_OPERATION: &str = "connector_operation";
+/// The input a tool declares to be given its instance's parameters.
+const PARAMETERS: &str = "parameters";
 
 /// Whether the tool whose manifest is at `manifest` declares `input`.
 fn declares_input(manifest: &Path, input: &str) -> bool {
@@ -440,6 +453,66 @@ mod tests {
                 .and_then(JsonValue::as_str),
             Some("pinned")
         );
+        Ok(())
+    }
+
+    /// A tool that declares `parameters` is given its instance's, as the
+    /// operator set them, and never a caller's claim to them; one that
+    /// doesn't declare it isn't given them.
+    #[test]
+    fn a_tool_declaring_parameters_is_given_its_instance_s() -> Result<(), String> {
+        let root = tempfile::tempdir().map_err(|error| error.to_string())?;
+        let declaring = root.path().join("declaring.json");
+        std::fs::write(
+            &declaring,
+            r#"{"inputs": {"parameters": {"type": "object"}, "branch": {"type": "string"}}}"#,
+        )
+        .map_err(|error| error.to_string())?;
+        let silent = root.path().join("silent.json");
+        std::fs::write(&silent, r#"{"inputs": {"branch": {"type": "string"}}}"#)
+            .map_err(|error| error.to_string())?;
+        let parameters =
+            JsonObject::from([("dir".to_owned(), JsonValue::String("/srv/mail".to_owned()))]);
+        let env = BTreeMap::new();
+        let run = |manifest: &Path, arguments: &JsonValue| {
+            let tool = Tool {
+                runs: RefCell::new(Vec::new()),
+            };
+            let call = AdmittedCall::for_tests(arguments, &parameters, &env, OperationAccess::Read);
+            Process {
+                result_from: Default::default(),
+                session_account: None,
+                tools: &tool,
+                tool: "mail.read",
+                manifest,
+                call: &call,
+                delivery: &CredentialDelivery::none(),
+            }
+            .perform(None)
+            .map(|_| tool.runs.borrow()[0].clone())
+        };
+        let given = run(&declaring, &arguments("feature")).map_err(Unperformed::reason)?;
+        assert_eq!(
+            given.get("parameters"),
+            Some(&JsonValue::Object(parameters.clone()))
+        );
+        let unasked = run(&silent, &arguments("feature")).map_err(Unperformed::reason)?;
+        assert!(!unasked.contains_key("parameters"));
+        let mut forged = match arguments("feature") {
+            JsonValue::Object(value) => value,
+            _ => unreachable!(),
+        };
+        forged.insert(
+            "parameters".to_owned(),
+            JsonValue::Object(JsonObject::new()),
+        );
+        assert!(matches!(
+            run(&declaring, &JsonValue::Object(forged)),
+            Err(Unperformed::NotSent {
+                code: "invalid_context",
+                ..
+            })
+        ));
         Ok(())
     }
 }

@@ -264,6 +264,42 @@ fn process_tools(manifest: &ConnectorManifest) -> impl Iterator<Item = &str> {
         .into_iter()
 }
 
+/// Every argument a process operation takes is one its tool declares. A tool
+/// is given only the inputs it declares, so an argument it doesn't would be
+/// checked against the operation's schema and then never reach it.
+fn tools_take_their_arguments(
+    manifest: &ConnectorManifest,
+    tools: &BTreeMap<String, ConnectorTool>,
+) -> Result<(), String> {
+    for (name, operation) in &manifest.operations {
+        let Some(runx_contracts::connector::Implementation::Process(process)) =
+            &operation.implementation
+        else {
+            continue;
+        };
+        let tool = process.tool.as_str();
+        let Some(package) = tools.get(tool) else {
+            continue;
+        };
+        let declared = package.inputs(tool)?;
+        let arguments = operation
+            .input_schema
+            .as_ref()
+            .and_then(|schema| schema.get("properties"))
+            .and_then(runx_contracts::JsonValue::as_object);
+        if let Some(argument) = arguments
+            .into_iter()
+            .flat_map(|properties| properties.keys())
+            .find(|argument| !declared.contains(argument.as_str()))
+        {
+            return Err(format!(
+                "operation {name} takes {argument}, which its tool {tool} doesn't declare, so the tool would never be given it"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// One operation's digests, in the shape runx Connect binds: its operation
 /// digest and, when it declares an implementation, that implementation's.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -1138,6 +1174,7 @@ fn load_directory(
         })
         .collect::<Result<BTreeMap<_, _>, _>>()
         .map_err(&invalid)?;
+    tools_take_their_arguments(&validated.manifest, &tools).map_err(&invalid)?;
     let connector = loaded(validated, origin, tools).map_err(&invalid)?;
     if let Some(capability) = runtime_capabilities()?.connectors.get(&connector.name) {
         if capability.connector_digest == connector.connector_digest {
