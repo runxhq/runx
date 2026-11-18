@@ -125,8 +125,8 @@ function publicMessage(message) {
 
 function read(input) {
   const sent = lines("sent.jsonl");
-  const item = input.idempotency_key
-    ? sent.find((message) => message.idempotency_key === input.idempotency_key)
+  const item = input.key
+    ? sent.find((message) => message.idempotency_key === input.key)
     : sent.find((message) => message.id === input.id);
   return { item: item ? { ...publicMessage(item), status: "sent" } : null };
 }

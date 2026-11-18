@@ -53,7 +53,7 @@ operations:
             - {expected: {source: argument, path: body}, observed: body}
             - {expected: {source: acknowledgement, path: id}, observed: id}
   message.read:
-    description: Read one sent message by its send key or its id, with its status, which is sent, since mailsim sends at once. No item means no message has that key.
+    description: Read one sent message by the key it was sent under or its id, with its status, which is sent, since mailsim sends at once. No item means no message has that key.
     verb: read
     scopes: [mail.read]
     credentials: [api_key]
@@ -62,10 +62,10 @@ operations:
       template: "mailsim://messages"
     input_schema:
       type: object
-      oneOf: [{required: [idempotency_key]}, {required: [id]}]
+      oneOf: [{required: [key]}, {required: [id]}]
       additionalProperties: false
       properties:
-        idempotency_key: {type: string, minLength: 1, maxLength: 255}
+        key: {type: string, minLength: 1, maxLength: 255, description: "The key the message was sent under: the send's idempotency key."}
         id: {type: string, minLength: 1, maxLength: 255}
     result_fields: [item]
     implementation:

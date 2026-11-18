@@ -21,6 +21,7 @@
     "in_reply_to": {"type": "string", "optional": true},
     "outreach": {"type": "boolean", "optional": true},
     "unless_inbound_since": {"type": "string", "optional": true},
+    "key": {"type": "string", "optional": true},
     "id": {"type": "string", "optional": true},
     "thread_id": {"type": "string", "optional": true},
     "after": {"type": "string", "optional": true},
