@@ -1492,7 +1492,10 @@ under `fixtures/` is staged whole into each test's workspace, with
 `fixtures/bin/` executable. A test's paths are read as a run's are, from its
 workspace root, so `fixtures/notes.md` in a test names the staged copy, a
 file of that workspace. A file of the package the skill reads in any
-workspace is `$package/<path>`, in a test and a run alike.
+workspace is `$package/<path>`, in a test and a run alike. A test resolves
+the skills it composes as your workspace does: your own copy of a registry
+skill at `skills/<publisher>/<name>/` answers its ref in a test as it does in
+a run, though the test writes only its own workspace.
 
 Use `expect.output` to assert the method's public result. Object subsets allow
 additional fields; arrays must have the same length and order, and each object

@@ -18,6 +18,9 @@ use crate::adapter::{Executable, InvocationOutput, SkillAdapter, SkillInvocation
 use crate::effects::RuntimeEffectRegistry;
 use crate::execution::skill_front::{ExecutableAdapter, SkillRunError};
 use crate::paths::{RUNX_CWD_ENV, RUNX_RECEIPT_DIR_ENV, RunxPaths};
+
+/// Where skills are looked for beyond the workspace's own `skills/`.
+const SKILL_ROOTS_ENV: &str = "RUNX_SKILL_ROOTS";
 use crate::services::ReceiptServices;
 
 /// How a package's tests came out: `passed` when every case that ran passed,
@@ -367,6 +370,16 @@ impl PackageTestEnvironment {
         receipt_dir: Option<&Path>,
     ) -> Result<Self, SkillRunError> {
         crate::services::merge_inferred_tool_roots(&mut env, skill_dir);
+        // A case resolves skills as the operator's workspace does: their own
+        // copy of a registry skill, at skills/<publisher>/<name>/, answers its
+        // ref in a case as it does in a run. The case reads them, and writes
+        // only its scratch workspace.
+        let roots = std::env::join_paths(operator.skill_roots(&env))
+            .ok()
+            .and_then(|roots| roots.into_string().ok());
+        if let Some(roots) = roots {
+            env.insert(SKILL_ROOTS_ENV.to_owned(), roots);
+        }
         let scratch_root = unique_scratch_root(operator);
         let workspace = scratch_root.join("workspace");
         fs::create_dir_all(&workspace).map_err(|source| {

@@ -935,6 +935,45 @@ methods:
     Ok(())
 }
 
+/// A case resolves a registry child as the operator's workspace does: their
+/// own copy at skills/<publisher>/<name>/ answers the ref, as it does in a
+/// run, though the case runs in a scratch workspace of its own.
+#[test]
+fn a_case_runs_a_registry_child_from_the_operators_own_copy()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("skills/acme/child"),
+        "---\nname: child\ndescription: Digests a value.\n---\n# Child\n",
+        "minimum_runx: 0.12.0\nmethods:\n  say:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: hello, encoding: utf8_text}\n",
+    )?;
+    let parent = temp.path().join("skills/parent");
+    crate::support::write_test_skill_package(
+        &parent,
+        "---\nname: parent\ndescription: Calls acme's child.\n---\n# Parent\n",
+        "minimum_runx: 0.12.0\nmethods:\n  call:\n    steps:\n      - id: child\n        skill: registry:acme/child@1.0.0#say\n",
+    )?;
+    fs::create_dir_all(parent.join("tests"))?;
+    fs::write(
+        parent.join("tests/calls-the-child.yaml"),
+        "name: calls-the-child\nmethod: call\nexpect:\n  status: sealed\n",
+    )?;
+    let report = LocalOrchestrator::default()
+        .with_environment(
+            path_env()
+                .into_iter()
+                .chain([("RUNX_CWD".to_owned(), temp.path().display().to_string())])
+                .collect(),
+        )
+        .run_package_test(&runx_runtime::PackageTestRequest {
+            skill_path: parent,
+            receipt_dir: Some(temp.path().join("receipts")),
+            processes: runx_runtime::TestProcesses::Run,
+        })?;
+    assert_eq!(report.status, "passed", "{:?}", report.cases);
+    Ok(())
+}
+
 #[test]
 fn native_javascript_method_rejects_a_packet_schema_violation()
 -> Result<(), Box<dyn std::error::Error>> {
