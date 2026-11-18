@@ -15,6 +15,12 @@ reports, maintainer updates, newsletters, and social drafts. It can also package
 an accepted draft for a channel and prepare a provider-neutral handoff. It never
 publishes, posts, sends, or claims provider acknowledgement.
 
+## Composes
+
+<!-- Generated from the native closure; run pnpm core-skills:composes:generate. -->
+
+- `memory#index`
+
 ## Writing standard
 
 - Lead with the reader's problem, decision, or next action—not the evidence
