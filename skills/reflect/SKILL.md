@@ -40,7 +40,8 @@ It returns:
 - **`subject`**: the window judged, its runs and the workspace's revision, by
   digest.
 - **`mark`**: where the mark would move once the verdict covers the window, and
-  the runs still open there. `survey` never moves it.
+  the runs still owed: those that have not sealed and those whose checks
+  remain unresolved. `survey` never moves it.
 
 A survey that runs out of calls before reading every run says so: its own check
 then can't be met, and the mark it returns moves only past what it read.
@@ -87,6 +88,9 @@ then can't be met, and the mark it returns moves only past what it read.
   and a rule once it's promoted: until then each is `not_met`, saying what it
   lacks, a declined fix with the person's reason. A sampled run that did what
   its purpose asks is met, and one with no finding kept is unresolved.
+  An unresolved run stays in the mark's open list for the next reflection;
+  a rejected diagnosis never finishes the work. The loop notice names what
+  still needs reflection.
 - **`keep`** closes each rule `AGENTS.md` holds at `HEAD` through
   `runx/memory#disable`, its reason naming the commit, so the person confirms
   the close at memory's own gate. A rule is held only where the file holds its

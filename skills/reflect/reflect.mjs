@@ -286,7 +286,8 @@ export async function survey(ctx, { reader, until: given }) {
     resistance.push(...items);
     if (items.length === 0 && summary.outcome === "completed") successes.push(summary);
   };
-  // The runs open at the mark first: each read again, and kept open until it seals.
+  // The runs still owed at the mark first: each read again once it seals.
+  // A run whose judgement was unresolved is here too, until its checks are met.
   for (const run_id of previouslyOpen) {
     if (!room(2)) {
       read_to_end = false;
@@ -816,7 +817,7 @@ export async function observe(ctx, { survey, findings }) {
  * covers, at the version survey read, so a concurrent reflection's move wins
  * and this one says it lost.
  */
-export async function keep(ctx, { reader, survey, proposals = [], promotion = null, observed = [] }) {
+export async function keep(ctx, { reader, survey, proposals = [], promotion = null, observed = [], verdict }) {
   const closed = [];
   for (const rule of survey.held) {
     const key = (await ctx.tool("data.digest", { value: { close: rule.handle } })).digest_result.digest.slice(7);
@@ -841,7 +842,13 @@ export async function keep(ctx, { reader, survey, proposals = [], promotion = nu
       closed.push({ handle: rule.handle, reason, declined: why, again: false });
     }
   }
-  const { through, at_through, open, version } = survey.mark;
+  const { through, at_through, version } = survey.mark;
+  const assessed = new Map((verdict?.assessments ?? []).map((answer) => [answer.id, answer.verdict]));
+  const unresolved = [...new Set([
+    ...survey.resistance.filter((_, index) => assessed.get(`resisted_${index + 1}`) !== "met").map((item) => item.run),
+    ...survey.sampled.filter((_, index) => assessed.get(`sampled_${index + 1}`) !== "met").map((item) => item.run),
+  ])];
+  const open = [...new Set([...survey.mark.open, ...unresolved])].sort();
   let mark;
   try {
     const moved = await ctx.operation(
@@ -861,7 +868,7 @@ export async function keep(ctx, { reader, survey, proposals = [], promotion = nu
   // A rule whose handle the file holds under other words stays active, and
   // the person sees both: the rule as they said it, and what the file says.
   const edited = (survey.edited ?? []).map(({ handle, text, wording }) => ({ handle, said: text, file_says: wording }));
-  return { kept: { closed, edited, mark }, loop: windowNotice({ survey, proposals, promotion, observed, closed }) };
+  return { kept: { closed, edited, mark }, loop: windowNotice({ survey, proposals, promotion, observed, closed, unresolved, verdict }) };
 }
 
 function counted(count, one, many = `${one}s`) {
@@ -873,7 +880,7 @@ function counted(count, one, many = `${one}s`) {
  * what resisted and what was wrong, what was proven and applied, declined or
  * kept only as an observation, and the rules promoted and closed.
  */
-export function windowNotice({ survey, proposals, promotion, observed, closed }) {
+export function windowNotice({ survey, proposals, promotion, observed, closed, unresolved = [], verdict }) {
   const applied = proposals.filter((proposal) => proposal.applied).length;
   const declined = proposals.filter((proposal) => proposal.declined !== undefined).length;
   const promoted = promotion?.promoted?.length ?? 0;
@@ -885,5 +892,11 @@ export function windowNotice({ survey, proposals, promotion, observed, closed })
   ];
   if (promoted > 0 || closes > 0) parts.push(`${counted(promoted, "rule")} written into ${INSTRUCTIONS}, ${closes} closed in memory.`);
   if (survey.read_to_end === false) parts.push("The window was cut short, and the next reflection goes on from where this one stopped.");
+  if (unresolved.length > 0) {
+    parts.push(`${counted(unresolved.length, "run")} still ${unresolved.length === 1 ? "needs" : "need"} reflection.`);
+    for (const answer of verdict?.assessments ?? []) {
+      if (answer.verdict !== "met" && answer.failure?.actual) parts.push(answer.failure.actual);
+    }
+  }
   return { changed: applied + promoted + closes + observed.length > 0, notice: { text: parts.join(" ") } };
 }

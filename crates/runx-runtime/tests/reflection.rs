@@ -453,6 +453,36 @@ fn reflection_judges_the_window_repairs_a_wrong_result_and_drops_a_finding_the_r
         verdict["assessments"],
         second["result"]["verdict"]["assessments"]
     );
+    let next = survey(root)?;
+    let waiting = next["resistance"]
+        .as_array()
+        .ok_or("resistance on the next reflection")?;
+    assert_eq!(
+        waiting.len(),
+        1,
+        "the unresolved run survives the reader's mark: {next}"
+    );
+    assert_eq!(waiting[0]["kind"], "sealed_blocked");
+    assert!(
+        first["result"]["loop"]["notice"]["text"]
+            .as_str()
+            .is_some_and(|text| text.contains("1 run still needs reflection"))
+    );
+    let recovery = reflection_model(Diagnoses::Faithful)?;
+    let endpoint = recovery.endpoint().to_owned();
+    let recovered = drive(root, &endpoint, reflect(root, &endpoint)?, |_| {
+        serde_json::json!(true)
+    })?;
+    recovery.finish()?;
+    assert_eq!(
+        recovered["result"]["verdict"]["verdict"], "met",
+        "{recovered}"
+    );
+    assert_eq!(
+        survey(root)?["resistance"],
+        serde_json::json!([]),
+        "once resolved, the same run is no longer owed"
+    );
     Ok(())
 }
 
