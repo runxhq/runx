@@ -393,12 +393,15 @@ fn collect_skill_package_roots(
 pub(crate) fn resolve_skill_package_directory(path: &Path) -> Result<PathBuf, RuntimeError> {
     let metadata = fs::symlink_metadata(path)
         .map_err(|source| RuntimeError::io(format!("reading {}", path.display()), source))?;
+    // A package named through a link is the package the link names: its
+    // bytes are that directory's own, read from where they are, as a link
+    // anywhere above it is followed. A link inside a package is still
+    // refused, since the package's bytes are what its digest names.
     if metadata.file_type().is_symlink() {
-        return Err(runx_parser::SkillPackageError::invalid(
-            path.to_string_lossy(),
-            "skill package root must not be a symbolic link",
-        )
-        .into());
+        let target = fs::canonicalize(path).map_err(|source| {
+            RuntimeError::io(format!("following the link {}", path.display()), source)
+        })?;
+        return resolve_skill_package_directory(&target);
     }
     if metadata.is_dir() {
         return Ok(path.to_path_buf());

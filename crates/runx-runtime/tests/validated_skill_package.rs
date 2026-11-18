@@ -68,6 +68,38 @@ fn validated_skill_package_rejects_symlinked_sources() -> Result<(), Box<dyn std
     Ok(())
 }
 
+/// A package named through a link, as a workspace links another checkout's
+/// skill beside its own, loads as the directory the link names, with that
+/// directory's bytes; a sibling named relative to it is found the same way.
+#[cfg(unix)]
+#[test]
+fn a_package_named_through_a_link_is_the_package_it_names() -> Result<(), Box<dyn std::error::Error>>
+{
+    use std::os::unix::fs::symlink;
+
+    let real = tempfile::tempdir()?;
+    fs::write(
+        real.path().join("SKILL.md"),
+        "---\nname: linked\ndescription: a package reached through a link.\n---\n\n# Linked\n",
+    )?;
+    let workspace = tempfile::tempdir()?;
+    fs::create_dir_all(workspace.path().join("skills"))?;
+    symlink(real.path(), workspace.path().join("skills/linked"))?;
+
+    let through = load_validated_skill_package(&workspace.path().join("skills/linked"))?;
+    let direct = load_validated_skill_package(real.path())?;
+    assert_eq!(through.package.skill.name, "linked");
+    assert_eq!(through.directory, fs::canonicalize(real.path())?);
+    assert_eq!(
+        through.package.package_digest,
+        direct.package.package_digest
+    );
+    let via_document =
+        load_validated_skill_package(&workspace.path().join("skills/linked/SKILL.md"))?;
+    assert_eq!(via_document.directory, through.directory);
+    Ok(())
+}
+
 #[test]
 fn packet_input_schema_is_hydrated_into_inspection() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempfile::tempdir()?;
