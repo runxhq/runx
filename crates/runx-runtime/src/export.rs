@@ -216,6 +216,7 @@ fn export_skill(
                 loaded.clone().into(),
                 name,
                 execution_env,
+                None,
             )
             .map_err(|error| RunxExportLoadError::Parse(error.to_string()))?;
             if !binding.fully_bound {

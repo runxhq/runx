@@ -218,9 +218,11 @@ pub(super) fn inspect_method_closure(
     loaded: Arc<LoadedSkillPackage>,
     method_name: &str,
     env: &BTreeMap<String, String>,
+    kept: Option<&crate::skill_package::AdmittedPackages>,
 ) -> Result<AdmittedClosure, SkillInspectionError> {
     let mut inspector = ClosureInspector::new(loaded, Some(env), UnheldRegistryRefs::Reject)?;
     inspector.identify = true;
+    inspector.kept = kept;
     let mut closure = inspector.inspect_root_method_accumulator(method_name)?;
     let packages = std::mem::take(&mut closure.packages);
     let identities = std::mem::take(&mut closure.identities)
@@ -416,6 +418,9 @@ struct ClosureInspector<'a> {
     connector_scopes: BTreeMap<PathBuf, Arc<crate::kernel::connectors::ConnectorScope>>,
     /// Whether the walk binds a run, and so sets who each package is.
     identify: bool,
+    /// The packages a kept closure gives, which its child skills are read
+    /// from instead of disk, so a continuation binds what its run admitted.
+    kept: Option<&'a crate::skill_package::AdmittedPackages>,
 }
 
 impl<'a> ClosureInspector<'a> {
@@ -455,6 +460,7 @@ impl<'a> ClosureInspector<'a> {
             unheld_registry_refs,
             connector_scopes: BTreeMap::new(),
             identify: false,
+            kept: None,
         })
     }
 
@@ -497,7 +503,7 @@ impl<'a> ClosureInspector<'a> {
                 // Code a package carries binds as that package, and a
                 // signature of its own is still checked: one that fails is
                 // refused, whatever carries it.
-                if crate::registry::carries_signature(package_root) {
+                if crate::identity::carries_skill_signature(loaded) {
                     crate::identity::skill_identity(loaded, env).map_err(refused)?;
                 }
                 let carried = walk
@@ -1014,7 +1020,17 @@ impl<'a> ClosureInspector<'a> {
         let loaded_step = crate::execution::workflow::load_step_skill_package(
             workflow_directory,
             step,
-            crate::execution::workflow::StepSkillLoadOptions::from_disk(env),
+            crate::execution::workflow::StepSkillLoadOptions {
+                env,
+                // A bundled skill is runx's own, bound from the runtime as it
+                // is now, never from a kept closure (D30), and so are the
+                // skills it calls: a kept closure gives the children of the
+                // packages it holds.
+                packages: self.kept.filter(|kept| {
+                    !crate::registry::is_bundled_reference(reference)
+                        && kept.holds(workflow_directory)
+                }),
+            },
         )?;
         let signed = loaded_step.registry.map(|registry| registry.signed);
         let nested = loaded_step.package;
@@ -1313,7 +1329,7 @@ mod tests {
             .and_then(|manifest| manifest.default_method())
             .map(|method| method.name.clone())
             .ok_or("a default method")?;
-        let (closure, ..) = inspect_method_closure(loaded, &method, &BTreeMap::new())?;
+        let (closure, ..) = inspect_method_closure(loaded, &method, &BTreeMap::new(), None)?;
         Ok(closure
             .as_object()
             .and_then(|closure| closure.get("summary"))

@@ -284,8 +284,20 @@ fn declared_names(method: &SkillMethodDefinition) -> String {
         .join(", ")
 }
 
+/// A binding's failure as a run's: a package that can't be read, or a kept
+/// closure that can't be, is the runtime's error, and a binding that doesn't
+/// verify is an invalid request.
+pub(crate) fn bind_error(error: crate::skill_package::kept::BindError) -> SkillRunError {
+    match error {
+        crate::skill_package::kept::BindError::Load(error)
+        | crate::skill_package::kept::BindError::Kept(error) => error.into(),
+        crate::skill_package::kept::BindError::Binding(error) => invalid(error.to_string()),
+    }
+}
+
 /// Load the request's skill, verify it against the digests a caller pins,
-/// and bind the run to it.
+/// and bind the run to it. Pinned to a closure that's kept, it binds the kept
+/// code its run was admitted with (E5).
 pub(crate) fn bind_skill_run(
     request: &SkillRunRequest,
     overrides: &SkillRunOverrides,
@@ -293,7 +305,60 @@ pub(crate) fn bind_skill_run(
     expected_package_digest: Option<&str>,
     expected_closure_digest: Option<&str>,
 ) -> Result<BoundRun, SkillRunError> {
-    let loaded = std::sync::Arc::new(crate::load_validated_skill_package(&request.skill_path)?);
+    let paths = crate::paths::RunxPaths::resolve(&request.env, &request.cwd);
+    // A run that has started continues on what its record says it started
+    // under, whether it's resumed or started again by its id, as one whose
+    // driver died is: its pins are its own, and its kept closure is bound. A
+    // continuation that opened the run's log brings those digests already, so
+    // the record is read once.
+    if overrides.run_log.is_some() {
+        let pins = crate::skill_package::kept::Pins {
+            package_digest: expected_package_digest,
+            closure_digest: expected_closure_digest,
+            continuation: true,
+        };
+        return bind_pinned(request, overrides, effects, &paths, pins);
+    }
+    let recorded = match &request.run_id {
+        Some(run_id) => started_under(&paths, run_id)?,
+        None => None,
+    };
+    let pins = match &recorded {
+        Some((package_digest, closure_digest)) => {
+            if expected_package_digest.is_some_and(|pinned| pinned != package_digest)
+                || expected_closure_digest.is_some_and(|pinned| pinned != closure_digest)
+            {
+                return Err(invalid(
+                    "a continuation's pinned digests must be the ones its run started under",
+                ));
+            }
+            crate::skill_package::kept::Pins {
+                package_digest: Some(package_digest),
+                closure_digest: Some(closure_digest),
+                continuation: true,
+            }
+        }
+        None => crate::skill_package::kept::Pins {
+            package_digest: expected_package_digest,
+            closure_digest: expected_closure_digest,
+            continuation: false,
+        },
+    };
+    bind_pinned(request, overrides, effects, &paths, pins)
+}
+
+/// Bind the request's skill against `pins`, its kept closure when they're
+/// its run's own and it's kept.
+fn bind_pinned(
+    request: &SkillRunRequest,
+    overrides: &SkillRunOverrides,
+    effects: &RuntimeEffectRegistry,
+    paths: &crate::paths::RunxPaths,
+    pins: crate::skill_package::kept::Pins<'_>,
+) -> Result<BoundRun, SkillRunError> {
+    let bound = crate::skill_package::kept::package(&request.skill_path, paths.project(), pins)
+        .map_err(bind_error)?;
+    let loaded = std::sync::Arc::clone(&bound.loaded);
     let skill_dir = loaded.directory.clone();
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         invalid(format!(
@@ -307,14 +372,9 @@ pub(crate) fn bind_skill_run(
     // admits is what the run's steps reach.
     let workspace =
         WorkspaceEnv::new(request.env.clone(), request.cwd.clone()).map_err(RuntimeError::from)?;
-    let binding = crate::skill_package::verify_loaded_execution_binding(
-        loaded.clone(),
-        &method.name,
-        workspace.env(),
-        expected_package_digest,
-        expected_closure_digest,
-    )
-    .map_err(|error| invalid(error.to_string()))?;
+    let binding = bound
+        .bind(&method.name, workspace.env(), paths.project(), pins)
+        .map_err(bind_error)?;
     bind_resolved(
         ResolvedSkillRun {
             loaded: &loaded,
@@ -330,6 +390,23 @@ pub(crate) fn bind_skill_run(
         },
         false,
     )
+}
+
+/// The package and closure digests run `run_id`'s record says it started
+/// under, when it has started.
+fn started_under(
+    paths: &crate::paths::RunxPaths,
+    run_id: &str,
+) -> Result<Option<(String, String)>, SkillRunError> {
+    let store = crate::kernel::store::KernelStore::for_project(paths)
+        .map_err(crate::execution::run_record::RunRecordError::from)?;
+    let log = crate::execution::run_record::RunLog::open(
+        store,
+        crate::execution::run_record::validate_run_id(run_id)?,
+    )?;
+    Ok(log
+        .started()?
+        .map(|started| (started.package_digest, started.closure_digest)))
 }
 
 /// What continues a paused run: the run, where its receipts go, and what

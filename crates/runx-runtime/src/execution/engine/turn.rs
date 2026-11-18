@@ -498,21 +498,31 @@ where
             ),
         };
         let paths = crate::paths::RunxPaths::resolve(&options.env, self.workflow_dir);
-        let directory = super::step_handlers::resolve_loaded(&target.skill, &paths, &options.env)
-            .map_err(changed)?
-            .runnable_path;
-        let package = std::sync::Arc::new(
-            crate::load_validated_skill_package(&directory)
-                .map_err(|error| changed(error.to_string()))?,
-        );
-        let binding = crate::skill_package::verify_loaded_execution_binding(
-            std::sync::Arc::clone(&package),
-            method,
-            &options.env,
-            Some(bound.package_digest.as_str()),
-            Some(bound.closure_digest.as_str()),
-        )
-        .map_err(|error| changed(error.to_string()))?;
+        // The load kept what it bound, so the call runs that, however the
+        // package changed since (E5); a load from before closures were kept
+        // reads it from where it lies, and is refused if it changed.
+        let pins = crate::skill_package::kept::Pins {
+            package_digest: Some(bound.package_digest.as_str()),
+            closure_digest: Some(bound.closure_digest.as_str()),
+            continuation: true,
+        };
+        let kept = match crate::skill_package::kept::kept(paths.project(), pins)
+            .map_err(|error| changed(error.to_string()))?
+        {
+            Some(kept) => kept,
+            None => {
+                let directory =
+                    super::step_handlers::resolve_loaded(&target.skill, &paths, &options.env)
+                        .map_err(changed)?
+                        .runnable_path;
+                crate::skill_package::kept::package(&directory, paths.project(), pins)
+                    .map_err(|error| changed(error.to_string()))?
+            }
+        };
+        let package = std::sync::Arc::clone(&kept.loaded);
+        let binding = kept
+            .bind(method, &options.env, paths.project(), pins)
+            .map_err(|error| changed(error.to_string()))?;
         let mut skill = step_skill(
             step,
             LoadedStepSkillPackage {

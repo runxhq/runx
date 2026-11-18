@@ -431,9 +431,10 @@ pub(crate) fn inspect_loaded_closure_binding(
     loaded: Arc<LoadedSkillPackage>,
     selected_method: &str,
     env: &std::collections::BTreeMap<String, String>,
+    kept: Option<&super::AdmittedPackages>,
 ) -> Result<InspectedClosureBinding, SkillInspectionError> {
     let (closure, packages, identities, projects) =
-        inspect_method_closure(loaded, selected_method, env)?;
+        inspect_method_closure(loaded, selected_method, env, kept)?;
     let closure = closure
         .as_object()
         .ok_or_else(|| SkillInspectionError::ClosureInvalid {

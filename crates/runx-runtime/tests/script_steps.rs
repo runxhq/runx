@@ -2619,10 +2619,10 @@ fn a_worker_limit_never_reaches_a_scripts_catch() -> TestResult {
     Ok(())
 }
 
-/// An engine fault never reaches a script's catch: a child skill changed
-/// while its call waited, so the run's resume is refused before the script
-/// is given anything, and the run stays open, unsealed, for the package it
-/// started from.
+/// An engine fault never reaches a script's catch: a file of the closure the
+/// run kept changed while its call waited, so the run's resume is refused
+/// before the script is given anything, and the run stays open, unsealed, for
+/// the package it started from.
 #[test]
 fn an_engine_fault_never_reaches_a_scripts_catch() -> TestResult {
     let temp = tempdir()?;
@@ -2645,12 +2645,17 @@ fn an_engine_fault_never_reaches_a_scripts_catch() -> TestResult {
         .ok_or("missing run_id")?
         .to_owned();
     assert_eq!(requests(&started)?, ["prepare/0#confirm"]);
-    let child = temp.path().join("confirm-child/run.yaml");
-    let declared = std::fs::read_to_string(&child)?;
-    std::fs::write(
-        &child,
-        declared.replace("Confirm the digest.", "Confirm it."),
-    )?;
+    let kept = temp.path().join(".runx/kept/files");
+    let mut changed = 0;
+    for file in std::fs::read_dir(&kept)? {
+        let path = file?.path();
+        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        if text.contains("Confirm the digest.") {
+            std::fs::write(&path, text.replace("Confirm the digest.", "Confirm it."))?;
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1, "the child's kept run.yaml");
 
     let refused = resume(
         temp.path(),

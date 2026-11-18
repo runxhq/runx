@@ -15,6 +15,7 @@ use crate::RuntimeError;
 use crate::filesystem::{DirectoryEntry, read_dir_sorted};
 
 mod inspection;
+pub(crate) mod kept;
 mod resolve;
 
 pub use inspection::inspect_connector_readiness;
@@ -44,6 +45,10 @@ pub struct LoadedSkillPackage {
     /// and publication reuse these bytes instead of rereading mutable files.
     pub(crate) resolved_input_packet_schemas:
         BTreeMap<runx_contracts::PacketId, crate::packet_schemas::PacketSchemaEntry>,
+    /// For a package a kept closure gives, the signature kept with its bytes,
+    /// when it carried one: its identity is verified against these bytes,
+    /// never against what's on disk now (E5).
+    pub(crate) kept_signature: Option<Arc<str>>,
 }
 
 impl LoadedSkillPackage {
@@ -122,6 +127,12 @@ impl AdmittedPackages {
         &self.projects
     }
 
+    /// Whether the package at `directory`, exactly as the run names it, is
+    /// one it admitted.
+    pub(crate) fn holds(&self, directory: &Path) -> bool {
+        self.packages.contains_key(directory)
+    }
+
     /// The admitted package at `directory`, as the run names it or as the
     /// loader resolves it. A package the run did not admit is refused.
     pub(crate) fn get(&self, directory: &Path) -> Result<Arc<LoadedSkillPackage>, RuntimeError> {
@@ -159,7 +170,30 @@ pub(crate) fn verify_loaded_execution_binding(
     expected_package_digest: Option<&str>,
     expected_closure_digest: Option<&str>,
 ) -> Result<ExecutionBinding, SkillInspectionError> {
-    let loaded = loaded.into();
+    verify_binding(
+        loaded.into(),
+        method,
+        env,
+        kept::Pins {
+            package_digest: expected_package_digest,
+            closure_digest: expected_closure_digest,
+            continuation: false,
+        },
+        None,
+    )
+}
+
+/// Bind `loaded`'s `method` against `pins`, its child skills read from
+/// `kept` when a kept closure gives them, else from disk.
+fn verify_binding(
+    loaded: Arc<LoadedSkillPackage>,
+    method: &str,
+    env: &std::collections::BTreeMap<String, String>,
+    pins: kept::Pins<'_>,
+    kept: Option<&AdmittedPackages>,
+) -> Result<ExecutionBinding, SkillInspectionError> {
+    let expected_package_digest = pins.package_digest;
+    let expected_closure_digest = pins.closure_digest;
     if let Some(expected) = expected_package_digest
         && expected != loaded.package.package_digest
     {
@@ -168,7 +202,7 @@ pub(crate) fn verify_loaded_execution_binding(
             received: loaded.package.package_digest.clone(),
         });
     }
-    let closure = inspect_loaded_closure_binding(loaded, method, env)?;
+    let closure = inspect_loaded_closure_binding(loaded, method, env, kept)?;
     if let Some(expected) = expected_closure_digest {
         if !closure.fully_bound {
             return Err(SkillInspectionError::ClosureNotFullyBound {
@@ -222,6 +256,7 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
         profile_path,
         package,
         resolved_input_packet_schemas,
+        kept_signature: None,
     })
 }
 

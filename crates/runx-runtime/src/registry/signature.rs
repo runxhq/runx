@@ -98,34 +98,82 @@ pub fn verify_package_signature(
     if !metadata.is_file() {
         return Err(refused("it is not a regular file".to_owned()));
     }
-    let manifest: RegistrySignedManifest = fs::read_to_string(&path)
+    let document = fs::read_to_string(&path).map_err(|error| refused(error.to_string()))?;
+    verify_signed(&document, kind, keys, || {
+        directory_content_digest(package_root)
+    })
+    .map(Some)
+    .map_err(refused)
+}
+
+/// The signature `document` verified over `files`, a package's own bytes by
+/// their POSIX paths, as a kept closure holds them (E5): the digest every
+/// signature is over, from those bytes, so what's verified is what runs.
+///
+/// # Errors
+///
+/// Returns why the signature is refused, as [`verify_package_signature`]
+/// would refuse it on disk.
+pub(crate) fn verify_package_signature_files(
+    document: &str,
+    files: &std::collections::BTreeMap<String, Vec<u8>>,
+    kind: RegistrySubjectKind,
+    keys: &[RegistryKey],
+) -> Result<SignedPackage, String> {
+    verify_signed(document, kind, keys, || {
+        let mut signed = Vec::new();
+        for (path, bytes) in files {
+            if UNSIGNED_FILES.contains(&path.rsplit('/').next().unwrap_or(path)) {
+                continue;
+            }
+            let content = String::from_utf8(bytes.clone())
+                .map_err(|_| format!("{path} is not UTF-8 text, and nothing signed is"))?;
+            signed.push((path.clone(), content));
+        }
+        registry_content_digest(
+            signed
+                .iter()
+                .map(|(path, content)| RegistryContentFile { path, content }),
+        )
         .map_err(|error| error.to_string())
-        .and_then(|text| serde_json::from_str(&text).map_err(|error| error.to_string()))
-        .map_err(&refused)?;
+    })
+}
+
+/// A signed manifest, `document`, verified: signed by a key in `keys` whose
+/// scope covers its publisher, naming a `kind`, over the content digest
+/// `content_digest` gives.
+fn verify_signed(
+    document: &str,
+    kind: RegistrySubjectKind,
+    keys: &[RegistryKey],
+    content_digest: impl FnOnce() -> Result<String, String>,
+) -> Result<SignedPackage, String> {
+    let manifest: RegistrySignedManifest =
+        serde_json::from_str(document).map_err(|error| error.to_string())?;
     let key = verify_registry_signed_manifest(&manifest, keys)
-        .map_err(|failure| refused(failure.reason().to_owned()))?;
+        .map_err(|failure| failure.reason().to_owned())?;
     if manifest.subject.kind != kind {
-        return Err(refused(format!(
+        return Err(format!(
             "it signs a {}, and this is a {}",
             manifest.subject.kind.as_str(),
             kind.as_str()
-        )));
+        ));
     }
-    registry_key_signs(key, kind, &manifest.subject.name, None).map_err(&refused)?;
-    let content_digest = directory_content_digest(package_root).map_err(&refused)?;
+    registry_key_signs(key, kind, &manifest.subject.name, None)?;
+    let content_digest = content_digest()?;
     if content_digest != manifest.content_digest {
-        return Err(refused(format!(
+        return Err(format!(
             "the package's files are not what was signed: they digest to {content_digest}, and it signs {}",
             manifest.content_digest
-        )));
+        ));
     }
-    Ok(Some(SignedPackage {
+    Ok(SignedPackage {
         kind,
         name: manifest.subject.name,
         version: manifest.version,
         content_digest,
         key_id: key.key_id.clone(),
-    }))
+    })
 }
 
 /// The registry content digest of every file below `root` but its

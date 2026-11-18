@@ -392,7 +392,8 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
         "{said:?}"
     );
 
-    // What the load bound is what runs: a changed package is refused.
+    // What the load bound is what runs: a package changed since runs as the
+    // load bound it, from the closure the load kept (E5).
     let manual = project
         .root
         .join(".runx/added-skills/acme/echo/1.0.0/SKILL.md");
@@ -407,7 +408,7 @@ fn a_catalog_skill_loads_under_its_rule_and_runs_as_it_was_bound() -> TestResult
         input(serde_json::json!({"value": "hi"}))?,
     )?;
     assert!(
-        refused(&changed)?.contains("is not what the turn loaded"),
+        matches!(changed.outcome, TurnCallOutcome::Completed { .. }),
         "{changed:?}"
     );
     Ok(())

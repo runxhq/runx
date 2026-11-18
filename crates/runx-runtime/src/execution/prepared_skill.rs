@@ -308,25 +308,39 @@ impl PreparedSkillRun {
                 )));
             }
         }
-        let loaded = std::sync::Arc::new(crate::load_validated_skill_package(
-            &self.report.request.skill_path,
-        )?);
-        let workspace =
-            crate::services::WorkspaceEnv::new(self.request.env.clone(), self.request.cwd.clone())
-                .map_err(RuntimeError::from)?;
-        crate::skill_package::verify_loaded_execution_binding(
-            loaded.clone(),
-            &self.selected_method,
-            workspace.env(),
-            Some(&self.package_digest),
-            self.closure_digest(),
-        )
-        .map(|binding| (loaded, binding.packages))
-        .map_err(|message| {
+        let paths = crate::paths::RunxPaths::resolve(&self.request.env, &self.request.cwd);
+        // Its execution binds what it prepared, refused if that drifted.
+        let pins = crate::skill_package::kept::Pins {
+            package_digest: Some(&self.package_digest),
+            closure_digest: self.closure_digest(),
+            continuation: false,
+        };
+        let drift = |message: String| {
             SkillRunError::Invalid(format!(
                 "skill execution binding drift at execution boundary: {message}"
             ))
-        })
+        };
+        let bound = crate::skill_package::kept::package(
+            &self.report.request.skill_path,
+            paths.project(),
+            pins,
+        )
+        .map_err(super::skill_front::bind_error)?;
+        let workspace =
+            crate::services::WorkspaceEnv::new(self.request.env.clone(), self.request.cwd.clone())
+                .map_err(RuntimeError::from)?;
+        bound
+            .bind(
+                &self.selected_method,
+                workspace.env(),
+                paths.project(),
+                pins,
+            )
+            .map(|binding| (std::sync::Arc::clone(&bound.loaded), binding.packages))
+            .map_err(|error| match error {
+                crate::skill_package::kept::BindError::Binding(error) => drift(error.to_string()),
+                other => super::skill_front::bind_error(other),
+            })
     }
 }
 
@@ -355,7 +369,15 @@ pub(crate) fn prepare_skill_run_with_effects(
     effects: &crate::RuntimeEffectRegistry,
 ) -> Result<PreparedSkillRun, SkillRunError> {
     strip_untrusted_prepared_env(&mut request.env);
-    let loaded = std::sync::Arc::new(crate::load_validated_skill_package(&request.skill_path)?);
+    let paths = crate::paths::RunxPaths::resolve(&request.env, &request.cwd);
+    let pins = crate::skill_package::kept::Pins {
+        package_digest: entry.package_digest.as_deref(),
+        closure_digest: entry.closure_digest.as_deref(),
+        continuation: false,
+    };
+    let bound = crate::skill_package::kept::package(&request.skill_path, paths.project(), pins)
+        .map_err(super::skill_front::bind_error)?;
+    let loaded = std::sync::Arc::clone(&bound.loaded);
     let manifest = loaded.manifest().cloned().ok_or_else(|| {
         SkillRunError::Invalid(format!(
             "skill package {} does not declare run.yaml methods",
@@ -367,15 +389,10 @@ pub(crate) fn prepare_skill_run_with_effects(
     let method = selected_method(&manifest, selected_method_name)?.clone();
     let workspace = crate::services::WorkspaceEnv::new(request.env.clone(), request.cwd.clone())
         .map_err(RuntimeError::from)?;
-    let closure_digest = crate::skill_package::verify_loaded_execution_binding(
-        loaded.clone(),
-        &method.name,
-        workspace.env(),
-        entry.package_digest.as_deref(),
-        entry.closure_digest.as_deref(),
-    )
-    .map_err(|error| SkillRunError::Invalid(error.to_string()))?
-    .closure_digest;
+    let closure_digest = bound
+        .bind(&method.name, workspace.env(), paths.project(), pins)
+        .map_err(super::skill_front::bind_error)?
+        .closure_digest;
     if entry.closure_digest.is_none() {
         entry.closure_digest = closure_digest.clone();
     }
@@ -966,6 +983,7 @@ mod tests {
             crate::load_validated_skill_package(&entry)?.into(),
             "inspect",
             &BTreeMap::new(),
+            None,
         )?;
         assert!(closure.fully_bound);
         let prepared = LocalOrchestrator::default().prepare_skill(
@@ -1021,6 +1039,7 @@ mod tests {
             loaded.into(),
             "main",
             &BTreeMap::new(),
+            None,
         )?;
         assert!(closure.fully_bound);
         let closure = closure.digest;

@@ -61,6 +61,7 @@ pub use publish_package::{
 };
 pub(crate) use refs::split_skill_id;
 pub use refs::{ParsedRegistryRef, parse_registry_ref, safe_skill_package_parts};
+pub(crate) use signature::verify_package_signature_files;
 pub use signature::{SIGNATURE_FILE, SignedPackage, carries_signature, verify_package_signature};
 pub use source_authority::{
     RegistryManifestSourceAuthority, canonical_registry_url, is_official_runx_registry_url,

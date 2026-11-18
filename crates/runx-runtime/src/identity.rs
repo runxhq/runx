@@ -347,11 +347,36 @@ fn signed_skill(
     env: &BTreeMap<String, String>,
     paths: &RunxPaths,
 ) -> Result<Option<SignedPackage>, String> {
+    // A kept package is verified against the bytes it was kept with, and
+    // carries a signature exactly when it was kept with one (E5).
+    if let Some(document) = &loaded.kept_signature {
+        let keys = crate::registry::registry_keys(env, paths).map_err(|error| error.to_string())?;
+        return crate::registry::verify_package_signature_files(
+            document,
+            &loaded.package.source.files,
+            RegistrySubjectKind::Skill,
+            &keys,
+        )
+        .map(Some)
+        .map_err(|reason| {
+            format!(
+                "the {} kept with {} is refused: {reason}",
+                crate::registry::SIGNATURE_FILE,
+                loaded.package_root.display()
+            )
+        });
+    }
     if !carries_signature(&loaded.package_root) {
         return Ok(None);
     }
     let keys = crate::registry::registry_keys(env, paths).map_err(|error| error.to_string())?;
     verify_package_signature(&loaded.package_root, RegistrySubjectKind::Skill, &keys)
+}
+
+/// Whether `loaded` carries a signature: the one it was kept with, or one at
+/// its package root.
+pub(crate) fn carries_skill_signature(loaded: &LoadedSkillPackage) -> bool {
+    loaded.kept_signature.is_some() || carries_signature(&loaded.package_root)
 }
 
 /// The package whose signature covers `connector`'s bytes, when a package

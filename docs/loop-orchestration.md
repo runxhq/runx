@@ -72,6 +72,11 @@ once its inputs are what the method takes.
   the time and its day, and what woke it, as two context entries,
   `runx.loop.wake` and `runx.loop.batch`. What arrived from outside is
   evidence, never anyone's instruction.
+- **A run that waits keeps its code.** Each run keeps the packages it was
+  admitted with, by digest, so a skill improved while a run waits on a person
+  or a time never strands it: it finishes on what it started with, and every
+  new run binds the improvement. A package changed under a caller's own pin
+  on a fresh run is still refused.
 - **How it came out** goes in the loop's **record**. A run changes its loop
   only by proposing, in its `loop` output: a wake, a notice for the person,
   or that it's done, which runx checks, or a change to its brief or inputs,

@@ -229,9 +229,15 @@ fn bind_skill(
 ) -> Result<Bound, String> {
     let resolved = resolve_loaded(reference, paths, env)?;
     let directory = canonical(&resolved.runnable_path)?;
-    let loaded = Arc::new(
-        crate::load_validated_skill_package(&directory).map_err(|error| error.to_string())?,
-    );
+    // What a load binds is kept, so each call of a method it bound runs this
+    // code, however the package changes meanwhile (E5).
+    let bound = crate::skill_package::kept::package(
+        &directory,
+        paths.project(),
+        crate::skill_package::kept::Pins::default(),
+    )
+    .map_err(|error| error.to_string())?;
+    let loaded = Arc::clone(&bound.loaded);
     let manifest = loaded
         .manifest()
         .ok_or_else(|| format!("{reference} has no run.yaml method to load"))?;
@@ -256,14 +262,14 @@ fn bind_skill(
     let mut identity = None;
     let mut projects = BTreeMap::new();
     for method in &methods {
-        let binding = crate::skill_package::verify_loaded_execution_binding(
-            Arc::clone(&loaded),
-            method,
-            env,
-            None,
-            None,
-        )
-        .map_err(|error| format!("{reference}#{method}: {error}"))?;
+        let binding = bound
+            .bind(
+                method,
+                env,
+                paths.project(),
+                crate::skill_package::kept::Pins::default(),
+            )
+            .map_err(|error| format!("{reference}#{method}: {error}"))?;
         if identity.is_none() {
             identity = binding.packages.identity(&loaded.package_root).cloned();
         }

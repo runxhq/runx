@@ -1186,6 +1186,18 @@ impl RunLog {
         }))
     }
 
+    /// What started the run, whatever it's come to: none for a run that
+    /// hasn't started, or that isn't a run of its own.
+    pub(crate) fn started(&self) -> Result<Option<Box<Started>>, RunRecordError> {
+        let Some(record) = self.load()? else {
+            return Ok(None);
+        };
+        match record.origin {
+            Origin::Run(started) => Ok(Some(started)),
+            _ => Ok(None),
+        }
+    }
+
     /// What a sealed run started as: none for a run that hasn't sealed, or
     /// that isn't a run of its own.
     pub(crate) fn sealed_start(&self) -> Result<Option<Box<Started>>, RunRecordError> {

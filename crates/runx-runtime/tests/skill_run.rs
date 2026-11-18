@@ -1231,15 +1231,17 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         Some(vec!["decide".to_owned()])
     );
 
-    // A changed package cannot continue the run it did not start.
+    // A package changed after the run paused doesn't change the run: it
+    // continues on the package it started with (E5), so a pass with no
+    // answers finds it waiting as it was.
     let manual = skill_dir.join("SKILL.md");
     let original_manual = fs::read_to_string(&manual)?;
     fs::write(
         &manual,
         format!("{original_manual}\nAn edit after the run paused.\n"),
     )?;
-    let bad_answers = runx_contracts::ResumeDocument::default();
-    let binding_mismatch = match run_skill(SkillRunRequest {
+    let no_answers = runx_contracts::ResumeDocument::default();
+    let unchanged = run_skill(SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),
         run_authority: None,
@@ -1247,21 +1249,13 @@ fn native_workflow_skill_run_pauses_and_resumes_agent_task()
         skill_path: skill_dir.clone(),
         receipt_dir: Some(receipt_dir.clone()),
         run_id: Some(run_id.to_owned()),
-        answers: Some(bad_answers),
+        answers: Some(no_answers),
         inputs: inputs.clone(),
         env: BTreeMap::new(),
         cwd: temp.path().to_path_buf(),
         drive: Default::default(),
-    }) {
-        Ok(_) => return Err("a changed package must not continue the run".into()),
-        Err(error) => error,
-    };
-    assert!(
-        binding_mismatch
-            .to_string()
-            .contains("cannot replace its original package digest"),
-        "{binding_mismatch}"
-    );
+    })?;
+    assert_eq!(unchanged.status, runx_runtime::RunStatus::NeedsAgent);
     fs::write(&manual, original_manual)?;
 
     let answers = serde_json::json!({
@@ -5556,5 +5550,167 @@ fn a_resume_of_a_sealed_run_returns_its_seal_and_refuses_new_answers()
             .contains(&format!("run {run_id} sealed")),
         "{refused}"
     );
+    Ok(())
+}
+
+/// A skill `gate` that asks, then calls `voice`, a child that says the word
+/// `word` writes into its module.
+struct Gate {
+    temp: tempfile::TempDir,
+    parent: PathBuf,
+    child: PathBuf,
+    env: BTreeMap<String, String>,
+}
+
+impl Gate {
+    fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let temp = tempdir()?;
+        let parent = temp.path().join("skills/gate");
+        let child = temp.path().join("skills/voice");
+        fs::create_dir_all(&parent)?;
+        fs::create_dir_all(&child)?;
+        fs::write(
+            parent.join("SKILL.md"),
+            "---\nname: gate\ndescription: Ask, then let the voice say its word.\n---\n\nAsk first.\n",
+        )?;
+        fs::write(
+            parent.join("run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  default:\n    result_from: [say]\n    steps:\n      - id: approve\n        ask: {gate: go, reason: Let the voice speak.}\n      - id: say\n        skill: ../voice#say\n        outputs:\n          said: {type: string}\n",
+        )?;
+        fs::write(
+            child.join("SKILL.md"),
+            "---\nname: voice\ndescription: Say a word.\n---\n\nSay it.\n",
+        )?;
+        fs::write(
+            child.join("run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  say:\n    result_from: [say]\n    steps:\n      - id: say\n        tool: {module: voice.mjs, export: say}\n        outputs:\n          said: {type: string}\n",
+        )?;
+        let gate = Self {
+            temp,
+            parent,
+            child,
+            env: path_env(),
+        };
+        gate.word("first")?;
+        Ok(gate)
+    }
+
+    fn word(&self, word: &str) -> std::io::Result<()> {
+        fs::write(
+            self.child.join("voice.mjs"),
+            format!("export const say = () => ({{ said: {word:?} }});\n"),
+        )
+    }
+
+    fn request(
+        &self,
+        run_id: &str,
+        answers: Option<runx_contracts::ResumeDocument>,
+    ) -> SkillRunRequest {
+        SkillRunRequest {
+            current_context: Vec::new(),
+            historical_context: Vec::new(),
+            run_authority: None,
+            act: None,
+            skill_path: self.parent.clone(),
+            receipt_dir: Some(self.temp.path().join("receipts")),
+            run_id: Some(run_id.to_owned()),
+            answers,
+            inputs: BTreeMap::new(),
+            env: self.env.clone(),
+            cwd: self.temp.path().to_path_buf(),
+            drive: Default::default(),
+        }
+    }
+
+    fn approved(
+        &self,
+        run_id: &str,
+    ) -> Result<runx_contracts::ResumeDocument, Box<dyn std::error::Error>> {
+        crate::support::bind_resume(
+            &self.env,
+            self.temp.path(),
+            run_id,
+            serde_json::json!({ "approvals": { "go": true } }),
+        )
+    }
+
+    /// Resumed as `runx resume` and a loop's timed wake resume it.
+    fn resume(&self, run_id: &str) -> Result<RunResult, Box<dyn std::error::Error>> {
+        Ok(LocalOrchestrator::default().resume(&ResumeRequest {
+            run_id: run_id.to_owned(),
+            answers: self.approved(run_id)?,
+            receipt_dir: Some(self.temp.path().join("receipts")),
+            env: with_test_signing_env(self.request(run_id, None)).env,
+            cwd: self.temp.path().to_path_buf(),
+            drive: Default::default(),
+            package_digest: None,
+            closure_digest: None,
+        })?)
+    }
+
+    fn kept(&self) -> PathBuf {
+        runx_runtime::RunxPaths::resolve(&self.env, self.temp.path())
+            .project()
+            .join("kept")
+    }
+}
+
+fn said(result: &RunResult) -> Result<String, Box<dyn std::error::Error>> {
+    let output = object(&result.output, "the run's result")?;
+    let result = object_field(output, "result").ok_or("no result")?;
+    Ok(string_field(result, "said").ok_or("no word")?.to_owned())
+}
+
+/// A run waiting on a person when its skill and a child it calls are both
+/// improved finishes on the code it was admitted with, and a new run binds
+/// the improvement (the loop contract's E5): its closure was kept when it
+/// started, and its continuation binds that.
+#[test]
+fn a_waiting_run_finishes_on_the_code_it_was_admitted_with()
+-> Result<(), Box<dyn std::error::Error>> {
+    let gate = Gate::new()?;
+    let waiting = run_skill(gate.request("run_kept_waiting", None))?;
+    assert_eq!(waiting.status, runx_runtime::RunStatus::NeedsAgent);
+    // Both improve while it waits.
+    gate.word("second")?;
+    fs::write(
+        gate.parent.join("SKILL.md"),
+        "---\nname: gate\ndescription: Ask, then let the improved voice say its word.\n---\n\nAsk first.\n",
+    )?;
+    let finished = gate.resume("run_kept_waiting")?;
+    assert_eq!(finished.status, runx_runtime::RunStatus::Sealed);
+    assert_eq!(said(&finished)?, "first");
+
+    // A new run binds the improvement, continued by its id.
+    run_skill(gate.request("run_kept_new", None))?;
+    let improved = run_skill(gate.request("run_kept_new", Some(gate.approved("run_kept_new")?)))?;
+    assert_eq!(improved.status, runx_runtime::RunStatus::Sealed);
+    assert_eq!(said(&improved)?, "second");
+    Ok(())
+}
+
+/// A kept file that no longer matches its digest is never run: the
+/// continuation is refused, and says how to bind from disk instead.
+#[test]
+fn a_kept_file_that_changed_is_never_run() -> Result<(), Box<dyn std::error::Error>> {
+    let gate = Gate::new()?;
+    run_skill(gate.request("run_kept_tampered", None))?;
+    for file in fs::read_dir(gate.kept().join("files"))? {
+        let path = file?.path();
+        if fs::read_to_string(&path).is_ok_and(|text| text.contains("\"first\"")) {
+            fs::write(
+                &path,
+                "export const say = () => ({ said: \"tampered\" });\n",
+            )?;
+        }
+    }
+    let refused = gate
+        .resume("run_kept_tampered")
+        .err()
+        .ok_or("a tampered file ran")?;
+    let reason = refused.to_string();
+    assert!(reason.contains("doesn't match its digest"), "{reason}");
+    assert!(reason.contains("to bind from disk"), "{reason}");
     Ok(())
 }
