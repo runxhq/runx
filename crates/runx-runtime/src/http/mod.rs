@@ -501,15 +501,17 @@ impl ReqwestHttpTransport {
         block_on_http(async move {
             tokio::time::timeout(
                 request_timeout,
-                send_reqwest(client, request, headers, response_limit, repeatable),
+                send_reqwest(
+                    client,
+                    request,
+                    headers,
+                    response_limit,
+                    repeatable,
+                    request_timeout,
+                ),
             )
             .await
-            .map_err(|_| RuntimeHttpError::Transport {
-                message: format!(
-                    "request deadline exceeded after {}ms",
-                    request_timeout.as_millis()
-                ),
-            })?
+            .map_err(|_| RuntimeHttpError::TimedOut)?
         })
     }
 }
@@ -544,12 +546,14 @@ async fn send_reqwest(
     headers: reqwest::header::HeaderMap,
     response_limit: usize,
     repeatable: bool,
+    request_timeout: Duration,
 ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
     let mut attempt = 1_usize;
     loop {
         let mut builder = client
             .request(reqwest_method(request.method), &request.url)
-            .headers(headers.clone());
+            .headers(headers.clone())
+            .timeout(request_timeout);
         if let Some(body) = &request.body {
             builder = builder.body(body.clone());
         }
@@ -1024,8 +1028,9 @@ mod tests {
     use super::RuntimeHttpResponse;
     use super::RuntimeHttpTransport;
     use super::{
-        GuardedDnsResolver, PROVIDER_OPERATION_REQUEST_TIMEOUT, ReqwestHttpTransport,
-        TransportProfile, block_on_http, http_runtime,
+        DEFAULT_HTTP_CONNECT_TIMEOUT, DEFAULT_HTTP_REQUEST_TIMEOUT, GuardedDnsResolver,
+        PROVIDER_OPERATION_REQUEST_TIMEOUT, ReqwestHttpTransport, TransportProfile, block_on_http,
+        http_runtime,
     };
     use super::{HttpMethod, RuntimeHttpError, RuntimeHttpHeader, RuntimeHttpRequest};
     use super::{RuntimeTestHttpExchange, RuntimeTestHttpRequestBody, TestExchanges};
@@ -1857,6 +1862,40 @@ mod tests {
                 .iter()
                 .all(|header| !header.name.eq_ignore_ascii_case("set-cookie"))
         );
+        Ok(())
+    }
+
+    #[test]
+    fn transport_overrides_the_clients_request_deadline() -> Result<(), RuntimeHttpTestError> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let address = listener.local_addr()?;
+        let server = std::thread::spawn(move || -> Result<(), std::io::Error> {
+            let (mut stream, _) = listener.accept()?;
+            let mut buffer = [0_u8; 1024];
+            if stream.read(&mut buffer)? != 0 {
+                stream.write_all(
+                    b"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\nok",
+                )?;
+            }
+            Ok(())
+        });
+        let transport = ReqwestHttpTransport::with_private_network_timeouts_for_tests(
+            Duration::ZERO,
+            DEFAULT_HTTP_CONNECT_TIMEOUT,
+        )?
+        .with_request_timeout(DEFAULT_HTTP_REQUEST_TIMEOUT);
+        let response = transport.send(RuntimeHttpRequest {
+            method: HttpMethod::Get,
+            url: format!("http://{address}/model"),
+            headers: Vec::new(),
+            body: None,
+        });
+        // Release accept even if the old client deadline cancelled before connecting.
+        drop(std::net::TcpStream::connect(address));
+        server
+            .join()
+            .map_err(|_| RuntimeHttpTestError::ServerThread)??;
+        assert_eq!(response?.body, "ok");
         Ok(())
     }
 
