@@ -91,8 +91,38 @@ impl Loops {
 
     /// Read one page of loop `name`'s `feed` after its cursor, held open as
     /// long as `wait` while nothing has arrived, under the loop's authority,
-    /// and take it into the inbox.
+    /// and take it into the inbox. A read that fails is on the loop's record,
+    /// once for each reason, until one succeeds, so a loop that can't hear
+    /// its feed says so wherever the loop is read.
     pub fn poll(&self, name: &LoopName, feed: &Feed, wait: Duration) -> Result<Polled, LoopError> {
+        let polled = self.read_page(name, feed, wait);
+        let key = feed.key();
+        let at = stamp(Utc::now());
+        let said = self.read(name).ok().and_then(|state| {
+            state
+                .feeds_failing
+                .get(&key)
+                .map(|failing| failing.why.clone())
+        });
+        match &polled {
+            // Unsaying it is best effort too: a read that worked stays one.
+            Ok(_) if said.is_some() => {
+                let _ = self.note(name, RecordEvent::FeedReads { feed: key, at });
+            }
+            Ok(_) => {}
+            Err(error) => {
+                let why = error.to_string();
+                if said.as_ref() != Some(&why) {
+                    // Saying it is best effort: a record that can't be
+                    // written is the host's to show, with this same reason.
+                    let _ = self.note(name, RecordEvent::FeedFailing { feed: key, why, at });
+                }
+            }
+        }
+        polled
+    }
+
+    fn read_page(&self, name: &LoopName, feed: &Feed, wait: Duration) -> Result<Polled, LoopError> {
         let state = self.read(name)?;
         let file = state
             .active_file()
@@ -163,14 +193,22 @@ impl Loops {
     /// Record that `key`'s events are taken up to `cursor`, as the loop's
     /// record stands when it's written.
     fn move_cursor(&self, name: &LoopName, key: String, cursor: String) -> Result<(), LoopError> {
-        let moved = RecordEvent::Cursor {
-            feed: key,
-            cursor,
-            at: stamp(Utc::now()),
-        };
+        self.note(
+            name,
+            RecordEvent::Cursor {
+                feed: key,
+                cursor,
+                at: stamp(Utc::now()),
+            },
+        )
+    }
+
+    /// Record `event` on loop `name`'s record as it stands when it's
+    /// written, tried again while the record moves.
+    fn note(&self, name: &LoopName, event: RecordEvent) -> Result<(), LoopError> {
         for _ in 0..CURSOR_TRIES {
             let state = self.read(name)?;
-            match self.commit(name, &state, std::slice::from_ref(&moved), None) {
+            match self.commit(name, &state, std::slice::from_ref(&event), None) {
                 Err(LoopError::Moved(_)) => {}
                 committed => return committed.map(|_| ()),
             }

@@ -364,6 +364,18 @@ pub enum RecordEvent {
         cursor: String,
         at: String,
     },
+    /// A feed couldn't be read, and why: said once for each reason, until
+    /// it reads again.
+    FeedFailing {
+        feed: String,
+        why: String,
+        at: String,
+    },
+    /// A feed that couldn't be read reads again.
+    FeedReads {
+        feed: String,
+        at: String,
+    },
     /// The loop couldn't run: no run started. Tried again at `retry_at`.
     Couldnt {
         why: String,

@@ -122,13 +122,18 @@ runx's loops meet them in code:
   standing one. A revision that would widen what it calls, its authority or
   its policy waits for a start.
 - Each wake reserves from the day's budget (`policy.spend.per_day_usd`, zero
-  when absent).
+  when absent), so a loop that calls a priced operation needs one.
 - An unattended wake runs only on a zero-price model.
 - A failed wake is tried again on a ladder (`policy.retry`), and failures in
   a row pause the loop for the person, three by default
   (`policy.on_failure.pause_after`).
 - A wake takes at most `policy.batch` events and `policy.batch_bytes` of
   them.
+- Nothing a loop can't do is in a log alone. `runx loops` and `runx loop
+  show` say why it couldn't run, each feed it can't read and since when
+  (`feeds_failing` in `--json`), and what the always-on runx can't do for it
+  (`host_troubles`); each clears once it works. `runx status` lists all the
+  always-on runx can't do, a workspace it can't read among them.
 
 ## What Belongs Where
 

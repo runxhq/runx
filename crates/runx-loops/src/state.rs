@@ -34,6 +34,13 @@ pub struct Live {
     pub at: String,
 }
 
+/// A feed the loop can't read now: why, and since when.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct FeedFailing {
+    pub why: String,
+    pub since: String,
+}
+
 /// A person's run on the loop (§10).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PersonRun {
@@ -158,6 +165,8 @@ pub struct LoopState {
     /// What settled runs spent, by day.
     pub spent: BTreeMap<String, u64>,
     pub cursors: BTreeMap<String, String>,
+    /// Each feed that can't be read now: why, and since when.
+    pub feeds_failing: BTreeMap<String, FeedFailing>,
     /// Each webhook's token digest, by its name.
     pub tokens: BTreeMap<String, String>,
 }
@@ -416,6 +425,23 @@ impl LoopState {
             }
             RecordEvent::Cursor { feed, cursor, .. } => {
                 self.cursors.insert(feed.clone(), cursor.clone());
+                self.feeds_failing.remove(feed);
+            }
+            RecordEvent::FeedFailing { feed, why, at } => {
+                let since = self
+                    .feeds_failing
+                    .get(feed)
+                    .map_or_else(|| at.clone(), |failing| failing.since.clone());
+                self.feeds_failing.insert(
+                    feed.clone(),
+                    FeedFailing {
+                        why: why.clone(),
+                        since,
+                    },
+                );
+            }
+            RecordEvent::FeedReads { feed, .. } => {
+                self.feeds_failing.remove(feed);
             }
             RecordEvent::Couldnt {
                 why,

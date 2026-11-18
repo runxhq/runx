@@ -265,8 +265,12 @@ pub(crate) fn status_line(workspace: &WorkspaceEnv) -> String {
         None => "runx is off: `runx on` runs your loops while this machine is awake".to_owned(),
     };
     let binary = std::env::current_exe().unwrap_or_default();
+    let troubles = troubles(workspace)
+        .iter()
+        .map(|trouble| format!("\n  {}", trouble.line()))
+        .collect::<String>();
     format!(
-        "{on}\n{}",
+        "{on}{troubles}\n{}",
         crate::at_login::status_line(&dir, login_unit(workspace).as_ref(), &binary)
     )
 }
@@ -357,6 +361,99 @@ struct Bell {
     /// Loops a feed put events in the inbox of: each is passed.
     due: BTreeSet<Key>,
     off: bool,
+    /// What it couldn't do, until it does, by workspace, loop and feed,
+    /// kept in `troubles.json` in its directory as it changes.
+    troubles: BTreeMap<(String, Option<String>, Option<String>), Trouble>,
+    home: PathBuf,
+}
+
+/// What the always-on runx couldn't do for a workspace, one of its loops
+/// or a loop's feed, and why, until it does: `runx status` and `runx loops`
+/// show it, so nothing it can't do is in its log alone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct Trouble {
+    pub workspace: PathBuf,
+    #[serde(rename = "loop", default, skip_serializing_if = "Option::is_none")]
+    pub loop_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feed: Option<String>,
+    pub why: String,
+    pub since: String,
+}
+
+impl Trouble {
+    /// The trouble as a line of `runx status`.
+    fn line(&self) -> String {
+        let workspace = self.workspace.display();
+        let since = &self.since;
+        match (&self.loop_name, &self.feed) {
+            (Some(name), Some(feed)) => format!(
+                "{name} in {workspace} can't read feed {feed} (since {since}): {}",
+                self.why
+            ),
+            (Some(name), None) => format!(
+                "{name} in {workspace} can't be served (since {since}): {}",
+                self.why
+            ),
+            _ => format!("{workspace} can't be served (since {since}): {}", self.why),
+        }
+    }
+}
+
+/// Say what the host couldn't do for `workspace` (and `name` and `feed`),
+/// or, with no `why`, that it can again.
+fn troubled(
+    bell: &Ringer,
+    workspace: &Path,
+    name: Option<&LoopName>,
+    feed: Option<&Feed>,
+    why: Option<String>,
+) {
+    let Ok(mut state) = bell.0.lock() else {
+        return;
+    };
+    let key = (
+        workspace.display().to_string(),
+        name.map(ToString::to_string),
+        feed.map(ToString::to_string),
+    );
+    let changed = match why {
+        Some(why) => {
+            let since = state.troubles.get(&key).map_or_else(
+                || Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                |held| held.since.clone(),
+            );
+            let trouble = Trouble {
+                workspace: workspace.to_path_buf(),
+                loop_name: key.1.clone(),
+                feed: key.2.clone(),
+                why,
+                since,
+            };
+            state.troubles.insert(key, trouble.clone()) != Some(trouble)
+        }
+        None => state.troubles.remove(&key).is_some(),
+    };
+    if changed {
+        let troubles = state.troubles.values().collect::<Vec<_>>();
+        if let Ok(bytes) = serde_json::to_vec_pretty(&troubles) {
+            let _ = write_atomic(&state.home.join(TROUBLES), &bytes);
+        }
+    }
+}
+
+const TROUBLES: &str = "troubles.json";
+
+/// What the always-on runx serving `workspace` can't do now, when it's on.
+pub(crate) fn troubles(workspace: &WorkspaceEnv) -> Vec<Trouble> {
+    let dir = dir(workspace);
+    if !running(&dir) {
+        return Vec::new();
+    }
+    std::fs::read(dir.join(TROUBLES))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
 }
 
 fn log(line: &str) {
@@ -399,7 +496,15 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
         workspace.env().clone(),
         workspace.cwd().to_path_buf(),
     ));
-    let bell = Arc::new((Mutex::new(Bell::default()), Condvar::new()));
+    // A host starting knows of no trouble until it meets one.
+    let _ = std::fs::remove_file(dir.join(TROUBLES));
+    let bell = Arc::new((
+        Mutex::new(Bell {
+            home: dir.clone(),
+            ..Bell::default()
+        }),
+        Condvar::new(),
+    ));
     let ringer = Arc::clone(&bell);
     let home = dir.clone();
     std::thread::spawn(move || {
@@ -452,7 +557,7 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
         }
         if !upgrading {
             let now = Utc::now();
-            let listed = listed(&dir);
+            let listed = listed(&dir, &bell);
             served.retain(|key, entry| entry.in_pass || listed.contains_key(key));
             // Each feed a served loop takes events from is read on its own;
             // a feed no loop takes any longer stops after its read.
@@ -602,7 +707,7 @@ impl Served {
 
 /// Every loop of every workspace served, by where it lies, with the feeds
 /// it takes events from.
-fn listed(dir: &Path) -> BTreeMap<Key, Vec<Feed>> {
+fn listed(dir: &Path, bell: &Ringer) -> BTreeMap<Key, Vec<Feed>> {
     let mut listed = BTreeMap::new();
     for location in workspaces(dir) {
         let loops = WorkspaceEnv::load_located(&location)
@@ -620,8 +725,14 @@ fn listed(dir: &Path) -> BTreeMap<Key, Vec<Feed>> {
                 .collect::<Result<Vec<_>, String>>()
         });
         match found {
-            Ok(found) => listed.extend(found),
-            Err(error) => log(&format!("{}: {error}", location.workspace.display())),
+            Ok(found) => {
+                troubled(bell, &location.workspace, None, None, None);
+                listed.extend(found);
+            }
+            Err(error) => {
+                log(&format!("{}: {error}", location.workspace.display()));
+                troubled(bell, &location.workspace, None, None, Some(error));
+            }
         }
     }
     listed
@@ -657,6 +768,7 @@ fn read_feed(reading: (Key, Feed), bell: Ringer, stop: Arc<AtomicBool>) {
                 Ok(polled) => {
                     if failing.take().is_some() {
                         log(&format!("{name} reads feed {feed} again"));
+                        troubled(&bell, &location.workspace, Some(name), Some(feed), None);
                     }
                     if polled.taken > 0 {
                         log(&format!("{name}: {} new from feed {feed}", polled.taken));
@@ -675,6 +787,13 @@ fn read_feed(reading: (Key, Feed), bell: Ringer, stop: Arc<AtomicBool>) {
                         Some((said, wait)) if *said == why => (*wait * 2).min(FEED_RETRY.1),
                         _ => {
                             log(&format!("{name} couldn't read feed {feed}: {why}"));
+                            troubled(
+                                &bell,
+                                &location.workspace,
+                                Some(name),
+                                Some(feed),
+                                Some(why.clone()),
+                            );
                             FEED_RETRY.0
                         }
                     };
@@ -734,6 +853,7 @@ fn pass_loop(
     };
     match passed {
         Ok(passed) => {
+            troubled(bell, &location.workspace, Some(name), None, None);
             if let Some(run) = &passed.woke {
                 log(&format!("{name} woke: {run}"));
             }
@@ -747,6 +867,7 @@ fn pass_loop(
         }
         Err(error) => {
             log(&format!("{name}: {error}"));
+            troubled(bell, &location.workspace, Some(name), None, Some(error));
             None
         }
     }
@@ -900,9 +1021,75 @@ mod tests {
     use std::net::{Ipv4Addr, TcpListener, TcpStream};
     use std::sync::{Arc, Condvar, Mutex};
 
-    use super::{Bell, Ringer, answer};
+    use super::{Bell, Ringer, Trouble, answer};
 
     type Tested<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+    /// What the host can't do is in its directory, said once with the time
+    /// it began however often it's met again, and gone once it works, so
+    /// `runx status` and `runx loops` show it, never its log alone.
+    #[test]
+    fn what_the_host_can_t_do_is_kept_until_it_can() -> Tested {
+        let home = tempfile::tempdir()?;
+        let bell: Ringer = Arc::new((
+            Mutex::new(Bell {
+                home: home.path().to_path_buf(),
+                ..Bell::default()
+            }),
+            Condvar::new(),
+        ));
+        let workspace = std::path::Path::new("/work/acme");
+        let name = runx_loops::LoopName::new("outreach")?;
+        let feed = runx_loops::Feed {
+            connector: "mail".to_owned(),
+            feed: "events".to_owned(),
+        };
+        let kept = || -> Tested<Vec<Trouble>> {
+            Ok(serde_json::from_slice(&std::fs::read(
+                home.path().join(super::TROUBLES),
+            )?)?)
+        };
+        super::troubled(
+            &bell,
+            workspace,
+            Some(&name),
+            Some(&feed),
+            Some("no term covers it".to_owned()),
+        );
+        let first = kept()?;
+        assert_eq!(first.len(), 1);
+        assert_eq!(
+            first[0].line(),
+            format!(
+                "outreach in /work/acme can't read feed mail/events (since {}): no term covers it",
+                first[0].since
+            )
+        );
+        super::troubled(
+            &bell,
+            workspace,
+            Some(&name),
+            Some(&feed),
+            Some("no term covers it".to_owned()),
+        );
+        assert_eq!(
+            kept()?,
+            first,
+            "met again, it's the one trouble since it began"
+        );
+        super::troubled(
+            &bell,
+            workspace,
+            Some(&name),
+            None,
+            Some("its store is locked".to_owned()),
+        );
+        assert_eq!(kept()?.len(), 2);
+        super::troubled(&bell, workspace, Some(&name), Some(&feed), None);
+        super::troubled(&bell, workspace, Some(&name), None, None);
+        assert!(kept()?.is_empty(), "what works again is no trouble");
+        Ok(())
+    }
 
     /// What the always-on runx answers `request`, sent to it over the
     /// loopback, with the home `dir` serving no workspace.

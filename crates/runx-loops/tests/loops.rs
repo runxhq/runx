@@ -627,6 +627,61 @@ fn a_feed_s_events_go_into_the_inbox_once_and_wake_the_loop_with_them() -> TestR
     Ok(())
 }
 
+/// A feed that can't be read says so on the loop's record, once for each
+/// reason however often it's tried, so a loop that can't hear its feed never
+/// looks well; a read that works clears it.
+#[test]
+fn a_feed_that_can_t_be_read_says_so_on_the_loop_until_it_reads_again() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    write_skill(root)?;
+    std::fs::create_dir_all(root.join("connectors/example/mail"))?;
+    std::fs::write(root.join("connectors/example/mail/connector.yaml"), MAIL)?;
+    let wire = Wire::default();
+    wire.pages.lock().map_err(|_| "poisoned")?.extend([
+        serde_json::json!({"nothing": "a feed reads"}),
+        serde_json::json!({"nothing": "a feed reads"}),
+        serde_json::json!({"events": [], "cursor": "1", "more": false, "gap": false}),
+    ]);
+    let effects = runx_runtime::RuntimeEffectRegistry::with_effect(
+        runx_runtime::OperationEffect::with_http_transport(wire.clone()),
+    )?;
+    let loops = Loops::open(env(root), root, LocalOrchestrator::with_effects(effects))?;
+    let acme = LoopName::new("acme")?;
+    write_loop(
+        root,
+        "acme",
+        "calls: ./skills/ticker#tick\nbrief: Count Acme's mail.\ninputs: {label: acme}\non: [{feed: example/mail/inbox}]\n",
+    )?;
+    loops.start(&acme, "person:kam", Utc::now())?;
+    let feeds = loops.feeds(&acme)?;
+    let wait = std::time::Duration::from_secs(50);
+    let refused = loops
+        .poll(&acme, &feeds[0], wait)
+        .err()
+        .ok_or("a page with no events read")?;
+    let failing = loops
+        .state(&acme)?
+        .feeds_failing
+        .get("example/mail/inbox")
+        .cloned()
+        .ok_or("the failure isn't on the loop")?;
+    assert_eq!(failing.why, refused.to_string());
+    let version = loops.state(&acme)?.version;
+    assert!(loops.poll(&acme, &feeds[0], wait).is_err());
+    assert_eq!(
+        loops.state(&acme)?.version,
+        version,
+        "the same reason is said once"
+    );
+    loops.poll(&acme, &feeds[0], wait)?;
+    assert!(
+        loops.state(&acme)?.feeds_failing.is_empty(),
+        "a read that works clears it"
+    );
+    Ok(())
+}
+
 /// A webhook whose trigger names its sender's delivery header knows each
 /// delivery by it: a retry with another body is the delivery it repeats,
 /// another id is another event, and a request without the header is refused.

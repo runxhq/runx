@@ -229,9 +229,9 @@ fn execute(plan: &LoopsPlan, workspace: &WorkspaceEnv) -> Result<Done, String> {
             let loop_name = name(loop_name)?;
             let state = loops.state(&loop_name).map_err(fail)?;
             return Ok(Done::Text(if plan.json {
-                show_json(&loops, &loop_name, &state)?
+                show_json(&loops, &loop_name, &state, workspace)?
             } else {
-                show(&loops, &loop_name, &state)?
+                show(&loops, &loop_name, &state, workspace)?
             }));
         }
         LoopAction::Start { name: loop_name } => {
@@ -327,7 +327,7 @@ fn execute(plan: &LoopsPlan, workspace: &WorkspaceEnv) -> Result<Done, String> {
     };
     crate::always_on::ring(workspace);
     let listing = if plan.json {
-        list_json(&loops)?
+        list_json(&loops, workspace)?
     } else {
         list(&loops, workspace)?
     };
@@ -491,8 +491,8 @@ fn list(loops: &Loops, workspace: &WorkspaceEnv) -> Result<String, String> {
                 ago(&last.at, now)
             ));
         }
-        if let Some(why) = &state.couldnt {
-            out.push_str(&format!("  couldn't run: {why}\n"));
+        for line in failing(&state, &troubles_of(workspace, &name)) {
+            out.push_str(&format!("  {line}\n"));
         }
         if let Some(retry) = state.retry_at {
             out.push_str(&format!("  tries again: {}\n", when(retry)));
@@ -545,9 +545,57 @@ fn proposal_line(proposal: &runx_loops::Proposal) -> String {
 }
 
 /// One loop in full: its state, its notices and what it proposes.
-fn show(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<String, String> {
+/// What the loop can't do now, a line each: why it couldn't run, each feed
+/// it can't read, and what the always-on runx can't do for it.
+fn failing(state: &LoopState, troubles: &[crate::always_on::Trouble]) -> Vec<String> {
+    let mut lines = Vec::new();
+    if let Some(why) = &state.couldnt {
+        lines.push(format!("couldn't run: {why}"));
+    }
+    for (feed, failing) in &state.feeds_failing {
+        lines.push(format!(
+            "can't read feed {feed} since {}: {}",
+            failing.since, failing.why
+        ));
+    }
+    for trouble in troubles {
+        match &trouble.feed {
+            Some(feed) if state.feeds_failing.contains_key(feed) => {}
+            Some(feed) => lines.push(format!(
+                "can't read feed {feed} since {}: {}",
+                trouble.since, trouble.why
+            )),
+            None => lines.push(format!(
+                "the always-on runx can't serve it since {}: {}",
+                trouble.since, trouble.why
+            )),
+        }
+    }
+    lines
+}
+
+/// What the always-on runx can't do for loop `name` of `workspace` now.
+fn troubles_of(workspace: &WorkspaceEnv, name: &LoopName) -> Vec<crate::always_on::Trouble> {
+    let here = workspace.location().workspace;
+    crate::always_on::troubles(workspace)
+        .into_iter()
+        .filter(|trouble| {
+            trouble.workspace == here && trouble.loop_name.as_deref() == Some(name.as_str())
+        })
+        .collect()
+}
+
+fn show(
+    loops: &Loops,
+    name: &LoopName,
+    state: &LoopState,
+    workspace: &WorkspaceEnv,
+) -> Result<String, String> {
     let now = Utc::now();
     let mut out = format!("{name}: {}\n", status(state));
+    for line in failing(state, &troubles_of(workspace, name)) {
+        out.push_str(&format!("{line}\n"));
+    }
     if let Some(file) = state.active_file().and_then(Result::ok) {
         out.push_str(&format!("calls {}\nbrief: {}\n", file.calls, file.brief));
         for trigger in &file.on {
@@ -656,11 +704,22 @@ fn live_line(
     }))
 }
 
-fn show_json(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<String, String> {
-    serde_json::to_string_pretty(&view(loops, name, state)?).map_err(|error| error.to_string())
+fn show_json(
+    loops: &Loops,
+    name: &LoopName,
+    state: &LoopState,
+    workspace: &WorkspaceEnv,
+) -> Result<String, String> {
+    serde_json::to_string_pretty(&view(loops, name, state, workspace)?)
+        .map_err(|error| error.to_string())
 }
 
-fn view(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<Value, String> {
+fn view(
+    loops: &Loops,
+    name: &LoopName,
+    state: &LoopState,
+    workspace: &WorkspaceEnv,
+) -> Result<Value, String> {
     // The live wake, and what it waits on while it waits: the person, a
     // time, or how an effect ended.
     let waiting = live_waiting(loops, state)?;
@@ -690,6 +749,8 @@ fn view(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<Value, Stri
         "live": live,
         "last": state.last.as_ref().map(|last| serde_json::json!({"run": last.run, "ending": last.ending, "at": last.at})),
         "couldnt": state.couldnt,
+        "feeds_failing": state.feeds_failing,
+        "host_troubles": troubles_of(workspace, name),
         "next_wake": state.wakes.values().map(|wake| wake.at).min(),
         "notices": state.notices.iter().map(|notice| serde_json::json!({"id": notice.id, "text": notice.text, "action": notice.action, "at": notice.at})).collect::<Vec<_>>(),
         "proposals": state.proposals.values().map(|pending| serde_json::json!({"id": pending.id, "proposal": pending.proposal, "revision": pending.revision, "outdated": state.outdated(pending)})).collect::<Vec<_>>(),
@@ -699,11 +760,11 @@ fn view(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<Value, Stri
     }))
 }
 
-fn list_json(loops: &Loops) -> Result<String, String> {
+fn list_json(loops: &Loops, workspace: &WorkspaceEnv) -> Result<String, String> {
     let mut all = Vec::new();
     for name in loops.names().map_err(|error| error.to_string())? {
         let state = loops.state(&name).map_err(|error| error.to_string())?;
-        all.push(view(loops, &name, &state)?);
+        all.push(view(loops, &name, &state, workspace)?);
     }
     serde_json::to_string_pretty(&serde_json::json!({"schema": "runx.loops.v1", "loops": all}))
         .map(|text| text + "\n")
