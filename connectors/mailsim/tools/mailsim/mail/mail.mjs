@@ -1,7 +1,10 @@
 // The rehearsal mail provider. Every operation of the mailsim connector,
 // over append-only JSON-lines files in the workspace's world/ folder:
 //   sent.jsonl          what was sent, one message per send key
-//   inbound.jsonl       what arrived, written by the world simulator
+//   inbound.jsonl       what arrived, written by the world simulator, each as
+//                       the mail slot's event, the Standard Webhooks envelope
+//                       {id, type, timestamp, data}, which inbox.read gives
+//                       back as it is
 //   suppressions.jsonl  addresses nothing is sent to again
 // It answers as a provider does: a send under a key it holds replays the
 // original, and one under that key with another message is refused; a
@@ -41,6 +44,20 @@ function suppression(address) {
   return { address: lower(address), suppressed: Boolean(last), reason: last?.reason ?? null };
 }
 
+/** What arrived, each envelope as a message of its thread. */
+const arrived = () =>
+  lines("inbound.jsonl").map((event) => ({
+    id: event.id,
+    type: event.type,
+    thread_id: event.data?.thread_id ?? null,
+    rfc_message_id: event.data?.rfc_message_id ?? null,
+    from: event.data?.from ?? null,
+    to: event.data?.to ?? null,
+    subject: event.data?.subject ?? null,
+    body: event.data?.text ?? null,
+    received_at: event.timestamp,
+  }));
+
 function sentByKey(key) {
   return lines("sent.jsonl").find((message) => message.idempotency_key === key) ?? null;
 }
@@ -78,7 +95,7 @@ function send(input) {
   if (suppression(input.to).suppressed) return { refused: "suppressed" };
   const id = `msg_${createHash("sha256").update(key).digest("hex").slice(0, 16)}`;
   const parent = input.in_reply_to
-    ? [...lines("sent.jsonl"), ...lines("inbound.jsonl")].find((message) => message.rfc_message_id === input.in_reply_to)
+    ? [...lines("sent.jsonl"), ...arrived()].find((message) => message.rfc_message_id === input.in_reply_to)
     : null;
   const message = {
     id,
@@ -108,7 +125,7 @@ function read(input) {
 function thread(input) {
   const messages = [
     ...lines("sent.jsonl").map((message) => ({ direction: "out", at: message.sent_at, ...publicMessage(message) })),
-    ...lines("inbound.jsonl").map((event) => ({ direction: "in", at: event.received_at, ...event })),
+    ...arrived().map((message) => ({ direction: "in", at: message.received_at, ...message })),
   ]
     .filter((message) => message.thread_id === input.thread_id)
     .sort((left, right) => Date.parse(left.at) - Date.parse(right.at));

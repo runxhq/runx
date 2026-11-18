@@ -88,7 +88,7 @@ operations:
       process:
         tool: mailsim.mail
   inbox.read:
-    description: Read what arrived after a cursor, oldest first, at most limit of it, with the cursor to read on from. Replies, auto-replies, bounces, complaints and unsubscribes.
+    description: Read what arrived after a cursor, oldest first, at most limit of it, with the cursor to read on from. Each is a mail slot event, the Standard Webhooks envelope {id, type, timestamp, data} as the provider delivered it, of type email.received, email.bounced or email.complained. An unsubscribe is a suppression, never mail.
     verb: read
     scopes: [mail.read]
     credentials: [api_key]
