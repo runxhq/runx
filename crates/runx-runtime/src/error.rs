@@ -536,7 +536,7 @@ impl RuntimeError {
                 match (source.next_step(), source.reason()) {
                     (Some(next), _) => failure.next(next),
                     (None, runx_contracts::SealReason::DriveRoundBudgetExhausted) => failure
-                        .next("give it a narrower task, or more rounds with --drive-rounds"),
+                        .next("check why its calls did not produce a valid answer before increasing --drive-rounds"),
                     _ => failure,
                 }
             }

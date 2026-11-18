@@ -785,12 +785,26 @@ where
         }
     }
 
+    let mut reason = format!(
+        "it made {} rounds of calls and never answered",
+        config.max_rounds
+    );
+    // A rejected answer is not an absent answer. Keep its existing safe
+    // schema rule in the failure that the run and reflection will read.
+    if let Some(rule) = tool_executions
+        .iter()
+        .rev()
+        .find(|call| call.resolution_kind.as_deref() == Some("output_contract_failed"))
+        .and_then(|call| call.rule.as_deref())
+    {
+        reason = format!(
+            "it made {} rounds of calls without a valid answer; its last answer failed the output contract at {rule}",
+            config.max_rounds
+        );
+    }
     Err(AgentLoopFailure::new(
         AgentLoopFailureReason::RoundBudgetExhausted,
-        format!(
-            "it made {} rounds of calls and never answered",
-            config.max_rounds
-        ),
+        reason,
         telemetry(
             config.max_rounds,
             model_calls,
@@ -1443,6 +1457,40 @@ mod tests {
                 serde_json::to_string(&usage_record(&end.telemetry)).unwrap_or_default();
             assert!(projection.contains("/properties/draft/type"));
             assert!(!projection.contains("rejected-payload"));
+
+            let stopped = run_agent_loop(
+                &AgentLoopConfig {
+                    max_rounds: 1,
+                    ..config
+                },
+                &Repair(std::cell::Cell::new(0)),
+                &mut OkExecutor,
+                vec![AgentTurn::User("draft".to_owned())],
+            )
+            .expect_err("the invalid answer cannot complete the turn");
+            assert_eq!(
+                stopped.reason(),
+                AgentLoopFailureReason::RoundBudgetExhausted
+            );
+            assert!(
+                stopped
+                    .sanitized_message()
+                    .contains("/properties/draft/type")
+            );
+            assert!(!stopped.sanitized_message().contains("rejected-payload"));
+            assert!(stopped.sanitized_message().len() < 500);
+            let failure = RuntimeError::drive_resolution(
+                "write",
+                "turn",
+                crate::adapters::agent::DriveError::bounded_failure(
+                    stopped.reason().seal_reason(),
+                    stopped.sanitized_message(),
+                    stopped.telemetry().clone(),
+                ),
+            )
+            .failure();
+            assert!(failure.reason.contains("/properties/draft/type"));
+            assert!(!failure.next.unwrap_or_default().contains("more rounds"));
         }
         Ok(())
     }
