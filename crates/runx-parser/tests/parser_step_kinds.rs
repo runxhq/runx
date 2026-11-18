@@ -166,6 +166,36 @@ fn a_worker_rejects_process_fields_escapes_and_bad_bounds() {
 }
 
 #[test]
+fn an_agent_step_can_choose_whether_to_inherit_context() -> Result<(), String> {
+    for (context, expected) in [
+        ("", serde_json::Value::Null),
+        ("        context: {inherit: true}\n", true.into()),
+        ("        context: {inherit: false}\n", false.into()),
+    ] {
+        let parsed = method(&format!(
+            "      - id: answer\n        agent: answer\n{context}"
+        ))?;
+        let StepKind::Agent(task) = &only_step(&parsed).kind else {
+            return Err("expected an agent step".to_owned());
+        };
+        assert_eq!(
+            serde_json::to_value(task).map_err(|error| error.to_string())?["context_inherit"],
+            expected
+        );
+    }
+    for value in ["null", "'false'", "0", "[]", "{}"] {
+        let error = method(&format!(
+            "      - id: answer\n        agent: answer\n        context: {{inherit: {value}}}\n"
+        ))
+        .err()
+        .ok_or("non-boolean inheritance was accepted")?;
+        assert!(error.contains("context.inherit is a boolean"), "{error}");
+    }
+    assert!(method("      - id: run\n        script: {module: run.mjs}\n        context: {inherit: false}\n").is_err());
+    Ok(())
+}
+
+#[test]
 fn an_agent_step_names_its_task() -> Result<(), String> {
     let method = method(
         "      - id: decide\n        agent: decide-release\n        outputs: {decision: {type: string}}\n",
@@ -178,6 +208,7 @@ fn an_agent_step_names_its_task() -> Result<(), String> {
             connectors: Default::default(),
             requires: Default::default(),
             context_kinds: Default::default(),
+            context_inherit: None,
             context_entries: Default::default(),
         })
     );

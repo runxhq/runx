@@ -172,6 +172,11 @@ steps:
   step, saying which output it read.
 - The turn reads the entries after its `context.skills`, and before the
   context its run's caller supplied.
+- Set `context.inherit: false` on an agent step to exclude its caller's
+  current and historical context. Explicit inputs, `context.entries`,
+  `context.skills` and the skill's own instructions remain available.
+  Omitted or `true` retains caller context. This setting applies to that
+  agent turn; it does not remove context from the run's other steps.
 - An entry labelled `sharing: local_only` reaches a turn only when runx
   drives it with a model served from this machine, at a loopback
   endpoint. A turn its host works from outside is given no `local_only` entry,

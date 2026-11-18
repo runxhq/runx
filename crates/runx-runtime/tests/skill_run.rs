@@ -1817,6 +1817,110 @@ fn an_agent_step_is_given_an_earlier_steps_context_entries_with_their_own_labels
 }
 
 #[test]
+fn an_agent_can_exclude_caller_context_and_keep_its_explicit_context()
+-> Result<(), Box<dyn std::error::Error>> {
+    for inherit in [None, Some(true), Some(false)] {
+        let temp = tempdir()?;
+        let entry = serde_json::json!({
+            "schema": "runx.context_entry.v1", "type": "memory.said",
+            "summary": "Selected memory", "data": {"text": "One person's preference."},
+            "labels": {"purpose": "confirmed_memory", "trust": "person_confirmed", "sharing": "configured_model"},
+            "sources": ["conversation:one"],
+            "origin": {"artifact_id": "memory:one@1", "run_id": "rx_recall", "step_id": null,
+                "producer": {"skill": "fixture", "method": "recall"}, "created_at": "2026-10-20T00:00:00Z",
+                "digest": "sha256:selected", "size_bytes": 24}
+        });
+        let skill = write_context_entries_skill(
+            temp.path(),
+            &format!("export const recall = () => ({{ entries: [{entry}] }});"),
+        )?;
+        crate::support::write_test_skill_package(
+            &skill.join("guide"),
+            "---\nname: guide\ndescription: Selected instructions.\n---\n# Guide\n\n## Agent task: answer\n\nKeep the selected guide.",
+            "minimum_runx: 0.12.0\nmethods:\n  main:\n    steps: [{id: answer, agent: answer}]\n",
+        )?;
+        let setting = inherit
+            .map(|value| format!("          inherit: {value}\n"))
+            .unwrap_or_default();
+        let manifest = fs::read_to_string(skill.join("run.yaml"))?
+            .replace("        context:\n", &format!("        inputs: {{person: ana}}\n        context:\n{setting}          skills: [./guide]\n"));
+        fs::write(skill.join("run.yaml"), manifest)?;
+        let mut caller = entry.clone();
+        caller["summary"] = "Other people's mail".into();
+        caller["data"] = serde_json::json!({"text": "Do not reveal this unrelated mail."});
+        let caller: runx_contracts::ContextEntry = serde_json::from_value(caller)?;
+        let request = with_test_signing_env(SkillRunRequest {
+            current_context: vec![caller.clone()],
+            historical_context: vec![caller],
+            run_authority: None,
+            act: None,
+            skill_path: skill.clone(),
+            receipt_dir: Some(temp.path().join("receipts")),
+            run_id: None,
+            answers: None,
+            inputs: BTreeMap::new(),
+            env: path_env(),
+            cwd: temp.path().to_path_buf(),
+            drive: Default::default(),
+        });
+        let result = run_skill(request.clone())?;
+        let output = serde_json::to_value(result.output)?;
+        assert_eq!(output["status"], "needs_agent", "{output}");
+        let envelope = &output["requests"][0]["invocation"]["envelope"];
+        assert_eq!(envelope["inputs"]["person"], "ana");
+        assert_eq!(
+            envelope["instructions"],
+            fs::read_to_string(skill.join("SKILL.md"))?
+        );
+        assert_eq!(
+            envelope["current_context"][0]["data"]["content_kind"],
+            "skill-manual"
+        );
+        assert_eq!(envelope["current_context"][1], entry);
+        let inherited = inherit != Some(false);
+        assert_eq!(
+            envelope["current_context"]
+                .as_array()
+                .ok_or("missing current context")?
+                .len(),
+            if inherited { 3 } else { 2 }
+        );
+        assert_eq!(
+            envelope["historical_context"]
+                .as_array()
+                .ok_or("missing historical context")?
+                .len(),
+            usize::from(inherited)
+        );
+        assert_eq!(envelope.to_string().contains("unrelated mail"), inherited);
+        // Reopening the pending native turn must keep this same selection.
+        let run_id = output["run_id"].as_str().ok_or("missing run")?;
+        let turn = output["requests"][0]["id"].as_str().ok_or("missing turn")?;
+        let session = LocalOrchestrator::default().open_turns(&runx_runtime::TurnRequest {
+            run_id: run_id.to_owned(),
+            receipt_dir: request.receipt_dir,
+            env: request.env,
+            cwd: request.cwd,
+        })?;
+        let page = session.read(turn, "current:1", 0, None)?;
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&page.text)?,
+            entry["data"]
+        );
+        if !inherited {
+            assert!(session.read(turn, "current:2", 0, None).is_err());
+            assert!(session.read(turn, "historical:0", 0, None).is_err());
+        }
+        let sealed = session.complete(
+            turn,
+            [("answer".to_owned(), JsonValue::String("done".to_owned()))].into(),
+        )?;
+        assert_eq!(serde_json::to_value(sealed.output)?["outcome"], "completed");
+    }
+    Ok(())
+}
+
+#[test]
 fn a_turn_whose_host_may_run_its_model_elsewhere_is_given_no_local_only_entry()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;

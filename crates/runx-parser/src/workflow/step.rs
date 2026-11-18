@@ -40,7 +40,7 @@ const SCRIPT_CALLS_FIELDS: &[&str] = &["tools", "operations", "skills"];
 const SCRIPT_FIELDS: &[&str] = &["module", "export"];
 
 /// What an agent step's `context` gives it.
-const CONTEXT_FIELDS: &[&str] = &["skills", "kinds", "entries"];
+const CONTEXT_FIELDS: &[&str] = &["skills", "kinds", "entries", "inherit"];
 
 /// An operation step's `result`.
 const RESULT_FIELDS: &[&str] = &["required", "optional", "equals", "ephemeral"];
@@ -288,6 +288,10 @@ fn validate_kind(
                 raw_step.get("context"),
                 &format!("{field}.context.kinds"),
             )?,
+            context_inherit: context_inherit(
+                raw_step.get("context"),
+                &format!("{field}.context.inherit"),
+            )?,
             context_entries: context_entries(
                 raw_step.get("context"),
                 previous_step_ids,
@@ -461,6 +465,21 @@ fn context_kinds(context: Option<&JsonValue>, field: &str) -> Result<Vec<String>
         }
     }
     Ok(kinds)
+}
+
+fn context_inherit(
+    context: Option<&JsonValue>,
+    field: &str,
+) -> Result<Option<bool>, ValidationError> {
+    context
+        .and_then(JsonValue::as_object)
+        .and_then(|context| context.get("inherit"))
+        .map(|value| {
+            value
+                .as_bool()
+                .ok_or_else(|| validation_error(format!("{field} is a boolean.")))
+        })
+        .transpose()
 }
 
 /// The context entries an agent step's turn is given from earlier steps

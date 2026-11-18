@@ -1438,10 +1438,12 @@ pub(crate) fn ask_turn(
     // Then the entries its earlier steps produced, each with its own labels,
     // then what the run's caller supplied.
     invocation.current_context.extend(context_entries);
-    invocation
-        .current_context
-        .extend(current_context.iter().cloned());
-    invocation.historical_context = historical_context.to_vec();
+    if agent.context_inherit != Some(false) {
+        invocation
+            .current_context
+            .extend(current_context.iter().cloned());
+        invocation.historical_context = historical_context.to_vec();
+    }
     // A `local_only` entry never reaches a model that may run elsewhere: a
     // turn whose host can't say its model runs here is given none.
     if !reads_local_only {
