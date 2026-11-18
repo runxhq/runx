@@ -78,11 +78,11 @@ pub use digest::{
 };
 pub use ids::{
     CONNECTOR_NAME_SHAPE_PATTERN, CREDENTIAL_NAME_PATTERN, ConnectorName, CredentialName,
-    DIGEST_PATTERN, Digest, ENV_NAME_PATTERN, EnvName, INSTANCE_ID_PATTERN, InstanceId,
-    OPERATION_NAME_MAX_LENGTH, OPERATION_NAME_PATTERN, OperationName,
-    RESERVED_CONNECTOR_NAME_PATTERN, RESERVED_CONNECTOR_SEGMENT, SECRET_NAME_PATTERN,
-    SECRET_REFERENCE_EXPECTED, SECRET_REFERENCE_PATTERN, SECRET_SCHEMES, SecretName,
-    SecretReference, is_connector_name, is_operation_name, is_publisher_namespace,
+    DIGEST_PATTERN, Digest, ENV_NAME_PATTERN, EnvName, FEED_NAME_PATTERN, FeedName,
+    INSTANCE_ID_PATTERN, InstanceId, OPERATION_NAME_MAX_LENGTH, OPERATION_NAME_PATTERN,
+    OperationName, RESERVED_CONNECTOR_NAME_PATTERN, RESERVED_CONNECTOR_SEGMENT,
+    SECRET_NAME_PATTERN, SECRET_REFERENCE_EXPECTED, SECRET_REFERENCE_PATTERN, SECRET_SCHEMES,
+    SecretName, SecretReference, is_connector_name, is_operation_name, is_publisher_namespace,
     is_secret_reference,
 };
 
@@ -127,6 +127,10 @@ pub struct ConnectorManifest {
     pub parameters: Option<JsonObject>,
     pub placements: ConnectorPlacements,
     pub operations: BTreeMap<OperationName, ConnectorOperation>,
+    /// The feeds the connector offers: events a host reads after a cursor,
+    /// so it reacts to the provider without a webhook (the loop contract's E4).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub feeds: BTreeMap<FeedName, ConnectorFeed>,
     /// What the connector's locators name, so references to them are
     /// classified without the runtime knowing the provider.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -172,6 +176,36 @@ impl ConnectorManifest {
             _ => None,
         }
     }
+
+    /// Whether `operation` is a safe read: a read that costs nothing and that
+    /// runx carries out itself. A read a process carries out, the
+    /// connector's own or the stdio server it starts, rests on its author's
+    /// promise rather than on what runx can see, and a priced read can bill
+    /// with no answer back, so neither is (D33).
+    #[must_use]
+    pub fn safe_read(&self, operation: &ConnectorOperation) -> bool {
+        operation.access() == OperationAccess::Read
+            && !operation.is_metered()
+            && !self.run_by_a_process(operation)
+    }
+
+    /// Whether a process carries out `operation`: the connector's own, or the
+    /// stdio server it starts. What it does rests on its author's promise,
+    /// not on anything runx can see.
+    #[must_use]
+    pub fn run_by_a_process(&self, operation: &ConnectorOperation) -> bool {
+        match &operation.implementation {
+            Some(Implementation::Process(_)) => true,
+            Some(Implementation::Mcp(_)) => matches!(
+                self.placements
+                    .local
+                    .as_ref()
+                    .and_then(|local| local.mcp_server.as_ref()),
+                Some(McpServer::Stdio { .. })
+            ),
+            _ => false,
+        }
+    }
 }
 
 /// The settlement families a connector can pay. Family names are extension
@@ -214,6 +248,50 @@ impl PaymentCompatibility {
             currency.is_some_and(|value| allowed.iter().any(|entry| entry.as_str() == value))
         })
     }
+}
+
+/// A feed a connector offers: its events, read a page at a time after a
+/// cursor through one of its free reads, so a host resumes from its cursor
+/// after any disconnect or sleep and dedupes at-least-once delivery by each
+/// event's provider id.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConnectorFeed {
+    pub description: NonEmptyString,
+    /// The read that serves a page of the feed: a safe read that asks
+    /// nobody, since a host reads it again and again with no run around it.
+    pub operation: OperationName,
+    pub cursor: FeedCursor,
+    pub events: FeedEvents,
+    /// The result field saying more events follow at once.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub more: Option<NonEmptyString>,
+    /// The read's input naming how many seconds the provider may hold the
+    /// read open until an event arrives: a long poll.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait: Option<NonEmptyString>,
+    /// The result field saying the provider can't replay from the cursor
+    /// given: a gap, which its loop catches up on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gap: Option<NonEmptyString>,
+}
+
+/// Where a feed's cursor goes in and comes back: the read's input that takes
+/// it, and the result field holding the next.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FeedCursor {
+    pub input: NonEmptyString,
+    pub result: NonEmptyString,
+}
+
+/// Where a page's events are: the result field holding them, and each
+/// event's field holding its provider id.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FeedEvents {
+    pub result: NonEmptyString,
+    pub id: NonEmptyString,
 }
 
 /// One kind of thing a connector's locators name.

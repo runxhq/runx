@@ -309,6 +309,15 @@ impl LocalOrchestrator {
         )?)
     }
 
+    /// Read one page of a connector's feed (the loop contract's E4) with no
+    /// run around it, through the kernel's one path and these effects.
+    pub fn read_feed(
+        &self,
+        read: &crate::kernel::operation::feed::FeedRead<'_>,
+    ) -> Result<crate::kernel::operation::feed::FeedPage, String> {
+        crate::kernel::operation::feed::read(&self.effects, read)
+    }
+
     /// Start a new run of `request` in the one commit that also makes the
     /// host's `host_events` (the loop contract's E1), so a host's claim and
     /// the run it starts are one, its streams under `stream_scope` when one

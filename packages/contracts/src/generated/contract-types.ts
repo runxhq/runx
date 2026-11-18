@@ -540,6 +540,21 @@ export type ConnectorBindingContract = {
   readonly manifest_digest: string;
 };
 
+/** A feed a connector offers: its events, read a page at a time after a cursor through one of its free reads, so a host resumes from its cursor after any disconnect or sleep and dedupes at-least-once delivery by each event's provider id. */
+export type ConnectorFeedContract = {
+  readonly cursor: FeedCursorContract;
+  readonly description: string;
+  readonly events: FeedEventsContract;
+  /** The result field saying the provider can't replay from the cursor given: a gap, which its loop catches up on. */
+  readonly gap?: string;
+  /** The result field saying more events follow at once. */
+  readonly more?: string;
+  /** The read that serves a page of the feed: a safe read that asks nobody, since a host reads it again and again with no run around it. */
+  readonly operation: string;
+  /** The read's input naming how many seconds the provider may hold the read open until an event arrives: a long poll. */
+  readonly wait?: string;
+};
+
 /** A connector as `registry.inspect` reports it. */
 export type ConnectorInspectionContract = {
   readonly connector: string;
@@ -584,6 +599,10 @@ export type ConnectorManifestContract = {
   /** The connector category it declares from the registry taxonomy (`registry/taxonomy.json`); a connector that declares none is uncategorized. */
   readonly category?: string;
   readonly description: string;
+  /** The feeds the connector offers: events a host reads after a cursor, so it reacts to the provider without a webhook (the loop contract's E4). */
+  readonly feeds?: {
+    readonly [key: string]: ConnectorFeedContract;
+  };
   /** The connector's whole name: `stripe`, `google/calendar`. */
   readonly name: string;
   readonly operations: {
@@ -1034,6 +1053,18 @@ export type ExternalLedgerNotRequestedContract = "not_requested";
 
 /** The kinds of thing outside runx a connector's locators name: what its declared references classify and what its operations produce. */
 export type ExternalReferenceKindContract = "thread" | "comment" | "event" | "tracking_item" | "change_request" | "repository" | "external_url";
+
+/** Where a feed's cursor goes in and comes back: the read's input that takes it, and the result field holding the next. */
+export type FeedCursorContract = {
+  readonly input: string;
+  readonly result: string;
+};
+
+/** Where a page's events are: the result field holding them, and each event's field holding its provider id. */
+export type FeedEventsContract = {
+  readonly id: string;
+  readonly result: string;
+};
 
 /** One file `fs.apply_bundle` deleted, or found already absent. */
 export type FileAppliedDeleteContract = {

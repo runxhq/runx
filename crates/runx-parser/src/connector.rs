@@ -59,6 +59,7 @@ pub fn validate_connector_manifest(
         validate_operation(&manifest, name, operation, &mut errors);
     }
     validate_mcp_multiplexing(&manifest, &mut errors);
+    validate_feeds(&manifest, &mut errors);
     validate_references(&manifest.references, &mut errors);
     validate_effects(&manifest, &mut errors);
     validate_leases(&manifest, &mut errors);
@@ -122,6 +123,77 @@ impl Errors {
             Ok(())
         } else {
             Err(self.0)
+        }
+    }
+}
+
+/// A feed is served by one of the connector's safe reads that declares it
+/// charges nothing, since a host reads it again and again with no run around
+/// it and no limit counting it (a read never asks anyone), and every
+/// field it names is the read's: the cursor and the wait among its inputs,
+/// the next cursor, the events, more and a gap among its result fields.
+fn validate_feeds(manifest: &ConnectorManifest, errors: &mut Errors) {
+    for (name, feed) in &manifest.feeds {
+        let field = format!("feeds.{name}");
+        let Some(operation) = manifest.operations.get(&feed.operation) else {
+            errors.push(
+                &format!("{field}.operation"),
+                format!(
+                    "{field}.operation names {}, which the connector doesn't declare.",
+                    feed.operation
+                ),
+            );
+            continue;
+        };
+        // No limit counts a feed's polls, so its read declares it's free.
+        let declared_free = operation.cost.as_ref().and_then(|cost| cost.usd_micro) == Some(0);
+        if !manifest.safe_read(operation) || !declared_free {
+            errors.push(
+                &format!("{field}.operation"),
+                format!(
+                    "{field} is read again and again with no run around it, so {} is a safe read that declares it charges nothing: a read runx carries out itself rather than a process, with cost usd_micro 0.",
+                    feed.operation
+                ),
+            );
+        }
+        let inputs = operation
+            .input_schema
+            .as_ref()
+            .and_then(|schema| schema.get("properties"))
+            .and_then(JsonValue::as_object);
+        for (part, input) in [
+            ("cursor.input", Some(&feed.cursor.input)),
+            ("wait", feed.wait.as_ref()),
+        ] {
+            if let Some(input) = input
+                && !inputs.is_some_and(|properties| properties.contains_key(input.as_str()))
+            {
+                errors.push(
+                    &format!("{field}.{part}"),
+                    format!(
+                        "{field}.{part} names {input}, which {}'s input_schema doesn't declare.",
+                        feed.operation
+                    ),
+                );
+            }
+        }
+        for (part, result) in [
+            ("cursor.result", Some(&feed.cursor.result)),
+            ("events.result", Some(&feed.events.result)),
+            ("more", feed.more.as_ref()),
+            ("gap", feed.gap.as_ref()),
+        ] {
+            if let Some(result) = result
+                && !operation
+                    .result_fields
+                    .iter()
+                    .any(|declared| declared == result)
+            {
+                errors.push(
+                    &format!("{field}.{part}"),
+                    format!("{field}.{part} names {result}, which {} doesn't list among its result_fields.", feed.operation),
+                );
+            }
         }
     }
 }

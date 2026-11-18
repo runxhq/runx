@@ -26,6 +26,8 @@ pub const RESERVED_CONNECTOR_SEGMENT: &str = "versions";
 /// Dotted lowercase segments, underscores allowed, at least two segments.
 pub const OPERATION_NAME_PATTERN: &str = r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$";
 pub const OPERATION_NAME_MAX_LENGTH: usize = 100;
+/// A feed's name: one or more of an operation's segments, `inbox` or `mail.events`.
+pub const FEED_NAME_PATTERN: &str = r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$";
 pub const CREDENTIAL_NAME_PATTERN: &str = "^[a-z][a-z0-9_]{0,63}$";
 pub const ENV_NAME_PATTERN: &str = "^[A-Z][A-Z0-9_]{0,127}$";
 pub const INSTANCE_ID_PATTERN: &str = "^[a-z0-9][a-z0-9._-]{0,127}$";
@@ -74,8 +76,18 @@ fn is_connector_surface(value: &str) -> bool {
 
 #[must_use]
 pub fn is_operation_name(value: &str) -> bool {
+    dotted_segments(value).is_some_and(|segments| segments >= 2)
+}
+
+fn is_feed_name(value: &str) -> bool {
+    dotted_segments(value).is_some()
+}
+
+/// How many segments `value` has as a dotted name, each a lowercase letter
+/// then lowercase letters, digits or underscores; none when it isn't one.
+fn dotted_segments(value: &str) -> Option<usize> {
     if value.is_empty() || value.len() > OPERATION_NAME_MAX_LENGTH {
-        return false;
+        return None;
     }
     let mut segments = 0_usize;
     for segment in value.split('.') {
@@ -83,11 +95,11 @@ pub fn is_operation_name(value: &str) -> bool {
         let valid = bytes.next().is_some_and(|byte| byte.is_ascii_lowercase())
             && bytes.all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_');
         if !valid {
-            return false;
+            return None;
         }
         segments += 1;
     }
-    segments >= 2
+    Some(segments)
 }
 
 fn is_credential_name(value: &str) -> bool {
@@ -267,6 +279,14 @@ identifier!(
     OPERATION_NAME_MAX_LENGTH,
     is_operation_name,
     "operation name"
+);
+identifier!(
+    /// A connector feed's name: `inbox`, `mail.events`.
+    FeedName,
+    FEED_NAME_PATTERN,
+    OPERATION_NAME_MAX_LENGTH,
+    is_feed_name,
+    "feed name"
 );
 identifier!(
     /// A named credential on a connector, or a field of one.

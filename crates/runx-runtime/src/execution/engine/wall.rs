@@ -407,7 +407,7 @@ impl<A> Wall<'_, A> {
                 }
             }
             OperationAccess::Read => {
-                if !crate::kernel::operation::run_by_a_process(&connector.manifest, operation)
+                if !connector.manifest.run_by_a_process(operation)
                     || self.vouched_for(workflow_dir, connector)?
                 {
                     return Ok(());

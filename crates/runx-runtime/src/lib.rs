@@ -183,6 +183,7 @@ pub use kernel::connectors::{
     ConnectorOrigin, ConnectorRegistryError, ConnectorScope, LoadedConnector, OperationDigests,
 };
 pub use kernel::instances::{InstanceError, InstanceRecord, Instances};
+pub use kernel::operation::feed::{FeedEvent, FeedPage, FeedRead, feed_offered};
 pub use kernel::operation::{OPERATION_EFFECT_FAMILY, OperationEffect};
 pub use kernel::store::{KernelStore, KernelStoreError};
 pub use list::{

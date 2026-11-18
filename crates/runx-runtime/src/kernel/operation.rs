@@ -46,6 +46,7 @@ pub(crate) mod call;
 pub(crate) mod claim;
 pub(crate) mod confirm;
 pub(crate) mod credentials;
+pub(crate) mod feed;
 pub(crate) mod hosted;
 pub(crate) mod packet;
 
@@ -263,11 +264,10 @@ pub(crate) trait Tools {
     ) -> Result<JsonValue, confirm::Unperformed>;
 }
 
-/// The method of a runtime built without tool packages: it runs none.
-#[cfg(test)]
+/// Runs no tool: for a call nothing a process carries out may serve, as a
+/// feed's read is, and for a runtime built without tool packages.
 pub(crate) struct NoTools;
 
-#[cfg(test)]
 impl Tools for NoTools {
     fn run(
         &self,
@@ -278,7 +278,7 @@ impl Tools for NoTools {
     ) -> Result<JsonValue, confirm::Unperformed> {
         Err(confirm::Unperformed::NotSent {
             code: "tool_unavailable",
-            reason: format!("tool {tool} needs a runtime built with tool packages"),
+            reason: format!("tool {tool} isn't run for this call"),
         })
     }
 }
@@ -375,7 +375,7 @@ pub(crate) fn operation_process_read(
     let declared = Declared::of(target, inputs, env, workflow_dir)?;
     let operation = declared.operation()?;
     (operation.access() == OperationAccess::Read
-        && run_by_a_process(&declared.connector.manifest, operation))
+        && declared.connector.manifest.run_by_a_process(operation))
     .then_some((declared.connector, declared.name))
 }
 
@@ -411,43 +411,8 @@ pub(crate) fn operation_safe_read(
     Declared::of(target, inputs, env, workflow_dir).is_some_and(|declared| {
         declared
             .operation()
-            .is_some_and(|operation| safe_read(&declared.connector.manifest, operation))
+            .is_some_and(|operation| declared.connector.manifest.safe_read(operation))
     })
-}
-
-/// Whether `operation` of `manifest` is a safe read: a read that costs
-/// nothing and that runx carries out itself. A read a process carries out,
-/// the connector's own or the stdio server it starts, rests on its author's
-/// promise rather than on what runx can see, and a priced read can bill
-/// with no answer back, so neither is.
-pub(crate) fn safe_read(
-    manifest: &runx_contracts::connector::ConnectorManifest,
-    operation: &runx_contracts::connector::ConnectorOperation,
-) -> bool {
-    operation.access() == OperationAccess::Read
-        && !operation.is_metered()
-        && !run_by_a_process(manifest, operation)
-}
-
-/// Whether a process carries out `operation` of `manifest`: the connector's
-/// own, or the stdio server it starts. What it does rests on its author's
-/// promise, not on anything runx can see.
-pub(crate) fn run_by_a_process(
-    manifest: &runx_contracts::connector::ConnectorManifest,
-    operation: &runx_contracts::connector::ConnectorOperation,
-) -> bool {
-    match &operation.implementation {
-        Some(Implementation::Process(_)) => true,
-        Some(Implementation::Mcp(_)) => matches!(
-            manifest
-                .placements
-                .local
-                .as_ref()
-                .and_then(|local| local.mcp_server.as_ref()),
-            Some(runx_contracts::connector::McpServer::Stdio { .. })
-        ),
-        _ => false,
-    }
 }
 
 /// The operation an operation step calls, as its connector declares it.
@@ -504,7 +469,7 @@ pub(crate) fn resends_safely(
         return operation.guarantees.provider_idempotency == ProviderIdempotency::Enforced;
     }
     match operation.access() {
-        OperationAccess::Read => !run_by_a_process(manifest, operation),
+        OperationAccess::Read => !manifest.run_by_a_process(operation),
         OperationAccess::Mutate => mutation_resends_safely(operation, retry_unknown_outcomes),
     }
 }

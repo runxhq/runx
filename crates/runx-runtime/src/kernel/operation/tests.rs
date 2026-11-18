@@ -3611,7 +3611,7 @@ fn only_a_free_read_runx_carries_out_is_a_safe_read() {
             .find(|(operation, _)| operation.as_str() == name)
             .map(|(_, operation)| operation)
             .expect("the operation");
-        safe_read(manifest, operation)
+        manifest.safe_read(operation)
     };
     let served_over_http = manifest(serde_json::json!({
         "transport": "streamable_http", "url": "https://notes.example/mcp"

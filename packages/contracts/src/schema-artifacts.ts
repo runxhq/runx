@@ -977,6 +977,17 @@ export const runxSchemaArtifacts = {
         "minLength": 1,
         "type": "string"
       },
+      "feeds": {
+        "additionalProperties": {
+          "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ConnectorFeed"
+        },
+        "description": "The feeds the connector offers: events a host reads after a cursor, so it reacts to the provider without a webhook (the loop contract's E4).",
+        "minProperties": 1,
+        "propertyNames": {
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+        },
+        "type": "object"
+      },
       "name": {
         "description": "The connector's whole name: `stripe`, `google/calendar`.",
         "maxLength": 129,
@@ -2488,6 +2499,51 @@ export const runxSchemaArtifacts = {
         "title": "ConnectorAuth",
         "type": "object"
       },
+      "ConnectorFeed": {
+        "additionalProperties": false,
+        "description": "A feed a connector offers: its events, read a page at a time after a cursor through one of its free reads, so a host resumes from its cursor after any disconnect or sleep and dedupes at-least-once delivery by each event's provider id.",
+        "properties": {
+          "cursor": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FeedCursor"
+          },
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "events": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/FeedEvents"
+          },
+          "gap": {
+            "description": "The result field saying the provider can't replay from the cursor given: a gap, which its loop catches up on.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "more": {
+            "description": "The result field saying more events follow at once.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "operation": {
+            "description": "The read that serves a page of the feed: a safe read that asks nobody, since a host reads it again and again with no run around it.",
+            "maxLength": 100,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+            "type": "string"
+          },
+          "wait": {
+            "description": "The read's input naming how many seconds the provider may hold the read open until an event arrives: a long poll.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "operation",
+          "cursor",
+          "events"
+        ],
+        "title": "ConnectorFeed",
+        "type": "object"
+      },
       "ConnectorInspection": {
         "additionalProperties": false,
         "description": "A connector as `registry.inspect` reports it.",
@@ -3833,6 +3889,46 @@ export const runxSchemaArtifacts = {
         ],
         "title": "ExternalReferenceKind",
         "type": "string"
+      },
+      "FeedCursor": {
+        "additionalProperties": false,
+        "description": "Where a feed's cursor goes in and comes back: the read's input that takes it, and the result field holding the next.",
+        "properties": {
+          "input": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "result": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "input",
+          "result"
+        ],
+        "title": "FeedCursor",
+        "type": "object"
+      },
+      "FeedEvents": {
+        "additionalProperties": false,
+        "description": "Where a page's events are: the result field holding them, and each event's field holding its provider id.",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "result": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "id"
+        ],
+        "title": "FeedEvents",
+        "type": "object"
       },
       "FileAppliedDelete": {
         "additionalProperties": false,

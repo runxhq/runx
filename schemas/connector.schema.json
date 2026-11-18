@@ -16,6 +16,17 @@
       "minLength": 1,
       "type": "string"
     },
+    "feeds": {
+      "additionalProperties": {
+        "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ConnectorFeed"
+      },
+      "description": "The feeds the connector offers: events a host reads after a cursor, so it reacts to the provider without a webhook (the loop contract's E4).",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+      },
+      "type": "object"
+    },
     "name": {
       "description": "The connector's whole name: `stripe`, `google/calendar`.",
       "maxLength": 129,

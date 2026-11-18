@@ -1568,3 +1568,78 @@ operations:
     );
     assert_rejects(&valid.replace("id: id", "id: ''"), "non-empty");
 }
+
+/// A mail provider whose inbox is a feed: what arrived after a cursor, held
+/// open for a while when nothing has.
+const MAIL_FEED: &str = r#"
+schema: runx.connector.v1
+name: example/mail
+title: Example Mail
+description: Mail with an inbox feed.
+auth: {none: {}}
+placements: {local: {auth: [none]}}
+feeds:
+  inbox:
+    description: Replies, bounces and unsubscribes, oldest first.
+    operation: inbox.read
+    cursor: {input: after, result: cursor}
+    events: {result: events, id: id}
+    more: more
+    wait: wait
+    gap: gap
+operations:
+  inbox.read:
+    description: Read what arrived after a cursor.
+    verb: read
+    scopes: [mail.read]
+    target: {template: "https://mail.example.com/inbox"}
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        after: {type: string}
+        wait: {type: integer, minimum: 0, maximum: 60}
+    result_fields: [events, cursor, more, gap]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: "https://mail.example.com/pricing"}
+    implementation:
+      http:
+        allowed_hosts: [mail.example.com]
+        requests:
+          - http_method: GET
+            url: "https://mail.example.com/inbox"
+            query: {after: {"$argument": "/after"}, wait: {"$argument": "/wait"}}
+        result_paths: {events: acknowledgement.events, cursor: acknowledgement.cursor, more: acknowledgement.more, gap: acknowledgement.gap}
+"#;
+
+#[test]
+fn a_feed_is_one_of_the_connector_s_safe_reads_and_names_only_its_fields() {
+    let validated = validate(MAIL_FEED).expect("the feed validates");
+    assert!(validated.manifest.feeds.contains_key("inbox"));
+    assert_rejects(
+        &MAIL_FEED.replace("    operation: inbox.read", "    operation: inbox.list"),
+        "feeds.inbox.operation names inbox.list, which the connector doesn't declare.",
+    );
+    assert_rejects(
+        &MAIL_FEED.replace("    cursor: {input: after,", "    cursor: {input: since,"),
+        "feeds.inbox.cursor.input names since, which inbox.read's input_schema doesn't declare.",
+    );
+    assert_rejects(
+        &MAIL_FEED.replace("    gap: gap\n", "    gap: expired\n"),
+        "feeds.inbox.gap names expired, which inbox.read doesn't list among its result_fields.",
+    );
+}
+
+#[test]
+fn a_feed_is_never_a_read_a_process_carries_out_or_one_that_charges() {
+    let refusal = "so inbox.read is a safe read that declares it charges nothing: a read runx carries out itself rather than a process, with cost usd_micro 0.";
+    let by_a_process = MAIL_FEED.replace(
+        "    implementation:\n      http:\n        allowed_hosts: [mail.example.com]\n        requests:\n          - http_method: GET\n            url: \"https://mail.example.com/inbox\"\n            query: {after: {\"$argument\": \"/after\"}, wait: {\"$argument\": \"/wait\"}}\n        result_paths: {events: acknowledgement.events, cursor: acknowledgement.cursor, more: acknowledgement.more, gap: acknowledgement.gap}\n",
+        "    implementation: {process: {tool: example.mail}}\n",
+    );
+    assert_ne!(by_a_process, MAIL_FEED, "the implementation was replaced");
+    assert_rejects(&by_a_process, refusal);
+    assert_rejects(
+        &MAIL_FEED.replace("usd_micro: 0,", "usd_micro: 10,"),
+        refusal,
+    );
+}
