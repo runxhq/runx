@@ -20,6 +20,7 @@ methods:
       - id: read
         agent: read
         context:
+          inherit: true
           entries: [$steps.recall.entries]
         calls:
           tools: [fs.read, fs.read_bundle, fs.list, fs.search, git.status, git.current_branch, git.diff_name_only, git.log, git.show, git.diff, registry.search, registry.inspect]
@@ -43,6 +44,7 @@ methods:
       - id: write
         agent: write
         context:
+          inherit: true
           entries: [$steps.recall.entries]
         calls:
           tools: [fs.read, fs.read_bundle, fs.list, fs.search, git.status, git.current_branch, git.diff_name_only, git.log, git.show, git.diff, registry.search, registry.inspect, fs.edit, fs.write, fs.apply_bundle, command.execute]

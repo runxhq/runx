@@ -129,7 +129,7 @@ pub struct AgentTask {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context_kinds: Vec<String>,
     /// Whether the turn inherits its caller's current and historical context.
-    /// Omitted means true; explicit inputs and selected context are unaffected.
+    /// Omitted means false; explicit inputs and selected context are unaffected.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_inherit: Option<bool>,
     /// The earlier steps' outputs of context entries the turn is given: the

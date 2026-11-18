@@ -123,8 +123,8 @@ steps:
 ```
 
 - `requires` names any of `native_tools` (the agent harness keeps its own coding
-  tools beside the turn's calls), `fresh_context` (the turn starts from its
-  act alone, with no inherited conversation or ambient memory) and
+  tools beside the turn's calls), `fresh_context` (the host starts a new
+  conversation from the supplied turn, adding no ambient conversation or memory) and
   `separate_reviewer` (a reviewer other than the one that produced what it
   judges). Each is named once, and any other name is refused.
 - The turn's invocation carries them to its host, and runx never assumes
@@ -134,7 +134,7 @@ steps:
   answer leaves a requirement unstated seals failed, saying so. Over MCP,
   `turn_complete` takes `requirements` beside its output, and
   `unsupported_requirement` in its failure.
-- A driven turn starts from its act alone, so it meets
+- A driven turn starts a new conversation from its invocation, so it meets
   `fresh_context`. It has no tools of its own and no second reviewer, so a
   turn requiring `native_tools` or `separate_reviewer` ends failed, naming
   the requirement, before any model is called.
@@ -172,11 +172,14 @@ steps:
   step, saying which output it read.
 - The turn reads the entries after its `context.skills`, and before the
   context its run's caller supplied.
-- Set `context.inherit: false` on an agent step to exclude its caller's
-  current and historical context. Explicit inputs, `context.entries`,
-  `context.skills` and the skill's own instructions remain available.
-  Omitted or `true` retains caller context. This setting applies to that
-  agent turn; it does not remove context from the run's other steps.
+- An agent turn receives its explicit inputs, `context.entries`,
+  `context.skills` and the skill's own instructions. Caller current and
+  historical context is excluded by default.
+- Set `context.inherit: true` when the turn deliberately continues its
+  caller's context, as a conversational session does. `false` or omitted
+  keeps the default. This controls what runx gives that agent turn; scripts
+  still read the run's context. `requires: [fresh_context]` separately asks
+  the host to start a fresh conversation from the supplied turn.
 - An entry labelled `sharing: local_only` reaches a turn only when runx
   drives it with a model served from this machine, at a loopback
   endpoint. A turn its host works from outside is given no `local_only` entry,

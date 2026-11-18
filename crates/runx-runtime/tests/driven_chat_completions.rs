@@ -740,7 +740,7 @@ fn a_driven_turn_reads_the_memory_its_run_is_given_by_locator()
     )?;
     fs::write(
         skill_dir.join("run.yaml"),
-        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: proof\n        agent: proof\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
+        "minimum_runx: 0.12.0\nmethods:\n  proof:\n    steps:\n      - id: proof\n        agent: proof\n        context: {inherit: true}\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     // The workspace's own MEMORY.md is never sent; the memory the host
     // supplies is.

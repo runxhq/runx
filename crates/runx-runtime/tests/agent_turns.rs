@@ -3296,7 +3296,7 @@ fn the_hosts_context_reaches_its_own_packages_turns_and_never_another_packages()
     crate::support::write_test_skill_package(
         &root.join("ctx-other"),
         "---\nname: ctx-other\ndescription: Answers.\n---\n# Other\n\n## Agent task: answer\n\nAnswer.\n",
-        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        outputs:\n          answer: {type: string}\n",
+        "minimum_runx: 0.12.0\nmethods:\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        context: {inherit: true}\n        outputs:\n          answer: {type: string}\n",
     )?;
     let skill = root.join("ctx-root");
     crate::support::write_test_skill_package(
@@ -3309,6 +3309,7 @@ methods:
     steps:
       - id: answer
         agent: answer
+        context: {inherit: true}
         outputs:
           answer: {type: string}
   own:

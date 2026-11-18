@@ -1438,7 +1438,7 @@ pub(crate) fn ask_turn(
     // Then the entries its earlier steps produced, each with its own labels,
     // then what the run's caller supplied.
     invocation.current_context.extend(context_entries);
-    if agent.context_inherit != Some(false) {
+    if agent.context_inherit == Some(true) {
         invocation
             .current_context
             .extend(current_context.iter().cloned());

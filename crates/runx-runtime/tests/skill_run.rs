@@ -1877,7 +1877,7 @@ fn an_agent_can_exclude_caller_context_and_keep_its_explicit_context()
             "skill-manual"
         );
         assert_eq!(envelope["current_context"][1], entry);
-        let inherited = inherit != Some(false);
+        let inherited = inherit == Some(true);
         assert_eq!(
             envelope["current_context"]
                 .as_array()
@@ -1984,7 +1984,7 @@ fn a_child_turn_of_the_hosts_package_is_given_its_shareable_context_and_none_kep
             crate::support::write_test_skill_package(
                 &parent,
                 "---\nname: parent\ndescription: Pass caller context to a child.\n---\n# Parent\n\n## Agent task: answer\n\nAnswer from what the caller gave.\n",
-                "minimum_runx: 0.12.0\ndefault_method: run\nmethods:\n  run:\n    steps:\n      - id: child\n        skill: .#answer\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        outputs:\n          answer: {type: string}\n",
+                "minimum_runx: 0.12.0\ndefault_method: run\nmethods:\n  run:\n    steps:\n      - id: child\n        skill: .#answer\n  answer:\n    steps:\n      - id: answer\n        agent: answer\n        context: {inherit: true}\n        outputs:\n          answer: {type: string}\n",
             )?;
             let text = "Retain every byte: café 🧭.";
             let entry: runx_contracts::ContextEntry = serde_json::from_value(serde_json::json!({
