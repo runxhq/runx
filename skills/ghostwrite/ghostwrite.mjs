@@ -393,7 +393,9 @@ function spelled(tokens, from) {
  * among them; a draft's "one" counts only where it measures.
  */
 function quantitiesIn(value, admitting) {
-  const tokens = text(value).toLowerCase().match(/[$€£¥]?\d+(?:[.,:]\d+)*%?|[\p{L}']+/gu) ?? [];
+  // A sentence's end is a token of its own, so a number ending one never
+  // counts the first word of the next: "since 2024. Sam" counts no Sams.
+  const tokens = text(value).toLowerCase().match(/[$€£¥]?\d+(?:[.,:]\d+)*%?|[\p{L}']+|[.!?;](?=\s|$)/gu) ?? [];
   const found = [];
   for (let at = 0; at < tokens.length; at += 1) {
     const figure = /^([$€£¥]?)(\d+(?:[.,:]\d+)*)(%?)$/u.exec(tokens[at]);
@@ -412,7 +414,9 @@ function quantitiesIn(value, admitting) {
       end = at + 1;
     } else continue;
     const symbol = figure ? figure[1] || figure[3] || null : null;
-    const after = tokens.slice(end, end + 4);
+    const following = tokens.slice(end, end + 4);
+    const stop = following.findIndex((token) => /^[.!?;]$/u.test(token));
+    const after = stop < 0 ? following : following.slice(0, stop);
     const unit = symbol ?? (isContent(after[0]) ? singular(after[0]) : null);
     const said = tokens.slice(at, end).join(" ") + (!symbol && unit ? ` ${after[0]}` : "");
     const one = !figure && end === at + 1 && tokens[at] === "one";
