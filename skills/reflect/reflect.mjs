@@ -238,7 +238,7 @@ export async function survey(ctx, { reader, until: given }) {
   }
 
   calls += 1;
-  const inspected = (await ctx.operation("store/key.inspect", { stream: MARKS, key: reader }))?.provider_operation?.result;
+  const inspected = (await read((await ctx.operation("store/key.inspect", { stream: MARKS, key: reader }))?.provider_operation))?.result;
   const mark = { version: inspected?.version ?? 0, ...(inspected?.last_event?.data ?? {}) };
   const readAt = new Set(mark.at_through ?? []);
   const previouslyOpen = mark.open ?? [];
@@ -603,7 +603,7 @@ export async function propose(ctx, { survey, findings }) {
   const validate = async (target_dir, { writes = [], deletes = [] }) => {
     const relative = (path) => fromPackage(target_dir, path);
     const change = { writes: writes.map((write) => ({ path: relative(write.path), contents: write.contents })), deletes: deletes.map(relative) };
-    return (await ctx.tool("runx.skill.validate", { skill_path: target_dir, change, allow_execute_test: false })).skill_validation;
+    return ctx.read((await ctx.tool("runx.skill.validate", { skill_path: target_dir, change, allow_execute_test: false })).skill_validation);
   };
 
   for (const { criterion, item, finding } of repairsOf(survey, findings)) {
@@ -628,7 +628,7 @@ export async function propose(ctx, { survey, findings }) {
     // Facts only, never a model's words, so a change the person declined is
     // the same change however its cause is put.
     const key = (await digest({ target_dir, kind: item.kind, evidence: item.evidence })).slice(7);
-    const declined = (await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation?.result;
+    const declined = (await ctx.read((await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation))?.result;
     if ((declined?.version ?? 0) > 0) {
       proposals.push({ criterion, target_dir, declined: declined.last_event?.data?.reason ?? null, again: false });
       continue;
@@ -820,7 +820,7 @@ export async function keep(ctx, { reader, survey, proposals = [], promotion = nu
   const closed = [];
   for (const rule of survey.held) {
     const key = (await ctx.tool("data.digest", { value: { close: rule.handle } })).digest_result.digest.slice(7);
-    const declined = (await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation?.result;
+    const declined = (await ctx.read((await ctx.operation("store/key.inspect", { stream: DECLINES, key }))?.provider_operation))?.result;
     if ((declined?.version ?? 0) > 0) {
       closed.push({ handle: rule.handle, declined: declined.last_event?.data?.reason ?? null, again: false });
       continue;
@@ -850,7 +850,7 @@ export async function keep(ctx, { reader, survey, proposals = [], promotion = nu
       { idempotency_key: `mark:${reader}@${version}` },
     );
     // The store answers a version that moved as a conflict, not a refusal.
-    const answer = moved?.provider_operation?.result;
+    const answer = (await ctx.read(moved?.provider_operation))?.result;
     mark = ["committed", "replayed"].includes(answer?.status)
       ? { moved: true, version: answer.version, through }
       : { moved: false, reason: `the mark's append answered ${answer?.status ?? "nothing"}` };
