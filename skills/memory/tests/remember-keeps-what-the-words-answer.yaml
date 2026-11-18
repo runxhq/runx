@@ -1,0 +1,35 @@
+name: remember-keeps-what-the-words-answer
+method: remember
+inputs:
+  level: personal
+  text: Yes, bring anyone on your team.
+  summary: Yes, bring anyone on your team.
+  purpose: confirmed_memory
+  date: 2026-11-18
+  sources: ["fieldwork:acme/opp-hana#in_1"]
+  answers:
+    question: Can our SRE lead join the review?
+    asked_by: Hana at Brightwave (brightwave.example)
+    source: "fieldwork:acme/opp-hana#in_1"
+host:
+  approvals:
+    memory.remember: true
+setup:
+  authority:
+    delegations:
+      - connector: private
+        terms:
+          - verbs: [read, write]
+            bounds:
+              operations: ["private/*"]
+              scopes: [store.read, store.append]
+              targets: ["runx/memory/said:*", "runx/memory/observed:*", "project:memory/said:*", "project:memory/observed:*"]
+              packages: [runx/memory, project:memory]
+expect:
+  status: sealed
+  steps: [entry, likely, current, change, confirm, append, readback, handle]
+  step_outputs:
+    change:
+      subset:
+        reason: 'Keep these exact words on said:personal, as something they told you: "Yes, bring anyone on your team.", in answer to Hana at Brightwave (brightwave.example), who asked: "Can our SRE lead join the review?" (2026-11-18, from fieldwork:acme/opp-hana#in_1). The index shows them as: Yes, bring anyone on your team.'
+        searchable: [text, summary, answers]

@@ -258,11 +258,14 @@ function dated({ date, valid_until, sources }) {
   return `${date}${valid_until ? `, until ${valid_until}` : ""}, from ${sources.join(", ")}`;
 }
 
+/// What the words answer, as a confirmation says it: who asked, and what.
+const answering = (data) => (data.answers ? `, in answer to ${data.answers.asked_by}, who asked: "${data.answers.question}"` : "");
+
 const DESCRIBED = {
   "memory.remembered": ({ stream, data }) =>
-    `Keep these exact words on ${stream}, as ${PURPOSES[data.purpose]}: "${data.text}" (${dated(data)}). The index shows them as: ${data.summary}`,
+    `Keep these exact words on ${stream}, as ${PURPOSES[data.purpose]}: "${data.text}"${answering(data)} (${dated(data)}). The index shows them as: ${data.summary}`,
   "memory.corrected": ({ handle, data }) =>
-    `Replace ${handle} with these exact words, as ${PURPOSES[data.purpose]}: "${data.text}" (${dated(data)}). The index shows them as: ${data.summary}`,
+    `Replace ${handle} with these exact words, as ${PURPOSES[data.purpose]}: "${data.text}"${answering(data)} (${dated(data)}). The index shows them as: ${data.summary}`,
   "memory.disabled": ({ handle, data }) => `Stop ${handle} applying, because: ${data.reason}`,
   "memory.observed": ({ stream, handle, data }) =>
     `${handle ? `Supersede ${handle} with` : `Keep on ${stream}`} this observation: "${data.text}" (${dated(data)}). The index shows it as: ${data.summary}`,
@@ -307,8 +310,9 @@ export function change({ entry, current, type, data, valid_until }) {
     reason: describe({ stream: entry.stream, handle, data: content }),
     expected_version: at,
     idempotency_key: `memory:${sha256(JSON.stringify([type, entry.stream, entry.key, at, content]))}`,
-    // Only the person's words have a purpose, which decides it.
-    ...(data.purpose === undefined ? {} : { standing }),
+    // Only the person's words have a purpose, which decides it, and are
+    // searched by their words, their line and what they answer.
+    ...(data.purpose === undefined ? {} : { standing, searchable: ["text", "summary", ...(data.answers ? ["answers"] : [])] }),
   };
 }
 
@@ -386,6 +390,7 @@ function dataOf({ stream, key, event }) {
     sources: event.data?.sources ?? [],
   };
   if (kind === "said") data.purpose = purposeOf({ stream, event });
+  if (event.data?.answers) data.answers = event.data.answers;
   if (event.valid_until) data.valid_until = event.valid_until;
   if (event.type === "memory.disabled") data.reason = event.data?.reason ?? null;
   return data;

@@ -13,8 +13,9 @@
 # A said entry's purpose decides whether it stands as a rule, which its event
 # says as `standing`, beside its type, where private lists it apart; any
 # entry's `valid_until` is its event's own too, so the store passes over what
-# has ended, and every write names `text` and `summary` searchable, so a
-# search never matches a confirmation's wording (memory.md, 10 November).
+# has ended, and every write names `text` and `summary` searchable, and an
+# answer's `answers` too, so a search never matches a confirmation's wording
+# (memory.md, 10 November).
 # A new observation instead appends at expected version zero without a prior
 # read; the native private driver verifies its event before returning. An
 # observation superseding another still inspects its current type and status.
@@ -74,6 +75,16 @@ shared_inputs:
     type: string
     enum: [mandate, procedure, confirmed_memory]
     description: What the person's words are to a turn. A mandate or a procedure stands as a rule, in every index whatever its age. confirmed_memory is something they told you.
+  answers:
+    type: object
+    additionalProperties: false
+    required: [question, asked_by, source]
+    optional: true
+    description: What the words answer, when they're an answer, so a turn knows what they apply to. The question as it was asked, quoted; who asked it; and where it was asked, a locator its owner resolves.
+    properties:
+      question: { type: string, minLength: 1, maxLength: 2000 }
+      asked_by: { type: string, minLength: 1, maxLength: 512 }
+      source: { type: string, minLength: 1, maxLength: 2048 }
   valid_until:
     type: string
     format: date
@@ -107,6 +118,7 @@ methods:
       date: {}
       valid_until: {}
       sources: {}
+      answers: {}
       supersedes: { type: string, pattern: "^memory:said:[^#]+#[^#]+@[0-9]+$", maxLength: 512, optional: true, description: "The entry these words replace, at its current version, which makes this its correction. Without it, the words are a new entry." }
     examples:
       - { level: personal, text: I write in Australian English., summary: I write in Australian English., purpose: confirmed_memory, date: 2026-11-08, sources: [conversation] }
@@ -132,7 +144,7 @@ methods:
       - id: corrected
         when: { value: $steps.entry.version, not_equals: 0 }
         skill: .#correct
-        inputs: { handle: $input.supersedes, text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources }
+        inputs: { handle: $input.supersedes, text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources, answers: $input.answers }
         outputs:
           handle: { type: string }
       - id: current
@@ -142,16 +154,17 @@ methods:
       - id: change
         when: { value: $steps.entry.version, equals: 0 }
         tool: { module: memory.mjs, export: change }
-        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.remembered, data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: CONF }, valid_until: $input.valid_until }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.remembered, data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, answers: $input.answers, confirmation: CONF }, valid_until: $input.valid_until }
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
           expected_version: { type: integer }
           standing: { type: boolean }
+          searchable: { type: array }
       - id: confirm
         when: { value: $steps.entry.version, equals: 0 }
         ask: { gate: memory.remember, reason: $steps.change.reason, type: person_words }
-        inputs: { quote: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources, stream: $steps.entry.stream, likely: $steps.likely.matches }
+        inputs: { quote: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources, answers: $input.answers, stream: $steps.entry.stream, likely: $steps.likely.matches }
       - id: append
         when: { value: $steps.entry.version, equals: 0 }
         operation: private/events.append
@@ -162,8 +175,8 @@ methods:
           key: $steps.entry.key
           expected_version: $steps.current.provider_operation.result.version
           type: memory.remembered
-          data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
-          searchable: [text, summary]
+          data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, answers: $input.answers, confirmation: $steps.confirm }
+          searchable: $steps.change.searchable
           standing: $steps.change.standing
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
@@ -180,7 +193,7 @@ methods:
           handle: { type: string }
   correct:
     description: Replace the person's words with corrected words, with their line and purpose, as the entry's next version. Its earlier words stay in its history.
-    inputs: { handle: {}, text: {}, summary: {}, purpose: {}, date: {}, valid_until: {}, sources: {} }
+    inputs: { handle: {}, text: {}, summary: {}, purpose: {}, date: {}, valid_until: {}, sources: {}, answers: {} }
     steps:
       - id: entry
         tool: { module: memory.mjs, export: parseHandle }
@@ -195,15 +208,16 @@ methods:
         inputs: { stream: $steps.entry.stream, key: $steps.entry.key }
       - id: change
         tool: { module: memory.mjs, export: change }
-        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.corrected, data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: CONF }, valid_until: $input.valid_until }
+        inputs: { entry: $steps.entry, current: $steps.current.provider_operation.result, type: memory.corrected, data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, answers: $input.answers, confirmation: CONF }, valid_until: $input.valid_until }
         outputs:
           reason: { type: string }
           idempotency_key: { type: string }
           expected_version: { type: integer }
           standing: { type: boolean }
+          searchable: { type: array }
       - id: confirm
         ask: { gate: memory.correct, reason: $steps.change.reason }
-        inputs: { handle: $input.handle, version: $steps.current.provider_operation.result.version, text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources }
+        inputs: { handle: $input.handle, version: $steps.current.provider_operation.result.version, text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, valid_until: $input.valid_until, sources: $input.sources, answers: $input.answers }
       - id: append
         operation: private/events.append
         guard:
@@ -213,8 +227,8 @@ methods:
           key: $steps.entry.key
           expected_version: $steps.current.provider_operation.result.version
           type: memory.corrected
-          data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, confirmation: $steps.confirm }
-          searchable: [text, summary]
+          data: { text: $input.text, summary: $input.summary, purpose: $input.purpose, date: $input.date, sources: $input.sources, answers: $input.answers, confirmation: $steps.confirm }
+          searchable: $steps.change.searchable
           standing: $steps.change.standing
           valid_until: $input.valid_until
         idempotency_key: $steps.change.idempotency_key
