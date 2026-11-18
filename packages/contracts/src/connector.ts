@@ -613,7 +613,15 @@ export function renderDeclaredRequest(http: HttpImplementation, call: DeclaredRe
   }
   const headers: Record<string, string> = {};
   for (const name of Object.keys(request.headers ?? {}).sort()) {
-    const value = renderTemplate(request.headers![name]!, inputs);
+    // As the kernel does: a header whose argument the call does not carry is
+    // not sent, as a query value isn't.
+    let value: JsonValue;
+    try {
+      value = renderTemplate(request.headers![name]!, inputs);
+    } catch (error) {
+      if (error instanceof Unavailable && error.binding === "$argument") continue;
+      throw error;
+    }
     if (typeof value !== "string") throw new TemplateError("template rendered a non-string where a string was required");
     headers[name] = value;
   }

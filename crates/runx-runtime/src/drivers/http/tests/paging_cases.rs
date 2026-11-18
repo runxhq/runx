@@ -472,3 +472,55 @@ fn a_resumed_query_cursor_replaces_the_value_embedded_in_the_url() -> Result<(),
     }
     Ok(())
 }
+
+/// A header bound to an argument the call leaves out isn't sent, as a query
+/// parameter isn't; given, it's sent.
+#[test]
+fn a_header_whose_argument_is_left_out_is_not_sent() -> Result<(), String> {
+    #[derive(Default)]
+    struct Headers {
+        sent: Mutex<Vec<Vec<(String, String)>>>,
+    }
+    impl RuntimeHttpTransport for Headers {
+        fn send(
+            &self,
+            request: RuntimeHttpRequest,
+        ) -> Result<RuntimeHttpResponse, RuntimeHttpError> {
+            self.sent.lock().expect("sent").push(
+                request
+                    .headers
+                    .iter()
+                    .map(|header| (header.name.clone(), header.value.clone()))
+                    .collect(),
+            );
+            Ok(response(200, r#"{"events":[]}"#))
+        }
+    }
+    let spec: HttpImplementation = serde_json::from_value(serde_json::json!({
+        "allowed_hosts":["api.example.test"],
+        "requests":[{"id":"read","http_method":"GET","url":"https://api.example.test/events",
+          "headers":{"x-brand":{"$argument":"/brand"}},"query":{"after":{"$argument":"/after"}}}],
+        "decode":[{"op":"auto_json"}],"result_paths":{"events":"acknowledgement.events"}
+    }))
+    .map_err(|error| error.to_string())?;
+    let transport = Headers::default();
+    let (parameters, env) = (JsonObject::new(), BTreeMap::new());
+    for arguments in [serde_json::json!({}), serde_json::json!({"brand": "b1"})] {
+        let arguments =
+            serde_json::from_value::<JsonValue>(arguments).map_err(|error| error.to_string())?;
+        let call = AdmittedCall::for_tests(&arguments, &parameters, &env, OperationAccess::Read);
+        Http::new(Egress::Direct(&transport), &call, &spec)
+            .perform(None)
+            .map_err(Unperformed::reason)?;
+    }
+    let sent = transport.sent.lock().expect("sent");
+    let brand = |headers: &Vec<(String, String)>| {
+        headers
+            .iter()
+            .find(|(name, _)| name == "x-brand")
+            .map(|(_, value)| value.clone())
+    };
+    assert_eq!(brand(&sent[0]), None);
+    assert_eq!(brand(&sent[1]).as_deref(), Some("b1"));
+    Ok(())
+}

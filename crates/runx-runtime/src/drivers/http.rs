@@ -731,9 +731,16 @@ fn render_request(
     };
     let mut headers = Vec::with_capacity(request.headers.len() + 2);
     for (name, template) in &request.headers {
-        let value = template
-            .render_string(inputs)
-            .map_err(|error| error.to_string())?;
+        // A header bound to an argument the call leaves out isn't sent, as a
+        // query parameter isn't.
+        let value = match template.render_string(inputs) {
+            Ok(value) => value,
+            Err(TemplateError::Unavailable {
+                binding: "$argument",
+                ..
+            }) => continue,
+            Err(error) => return Err(error.to_string()),
+        };
         headers.push(RuntimeHttpHeader::new(name.clone(), value));
     }
     let mut body = request
