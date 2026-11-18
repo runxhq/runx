@@ -323,7 +323,7 @@ mod tests {
             "it made 4 rounds of calls and never answered (the driven turn, at draft/author).";
         let read: RunRead = serde_json::from_value(serde_json::json!({
             "schema": "runx.run_read.v1",
-            "run": {"run_id": "rx_one", "skill": "skill-lab", "method": "improve", "state": "sealed",
+            "run": {"run_id": "rx_one", "skill": "skill-lab", "skill_path": "skills/skill-lab", "method": "improve", "state": "sealed",
                 "outcome": "failed", "package_digest": "sha256:p", "closure_digest": "sha256:c",
                 "driver": "managed", "receipt_id": "sha256:r", "why": why, "driven": false,
                 "created_at": "2026-11-17T00:00:00Z", "updated_at": "2026-11-17T00:00:00Z"},
