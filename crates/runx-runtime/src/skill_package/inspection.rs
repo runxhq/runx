@@ -976,6 +976,45 @@ operations:
         Ok(())
     }
 
+    /// A connector a run chooses among that isn't here is left out of what
+    /// the run may reach, so a skill can name every provider a slot takes;
+    /// one naming none that's here is refused.
+    #[test]
+    fn a_chosen_connector_that_isn_t_here_is_left_out() -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir().expect("temporary skill catalog");
+        let root = temp.path().join("chooser");
+        fs::create_dir_all(root.join("connectors/acme/notes")).expect("connector directory");
+        fs::write(
+            root.join("connectors/acme/notes/connector.yaml"),
+            hosted_connector("acme/notes"),
+        )
+        .expect("connector");
+        fs::write(
+            root.join("SKILL.md"),
+            ROOT_MANUAL.replace("root", "chooser"),
+        )
+        .expect("manual");
+        let manifest = |from: &str| {
+            format!(
+                "version: \"0.1.0\"\nminimum_runx: 0.12.0\nconnectors:\n  target:\n    choose: $input.target\n    from: [{from}]\nmethods:\n  write:\n    inputs:\n      target:\n        type: string\n    steps:\n      - id: write\n        operation: target/notes.write\n        result:\n          required: [note]\n        idempotency_key: $run.id\n        inputs:\n          value: written\n"
+            )
+        };
+        fs::write(root.join("run.yaml"), manifest("acme/notes, acme/absent")).expect("manifest");
+        let JsonValue::Object(inspected) = inspect_skill_package(&root, None, None)? else {
+            return Err("inspection should be an object".into());
+        };
+        let bound = serde_json::to_string(&inspected.get("closure"))?;
+        assert!(
+            bound.contains("acme/notes") && !bound.contains("acme/absent"),
+            "{bound}"
+        );
+        fs::write(root.join("run.yaml"), manifest("acme/absent, acme/gone")).expect("manifest");
+        let refused =
+            inspect_skill_package(&root, None, None).expect_err("no chosen connector is here");
+        assert!(refused.to_string().contains("acme/absent"), "{refused}");
+        Ok(())
+    }
+
     #[test]
     fn closure_pins_what_an_agent_turn_may_call() -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::tempdir().expect("temporary skill catalog");

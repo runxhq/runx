@@ -696,10 +696,24 @@ impl<'a> ClosureInspector<'a> {
             } else {
                 vec![key.as_str()]
             };
+            let mut missed = None;
+            let mut bound = 0;
             for reference in references {
-                let connector = scope
-                    .requirement(reference, requirement)
-                    .map_err(|error| SkillInspectionError::ConnectorBinding(error.to_string()))?;
+                // A connector the run chooses among is bound where it's here.
+                // One that isn't can't be reached here, so choosing it is
+                // refused when the run chooses it; a requirement none of
+                // whose connectors is here is refused now.
+                let connector = match scope.requirement(reference, requirement) {
+                    Ok(connector) => connector,
+                    Err(error) if requirement.choose.is_some() && not_here(&error) => {
+                        missed.get_or_insert(error);
+                        continue;
+                    }
+                    Err(error) => {
+                        return Err(SkillInspectionError::ConnectorBinding(error.to_string()));
+                    }
+                };
+                bound += 1;
                 let binding = ExecutionConnectorBinding {
                     connector: connector.name.clone(),
                     manifest_digest: connector.manifest_digest.clone(),
@@ -716,6 +730,11 @@ impl<'a> ClosureInspector<'a> {
                     )));
                 }
                 walk.closure.connector_bindings.insert(binding, connector);
+            }
+            if bound == 0
+                && let Some(error) = missed
+            {
+                return Err(SkillInspectionError::ConnectorBinding(error.to_string()));
             }
         }
         let method = loaded
@@ -1361,4 +1380,18 @@ mod tests {
         assert!(!plain.contains("declared artifact"), "{plain}");
         Ok(())
     }
+}
+
+/// Whether `error` says only that a connector isn't here: in no plugin of
+/// this scope, and not installed.
+fn not_here(error: &crate::kernel::connectors::ConnectorRegistryError) -> bool {
+    use crate::kernel::connectors::ConnectorRegistryError as Miss;
+    matches!(
+        error,
+        Miss::Unavailable { .. }
+            | Miss::NotInPlugin { .. }
+            | Miss::NoPlugin { .. }
+            | Miss::NotInstalledConnector { .. }
+            | Miss::NotInstalled { .. }
+    )
 }
