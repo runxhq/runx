@@ -31,5 +31,5 @@ expect:
   step_outputs:
     change:
       subset:
-        reason: 'Keep these exact words on said:personal, as something they told you: "Yes, bring anyone on your team.", in answer to Hana at Brightwave (brightwave.example), who asked: "Can our SRE lead join the review?" (2026-11-18, from fieldwork:acme/opp-hana#in_1). The index shows them as: Yes, bring anyone on your team.'
+        reason: 'Keep these exact words on said:personal, as something they told you: "Yes, bring anyone on your team.", in answer to Hana at Brightwave (brightwave.example), who asked: "Can our SRE lead join the review?". Kept, every turn that reads said:personal is given them for anyone who asks the same (2026-11-18, from fieldwork:acme/opp-hana#in_1). The index shows them as: Yes, bring anyone on your team.'
         searchable: [text, summary, answers]

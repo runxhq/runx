@@ -258,14 +258,19 @@ function dated({ date, valid_until, sources }) {
   return `${date}${valid_until ? `, until ${valid_until}` : ""}, from ${sources.join(", ")}`;
 }
 
-/// What the words answer, as a confirmation says it: who asked, and what.
-const answering = (data) => (data.answers ? `, in answer to ${data.answers.asked_by}, who asked: "${data.answers.question}"` : "");
+/// What the words answer, as a confirmation says it: who asked, and what,
+/// and that keeping them gives them to anyone who asks the same where
+/// they're kept.
+const answering = (data, stream) =>
+  data.answers
+    ? `, in answer to ${data.answers.asked_by}, who asked: "${data.answers.question}". Kept, every turn that reads ${stream} is given them for anyone who asks the same`
+    : "";
 
 const DESCRIBED = {
   "memory.remembered": ({ stream, data }) =>
-    `Keep these exact words on ${stream}, as ${PURPOSES[data.purpose]}: "${data.text}"${answering(data)} (${dated(data)}). The index shows them as: ${data.summary}`,
+    `Keep these exact words on ${stream}, as ${PURPOSES[data.purpose]}: "${data.text}"${answering(data, stream)} (${dated(data)}). The index shows them as: ${data.summary}`,
   "memory.corrected": ({ handle, data }) =>
-    `Replace ${handle} with these exact words, as ${PURPOSES[data.purpose]}: "${data.text}"${answering(data)} (${dated(data)}). The index shows them as: ${data.summary}`,
+    `Replace ${handle} with these exact words, as ${PURPOSES[data.purpose]}: "${data.text}"${answering(data, handle.slice("memory:".length).split("#")[0])} (${dated(data)}). The index shows them as: ${data.summary}`,
   "memory.disabled": ({ handle, data }) => `Stop ${handle} applying, because: ${data.reason}`,
   "memory.observed": ({ stream, handle, data }) =>
     `${handle ? `Supersede ${handle} with` : `Keep on ${stream}`} this observation: "${data.text}" (${dated(data)}). The index shows it as: ${data.summary}`,
