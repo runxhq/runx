@@ -84,6 +84,8 @@ pub struct Notice {
 pub struct Pending {
     pub id: String,
     pub run: String,
+    /// The revision its run ran under.
+    pub revision: String,
     pub proposal: Proposal,
     pub at: String,
 }
@@ -309,6 +311,7 @@ impl LoopState {
             }
             RecordEvent::Proposed {
                 run,
+                revision,
                 id,
                 proposal,
                 refused,
@@ -350,6 +353,7 @@ impl LoopState {
                             Pending {
                                 id: id.clone(),
                                 run: run.clone(),
+                                revision: revision.clone(),
                                 proposal: proposal.clone(),
                                 at: at.clone(),
                             },
@@ -462,6 +466,14 @@ impl LoopState {
             // longer does is held for a start rather than trusted.
             _ => true,
         }
+    }
+
+    /// Whether `pending` is a change proposed against a revision the loop no
+    /// longer runs: accepting it would undo what was taken since, so it can
+    /// only be declined.
+    pub fn outdated(&self, pending: &Pending) -> bool {
+        matches!(pending.proposal, Proposal::Change { .. })
+            && self.active.as_deref() != Some(pending.revision.as_str())
     }
 
     /// The file of the revision the loop runs.

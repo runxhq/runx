@@ -537,7 +537,14 @@ impl Loops {
                 result,
                 spent,
             } => {
-                let proposals = crate::proposals::checked(self, &live.run, &file, &result, now)?;
+                let proposals = crate::proposals::checked(
+                    self,
+                    &live.run,
+                    &live.revision,
+                    &file,
+                    &result,
+                    now,
+                )?;
                 let mut record = vec![RecordEvent::Settled {
                     run: live.run.clone(),
                     ending: ending.clone(),
@@ -645,7 +652,14 @@ impl Loops {
                 spent,
             } = judged
             {
-                let proposals = crate::proposals::checked(self, &person.run, &file, &result, now)?;
+                let proposals = crate::proposals::checked(
+                    self,
+                    &person.run,
+                    &person.revision,
+                    &file,
+                    &result,
+                    now,
+                )?;
                 let mut record = vec![RecordEvent::Settled {
                     run: person.run.clone(),
                     ending: ending.clone(),

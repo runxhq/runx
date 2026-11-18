@@ -12,7 +12,8 @@ use runx_runtime::orchestrator::LocalOrchestrator;
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 /// A skill whose `tick` counts what woke it in its own `ticks` stream and
-/// proposes its next wake; `fail` fails when told to.
+/// proposes its next wake, and with `propose` a brief; `fail` fails when
+/// told to.
 fn write_skill(root: &Path) -> TestResult {
     let dir = root.join("skills/ticker");
     std::fs::create_dir_all(&dir)?;
@@ -28,10 +29,11 @@ methods:
     inputs:
       label: {type: string}
       fail: {type: boolean, optional: true}
+      propose: {type: boolean, optional: true}
     steps:
       - id: tick
         script: {module: tick.mjs, export: tick}
-        inputs: {label: $input.label, fail: $input.fail}
+        inputs: {label: $input.label, fail: $input.fail, propose: $input.propose}
         calls:
           operations: [store/key.inspect, store/events.append]
         max_calls: 20
@@ -44,7 +46,7 @@ methods:
     )?;
     std::fs::write(
         dir.join("tick.mjs"),
-        r#"export async function tick(ctx, { label, fail }) {
+        r#"export async function tick(ctx, { label, fail, propose }) {
   if (fail) throw new Error("told to fail");
   const entries = ctx.context.current;
   const wake = entries.find((entry) => entry.type === "runx.loop.wake").data;
@@ -61,7 +63,12 @@ methods:
   }
   const at = new Date(Date.parse(wake.now) + 10 * 60 * 1000).toISOString();
   return {
-    loop: { changed: true, wake: { at, why: "check again" }, notice: { text: `${label} counted ${version}` } },
+    loop: {
+      changed: true,
+      wake: { at, why: "check again" },
+      notice: { text: `${label} counted ${version}` },
+      ...(propose ? { change: { brief: `Count ${label}'s ticks, ${version} so far.`, why: `it has counted ${version}` } } : {}),
+    },
     count: version,
     kinds: batch.events.map((event) => event.kind),
     brief: wake.brief,
@@ -221,6 +228,62 @@ fn a_loop_wakes_on_the_person_its_clock_and_its_own_proposal_and_keeps_its_recor
         .map(|wake| wake.at)
         .collect();
     assert_eq!(wakes, [start + Duration::minutes(92)]);
+    Ok(())
+}
+
+/// A change is accepted only on the revision its run ran under: one proposed
+/// before a change the person accepted can't undo it, and is only declined.
+#[test]
+fn an_older_proposal_can_t_undo_a_change_accepted_since() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    write_skill(root)?;
+    write_loop(
+        root,
+        "acme",
+        "calls: ./skills/ticker#tick\nbrief: Count Acme's ticks.\ninputs: {label: acme, propose: true}\n",
+    )?;
+    let loops = Loops::open(env(root), root, orchestrator()?)?;
+    let acme = LoopName::new("acme")?;
+    let start = at("2026-11-17T00:00:00Z")?;
+    loops.start(&acme, "person:kam", start)?;
+    let mut proposed = Vec::new();
+    for hours in [1, 2] {
+        loops.run_now(&acme, "person:kam")?;
+        let passed = loops.pass(&acme, start + Duration::hours(hours))?;
+        proposed.push(format!("{}/change", passed.woke.ok_or("no wake")?));
+    }
+    let brief = |id: &str| -> TestResult<String> {
+        match &loops
+            .state(&acme)?
+            .proposals
+            .get(id)
+            .ok_or("no proposal")?
+            .proposal
+        {
+            runx_loops::Proposal::Change { brief, .. } => Ok(brief.clone().ok_or("no brief")?),
+            other => Err(format!("{other:?}").into()),
+        }
+    };
+    let (older, newer) = (proposed[0].as_str(), proposed[1].as_str());
+    let accepted = brief(newer)?;
+    assert_ne!(brief(older)?, accepted);
+
+    let now = start + Duration::hours(3);
+    loops.accept(&acme, newer, "person:kam", None, now)?;
+    let file = || std::fs::read_to_string(root.join("loops/acme.yaml"));
+    assert!(file()?.contains(&accepted), "{}", file()?);
+    let state = loops.state(&acme)?;
+    assert!(state.outdated(state.proposals.get(older).ok_or("no proposal")?));
+
+    let refused = loops
+        .accept(&acme, older, "person:kam", None, now)
+        .err()
+        .ok_or("the older proposal was accepted")?;
+    assert!(refused.to_string().contains("no longer runs"), "{refused}");
+    assert!(file()?.contains(&accepted), "{}", file()?);
+    loops.decline(&acme, older, "person:kam", Some("it's out of date"), now)?;
+    assert!(loops.state(&acme)?.proposals.is_empty());
     Ok(())
 }
 

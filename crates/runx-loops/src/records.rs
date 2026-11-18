@@ -307,8 +307,11 @@ pub enum RecordEvent {
         at: String,
     },
     /// What `run` proposed, checked: `refused` says why it wasn't taken.
+    /// `revision` is the revision of the loop's file the run ran under, the
+    /// loop a change was proposed against.
     Proposed {
         run: String,
+        revision: String,
         id: String,
         proposal: Proposal,
         #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -94,11 +94,13 @@ pub(crate) struct Checked {
     pub events: Vec<RecordEvent>,
 }
 
-/// Each proposal `run`'s result holds, checked. A run that declares no loop
+/// Each proposal `run`'s result holds, checked. `revision` is the revision
+/// it ran under, and `file` that revision's file. A run that declares no loop
 /// output proposes nothing, and is taken to have changed something.
 pub(crate) fn checked(
     loops: &Loops,
     run: &str,
+    revision: &str,
     file: &LoopFile,
     result: &Value,
     now: DateTime<Utc>,
@@ -112,6 +114,7 @@ pub(crate) fn checked(
     let proposed =
         |kind: &str, proposal: Proposal, refused: Option<String>| RecordEvent::Proposed {
             run: run.to_owned(),
+            revision: revision.to_owned(),
             id: format!("{run}/{kind}"),
             proposal,
             refused,
@@ -327,6 +330,14 @@ impl Loops {
             state.proposals.get(id).cloned().ok_or_else(|| {
                 LoopError::Refused(format!("loop {name} has no open proposal {id}"))
             })?;
+        // A change was proposed against the revision its run ran under. One
+        // taken since, an accepted change or the person's own edit, would be
+        // undone by it, so it can only be declined.
+        if state.outdated(&pending) {
+            return Err(LoopError::Refused(format!(
+                "proposal {id} was made against a revision loop {name} no longer runs, and accepting it would undo what changed since: decline it (`runx loop decline {name} {id}`), and the loop's next run proposes against it as it is"
+            )));
+        }
         // The answer is committed first, with the file it writes; the file is
         // written after, and a pass writes any the process stopped before.
         let (writes, revision) = match pending.proposal {
@@ -335,11 +346,11 @@ impl Loops {
                 let bytes = std::fs::read_to_string(&path)
                     .map_err(|error| LoopError::io(format!("reading {}", path.display()), error))?;
                 let base = digest(bytes.as_bytes());
-                // A change was proposed against the file the loop runs; one
-                // edited since isn't what was proposed against.
-                if state.active.as_deref() != Some(base.as_str()) {
+                // The file as written is the revision it was proposed against;
+                // one edited since and not yet taken in isn't.
+                if pending.revision != base {
                     return Err(LoopError::Refused(format!(
-                        "loop {name}'s file changed since proposal {id} was made: decline it, and its next run proposes against the file as it is"
+                        "loop {name}'s file changed since proposal {id} was made: decline it (`runx loop decline {name} {id}`), and its next run proposes against the file as it is"
                     )));
                 }
                 let mut written: Value = runx_parser::parse_yaml_document(&bytes)

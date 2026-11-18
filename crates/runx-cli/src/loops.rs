@@ -518,10 +518,17 @@ fn list(loops: &Loops, workspace: &WorkspaceEnv) -> Result<String, String> {
             out.push_str(&format!("  told you: {}{action}\n", notice.text));
         }
         for pending in state.proposals.values() {
+            let answer = if state.outdated(pending) {
+                format!(
+                    "made against a revision the loop no longer runs: `runx loop decline {name} {}`",
+                    pending.id
+                )
+            } else {
+                format!("`runx loop accept {name} {}`", pending.id)
+            };
             out.push_str(&format!(
-                "  proposes: {} (`runx loop accept {name} {}`)\n",
-                proposal_line(&pending.proposal),
-                pending.id
+                "  proposes: {} ({answer})\n",
+                proposal_line(&pending.proposal)
             ));
         }
     }
@@ -580,8 +587,13 @@ fn show(name: &LoopName, state: &LoopState) -> String {
     }
     for pending in state.proposals.values() {
         out.push_str(&format!(
-            "proposal {}: {}\n",
+            "proposal {}{}: {}\n",
             pending.id,
+            if state.outdated(pending) {
+                ", made against a revision the loop no longer runs, so only declined"
+            } else {
+                ""
+            },
             proposal_line(&pending.proposal)
         ));
         if let Ok(detail) = serde_json::to_string_pretty(&pending.proposal) {
@@ -624,7 +636,7 @@ fn view(name: &LoopName, state: &LoopState) -> Value {
         "couldnt": state.couldnt,
         "next_wake": state.wakes.values().map(|wake| wake.at).min(),
         "notices": state.notices.iter().map(|notice| serde_json::json!({"id": notice.id, "text": notice.text, "action": notice.action, "at": notice.at})).collect::<Vec<_>>(),
-        "proposals": state.proposals.values().map(|pending| serde_json::json!({"id": pending.id, "proposal": pending.proposal})).collect::<Vec<_>>(),
+        "proposals": state.proposals.values().map(|pending| serde_json::json!({"id": pending.id, "proposal": pending.proposal, "revision": pending.revision, "outdated": state.outdated(pending)})).collect::<Vec<_>>(),
         "open": state.people.values().map(|person| serde_json::json!({"method": person.method, "run": person.run})).collect::<Vec<_>>(),
         "cursors": state.cursors,
         "webhooks_with_addresses": state.tokens.keys().collect::<Vec<_>>(),
