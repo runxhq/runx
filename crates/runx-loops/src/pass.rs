@@ -387,6 +387,11 @@ impl Loops {
             Ok(authority) => authority,
             Err(why) => return self.couldnt(name, state, file, now, why, passed),
         };
+        // The saved authority may allow less than the day's remaining budget.
+        let reserved = authority
+            .as_ref()
+            .and_then(|authority| authority.max_spend_micro_usd)
+            .unwrap_or_default();
         let run = runx_runtime::run_record::mint_run_id(&file.calls.skill)
             .map_err(|error| LoopError::Runtime(error.to_string()))?;
         let revision = state.active.clone().unwrap_or_default();
@@ -1297,6 +1302,10 @@ impl Loops {
         let authority = self
             .authority(&file, reserved, now)
             .map_err(LoopError::Refused)?;
+        let reserved = authority
+            .as_ref()
+            .and_then(|authority| authority.max_spend_micro_usd)
+            .unwrap_or_default();
         let run = runx_runtime::run_record::mint_run_id(&file.calls.skill)
             .map_err(|error| LoopError::Runtime(error.to_string()))?;
         let ran = RecordEvent::Ran {

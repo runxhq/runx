@@ -250,7 +250,19 @@ fn a_wake_that_asks_the_person_waits_on_them() -> TestResult {
     write_loop(
         root,
         "asking",
-        "calls: ./skills/asker#write\nbrief: Write it.\n",
+        "calls: ./skills/asker#write\nbrief: Write it.\nauthority: bounded\npolicy: {spend: {per_day_usd: 1}}\n",
+    )?;
+    runx_runtime::saved_authorities::save(
+        &env(root),
+        root,
+        "bounded",
+        runx_runtime::RunAuthority {
+            max_spend_micro_usd: Some(100_000),
+            ..Default::default()
+        },
+        &[],
+        false,
+        "2026-11-17T00:00:00Z",
     )?;
     let loops = Loops::open(env(root), root, orchestrator()?)?;
     let asking = LoopName::new("asking")?;
@@ -271,6 +283,23 @@ fn a_wake_that_asks_the_person_waits_on_them() -> TestResult {
     );
     assert_eq!(loops.waiting(&run)?, Some(Waiting::Person));
     assert!(!root.join("told.txt").exists());
+    let state = loops.state(&asking)?;
+    assert_eq!(
+        state.reservations[&run].micro_usd, 100_000,
+        "a waiting wake reserves only what its authority lets it spend"
+    );
+    loops.person_run(
+        &asking,
+        "write",
+        serde_json::Map::new(),
+        "person:kam",
+        start + Duration::seconds(10),
+    )?;
+    let state = loops.state(&asking)?;
+    let person_run = &state.people["write"].run;
+    assert_eq!(loops.waiting(person_run)?, Some(Waiting::Person));
+    assert_eq!(state.reservations[person_run].micro_usd, 100_000);
+    assert_eq!(state.left_today(1_000_000, "2026-11-17"), 800_000);
     Ok(())
 }
 
