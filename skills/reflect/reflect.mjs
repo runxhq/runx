@@ -17,6 +17,36 @@ export const INSTRUCTIONS = "AGENTS.md";
 /** The purposes that make the person's words a standing rule (memory.md). */
 const STANDING = new Set(["mandate", "procedure"]);
 
+/**
+ * Who owns a run's package, from where its record says it was: the
+ * workspace's own, a path inside it outside `.runx`, is changed where it
+ * lies; one runx installed or bundles, or one outside the workspace, is never
+ * changed here, and its fix is kept for whoever owns it.
+ */
+export function ownerOf(skillPath) {
+  const path = String(skillPath ?? "");
+  if (path === "" || path.startsWith("/") || path === ".." || path.startsWith("../")) return { owned: false, why: `its package lies outside this workspace, at ${path || "an unrecorded path"}, so its fix belongs where it lives` };
+  if (path === ".runx" || path.startsWith(".runx/")) {
+    if (path.startsWith(".runx/added-skills/")) return { owned: false, why: `its package is one runx installed, at ${path}: its fix belongs to its publisher, or to your own copy at skills/<publisher>/<name>, which runx runs in its place` };
+    return { owned: false, why: `its package is runx's own, at ${path}, which reflection never changes` };
+  }
+  return { owned: true, target_dir: path };
+}
+
+/**
+ * A file of the package at `target_dir` as the workspace names it: the
+ * workspace's own root package is `.`, and its files are named bare.
+ */
+export function inPackage(target_dir, relative) {
+  return target_dir === "." ? relative : `${target_dir}/${relative}`;
+}
+
+/** A workspace path inside the package at `target_dir`, from the package's root. */
+export function fromPackage(target_dir, path) {
+  if (target_dir === ".") return path.startsWith("./") ? path.slice(2) : path;
+  return path.startsWith(`${target_dir}/`) ? path.slice(target_dir.length + 1) : path;
+}
+
 /** Survey's own check, answered by whether every run was read to its end. */
 export const RECORD_READ = {
   id: "record_read",
@@ -50,7 +80,7 @@ function addressOf(record) {
 export function resisted(summary, records) {
   const items = [];
   // Each item's date is its run's: the fact's own date, never when it's read.
-  const at = (record, fields) => ({ run: summary.run_id, skill: summary.skill, stream: record.stream, date: summary.updated_at.slice(0, 10), ...fields });
+  const at = (record, fields) => ({ run: summary.run_id, skill: summary.skill, skill_path: summary.skill_path, stream: record.stream, date: summary.updated_at.slice(0, 10), ...fields });
   for (const record of records) {
     const event = record.event;
     if (event.kind === "call") {
@@ -91,7 +121,7 @@ export function sampledOf(successes) {
   }
   return [...latest.values()]
     .sort((left, right) => (left.skill < right.skill ? -1 : left.skill > right.skill ? 1 : 0))
-    .map(({ run_id, skill, method, receipt_id, updated_at }) => ({ run: run_id, skill, method, evidence: receipt_id, date: updated_at.slice(0, 10) }));
+    .map(({ run_id, skill, skill_path, method, receipt_id, updated_at }) => ({ run: run_id, skill, skill_path, method, evidence: receipt_id, date: updated_at.slice(0, 10) }));
 }
 
 function later(left, right) {
@@ -170,7 +200,9 @@ export function checksOf({ resistance, unheld, sampled }) {
  * for the next survey. A survey that runs out of calls stops before the run it
  * can't finish, says so, and its mark moves only past what it read.
  */
-export async function survey(ctx, { reader, until }) {
+export async function survey(ctx, { reader, until: given }) {
+  // A window ends when it's given, or now: a loop's wake reads up to its time.
+  const until = given ?? new Date(await ctx.now()).toISOString();
   let calls = 0;
   const room = (needed) => calls + needed <= ctx.max_calls;
   const tool = async (name, inputs) => {
@@ -295,15 +327,18 @@ export async function survey(ctx, { reader, until }) {
   const memory = await ctx.skill("runx/memory#index", { levels: [{ level: "workspace" }] });
   const entries = await ctx.read(memory.entries);
 
-  // Only a skill whose manual the repository holds at HEAD is sampled, its
-  // purpose that manual's description: a bundled skill's purpose isn't the
-  // workspace's, and a check no one can answer is no check.
+  // Only a skill the workspace owns, whose manual the repository holds at
+  // HEAD, is sampled, its purpose that manual's description: an installed or
+  // bundled skill's purpose isn't the workspace's to judge, and a check no one
+  // can answer is no check.
   const sampled = [];
   for (const candidate of sampledOf(successes)) {
     if (sampled.length === SAMPLED_SKILLS || !room(1 + 3)) break;
+    const owner = ownerOf(candidate.skill_path);
+    if (!owner.owned) continue;
     let purpose;
     try {
-      purpose = purposeOf((await read((await tool("git.show", { revision: "HEAD", path: `skills/${candidate.skill}/SKILL.md` })).git_show)).text);
+      purpose = purposeOf((await read((await tool("git.show", { revision: "HEAD", path: inPackage(owner.target_dir, "SKILL.md") })).git_show)).text);
     } catch (rejection) {
       if (rejection?.code !== "failed") throw rejection;
     }
@@ -324,6 +359,7 @@ export async function survey(ctx, { reader, until }) {
     edited,
     mark: { version: mark.version, through, at_through: atThrough.sort(), open: [...new Set(open)].sort() },
     read_to_end,
+    runs: readRuns.length,
   };
 }
 
@@ -484,17 +520,10 @@ export function assessments({ survey, findings, proposals = [], promoted = [], o
  */
 export function casesOf(target_dir, writes) {
   return writes
-    .filter((write) => /^tests\/[^/]+\.ya?ml$/.test(write.path.slice(target_dir.length + 1)))
+    .filter((write) => /^tests\/[^/]+\.ya?ml$/.test(fromPackage(target_dir, write.path)))
     .map((write) => ({ path: write.path, name: /^name:\s*(\S+)/m.exec(write.contents)?.[1] ?? write.path }));
 }
 
-/** A package's files with a change applied: its writes in place, its deletes gone. */
-export function applied(files, bundle) {
-  const byPath = new Map(files.map((file) => [file.path, file.contents]));
-  for (const path of bundle.deletes ?? []) byPath.delete(path);
-  for (const write of bundle.writes ?? []) byPath.set(write.path, write.contents);
-  return [...byPath].map(([path, contents]) => ({ path, contents })).sort((left, right) => (left.path < right.path ? -1 : 1));
-}
 
 /** How each named case came out in a validation: its status, or absent when it didn't run. */
 function outcomes(validation, names) {
@@ -519,7 +548,7 @@ export function repairsOf(survey, findings) {
       const run = survey.sampled[ordinal];
       repairs.push({
         criterion: entry.criterion,
-        item: { kind: "wrong_result", run: run.run, skill: run.skill, stream: run.run, date: run.date, reason: entry.finding.summary, evidence: run.evidence },
+        item: { kind: "wrong_result", run: run.run, skill: run.skill, skill_path: run.skill_path, stream: run.run, date: run.date, reason: entry.finding.summary, evidence: run.evidence },
         finding: entry.finding,
       });
     }
@@ -528,12 +557,13 @@ export function repairsOf(survey, findings) {
 }
 
 /**
- * Propose a fix for each repair, through skill-lab#draft, whose
- * own turns write the fix and its case. Code keeps a proposal only when the
- * draft adds a case, names each case it changes or removes, and two candidate
- * tests prove the new case fails on the old revision and passes on the fix:
- * the workspace's package with only the new case added, then the package
- * with the whole change. Nothing is in the workspace until then. The change
+ * Propose a fix for each repair to a package the workspace owns, through
+ * skill-lab#draft, whose own turns write the fix and its case. Code keeps a
+ * proposal only when the draft adds a case, names each case it changes or
+ * removes, and two validations where the package lies prove the new case
+ * fails on the old revision and passes on the fix: the workspace's package
+ * with only the new case added, then the package with the whole change.
+ * Nothing is in the workspace until then. The change
  * is applied by runx.skill.apply under effects: ask, so the person approves
  * the exact files; a decline writes nothing, and its reason is kept, so a
  * later run doesn't propose that change again unless its evidence changed.
@@ -541,21 +571,23 @@ export function repairsOf(survey, findings) {
 export async function propose(ctx, { survey, findings }) {
   const proposals = [];
   const digest = async (value) => (await ctx.tool("data.digest", { value })).digest_result.digest;
-  const packageFiles = async (target_dir) => {
-    const listed = await ctx.read((await ctx.tool("fs.list", { path: target_dir, depth: 4, max_entries: 256 })).file_list);
-    const paths = listed.entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
-    const files = [];
-    for (let at = 0; at < paths.length; at += 16) {
-      const bundle = await ctx.read((await ctx.tool("fs.read_bundle", { paths: paths.slice(at, at + 16) })).file_read_bundle);
-      for (const file of bundle.files) files.push({ path: file.path, contents: file.contents });
-    }
-    return files;
+  // The cases a package holds now, from a listing of its root, which a
+  // package with no tests yet has too. Null when the package is too large to
+  // list whole, since a case it couldn't see would pass as a new one.
+  const casePaths = async (target_dir) => {
+    const listed = await ctx.read((await ctx.tool("fs.list", { path: target_dir, depth: 2, max_entries: 5000 })).file_list);
+    if (listed.truncated) return null;
+    return new Set(listed.entries
+      .filter((entry) => entry.kind === "file" && /^tests\/[^/]+$/.test(fromPackage(target_dir, entry.path)))
+      .map((entry) => entry.path));
   };
-  // A candidate is validated as a package of its own, so its files are
-  // named from its root.
-  const validate = async (target_dir, files) => {
-    const candidate_files = files.map((file) => ({ path: file.path.slice(target_dir.length + 1), contents: file.contents }));
-    return (await ctx.tool("runx.skill.validate", { candidate_files, allow_execute_test: false })).skill_validation;
+  // The package as it would stand with a change, validated beside where it
+  // lies, so the skills it calls resolve as they do for it. A change's paths
+  // are named from the package's root.
+  const validate = async (target_dir, { writes = [], deletes = [] }) => {
+    const relative = (path) => fromPackage(target_dir, path);
+    const change = { writes: writes.map((write) => ({ path: relative(write.path), contents: write.contents })), deletes: deletes.map(relative) };
+    return (await ctx.tool("runx.skill.validate", { skill_path: target_dir, change, allow_execute_test: false })).skill_validation;
   };
 
   for (const { criterion, item, finding } of repairsOf(survey, findings)) {
@@ -564,7 +596,15 @@ export async function propose(ctx, { survey, findings }) {
       proposals.push({ criterion, target_dir: null, dropped: "reflection never changes its own package" });
       continue;
     }
-    const target_dir = `skills/${item.skill}`;
+    // Only the workspace's own package is changed here; the fix for one runx
+    // installed or bundles, or one outside the workspace, is kept for its
+    // owner as the repair's observation.
+    const owner = ownerOf(item.skill_path);
+    if (!owner.owned) {
+      proposals.push({ criterion, target_dir: null, dropped: owner.why });
+      continue;
+    }
+    const target_dir = owner.target_dir;
     // Facts only, never a model's words, so a change the person declined is
     // the same change however its cause is put.
     const key = (await digest({ target_dir, kind: item.kind, evidence: item.evidence })).slice(7);
@@ -573,7 +613,11 @@ export async function propose(ctx, { survey, findings }) {
       proposals.push({ criterion, target_dir, declined: declined.last_event?.data?.reason ?? null, again: false });
       continue;
     }
-    const old = await packageFiles(target_dir);
+    const oldCases = await casePaths(target_dir);
+    if (oldCases === null) {
+      proposals.push({ criterion, target_dir, dropped: `its package at ${target_dir} holds more than 5000 files, too many to tell which cases are new` });
+      continue;
+    }
     let draft;
     try {
       draft = await ctx.skill("runx/skill-lab#draft", {
@@ -595,20 +639,19 @@ export async function propose(ctx, { survey, findings }) {
       proposals.push({ criterion, target_dir, dropped: "the draft changes nothing" });
       continue;
     }
-    const oldPaths = new Set(old.map((file) => file.path));
     const cases = casesOf(target_dir, bundle.writes);
-    const added = cases.filter((written) => !oldPaths.has(written.path));
-    const changed = cases.filter((written) => oldPaths.has(written.path)).map((written) => written.path);
-    const removed = (bundle.deletes ?? []).filter((path) => path.startsWith(`${target_dir}/tests/`));
+    const added = cases.filter((written) => !oldCases.has(written.path));
+    const changed = cases.filter((written) => oldCases.has(written.path)).map((written) => written.path);
+    const removed = (bundle.deletes ?? []).filter((path) => fromPackage(target_dir, path).startsWith("tests/"));
     if (added.length === 0) {
       proposals.push({ criterion, target_dir, dropped: "it adds no case", changed, removed });
       continue;
     }
     const names = added.map((written) => written.name);
     const addedFiles = bundle.writes.filter((write) => added.some((written) => written.path === write.path));
-    const beforeValidation = await validate(target_dir, applied(old, { writes: addedFiles }));
+    const beforeValidation = await validate(target_dir, { writes: addedFiles });
     const before = outcomes(beforeValidation, names);
-    const afterValidation = await validate(target_dir, applied(old, bundle));
+    const afterValidation = await validate(target_dir, bundle);
     const after = outcomes(afterValidation, names);
     const proof = { before, after, passed: afterValidation?.test?.status ?? null };
     // A case that never ran, or ran to no verdict, proves nothing either way:
@@ -753,7 +796,7 @@ export async function observe(ctx, { survey, findings }) {
  * covers, at the version survey read, so a concurrent reflection's move wins
  * and this one says it lost.
  */
-export async function keep(ctx, { reader, survey }) {
+export async function keep(ctx, { reader, survey, proposals = [], promotion = null, observed = [] }) {
   const closed = [];
   for (const rule of survey.held) {
     const key = (await ctx.tool("data.digest", { value: { close: rule.handle } })).digest_result.digest.slice(7);
@@ -798,5 +841,29 @@ export async function keep(ctx, { reader, survey }) {
   // A rule whose handle the file holds under other words stays active, and
   // the person sees both: the rule as they said it, and what the file says.
   const edited = (survey.edited ?? []).map(({ handle, text, wording }) => ({ handle, said: text, file_says: wording }));
-  return { kept: { closed, edited, mark } };
+  return { kept: { closed, edited, mark }, loop: windowNotice({ survey, proposals, promotion, observed, closed }) };
+}
+
+function counted(count, one, many = `${one}s`) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * What a reflection tells its loop, rendered in code: what the window read,
+ * what resisted and what was wrong, what was proven and applied, declined or
+ * kept only as an observation, and the rules promoted and closed.
+ */
+export function windowNotice({ survey, proposals, promotion, observed, closed }) {
+  const applied = proposals.filter((proposal) => proposal.applied).length;
+  const declined = proposals.filter((proposal) => proposal.declined !== undefined).length;
+  const promoted = promotion?.promoted?.length ?? 0;
+  const closes = closed.filter((rule) => rule.closed).length;
+  const wrong = (survey.sampled ?? []).length;
+  const parts = [
+    `Reflected on ${counted(survey.runs ?? 0, "run")}: ${counted((survey.resistance ?? []).length, "thing", "things")} resisted, and ${counted(wrong, "success", "successes")} checked against its skill's purpose.`,
+    `${counted(applied, "fix", "fixes")} proven by ${applied === 1 ? "its case" : "their cases"} and applied, ${declined} declined, ${counted(observed.length, "observation")} kept.`,
+  ];
+  if (promoted > 0 || closes > 0) parts.push(`${counted(promoted, "rule")} written into ${INSTRUCTIONS}, ${closes} closed in memory.`);
+  if (survey.read_to_end === false) parts.push("The window was cut short, and the next reflection goes on from where this one stopped.");
+  return { changed: applied + promoted + closes + observed.length > 0, notice: { text: parts.join(" ") } };
 }

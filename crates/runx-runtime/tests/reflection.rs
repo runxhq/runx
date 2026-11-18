@@ -305,7 +305,8 @@ fn reflect(root: &Path, endpoint: &str) -> TestResult<serde_json::Value> {
     reflect_as(root, endpoint, "nightly")
 }
 
-/// `reflect#reflect` as `reader`, its turns worked by the scripted model.
+/// `reflect#reflect` as `reader`, its turns worked by the scripted model,
+/// over the window to now, as a loop's wake reads it.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn reflect_as(root: &Path, endpoint: &str, reader: &str) -> TestResult<serde_json::Value> {
     let mut environment = env(root);
@@ -327,9 +328,7 @@ fn reflect_as(root: &Path, endpoint: &str, reader: &str) -> TestResult<serde_jso
             receipt_dir: Some(root.join("receipts")),
             run_id: None,
             answers: None,
-            inputs: serde_json::from_value(
-                serde_json::json!({"reader": reader, "until": "2099-01-01T00:00:00Z"}),
-            )?,
+            inputs: serde_json::from_value(serde_json::json!({"reader": reader}))?,
             env: environment,
             cwd: root.to_path_buf(),
             drive: DrivePolicy::inline(Some(4))?,
@@ -380,8 +379,8 @@ fn reflection_judges_the_window_repairs_a_wrong_result_and_drops_a_finding_the_r
         serde_json::json!(true)
     })?;
     let second = reflect_as(root, &endpoint, "again")?;
-    assert_eq!(first["status"], "sealed", "{first}");
-    assert_eq!(second["status"], "sealed", "{second}");
+    assert_eq!(first["outcome"], "completed", "{first}");
+    assert_eq!(second["outcome"], "completed", "{second}");
     model.finish()?;
 
     let findings = first["result"]["findings"].as_array().ok_or("findings")?;
@@ -666,7 +665,7 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
     let sealed = drive(root, &endpoint, reflect(root, &endpoint)?, |_| {
         serde_json::json!(true)
     })?;
-    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    assert_eq!(sealed["outcome"], "completed", "{sealed}");
     let result = &sealed["result"];
     let proposals = result["proposals"].as_array().ok_or("proposals")?;
     let fix = proposals
@@ -715,6 +714,16 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
         "{sealed}"
     );
     assert_eq!(result["kept"]["mark"]["moved"], true, "{sealed}");
+    // What it tells a loop that reflects, in words code writes.
+    assert_eq!(result["loop"]["changed"], true, "{sealed}");
+    let notice = result["loop"]["notice"]["text"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        notice.contains("1 fix proven by its case and applied")
+            && notice.contains("1 rule written into AGENTS.md"),
+        "{notice}"
+    );
 
     git(root, &["commit", "-qam", "reflection's fix and rule"])?;
     let asked = std::cell::RefCell::new(Vec::new());
@@ -722,7 +731,7 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
         asked.borrow_mut().push(request.to_string());
         serde_json::json!(true)
     })?;
-    assert_eq!(next["status"], "sealed", "{next}");
+    assert_eq!(next["outcome"], "completed", "{next}");
     // The one thing it asks is the close, at memory's own gate.
     let asked = asked.into_inner();
     assert!(
@@ -776,7 +785,7 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
     // Another reader over the same record asks nothing: the decline stands
     // for that evidence.
     let weekly = reflect_as(root, &endpoint, "weekly")?;
-    assert_eq!(weekly["status"], "sealed", "{weekly}");
+    assert_eq!(weekly["outcome"], "completed", "{weekly}");
     assert!(
         weekly["result"]["proposals"]
             .as_array()
@@ -800,7 +809,7 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
         "{kept}"
     );
     let again = reflect(root, &endpoint)?;
-    assert_eq!(again["status"], "sealed", "{again}");
+    assert_eq!(again["outcome"], "completed", "{again}");
     // The person's decline is theirs, not memory's resistance to judge.
     assert_eq!(
         again["context"]["step_outputs"]["survey"]["resistance"],
@@ -812,6 +821,70 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
         "{again}"
     );
     model.finish()?;
+    Ok(())
+}
+
+/// A package the workspace doesn't own is never changed by its reflection:
+/// a stopped run of one that lies outside the workspace is diagnosed, its fix
+/// is dropped saying whose it is, before anything is drafted, and the repair
+/// is kept as an observation for its owner.
+#[cfg(all(feature = "agent", feature = "scripted-model"))]
+#[test]
+fn a_fix_for_a_package_the_workspace_doesn_t_own_is_kept_for_its_owner() -> TestResult {
+    let model = reflection_model(Diagnoses::Faithful)?;
+    let endpoint = model.endpoint().to_owned();
+    let temp = tempdir()?;
+    let root = temp.path();
+    brain(root)?;
+    let elsewhere = tempdir()?;
+    let theirs = elsewhere.path().join("greet");
+    crate::support::write_test_skill_package(
+        &theirs,
+        "---\nname: greet\ndescription: The greet skill.\n---\n# greet\n",
+        GREET,
+    )?;
+    let broken = run(root, theirs.clone(), "broken", serde_json::json!({}), None)?;
+    assert_eq!(broken["outcome"], "blocked", "{broken}");
+
+    let sealed = drive(root, &endpoint, reflect(root, &endpoint)?, |_| {
+        serde_json::json!(true)
+    })?;
+    assert_eq!(sealed["outcome"], "completed", "{sealed}");
+    model.finish()?;
+    let result = &sealed["result"];
+    let proposal = &result["proposals"][0];
+    assert!(
+        proposal["dropped"].as_str().is_some_and(|why| why
+            .starts_with("its package lies outside this workspace, at ")
+            && why.contains(&theirs.display().to_string())),
+        "{sealed}"
+    );
+    assert_eq!(proposal["target_dir"], serde_json::Value::Null, "{sealed}");
+    assert_eq!(std::fs::read_to_string(theirs.join("run.yaml"))?, GREET);
+    assert!(!theirs.join("tests").exists());
+    let criterion = proposal["criterion"].as_str().ok_or("its check")?;
+    assert!(
+        result["observed"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|entry| entry["criterion"] == criterion && entry["handle"].is_string()),
+        "{sealed}"
+    );
+    let met = result["verdict"]["assessments"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|entry| entry["id"] == criterion && entry["verdict"] == "met");
+    assert!(met, "{sealed}");
+    let notice = result["loop"]["notice"]["text"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        notice
+            .contains("0 fixes proven by their cases and applied, 0 declined, 1 observation kept"),
+        "{notice}"
+    );
     Ok(())
 }
 
@@ -904,7 +977,7 @@ fn reflection_reads_no_personal_memory_and_never_keeps_or_corrects_a_persons_wor
         )
     };
     let sealed = reflection()?;
-    assert_eq!(sealed["status"], "sealed", "{sealed}");
+    assert_eq!(sealed["outcome"], "completed", "{sealed}");
     assert!(
         !sealed.to_string().contains(&personal),
         "a person's own rule was read: {sealed}"
@@ -930,7 +1003,7 @@ fn reflection_reads_no_personal_memory_and_never_keeps_or_corrects_a_persons_wor
     git(root, &["commit", "-qam", "the workspace's rule"])?;
     asked.borrow_mut().clear();
     let next = reflection()?;
-    assert_eq!(next["status"], "sealed", "{next}");
+    assert_eq!(next["outcome"], "completed", "{next}");
     let asked = asked.into_inner();
     assert!(
         asked.len() == 1 && asked[0].contains("memory.disable"),

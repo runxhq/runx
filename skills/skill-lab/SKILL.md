@@ -600,7 +600,12 @@ workspace, and reads none without one.
 For `improve`, diagnose only from the supplied receipt or test evidence, and
 distinguish contract, implementation, fixture, environment and operator
 failures. When the evidence can't justify a change, decide `no_change` and say
-what's missing and what would show it. For `test`, write only new
+what's missing and what would show it. Prove a fix by its case before you
+answer: `runx.skill.validate` with `skill_path` the target and `change` holding
+only the new case must report that case `failed` on the package as it stands,
+and with the whole change, `passed`. Each path in `change` is from the
+package's root. A case that doesn't fail first, or doesn't pass with the fix,
+proves nothing: correct the case or the fix and validate again. For `test`, write only new
 `tests/<name>.yaml` and the `fixtures/` data they read, and preserve all
 production behavior.
 

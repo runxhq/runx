@@ -44,6 +44,10 @@ pub struct RunRead {
 pub struct RunReadSummary {
     pub run_id: NonEmptyString,
     pub skill: NonEmptyString,
+    /// Where the run's package was when it started: relative to the
+    /// workspace when it lies inside it, else as recorded, so a reader knows
+    /// whether the workspace owns it, runx installed it, or it lies outside.
+    pub skill_path: NonEmptyString,
     pub method: NonEmptyString,
     pub state: RunState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -397,6 +401,7 @@ mod tests {
             "run": {
                 "run_id": "run_1",
                 "skill": "reply",
+                "skill_path": "skills/reply",
                 "method": "reply",
                 "state": "paused",
                 "package_digest": "sha256:p",

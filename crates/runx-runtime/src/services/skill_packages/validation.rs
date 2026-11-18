@@ -225,6 +225,100 @@ pub(crate) fn validate_skill_package(
     ))
 }
 
+/// The package at `requested_path` as it would stand with `change`, its
+/// writes and deletes by their paths from the package's root, validated
+/// beside where it lies so the skills it calls resolve as they do for it. So
+/// an author proves a case fails on the package as it stands and passes with
+/// its fix before anything is written.
+///
+/// # Errors
+///
+/// Returns why the package can't be read, or the change doesn't apply to it.
+pub(crate) fn validate_skill_change(
+    workspace: &Path,
+    requested_path: &str,
+    change: &JsonValue,
+    allow_execute_test: bool,
+    env: &BTreeMap<String, String>,
+    effects: &RuntimeEffectRegistry,
+) -> Result<SkillValidation, RuntimeError> {
+    let workspace = canonical_directory(workspace, "skill workspace")?;
+    let target = resolve_candidate_path(&workspace, requested_path, None)?;
+    let files = changed_files(&target, change)?;
+    let stage = InlineCandidateStage::prepare_beside(&workspace, &target, &files, env)?;
+    Ok(validate_package_at(
+        &workspace,
+        &stage.skill_dir,
+        requested_path,
+        &display_repo_path(&workspace, &target),
+        allow_execute_test,
+        env,
+        effects,
+    ))
+}
+
+/// The files of the package at `target` with `change` made: `{writes:
+/// [{path, contents}], deletes: [path]}`, each path from the package's root.
+fn changed_files(target: &Path, change: &JsonValue) -> Result<Vec<JsonValue>, RuntimeError> {
+    use super::path::{invalid_skill_change as invalid, normalize_package_file, required_string};
+    let change = change
+        .as_object()
+        .ok_or_else(|| invalid("change is {writes, deletes}".to_owned()))?;
+    let mut files = BTreeMap::new();
+    for (path, bytes) in crate::skill_package::package_source(target)?.files {
+        let contents = String::from_utf8(bytes).map_err(|_| {
+            invalid(format!(
+                "{path} isn't text, and a change is validated over a package of text files"
+            ))
+        })?;
+        files.insert(path, contents);
+    }
+    for write in change
+        .get("writes")
+        .and_then(JsonValue::as_array)
+        .map_or(&[][..], Vec::as_slice)
+    {
+        let path = normalize_package_file(required_string(
+            write
+                .as_object()
+                .ok_or_else(|| invalid("each write is {path, contents}"))?,
+            "path",
+        )?)?;
+        let contents = write
+            .as_object()
+            .and_then(|write| write.get("contents"))
+            .and_then(JsonValue::as_str)
+            .ok_or_else(|| invalid(format!("the write of {path} has no contents")))?;
+        files.insert(path, contents.to_owned());
+    }
+    for delete in change
+        .get("deletes")
+        .and_then(JsonValue::as_array)
+        .map_or(&[][..], Vec::as_slice)
+    {
+        let path = normalize_package_file(
+            delete
+                .as_str()
+                .ok_or_else(|| invalid("each delete is a path"))?
+                .to_owned(),
+        )?;
+        if files.remove(&path).is_none() {
+            return Err(invalid(format!(
+                "deletes names {path}, which the package doesn't hold"
+            )));
+        }
+    }
+    Ok(files
+        .into_iter()
+        .map(|(path, contents)| {
+            JsonValue::Object(runx_contracts::JsonObject::from([
+                ("path".to_owned(), JsonValue::String(path)),
+                ("contents".to_owned(), JsonValue::String(contents)),
+            ]))
+        })
+        .collect())
+}
+
 /// The released copy the registry reference `reference` names, read from
 /// the registry the run reaches into runx's cache and never into the
 /// workspace (N6), validated as a workspace package is. It resolves as the

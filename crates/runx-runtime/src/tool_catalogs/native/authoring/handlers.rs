@@ -41,6 +41,28 @@ pub(super) fn validate_skill(
     )?;
     let candidate_files = invocation.inputs.candidate_files.as_deref();
     let requested_path = requested_skill_path(invocation, candidate_files)?;
+    if let Some(change) = &invocation.inputs.change {
+        if candidate_files.is_some() || invocation.inputs.skill_path.is_none() {
+            return Err(invalid_input(
+                VALIDATE_TOOL,
+                "a change is validated over the package at skill_path, never with candidate_files",
+            ));
+        }
+        let (validation_root, resolved_path) = resolve_skill_validation_target(
+            &workspace,
+            invocation.skill_directory,
+            requested_path,
+        )?;
+        let skill_validation = crate::services::validate_skill_change(
+            &validation_root,
+            &resolved_path,
+            change,
+            invocation.inputs.allow_execute_test,
+            invocation.env,
+            invocation.effects,
+        )?;
+        return Ok(ValidateOutput { skill_validation });
+    }
     if candidate_files.is_none()
         && names_registry_package(&workspace, invocation.skill_directory, requested_path)
     {

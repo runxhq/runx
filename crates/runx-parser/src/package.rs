@@ -148,6 +148,9 @@ pub struct ValidatedSkillPackage {
     /// The evals of its `evals/evals.json`, as validated.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evals: Vec<runx_contracts::package_evals::PackageEval>,
+    /// Its loop template, `loops/<name>.yaml`, when it ships one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loop_template: Option<String>,
     pub source: SkillPackageSource,
 }
 

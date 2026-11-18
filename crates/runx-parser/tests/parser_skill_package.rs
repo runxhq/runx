@@ -469,6 +469,49 @@ fn an_evals_files_are_the_packages_own() {
     );
 }
 
+/// A skill's loop template is one `loops/<name>.yaml`, which distributes
+/// with it; anything else under `loops/` is refused.
+#[test]
+fn a_skill_ships_one_loop_template_with_its_package() {
+    let template = "calls: acme/watch#check\nbrief: Watch the page.\non: [{every: 1d}]\n";
+    let validated = validate_skill_package(package([
+        ("SKILL.md", manual("watch")),
+        ("loops/daily.yaml", template.to_owned()),
+    ]))
+    .expect("a skill with its loop template validates");
+    assert_eq!(validated.loop_template.as_deref(), Some("loops/daily.yaml"));
+    assert!(validated.consumed_files.contains("loops/daily.yaml"));
+
+    for (files, refusal) in [
+        (
+            vec![
+                ("loops/daily.yaml", template),
+                ("loops/weekly.yaml", template),
+            ],
+            "loops/weekly.yaml: a skill ships one loop template, and loops/daily.yaml is this one's",
+        ),
+        (
+            vec![("loops/daily.yml", template)],
+            "loops/daily.yml: a loop template is loops/<name>.yaml",
+        ),
+        (
+            vec![("loops/old/daily.yaml", template)],
+            "loops/old/daily.yaml: a loop template is loops/<name>.yaml",
+        ),
+    ] {
+        let mut source = vec![("SKILL.md", manual("watch"))];
+        source.extend(
+            files
+                .into_iter()
+                .map(|(path, contents)| (path, contents.to_owned())),
+        );
+        let error = validate_skill_package(package(source))
+            .expect_err(refusal)
+            .to_string();
+        assert_eq!(error, refusal);
+    }
+}
+
 #[test]
 fn skill_package_qualifies_nested_package_errors() {
     let source = package([

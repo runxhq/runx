@@ -19,6 +19,7 @@ mod list;
 mod local_credential;
 mod locality;
 mod login;
+mod loops;
 mod mcp_dogfood;
 mod memory;
 mod memory_loop;

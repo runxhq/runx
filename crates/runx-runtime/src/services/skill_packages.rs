@@ -6,7 +6,9 @@ mod validation;
 mod workspace;
 
 pub(crate) use change::{apply_skill_change, bind_skill_change, skill_change_effect};
-pub(crate) use validation::{validate_registry_package, validate_skill_package};
+pub(crate) use validation::{
+    validate_registry_package, validate_skill_change, validate_skill_package,
+};
 pub(crate) use workspace::inspect_skill_workspace;
 
 use crate::skill_package::{MAX_PACKAGE_BYTES, MAX_PACKAGE_FILES};

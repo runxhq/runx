@@ -14,8 +14,8 @@ methods:
   reflect:
     description: Read the record since this reader's mark, judge it against the checks survey lays out first, and decide the window by the one rule. Diagnosis and the purpose-only question are each a fresh turn; everything else is code.
     inputs:
-      reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a schedule. Marks are per reader." }
-      until: { type: string, format: date-time, description: The window's end. }
+      reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a loop. Marks are per reader." }
+      until: { type: string, format: date-time, optional: true, description: "The window's end: now, as a loop's wake reads, when none is given." }
     result_from: [judge, propose, promote, observe, decide, decision, keep]
     steps:
       - id: survey
@@ -43,7 +43,7 @@ methods:
         inputs: { survey: $steps.survey, findings: $steps.judge.findings }
         calls:
           skills: [runx/skill-lab#draft]
-          tools: [data.digest, fs.list, fs.read_bundle, runx.skill.validate, runx.skill.apply]
+          tools: [data.digest, fs.list, runx.skill.validate, runx.skill.apply]
           operations: [store/key.inspect, store/events.append]
         max_calls: 200
         effects: ask
@@ -84,7 +84,7 @@ methods:
         # whose own gate asks the person, and the mark, moved past the window
         # the verdict covers.
         script: { module: reflect.mjs, export: keep }
-        inputs: { reader: $input.reader, survey: $steps.survey }
+        inputs: { reader: $input.reader, survey: $steps.survey, proposals: $steps.propose.proposals, promotion: $steps.promote.promotion, observed: $steps.observe.observed }
         calls:
           skills: [runx/memory#disable]
           tools: [data.digest]
@@ -92,11 +92,12 @@ methods:
         max_calls: 200
         outputs:
           kept: { type: object, description: "closed, each rule AGENTS.md holds, closed at memory's gate with its reason naming the commit that holds it, or declined with the person's reason; edited, each rule whose handle AGENTS.md holds under other words, its memory left active, with what the person said and what the file says; and the mark." }
+          loop: { type: object, description: "runx/loop.result.v1, for a loop that reflects: whether the window changed anything, and a notice of what it read, proved, applied, promoted and kept." }
   survey:
     description: Read the mark, the record since it, the workspace's standing memory and its revision, and lay out the checks before anything is judged. No model.
     inputs:
-      reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a schedule. Marks are per reader." }
-      until: { type: string, format: date-time, description: The window's end. }
+      reader: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._@-]*$", maxLength: 128, description: "Who reflects, such as a loop. Marks are per reader." }
+      until: { type: string, format: date-time, optional: true, description: "The window's end: now when none is given." }
     steps:
       - id: survey
         script: { module: reflect.mjs, export: survey }
@@ -118,6 +119,7 @@ methods:
           edited: { type: array, items: { type: object }, description: "Each standing said:workspace entry whose handle AGENTS.md holds at HEAD under other words, with the line that holds it: its memory stays active." }
           mark: { type: object, description: "Where the mark moves once a verdict covers the window, and the runs still open there." }
           read_to_end: { type: boolean, description: "Every run in the window was read to its last event. False when the calls ran out first." }
+          runs: { type: integer, description: How many runs the window read. }
   diagnose:
     description: Say why one recorded resistance happened, from its evidence alone. Read the run's record with run.read, and cite each sealed receipt or event address the diagnosis rests on, exactly as the record gives it; a diagnosis citing anything else is dropped.
     inputs:

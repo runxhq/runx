@@ -17,8 +17,8 @@ did what its skill is for.
 - **Its mark**, a position in reflect's own `marks` stream, one per reader: how
   far the record has been read, and the runs that were still open there.
 - **The record since it**: every sealed run that started from the mark to
-  `until`, and every run open at the mark that has sealed since. Each run is
-  read to its last event.
+  `until`, now when none is given, and every run open at the mark that has
+  sealed since. Each run is read to its last event, and where its package lay.
 - **The workspace's memory**: its standing `said:workspace` rules, through
   `runx/memory#index`.
 - **The workspace's revision**: its `HEAD` commit, and `AGENTS.md` as `HEAD`
@@ -57,12 +57,15 @@ then can't be met, and the mark it returns moves only past what it read.
 - **`propose`** drafts a fix for each repair through `runx/skill-lab#draft`:
   each kept diagnosis, and each sampled success its purpose-only reader found
   didn't do what its purpose asks, since a run that succeeded at the wrong
-  thing needs fixing as a failure does. `skill-lab`'s own turns write the fix
-  and its case. Code keeps the draft only when it adds a case, names each case
-  it changes or
-  removes, and two candidate tests prove the new case: it fails on the
-  package as the workspace holds it, with only the new case added, and passes
-  on the whole change. Nothing is in the workspace until then. The change is
+  thing needs fixing as a failure does. Only a package the workspace owns is
+  changed: one runx installed or bundles, or one outside the workspace, is
+  never, and its repair is kept as an observation for whoever owns it, saying
+  why. `skill-lab`'s own turns write the fix and its case. Code keeps the
+  draft only when it adds a case, names each case it changes or removes, and
+  two validations prove the new case where the package lies, so the skills it
+  calls resolve as they do for it: the new case fails on the package as the
+  workspace holds it with only that case added, and passes on the whole
+  change. Nothing is in the workspace until then. The change is
   applied with `runx.skill.apply` under `effects: ask`, so the person approves
   the exact files. A decline writes nothing and its reason is kept in
   reflect's `declines` stream, keyed by the change's target and evidence, so
@@ -92,7 +95,15 @@ then can't be met, and the mark it returns moves only past what it read.
   `declines` stream by the rule's handle, so a later run doesn't ask again
   until the rule changes. Then it moves the mark past the window the verdict
   covers, at the version survey read, so a concurrent reflection's move wins
-  and this one says it lost.
+  and this one says it lost. Its `loop` output tells a loop that reflects
+  whether the window changed anything, and what it read, proved, applied,
+  promoted and kept, in words code writes.
+
+## As a loop
+
+`runx loop new runx/reflect <name>` makes a loop that reflects once a day as
+its own reader. Each fix it proves and each rule it promotes waits in its run
+for you, and its notice says what the window held.
 
 Reflection's term reads the workspace's memory, writes its `observed:`
 stream, and appends to its `said:workspace` stream only for memory's disable,

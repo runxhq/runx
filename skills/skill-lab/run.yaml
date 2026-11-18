@@ -294,7 +294,9 @@ methods:
       - id: author
         agent: skill-lab-author
         calls:
-          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
+          # It proves its case as it drafts: the case alone fails on the
+          # package, and passes with the fix.
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read, runx.skill.validate]
         # Its caller proves a draft by the case it adds, so one that writes
         # adds a case.
         outputs:
@@ -361,7 +363,7 @@ methods:
       - id: author
         agent: skill-lab-author
         calls:
-          tools: [fs.read_bundle, git.status, artifact.open, artifact.read]
+          tools: [fs.read_bundle, git.status, artifact.open, artifact.read, runx.skill.validate]
         outputs:
           change_draft: {type: object, packet: runx.skill.change_draft.v1}
         inputs:

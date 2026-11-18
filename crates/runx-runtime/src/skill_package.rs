@@ -260,6 +260,20 @@ pub fn load_validated_skill_package(path: &Path) -> Result<LoadedSkillPackage, R
     })
 }
 
+/// Every file of the package at `directory`'s root, as a load reads it: its
+/// signature and the directories a package never holds left out.
+pub(crate) fn package_source(directory: &Path) -> Result<SkillPackageSource, RuntimeError> {
+    let package_root = resolve_owning_package_root(directory)?;
+    let mut source = SkillPackageSource::default();
+    collect_package_source(
+        &package_root,
+        &package_root,
+        &mut source,
+        &mut PackageTotals::default(),
+    )?;
+    Ok(source)
+}
+
 /// A step that gives a core tool an input it doesn't take, by name: what
 /// `doctor` reports before anything runs, and what the step's own call
 /// refuses when it runs, in a test or a run alike.

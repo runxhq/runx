@@ -50,6 +50,8 @@ pub(super) struct ValidateInput {
     pub(super) skill_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) candidate_files: Option<Vec<JsonValue>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) change: Option<JsonValue>,
     pub(super) allow_execute_test: bool,
 }
 
@@ -103,6 +105,10 @@ pub(super) const VALIDATE_FIELDS: &[CapabilityField] = &[
     field(
         "candidate_files",
         "Bounded standalone candidate package files.",
+    ),
+    field(
+        "change",
+        "A change to the package at skill_path, {writes: [{path, contents}], deletes: [path]}, each path from the package's root: the package is validated as it would stand with it, beside where it lies, so the skills it calls resolve as they do for it. Validate a new case alone to see it fail on the package as it stands, then the whole change to see it pass.",
     ),
     field(
         "allow_execute_test",

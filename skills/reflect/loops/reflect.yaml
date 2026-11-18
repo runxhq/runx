@@ -1,0 +1,10 @@
+# The loop `runx loop new runx/reflect <name>` copies: reflection over this
+# workspace's record, once a day, as its own reader. Every fix it proves and
+# every rule it promotes waits for you in its run; its notice says what it
+# read, applied and kept.
+calls: runx/reflect#reflect
+brief: Read what this workspace's runs did since the last reflection, keep what holds up, and propose fixes proven by their cases.
+inputs:
+  reader: daily
+on:
+  - {every: 1d}

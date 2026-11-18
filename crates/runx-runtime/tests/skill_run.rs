@@ -5210,6 +5210,73 @@ fn a_candidates_cases_come_out_one_by_one_and_a_process_runs_only_where_allowed(
     Ok(())
 }
 
+/// A change is validated where its package lies, never copied elsewhere, so
+/// the sibling a package calls resolves as it does for the package: its case
+/// passes on the change, the workspace is untouched, and a change is never
+/// given beside candidate files.
+#[test]
+fn a_change_is_validated_where_its_package_lies() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    crate::support::write_test_skill_package(
+        &temp.path().join("skills/helper"),
+        "---\nname: helper\ndescription: Digests a value.\n---\n# Helper\n",
+        "minimum_runx: 0.12.0\nmethods:\n  say:\n    steps:\n      - id: digest\n        tool: data.digest\n        inputs: {value: hello, encoding: utf8_text}\n",
+    )?;
+    let caller = temp.path().join("skills/caller");
+    crate::support::write_test_skill_package(
+        &caller,
+        "---\nname: caller\ndescription: Calls its sibling.\n---\n# Caller\n",
+        "minimum_runx: 0.12.0\nmethods:\n  greet:\n    steps:\n      - id: say\n        skill: ../helper#say\n",
+    )?;
+    let validator = temp.path().join("validator");
+    crate::support::write_test_skill_package(
+        &validator,
+        "---\nname: validator\ndescription: Validates a change to the caller.\n---\n# Validator\n",
+        "minimum_runx: 0.12.0\nmethods:\n  validate:\n    inputs: {change: {type: object}, candidate_files: {type: array, optional: true}}\n    result_from: [validate]\n    steps:\n      - id: validate\n        tool: runx.skill.validate\n        inputs:\n          skill_path: skills/caller\n          change: $input.change\n          candidate_files: $input.candidate_files\n          allow_execute_test: false\n",
+    )?;
+    let validate =
+        |inputs: serde_json::Value| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+            let result = run_skill(SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: validator.clone(),
+                receipt_dir: Some(temp.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: serde_json::from_value(inputs)?,
+                env: path_env(),
+                cwd: temp.path().to_path_buf(),
+                drive: Default::default(),
+            })?;
+            Ok(serde_json::to_value(&result.output)?)
+        };
+    let change = serde_json::json!({
+        "writes": [{"path": "tests/greets.yaml", "contents": "name: greets\nmethod: greet\nexpect:\n  status: sealed\n"}],
+        "deletes": [],
+    });
+
+    let output = validate(serde_json::json!({"change": change}))?;
+    let validation = &output["result"]["skill_validation"];
+    assert_eq!(validation["test"]["status"], "passed", "{output}");
+    assert_eq!(validation["test"]["cases"][0]["name"], "greets", "{output}");
+    assert!(!caller.join("tests").exists());
+
+    let both = validate(serde_json::json!({
+        "change": change,
+        "candidate_files": [{"path": "SKILL.md", "contents": "---\nname: caller\ndescription: x\n---\n# Caller\n"}],
+    }))?;
+    assert_eq!(both["outcome"], "failed", "{both}");
+    assert!(
+        both["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("candidate_files")),
+        "{both}"
+    );
+    Ok(())
+}
+
 /// A registry reference names a released copy: validation reads it from the
 /// registry the run reaches into runx's cache, never into the workspace, and
 /// its inspection carries the copy's identity, one digest, with its eval

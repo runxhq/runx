@@ -24,7 +24,18 @@ impl InlineCandidateStage {
         files: &[JsonValue],
         env: &BTreeMap<String, String>,
     ) -> Result<Self, RuntimeError> {
-        let root = unique_stage_root(workspace, &workspace.join(".runx-inline-skill"));
+        Self::prepare_beside(workspace, &workspace.join(".runx-inline-skill"), files, env)
+    }
+
+    /// A candidate staged beside `target`, in the same directory, so what it
+    /// calls by a relative path resolves as it does for `target`.
+    pub(super) fn prepare_beside(
+        workspace: &Path,
+        target: &Path,
+        files: &[JsonValue],
+        env: &BTreeMap<String, String>,
+    ) -> Result<Self, RuntimeError> {
+        let root = unique_stage_root(workspace, target);
         let stage = Self {
             root: root.clone(),
             skill_dir: root,

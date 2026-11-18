@@ -9155,6 +9155,11 @@ export const runxSchemaArtifacts = {
             "minLength": 1,
             "type": "string"
           },
+          "skill_path": {
+            "description": "Where the run's package was when it started: relative to the workspace when it lies inside it, else as recorded, so a reader knows whether the workspace owns it, runx installed it, or it lies outside.",
+            "minLength": 1,
+            "type": "string"
+          },
           "state": {
             "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/RunState"
           },
@@ -9171,6 +9176,7 @@ export const runxSchemaArtifacts = {
         "required": [
           "run_id",
           "skill",
+          "skill_path",
           "method",
           "state",
           "package_digest",

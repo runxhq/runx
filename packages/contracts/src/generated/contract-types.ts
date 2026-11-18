@@ -3025,6 +3025,8 @@ export type RunReadSummaryContract = {
   readonly receipt_id?: string;
   readonly run_id: string;
   readonly skill: string;
+  /** Where the run's package was when it started: relative to the workspace when it lies inside it, else as recorded, so a reader knows whether the workspace owns it, runx installed it, or it lies outside. */
+  readonly skill_path: string;
   readonly state: RunStateContract;
   readonly updated_at: string;
   /** Why it stopped, when its last step failed: that step's failure, as the record holds it, read from the run's whole record and never from one page of its events. */

@@ -7,7 +7,7 @@ use std::ffi::OsString;
 use std::process::ExitCode;
 
 use chrono::{DateTime, Local, Utc};
-use runx_loops::{Ending, LoopName, LoopState, Loops, Status};
+use runx_loops::{Ending, LoopFile, LoopName, LoopState, Loops, Status};
 use runx_runtime::WorkspaceEnv;
 use serde_json::{Map, Value};
 
@@ -402,19 +402,20 @@ fn new_loop(
             holder: runx_runtime::registry::resolve::Holder::Project,
         },
     )?;
-    let templates = resolved.runnable_path.join(runx_loops::LOOPS_DIR);
-    let template = std::fs::read_dir(&templates)
-        .map_err(|_| format!("{skill} ships no loop template"))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .find(|path| path.extension().and_then(|ext| ext.to_str()) == Some("yaml"))
+    let loaded = runx_runtime::load_validated_skill_package(&resolved.runnable_path)
+        .map_err(|error| error.to_string())?;
+    let package = &loaded.package;
+    let bytes = package
+        .loop_template
+        .as_deref()
+        .and_then(|path| package.file_bytes(path))
         .ok_or_else(|| format!("{skill} ships no loop template"))?;
-    let bytes = std::fs::read_to_string(&template)
-        .map_err(|error| format!("reading {}: {error}", template.display()))?;
+    LoopFile::parse(bytes)
+        .map_err(|error| format!("{skill}'s loop template isn't a loop: {error}"))?;
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent).map_err(|error| format!("making loops/: {error}"))?;
     }
-    runx_runtime::durable::replace_file(&target, bytes.as_bytes())
+    runx_runtime::durable::replace_file(&target, bytes)
         .map_err(|error| format!("writing {}: {error}", target.display()))?;
     Ok(target)
 }

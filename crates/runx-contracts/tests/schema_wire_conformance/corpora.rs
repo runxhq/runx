@@ -1621,6 +1621,7 @@ pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
         "run": {
             "run_id": "run_1",
             "skill": "reply",
+            "skill_path": "skills/reply",
             "method": "reply",
             "state": "paused",
             "package_digest": "sha256:package",
@@ -1647,7 +1648,7 @@ pub(super) fn run_read_corpus() -> Vec<(&'static str, Value)> {
                 valid.clone(),
                 "run",
                 json!({
-                    "run_id": "run_1", "skill": "reply", "method": "reply", "state": "sealed",
+                    "run_id": "run_1", "skill": "reply", "skill_path": "skills/reply", "method": "reply", "state": "sealed",
                     "outcome": "completed", "receipt_id": "sha256:run",
                     "package_digest": "sha256:package", "closure_digest": "sha256:closure",
                     "driver": "managed", "driven": false,

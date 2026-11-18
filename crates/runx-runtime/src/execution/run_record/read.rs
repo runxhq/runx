@@ -92,6 +92,7 @@ pub fn read_run(
         run: RunReadSummary {
             run_id: run_id.into(),
             skill: started.skill.into(),
+            skill_path: within(&paths, &started.skill_path).into(),
             method: started.method.into(),
             state,
             outcome,
@@ -882,4 +883,22 @@ fn loaded(
         }
         _ => Ok(None),
     }
+}
+
+/// `path` relative to the workspace when it lies inside it, else as it is.
+fn within(paths: &RunxPaths, path: &str) -> String {
+    let workspace = paths.workspace();
+    let canonical = std::fs::canonicalize(workspace).unwrap_or_else(|_| workspace.to_path_buf());
+    let path = std::path::Path::new(path);
+    [workspace, canonical.as_path()]
+        .iter()
+        .find_map(|root| path.strip_prefix(root).ok())
+        .map_or_else(
+            || path.to_string_lossy().into_owned(),
+            |relative| match relative.to_string_lossy() {
+                // The workspace is its own package.
+                relative if relative.is_empty() => ".".to_owned(),
+                relative => relative.into_owned(),
+            },
+        )
 }

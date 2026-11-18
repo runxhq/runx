@@ -67,6 +67,8 @@ pub fn validate_skill_package(
     consumed_files.extend(validate_operator_reference_files(&source)?);
     let eval_files = validate_eval_files(&source, &skill.name)?;
     consumed_files.extend(eval_files.paths);
+    let loop_template = validate_loop_template(&source)?;
+    consumed_files.extend(loop_template.iter().cloned());
     consumed_files.extend(validate_nested_package_consumed_files(&source)?);
     if let Some(mark) = source.files.get(crate::mark::MARK_FILE) {
         crate::mark::validate_mark_svg(mark).map_err(|reason| {
@@ -104,8 +106,42 @@ pub fn validate_skill_package(
         packets,
         eval_queries: eval_files.queries,
         evals: eval_files.evals,
+        loop_template,
         source,
     })
+}
+
+/// Where a package's loop template lies, `runx loop new`'s source.
+const LOOP_TEMPLATES: &str = "loops/";
+
+/// The loop template a skill may ship: one `loops/<name>.yaml`, as text, and
+/// nothing else under `loops/`. It distributes with the package; `runx loop
+/// new` checks it as a loop before copying it.
+fn validate_loop_template(
+    source: &SkillPackageSource,
+) -> Result<Option<String>, SkillPackageError> {
+    let mut templates = source
+        .files
+        .iter()
+        .filter(|(path, _)| path.starts_with(LOOP_TEMPLATES));
+    let Some((path, contents)) = templates.next() else {
+        return Ok(None);
+    };
+    if let Some((another, _)) = templates.next() {
+        return Err(SkillPackageError::invalid(
+            another,
+            format!("a skill ships one loop template, and {path} is this one's"),
+        ));
+    }
+    let name = &path[LOOP_TEMPLATES.len()..];
+    if name.contains('/') || !name.ends_with(".yaml") || name == ".yaml" {
+        return Err(SkillPackageError::invalid(
+            path,
+            "a loop template is loops/<name>.yaml",
+        ));
+    }
+    text_file(path, contents)?;
+    Ok(Some(path.clone()))
 }
 
 /// A package's Agent Skills evaluation files, as it declares them.
