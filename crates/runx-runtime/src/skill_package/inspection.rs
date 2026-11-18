@@ -189,6 +189,21 @@ pub fn inspect_connector_readiness(
         crate::identity::ChainLink::of(identity, package).map_err(SkillInspectionError::Identity)
     };
     let root = link(&identity(&loaded)?, &loaded)?;
+    // The run's authority resolves once, where the root starts, as its
+    // admission does; every package's calls are checked against that.
+    let authority = authority
+        .cloned()
+        .map(|authority| {
+            crate::kernel::admission::resolved_authority(authority, &root_directory, env, cwd)
+        })
+        .transpose()
+        .map_err(|message| {
+            SkillInspectionError::Runtime(Box::new(RuntimeError::failed(
+                "connectors".to_owned(),
+                message,
+            )))
+        })?;
+    let authority = authority.as_ref();
     let mut readiness = Vec::new();
     for (package, method) in
         closure::inspect_method_closure_methods(Arc::clone(&loaded), &method, env)?
@@ -939,6 +954,78 @@ operations:
 
         // The root calls no operation itself; its child's is what a run admits.
         assert_eq!(projected(&root, temp.path())?, ["acme/notes notes.write"]);
+        Ok(())
+    }
+
+    /// A run's authority resolves once, where the root starts: a bundled
+    /// child, whose scope holds only its own connectors, never resolves the
+    /// root's delegation on the workspace's connector.
+    #[test]
+    fn readiness_resolves_the_run_s_authority_where_the_root_starts()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir().expect("temporary skill catalog");
+        let root = temp.path().join("root");
+        fs::create_dir_all(root.join("connectors/acme/notes")).expect("connector directory");
+        fs::write(
+            root.join("connectors/acme/notes/connector.yaml"),
+            hosted_connector("acme/notes").replace(
+                "  hosted: {auth: credential, credential: service_token}",
+                "  local: {auth: [credentials]}",
+            ),
+        )
+        .expect("connector");
+        fs::write(root.join("SKILL.md"), ROOT_MANUAL).expect("root manual");
+        fs::write(
+            root.join("run.yaml"),
+            "version: \"0.1.0\"\nminimum_runx: 0.12.0\nmethods:\n  compose:\n    steps:\n      - id: write\n        operation: acme/notes/notes.write\n        result:\n          required: [note]\n        idempotency_key: $run.id\n        inputs:\n          value: written\n      - id: recall\n        skill: runx/memory#index\n        inputs:\n          levels: [{level: personal}]\n",
+        )
+        .expect("root manifest");
+        let env = std::collections::BTreeMap::from([
+            (
+                "RUNX_HOME".to_owned(),
+                temp.path().join("home").display().to_string(),
+            ),
+            (
+                "RUNX_PROJECT_DIR".to_owned(),
+                temp.path().join("project").display().to_string(),
+            ),
+            ("ACME_SERVICE_TOKEN".to_owned(), "token".to_owned()),
+        ]);
+        let authority = crate::RunAuthority {
+            delegations: vec![crate::Delegation {
+                connector: runx_contracts::connector::ConnectorName::new("acme/notes")
+                    .expect("name"),
+                resource_ref: None,
+                principal_ref: None,
+                expires_at: None,
+                terms: vec![crate::DelegationTerm {
+                    verbs: vec![runx_contracts::AuthorityVerb::Write],
+                    bounds: runx_contracts::AuthorityBounds {
+                        operations: vec!["acme/notes/notes.write".into()],
+                        scopes: vec!["notes.write".into()],
+                        targets: vec!["*".into()],
+                        ..runx_contracts::AuthorityBounds::default()
+                    },
+                }]
+                .into(),
+            }],
+            ..crate::RunAuthority::default()
+        };
+        let readiness = super::inspect_connector_readiness(
+            &root,
+            None,
+            None,
+            Some(&authority),
+            &env,
+            temp.path(),
+        )?;
+        assert!(
+            readiness.iter().any(|operation| operation
+                .connector
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "acme/notes")),
+            "{readiness:?}"
+        );
         Ok(())
     }
 

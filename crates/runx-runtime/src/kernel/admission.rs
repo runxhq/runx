@@ -1137,10 +1137,22 @@ fn project(
         env,
         cwd,
     };
-    // Projected as the root's admission would resolve it.
+    // Projected as the root's admission would resolve it: once, where the
+    // root starts, so a child package's own scope never resolves the root's
+    // delegations. An authority resolved there already is taken as it is.
     let resolved = authority
         .cloned()
-        .map(|mut authority| resolve(&mut authority, context).map(|()| authority))
+        .map(|mut authority| {
+            if authority
+                .delegations
+                .iter()
+                .all(|delegation| delegation.resource_ref.is_some())
+            {
+                Ok(authority)
+            } else {
+                resolve(&mut authority, context).map(|()| authority)
+            }
+        })
         .transpose()?;
     let authority = resolved.as_ref();
     // A connector chosen at run time may be any its requirement allows, so
