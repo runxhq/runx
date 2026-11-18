@@ -94,7 +94,7 @@ describe("native invocation and decoding", () => {
     const capture = path.join(root, "history.json");
     const read = {
       schema: "runx.run_read.v1",
-      run: { run_id: "run_test", skill: "reply", method: "reply", state: "paused", package_digest: "sha256:p", closure_digest: "sha256:c", driver: "attached", driven: false, created_at: "t0", updated_at: "t1" },
+      run: { run_id: "run_test", skill: "reply", skill_path: "skills/reply", method: "reply", state: "paused", package_digest: "sha256:p", closure_digest: "sha256:c", driver: "attached", driven: false, created_at: "t0", updated_at: "t1" },
       waiting: [{ address: "send.approval", request_digest: "sha256:r", request: { kind: "approval", id: "send.approval", gate: { id: "send.approval", reason: "send it" } } }],
       events: [{ stream: "run_test", version: 2, committed_at: "t1", event: { kind: "suspended", step_id: "send", attempt: 1, hold: { kind: "request", address: "send.approval", request_digest: "sha256:r" } } }],
       cursor: "-cursor_1",
