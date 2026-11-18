@@ -1443,7 +1443,11 @@ pub(crate) fn sealed_workflow_run(
     let mut execution = WorkflowExecution::from_record(&workflow, &record)?;
     execution.read_recorded_receipts(store)?;
     execution.seal_state(sealed.outcome);
-    Ok(execution.finish(workflow, sealed.receipt))
+    let mut run = execution.finish(workflow, sealed.receipt);
+    run.stop = sealed.stop;
+    run.refusal = sealed.refusal;
+    run.declined = sealed.declined;
+    Ok(run)
 }
 
 /// Build the workflow's public result from its explicit result producers.

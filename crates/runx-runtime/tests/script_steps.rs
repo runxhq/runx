@@ -948,6 +948,22 @@ fn effects_none_refuses_a_write_at_any_depth() -> TestResult {
         "the run's effects are none, so it changes nothing: the fs.write tool, which changes the workspace, in step prepare; the fs.write tool, which changes the workspace, in writer-child#write's step write, are each refused before the run starts"
     );
     let run_id = text(output, "run_id").ok_or("missing run_id")?.to_owned();
+    let recorded =
+        runx_runtime::run_record::read_run(&env(temp.path()), temp.path(), &run_id, None)?;
+    assert!(
+        recorded
+            .run
+            .why
+            .as_ref()
+            .is_some_and(|why| why.as_str().contains(reason)),
+        "the sealed run must retain its refusal even when no step ran: {recorded:?}"
+    );
+    let restored = resume(temp.path(), &run_id, serde_json::json!({}))?;
+    assert_eq!(
+        object(&restored.output)?.get("refusal"),
+        output.get("refusal"),
+        "reopening the run must return the same refusal"
+    );
     assert_eq!(
         call_events(temp.path(), &run_id)?,
         Vec::<(u32, &str)>::new(),

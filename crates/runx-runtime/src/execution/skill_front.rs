@@ -515,7 +515,7 @@ pub(crate) fn close_run(continuation: Continuation<'_>) -> Result<RunResult, Ski
     )?;
     // A closed run's result is nothing: it stopped before it produced one.
     let result = JsonValue::Object(JsonObject::new());
-    log.record_sealed(&receipt, Some(&result))?;
+    log.record_sealed(&receipt, Some(&result), None, None, None)?;
     let request = SkillRunRequest {
         current_context: Vec::new(),
         historical_context: Vec::new(),

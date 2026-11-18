@@ -867,7 +867,13 @@ where
     };
     match ran {
         Ok(run) => {
-            log.record_sealed(&run.receipt, None)?;
+            log.record_sealed(
+                &run.receipt,
+                None,
+                run.stop.as_ref(),
+                run.refusal.as_ref(),
+                run.declined.as_deref(),
+            )?;
             Ok(run)
         }
         Err(RuntimeError::ResolutionPending {
@@ -886,7 +892,13 @@ where
         // child open leaves its parent open.
         Err(error) => {
             let stopped = child_runtime.seal_stop(workflow, error, host)?;
-            log.record_sealed(&stopped.run.receipt, Some(&stopped.result))?;
+            log.record_sealed(
+                &stopped.run.receipt,
+                Some(&stopped.result),
+                stopped.run.stop.as_ref(),
+                stopped.run.refusal.as_ref(),
+                stopped.run.declined.as_deref(),
+            )?;
             Ok(stopped.run)
         }
     }

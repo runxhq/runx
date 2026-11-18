@@ -100,8 +100,14 @@ pub fn read_run(
             closure_digest: started.closure_digest.into(),
             driver: started.driver,
             receipt_id: receipt_id.map(Into::into),
-            why: match outcome {
-                Some(runx_contracts::RunOutcome::Failed) => why(&store, run_id)?,
+            why: match &latest.event {
+                RunEvent::Sealed(sealed) => match &sealed.stop {
+                    Some(stop) => Some(reason(stop.to_string())),
+                    None if sealed.outcome == runx_contracts::RunOutcome::Failed => {
+                        why(&store, run_id)?
+                    }
+                    None => None,
+                },
                 _ => None,
             },
             driven: driven(&paths, run_id)?,

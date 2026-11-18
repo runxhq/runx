@@ -283,7 +283,7 @@ fn a_sealed_run_holds_its_receipt_and_waits_on_nothing() {
         signature().signature_policy(),
     )
     .unwrap();
-    log.record_sealed(&receipt, None).unwrap();
+    log.record_sealed(&receipt, None, None, None, None).unwrap();
 
     let record = log.load().unwrap().unwrap();
     let sealed = record.sealed.expect("sealed");
@@ -835,7 +835,9 @@ fn a_run_whose_child_sealed_before_its_step_was_recorded_stays_paused() {
         signature().signature_policy(),
     )
     .unwrap();
-    child.record_sealed(&receipt, None).unwrap();
+    child
+        .record_sealed(&receipt, None, None, None, None)
+        .unwrap();
 
     assert!(waiting_ids(&store, "run_held_1").is_empty());
     let paused = paused_run(&env, workspace.path(), "run_held_1")
@@ -1581,7 +1583,8 @@ fn a_run_syncs_only_where_it_reaches_the_world_or_answers_its_host() {
         log.record_claim("send", 1, &retry, &[], Durability::Durable, Leaves::World)
             .unwrap();
         let claimed = since();
-        log.record_sealed(&read.receipt, None).unwrap();
+        log.record_sealed(&read.receipt, None, None, None, None)
+            .unwrap();
         let sealed = since();
         let child = log.child("nested").unwrap();
         child
@@ -1598,7 +1601,9 @@ fn a_run_syncs_only_where_it_reaches_the_world_or_answers_its_host() {
             })
             .unwrap();
         child.record_request("ask", 1, &approval("ask")).unwrap();
-        child.record_sealed(&read.receipt, None).unwrap();
+        child
+            .record_sealed(&read.receipt, None, None, None, None)
+            .unwrap();
         let child_run = since();
         (progress, held, claimed, sealed, child_run)
     });
@@ -1798,7 +1803,7 @@ fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
     )
     .unwrap();
     receipt.seal.outcome = runx_contracts::RunOutcome::Declined;
-    log.record_sealed(&receipt, None).unwrap();
+    log.record_sealed(&receipt, None, None, None, None).unwrap();
     assert_eq!(
         read(),
         RunChanges {

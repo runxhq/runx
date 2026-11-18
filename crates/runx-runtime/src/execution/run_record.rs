@@ -577,6 +577,14 @@ struct SealedEvent {
     /// Blob: the public result of a run that stopped short of completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     terminal_result: Option<String>,
+    /// The deciding layer's reason, also when no step ran.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stop: Option<crate::Failure>,
+    /// The same refusal returned to the caller when the run sealed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    refusal: Option<JsonObject>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    declined: Option<String>,
 }
 
 /// The caller's context, stored as one blob.
@@ -750,6 +758,9 @@ pub(crate) struct Sealed {
     pub outcome: RunOutcome,
     pub receipt: Receipt,
     pub terminal_result: Option<JsonValue>,
+    pub stop: Option<crate::Failure>,
+    pub refusal: Option<JsonObject>,
+    pub declined: Option<String>,
 }
 
 /// A run rebuilt from its stream.
@@ -2024,6 +2035,9 @@ impl RunLog {
         &self,
         receipt: &Receipt,
         terminal_result: Option<&JsonValue>,
+        stop: Option<&crate::Failure>,
+        refusal: Option<&JsonObject>,
+        declined: Option<&str>,
     ) -> Result<(), RunRecordError> {
         let receipt_blob = Blob::json(receipt)?;
         let terminal_result = terminal_result.map(Blob::json).transpose()?;
@@ -2034,6 +2048,9 @@ impl RunLog {
             terminal_result: terminal_result
                 .as_ref()
                 .map(|blob| blob.digest().to_owned()),
+            stop: stop.cloned(),
+            refusal: refusal.cloned(),
+            declined: declined.map(str::to_owned),
         };
         let receipts = self.indexed(receipt, &receipt_blob, &[], &[]);
         let mut blobs = vec![receipt_blob];
@@ -2650,6 +2667,9 @@ impl RunRecord {
                         .terminal_result
                         .map(|digest| store.blob_json(&digest))
                         .transpose()?,
+                    stop: sealed.stop,
+                    refusal: sealed.refusal,
+                    declined: sealed.declined,
                 });
             }
         }

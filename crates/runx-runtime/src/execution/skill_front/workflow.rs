@@ -595,7 +595,7 @@ impl BoundRun {
             SkillOutputDiagnostics {
                 context: Some(workflow_run_context(&run)),
                 trace: Some(workflow_run_trace(&run)),
-                refusal: None,
+                refusal: run.refusal.clone(),
             },
             &run.receipt,
         ))
@@ -664,7 +664,13 @@ impl Driven<'_> {
     fn seal_completed(&self, run: WorkflowRun) -> Result<RunResult, SkillRunError> {
         let bound = self.bound;
         let result = workflow_run_result(&run)?;
-        self.log.record_sealed(&run.receipt, None)?;
+        self.log.record_sealed(
+            &run.receipt,
+            None,
+            run.stop.as_ref(),
+            run.refusal.as_ref(),
+            run.declined.as_deref(),
+        )?;
         #[cfg(feature = "crash-points")]
         crate::crash::at("after_seal", self.log.run_id());
         write_workflow_receipts(
@@ -703,7 +709,13 @@ impl Driven<'_> {
             self.runtime
                 .seal_stop(self.workflow.clone(), error, &mut host)?;
         let refusal = run.refusal.clone();
-        self.log.record_sealed(&run.receipt, Some(&result))?;
+        self.log.record_sealed(
+            &run.receipt,
+            Some(&result),
+            run.stop.as_ref(),
+            run.refusal.as_ref(),
+            run.declined.as_deref(),
+        )?;
         write_workflow_receipts(
             &bound.request,
             &bound.workspace,
@@ -1524,7 +1536,13 @@ methods:
             assert!(!encoded.contains("credential"));
             assert!(!encoded.contains("raw_output"));
 
-            log.record_sealed(&run.receipt, None)?;
+            log.record_sealed(
+                &run.receipt,
+                None,
+                run.stop.as_ref(),
+                run.refusal.as_ref(),
+                run.declined.as_deref(),
+            )?;
             let runs = list_runs(&env, temp.path(), &RunFilter::default())?;
             assert_eq!(runs.runs.len(), 1);
             assert_eq!(runs.runs[0].state, RunState::Sealed);
