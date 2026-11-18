@@ -11,18 +11,21 @@
 
 mod clock;
 mod context;
+mod feeds;
 mod file;
 mod pass;
 mod proposals;
 mod records;
 mod state;
 mod store;
+mod webhooks;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 pub use clock::{Due, next_after};
+pub use feeds::{Feed, Polled};
 pub use file::{
     Calls, DayZone, LOOPS_DIR, Late, LoopFile, LoopName, OnFailure, Policy, Span, Spend, Trigger,
     digest,

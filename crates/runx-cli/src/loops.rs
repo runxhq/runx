@@ -1,5 +1,5 @@
 //! The loop commands (the loop contract §16): `runx loops`, `runx loop
-//! new|show|accept|decline|retry|skip|message`, and `runx start|stop|run`.
+//! new|show|accept|decline|retry|skip|message|token`, and `runx start|stop|run`.
 //! Each acts as the person at this terminal, then rings the always-on runx
 //! so it acts on the change at once, and prints the loops afterwards.
 
@@ -13,7 +13,7 @@ use serde_json::{Map, Value};
 
 use crate::cli_args::{os_arg, split_flag};
 
-const USAGE: &str = "runx loops | runx loop new <skill> <name> | runx loop show|retry|skip <loop> | runx loop accept|decline <loop> <proposal> | runx loop message <loop> <text> | runx start|stop <loop> | runx run <loop> [method]";
+const USAGE: &str = "runx loops | runx loop new <skill> <name> | runx loop show|retry|skip <loop> | runx loop accept|decline <loop> <proposal> | runx loop message <loop> <text> | runx loop token <loop> [webhook] | runx start|stop <loop> | runx run <loop> [method]";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoopsPlan {
@@ -53,6 +53,11 @@ pub enum LoopAction {
     Message {
         name: String,
         text: String,
+    },
+    /// A new token for one of the loop's webhooks, in place of the one before.
+    Token {
+        name: String,
+        webhook: Option<String>,
     },
     Accept {
         name: String,
@@ -117,6 +122,14 @@ pub fn parse_loops_plan(args: &[OsString]) -> Result<LoopsPlan, String> {
         ["loop", "message", name, text @ ..] if !text.is_empty() => LoopAction::Message {
             name: owned(name),
             text: text.join(" "),
+        },
+        ["loop", "token", name] => LoopAction::Token {
+            name: owned(name),
+            webhook: None,
+        },
+        ["loop", "token", name, webhook] => LoopAction::Token {
+            name: owned(name),
+            webhook: Some(owned(webhook)),
         },
         ["loop", "accept", name, proposal] => LoopAction::Accept {
             name: owned(name),
@@ -281,6 +294,14 @@ fn execute(plan: &LoopsPlan, workspace: &WorkspaceEnv) -> Result<Done, String> {
             loops.message(&loop_name, &by, text).map_err(fail)?;
             Some(format!("told {loop_name}\n"))
         }
+        LoopAction::Token {
+            name: loop_name,
+            webhook,
+        } => {
+            let loop_name = name(loop_name)?;
+            return token(&loops, workspace, &loop_name, webhook.as_deref(), plan.json)
+                .map(Done::Text);
+        }
         LoopAction::Accept {
             name: loop_name,
             proposal,
@@ -314,6 +335,49 @@ fn execute(plan: &LoopsPlan, workspace: &WorkspaceEnv) -> Result<Done, String> {
         Some(said) if !plan.json => format!("{said}\n{listing}"),
         _ => listing,
     }))
+}
+
+/// A new token for loop `name`'s webhook, kept by its digest alone, and the
+/// address that carries it, shown this once.
+fn token(
+    loops: &Loops,
+    workspace: &WorkspaceEnv,
+    name: &LoopName,
+    webhook: Option<&str>,
+    json: bool,
+) -> Result<String, String> {
+    use ring::rand::SecureRandom as _;
+    let mut bytes = [0_u8; 32];
+    ring::rand::SystemRandom::new()
+        .fill(&mut bytes)
+        .map_err(|_| "the system gave no randomness for a token".to_owned())?;
+    let token = bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let webhook = loops
+        .rotate_token(name, webhook, &runx_loops::digest(token.as_bytes()))
+        .map_err(|error| error.to_string())?;
+    let path = format!("/webhook/{token}");
+    let address = crate::always_on::address(workspace).map(|base| format!("{base}{path}"));
+    if json {
+        return serde_json::to_string_pretty(&serde_json::json!({
+            "loop": name.as_str(),
+            "webhook": webhook,
+            "path": path,
+            "address": address,
+        }))
+        .map(|text| text + "\n")
+        .map_err(|error| error.to_string());
+    }
+    let at = address.unwrap_or_else(|| {
+        format!(
+            "http://127.0.0.1:<port>{path}, at the port runx listens on once it's on (`runx on`)"
+        )
+    });
+    Ok(format!(
+        "{name}'s webhook {webhook} takes a POST of a JSON payload at\n  {at}\nThe token is shown this once: `runx loop token {name} {webhook}` makes a new one, and the address before stops working. A sender on another machine needs a public HTTPS address in front of this one.\n"
+    ))
 }
 
 /// Copy the skill's loop template to `loops/<name>.yaml`.
@@ -483,7 +547,10 @@ fn show(name: &LoopName, state: &LoopState) -> String {
     if let Some(file) = state.active_file().and_then(Result::ok) {
         out.push_str(&format!("calls {}\nbrief: {}\n", file.calls, file.brief));
         for trigger in &file.on {
-            out.push_str(&format!("wakes on {trigger}\n"));
+            out.push_str(&format!(
+                "wakes on {trigger}{}\n",
+                taken(name, trigger, state)
+            ));
         }
     }
     out.push_str(&format!(
@@ -524,6 +591,24 @@ fn show(name: &LoopName, state: &LoopState) -> String {
     out
 }
 
+/// How far a trigger's events are taken: a feed's cursor, or whether a
+/// webhook has an address yet.
+fn taken(name: &LoopName, trigger: &runx_loops::Trigger, state: &LoopState) -> String {
+    match trigger {
+        runx_loops::Trigger::Feed { connector, feed } => state
+            .cursors
+            .get(&format!("{connector}/{feed}"))
+            .map_or_else(
+                || ", read from its start".to_owned(),
+                |cursor| format!(", read up to {cursor}"),
+            ),
+        runx_loops::Trigger::Webhook { name: webhook } if !state.tokens.contains_key(webhook) => {
+            format!(", which has no address yet: `runx loop token {name} {webhook}` gives one")
+        }
+        _ => String::new(),
+    }
+}
+
 fn show_json(name: &LoopName, state: &LoopState) -> Result<String, String> {
     serde_json::to_string_pretty(&view(name, state)).map_err(|error| error.to_string())
 }
@@ -541,6 +626,8 @@ fn view(name: &LoopName, state: &LoopState) -> Value {
         "notices": state.notices.iter().map(|notice| serde_json::json!({"id": notice.id, "text": notice.text, "action": notice.action, "at": notice.at})).collect::<Vec<_>>(),
         "proposals": state.proposals.values().map(|pending| serde_json::json!({"id": pending.id, "proposal": pending.proposal})).collect::<Vec<_>>(),
         "open": state.people.values().map(|person| serde_json::json!({"method": person.method, "run": person.run})).collect::<Vec<_>>(),
+        "cursors": state.cursors,
+        "webhooks_with_addresses": state.tokens.keys().collect::<Vec<_>>(),
     })
 }
 

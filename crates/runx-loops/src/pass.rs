@@ -19,6 +19,7 @@ use crate::clock;
 use crate::file::{Calls, Late, LoopFile, LoopName, digest};
 use crate::records::{Ending, InboxEvent, RecordEvent};
 use crate::state::{LoopState, Status};
+use crate::store::Committed;
 use crate::{LoopError, Loops, context};
 
 /// What an open run that holds a loop's events waits on.
@@ -72,7 +73,7 @@ struct Bound {
     method: String,
 }
 
-fn stamp(at: DateTime<Utc>) -> String {
+pub(crate) fn stamp(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
@@ -909,7 +910,7 @@ impl Loops {
     /// The authority a loop's runs act under: the saved authority its file
     /// names, else the workspace's standing one, its spend bounded by what
     /// the run reserved.
-    fn authority(
+    pub(crate) fn authority(
         &self,
         file: &LoopFile,
         reserved: u64,
@@ -990,6 +991,7 @@ impl Loops {
         runx_runtime::check_method_inputs(&bound.skill_path, &bound.method, &inputs).map_err(
             |why| LoopError::Refused(format!("it can't start until its inputs validate: {why}")),
         )?;
+        self.check_feeds(&file)?;
         let state = self.read(name)?;
         let revision = digest(bytes.as_bytes());
         if state.status == Status::Running
@@ -1048,50 +1050,35 @@ impl Loops {
     pub fn run_now(&self, name: &LoopName, by: &str) -> Result<(), LoopError> {
         self.require(name)?;
         let identity = fresh("manual")?;
-        self.take(
+        self.put(
             name,
-            InboxEvent::Manual {
+            &InboxEvent::Manual {
                 identity,
                 by: by.to_owned(),
             },
-            None,
         )
+        .map(|_| ())
     }
 
     /// A message from the person, which wakes the loop.
     pub fn message(&self, name: &LoopName, by: &str, text: &str) -> Result<(), LoopError> {
         self.require(name)?;
         let identity = fresh("message")?;
-        self.take(
+        self.put(
             name,
-            InboxEvent::Message {
+            &InboxEvent::Message {
                 identity,
                 by: by.to_owned(),
                 text: text.to_owned(),
             },
-            None,
         )
+        .map(|_| ())
     }
 
-    /// Put `event` in loop `name`'s inbox, once for its identity, with a
-    /// feed's cursor moved in the same commit.
-    pub fn take(
-        &self,
-        name: &LoopName,
-        event: InboxEvent,
-        cursor: Option<(String, String)>,
-    ) -> Result<(), LoopError> {
+    /// Put `event` in loop `name`'s inbox, once for its identity.
+    pub(crate) fn put(&self, name: &LoopName, event: &InboxEvent) -> Result<Committed, LoopError> {
         let state = self.read(name)?;
-        let record = cursor
-            .map(|(feed, cursor)| RecordEvent::Cursor {
-                feed,
-                cursor,
-                at: stamp(Utc::now()),
-            })
-            .into_iter()
-            .collect::<Vec<_>>();
-        self.commit(name, &state, &record, Some(&event))?;
-        Ok(())
+        self.commit(name, &state, &[], Some(event))
     }
 
     /// After a failure that changed something, or a refusal: give the batch

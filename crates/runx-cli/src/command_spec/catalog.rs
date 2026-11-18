@@ -186,7 +186,7 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
     },
     CommandSpec {
         name: "loop",
-        top_level_usage: &["runx loop new|show|accept|decline|retry|skip|message ..."],
+        top_level_usage: &["runx loop new|show|accept|decline|retry|skip|message|token ..."],
         usage: &[
             "runx loop new <skill> <name>",
             "runx loop show <loop> [-j|--json]",
@@ -195,11 +195,13 @@ pub const COMMAND_SPECS: &[CommandSpec] = &[
             "runx loop retry <loop>",
             "runx loop skip <loop>",
             "runx loop message <loop> <text>",
+            "runx loop token <loop> [webhook] [-j|--json]",
         ],
         notes: &[
             "`new` copies the skill's loop template to loops/<name>.yaml for you to fill in. `show` says everything the loop's record holds of it now: its notices, and each proposal with its id.",
             "A run never changes its loop: it proposes. `accept` takes a change to the loop's brief or inputs, writing the file's next revision, or makes a new loop's file under the authority you name, not started. `decline` keeps your words.",
             "After a run that changed something and then failed, or one admission refused, the loop pauses for you. `retry` gives its batch to a new attempt; `skip` moves past it. `message` tells the loop something, which wakes it.",
+            "`token` makes a new token for one of the loop's webhooks, the one its file names or the one you name, and prints the address a sender posts its JSON payload to, carrying it. The token is shown once and kept only by its digest; a new one stops the address before working. Each payload goes in the loop's inbox once, before runx answers, and wakes it.",
         ],
         options: &["--authority <name>", "--why <words>", "-j, --json"],
     },

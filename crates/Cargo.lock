@@ -2769,6 +2769,7 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
+ "tempfile",
  "toml_edit",
  "url",
 ]

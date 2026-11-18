@@ -266,12 +266,13 @@ impl Trigger {
         } else if entry.contains_key("feed") {
             only(&["feed"])?;
             let written = text("feed")?;
+            // A connector's name may hold a slash; a feed's never does.
             let (connector, feed) = written
-                .split_once('/')
+                .rsplit_once('/')
                 .filter(|(connector, feed)| !connector.is_empty() && !feed.is_empty())
                 .ok_or_else(|| {
                     invalid(&format!(
-                        "feed: {written} names no feed: write it <connector>/<feed>, such as mailsim/mail.events"
+                        "feed: {written} names no feed: write it <connector>/<feed>, the connector's name and then one of the feeds its manifest declares"
                     ))
                 })?;
             Ok(Self::Feed {
@@ -606,10 +607,17 @@ mod tests {
     fn a_loop_file_reads_as_written_and_is_refused_in_its_own_words()
     -> Result<(), Box<dyn std::error::Error>> {
         let file = LoopFile::parse(
-            b"calls: acme/outreach#cycle\nbrief: Win design partners.\ninputs: {company: {name: Acme}}\non: [{every: 1d}, {feed: mailsim/mail.events}]\npolicy: {retry: [1m, 1h]}\n",
+            b"calls: acme/outreach#cycle\nbrief: Win design partners.\ninputs: {company: {name: Acme}}\non: [{every: 1d}, {feed: acme/mail/inbox}]\npolicy: {retry: [1m, 1h]}\n",
         )?;
         assert_eq!(file.calls.to_string(), "acme/outreach#cycle");
         assert_eq!(file.on[0], Trigger::Every(Span::parse("1d")?));
+        assert_eq!(
+            file.on[1],
+            Trigger::Feed {
+                connector: "acme/mail".to_owned(),
+                feed: "inbox".to_owned()
+            }
+        );
         assert_eq!(file.policy.batch, 100);
         assert_eq!(file.policy.retry_after(5).num_minutes(), 60);
         let refused = |bytes: &[u8]| LoopFile::parse(bytes).err().map(|error| error.to_string());

@@ -332,3 +332,259 @@ fn the_loop_runs_its_file_as_written_now_and_an_invalid_one_starts_nothing() -> 
     assert_eq!(loops.state(&acme)?.couldnt, None);
     Ok(())
 }
+
+/// A mail connector whose inbox is a feed, served over HTTP.
+const MAIL: &str = r#"
+schema: runx.connector.v1
+name: example/mail
+title: Example Mail
+description: Mail with an inbox feed.
+auth: {none: {}}
+placements: {local: {auth: [none]}}
+feeds:
+  inbox:
+    description: Replies, bounces and unsubscribes, oldest first.
+    operation: inbox.read
+    cursor: {input: after, result: cursor}
+    events: {result: events, id: id}
+    more: more
+    wait: wait
+    gap: gap
+operations:
+  inbox.read:
+    description: Read what arrived after a cursor.
+    verb: read
+    scopes: [mail.read]
+    target: {template: "https://mail.example.com/inbox"}
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        after: {type: string}
+        wait: {type: integer, minimum: 0, maximum: 60}
+    result_fields: [events, cursor, more, gap]
+    cost: {usd_micro: 0, per: request, source: docs, source_url: "https://mail.example.com/pricing"}
+    implementation:
+      http:
+        allowed_hosts: [mail.example.com]
+        requests:
+          - http_method: GET
+            url: "https://mail.example.com/inbox"
+            query: {after: {"$argument": "/after"}, wait: {"$argument": "/wait"}}
+        result_paths: {events: acknowledgement.events, cursor: acknowledgement.cursor, more: acknowledgement.more, gap: acknowledgement.gap}
+"#;
+
+/// The mail provider's wire: it answers each read with the next page it was
+/// given, the last one again once they run out, and keeps each URL it got.
+#[derive(Clone, Default)]
+struct Wire {
+    pages: std::sync::Arc<std::sync::Mutex<Vec<serde_json::Value>>>,
+    sent: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+impl runx_runtime::RuntimeHttpTransport for Wire {
+    fn send(
+        &self,
+        request: runx_runtime::RuntimeHttpRequest,
+    ) -> Result<runx_runtime::RuntimeHttpResponse, runx_runtime::RuntimeHttpError> {
+        if let Ok(mut sent) = self.sent.lock() {
+            sent.push(request.url);
+        }
+        let mut pages =
+            self.pages
+                .lock()
+                .map_err(|_| runx_runtime::RuntimeHttpError::Transport {
+                    message: "the wire's pages are poisoned".to_owned(),
+                })?;
+        let page = if pages.len() > 1 {
+            pages.remove(0)
+        } else {
+            pages[0].clone()
+        };
+        Ok(runx_runtime::RuntimeHttpResponse::new(
+            200,
+            page.to_string(),
+        ))
+    }
+}
+
+/// What a feed answers is taken into the loop's inbox once, under each
+/// event's provider id, its cursor moving after it; a poll that finds
+/// nothing appends nothing; and the wake it causes has the events in its
+/// batch. A provider that can't replay from the cursor wakes it with a gap.
+#[test]
+fn a_feed_s_events_go_into_the_inbox_once_and_wake_the_loop_with_them() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    write_skill(root)?;
+    std::fs::create_dir_all(root.join("connectors/example/mail"))?;
+    std::fs::write(root.join("connectors/example/mail/connector.yaml"), MAIL)?;
+    let wire = Wire::default();
+    let reply = serde_json::json!({"id": "m1", "type": "reply", "from": "ana@example.org"});
+    let bounce = serde_json::json!({"id": "m2", "type": "bounce"});
+    wire.pages.lock().map_err(|_| "poisoned")?.extend([
+        serde_json::json!({"events": [reply], "cursor": "1", "more": true, "gap": false}),
+        serde_json::json!({"events": [bounce], "cursor": "2", "more": false, "gap": false}),
+        // Read again after a crash, before its cursor moved: nothing twice.
+        serde_json::json!({"events": [bounce], "cursor": "2", "more": false, "gap": false}),
+        serde_json::json!({"events": [], "cursor": "2", "more": false, "gap": false}),
+        serde_json::json!({"events": [], "cursor": "9", "more": false, "gap": true}),
+    ]);
+    let effects = runx_runtime::RuntimeEffectRegistry::with_effect(
+        runx_runtime::OperationEffect::with_http_transport(wire.clone()),
+    )?;
+    let loops = Loops::open(env(root), root, LocalOrchestrator::with_effects(effects))?;
+    let acme = LoopName::new("acme")?;
+    write_loop(
+        root,
+        "acme",
+        "calls: ./skills/ticker#tick\nbrief: Count Acme's mail.\ninputs: {label: acme}\non: [{feed: example/mail/outbox}]\n",
+    )?;
+    let refused = loops
+        .start(&acme, "person:kam", Utc::now())
+        .err()
+        .map(|error| error.to_string());
+    assert!(
+        refused
+            .as_deref()
+            .is_some_and(|why| why.contains("connector example/mail offers no feed outbox")),
+        "{refused:?}"
+    );
+    write_loop(
+        root,
+        "acme",
+        "calls: ./skills/ticker#tick\nbrief: Count Acme's mail.\ninputs: {label: acme}\non: [{feed: example/mail/inbox}]\n",
+    )?;
+    loops.start(&acme, "person:kam", Utc::now())?;
+    let feeds = loops.feeds(&acme)?;
+    assert_eq!(feeds.len(), 1);
+    let wait = std::time::Duration::from_secs(50);
+
+    let first = loops.poll(&acme, &feeds[0], wait)?;
+    assert_eq!((first.taken, first.more), (1, true));
+    let second = loops.poll(&acme, &feeds[0], wait)?;
+    assert_eq!((second.taken, second.more), (1, false));
+    assert_eq!(
+        loops.poll(&acme, &feeds[0], wait)?.taken,
+        0,
+        "nothing twice"
+    );
+    let inbox = loops.state(&acme)?;
+    assert_eq!(
+        inbox.cursors.get("example/mail/inbox").map(String::as_str),
+        Some("\"2\"")
+    );
+    let before = loops.state(&acme)?.version;
+    assert_eq!(loops.poll(&acme, &feeds[0], wait)?.taken, 0);
+    assert_eq!(
+        loops.state(&acme)?.version,
+        before,
+        "a poll that finds nothing records nothing"
+    );
+    let sent = wire.sent.lock().map_err(|_| "poisoned")?.clone();
+    assert!(
+        !sent[0].contains("after="),
+        "from the feed's start: {}",
+        sent[0]
+    );
+    assert!(
+        sent[1].contains("after=1") && sent[1].contains("wait=50"),
+        "{}",
+        sent[1]
+    );
+    assert!(sent[3].contains("after=2"), "{}", sent[3]);
+
+    let woke = loops.pass(&acme, Utc::now())?;
+    let run = woke
+        .woke
+        .clone()
+        .ok_or_else(|| format!("the feed's events didn't wake it: {woke:?}"))?;
+    assert_eq!(
+        result(root, &run)?["kinds"],
+        serde_json::json!(["feed", "feed"])
+    );
+
+    let gap = loops.poll(&acme, &feeds[0], wait)?;
+    assert_eq!(gap.taken, 1);
+    assert_eq!(
+        loops
+            .state(&acme)?
+            .cursors
+            .get("example/mail/inbox")
+            .map(String::as_str),
+        Some("\"9\""),
+        "read on from where the provider can replay"
+    );
+    let woke = loops.pass(&acme, Utc::now())?;
+    let run = woke.woke.ok_or("the gap didn't wake it")?;
+    assert_eq!(result(root, &run)?["kinds"], serde_json::json!(["gap"]));
+    Ok(())
+}
+
+/// A webhook's token routes a request to its loop while the loop takes it;
+/// each payload goes in the inbox once, by its body, and wakes the loop with
+/// it in the batch; a new token retires the one before.
+#[test]
+fn a_webhook_s_payload_goes_into_the_inbox_once_and_a_new_token_retires_the_old() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    write_skill(root)?;
+    write_loop(
+        root,
+        "acme",
+        "calls: ./skills/ticker#tick\nbrief: Count Acme's mail.\ninputs: {label: acme}\non: [{webhook: inbound}]\n",
+    )?;
+    let loops = Loops::open(env(root), root, orchestrator()?)?;
+    let acme = LoopName::new("acme")?;
+    let first = runx_loops::digest(b"first-token");
+    assert_eq!(loops.rotate_token(&acme, None, &first)?, "inbound");
+    let refused = loops
+        .rotate_token(&acme, Some("outbound"), &first)
+        .err()
+        .map(|error| error.to_string());
+    assert_eq!(
+        refused.as_deref(),
+        Some("loop acme takes no webhook outbound; its file names webhook inbound")
+    );
+    // Not started, it takes nothing.
+    assert_eq!(loops.webhook_of(&first)?, None);
+    loops.start(&acme, "person:kam", Utc::now())?;
+    let (name, webhook) = loops
+        .webhook_of(&first)?
+        .ok_or("its token routes nowhere")?;
+    assert_eq!((name.as_str(), webhook.as_str()), ("acme", "inbound"));
+    let body = br#"{"id": "m1", "type": "reply", "from": "ana@example.org"}"#;
+    assert!(loops.take_webhook(&acme, "inbound", body)?);
+    assert!(
+        !loops.take_webhook(&acme, "inbound", body)?,
+        "the same payload once"
+    );
+    let invalid = loops
+        .take_webhook(&acme, "inbound", b"not json")
+        .err()
+        .map(|error| error.to_string());
+    assert!(invalid.is_some_and(|why| why.starts_with("a webhook's payload is JSON")));
+
+    let woke = loops.pass(&acme, Utc::now())?;
+    let run = woke
+        .woke
+        .clone()
+        .ok_or_else(|| format!("the payload didn't wake it: {woke:?}"))?;
+    assert_eq!(result(root, &run)?["kinds"], serde_json::json!(["webhook"]));
+
+    let second = runx_loops::digest(b"second-token");
+    loops.rotate_token(&acme, Some("inbound"), &second)?;
+    assert_eq!(
+        loops.webhook_of(&first)?,
+        None,
+        "the old token routes nowhere"
+    );
+    assert!(loops.webhook_of(&second)?.is_some());
+    loops.stop(&acme, "person:kam", "done", Utc::now())?;
+    assert_eq!(
+        loops.webhook_of(&second)?,
+        None,
+        "a stopped loop takes nothing"
+    );
+    Ok(())
+}

@@ -79,7 +79,7 @@ const commandAnnotations: Readonly<Record<string, CommandAnnotation>> = {
   registry: annotation("external-stub", ["registry", "cli-presentation"], ["registry.validate"]),
   trust: annotation("filesystem", ["trust", "cli-presentation"], ["trust.validate"]),
   loops: annotation("none", ["loops", "cli-presentation"], ["loops.execute"]),
-  loop: annotation("filesystem", ["loops", "cli-presentation"], ["loop.new.validate", "loop.accept.validate", "loop.show.validate"]),
+  loop: annotation("filesystem", ["loops", "cli-presentation"], ["loop.new.validate", "loop.accept.validate", "loop.show.validate", "loop.token.validate"]),
   start: annotation("filesystem", ["loops", "always-on", "cli-presentation"], ["start.validate", "stop.validate"], "none"),
   run: annotation("local-runtime", ["loops", "workflow-runtime", "caller-mediated-resolution", "receipts", "always-on", "cli-presentation"], ["run.wake.validate", "run.method.validate"], "none"),
   on: annotation("local-runtime", ["always-on", "cli-presentation"], ["on.status.execute", "on.off.validate"], "none"),
@@ -115,7 +115,7 @@ const surfaceDefinitions: readonly RuntimeSurfaceDefinition[] = [
   surface("list", "runx-cli", "semantic", "Inventory output for tools, skills and packets stays represented."),
   surface("trust", "runx-cli + runx-runtime registry", "schema-exact", "A person states trust in a package ahead of any turn that loads it, as the record an approval writes, and a run can't state it."),
   surface("loops", "runx-loops + runx-cli", "fixture-backed", "A loop is a file in loops/ with a record of its own: listed, started, stopped, woken and answered natively; its runs are the engine's, and only the person accepts what it proposes."),
-  surface("always-on", "runx-cli always-on runx", "semantic", "One per runx home serves every started loop where its workspace lies, each on its own, sleeping until something is due; once off, no loop claims a wake."),
+  surface("always-on", "runx-cli always-on runx", "semantic", "One per runx home serves every started loop where its workspace lies, each on its own, sleeping until something is due; it reads each feed its loops take on its own and takes their webhooks on the port it keeps; once off, no loop claims a wake."),
 ];
 
 export interface CliFeatureParityContract {

@@ -3,11 +3,12 @@
 //! only a checked proposal reaches the record, and only a person's accept
 //! writes the loop's file.
 
-use chrono::{DateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
 use crate::file::{Calls, LoopFile, LoopName, digest};
+use crate::pass::stamp;
 use crate::records::{Action, Proposal, RecordEvent, Writes};
 use crate::{LoopError, Loops};
 
@@ -75,10 +76,6 @@ struct NewLoop {
 
 const fn yes() -> bool {
     true
-}
-
-fn stamp(at: DateTime<Utc>) -> String {
-    at.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
 /// The `loop` output a run's result holds, a packet's envelope or plain.

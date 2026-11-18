@@ -63,7 +63,8 @@ pub enum InboxEvent {
         connector: String,
         feed: String,
         event_id: String,
-        kind: String,
+        /// The event as the provider gave it: outside input, never anyone's
+        /// authority.
         #[serde(default)]
         data: Value,
     },

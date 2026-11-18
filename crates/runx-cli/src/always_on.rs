@@ -6,27 +6,43 @@
 //! changing something. A timed wait doesn't count the time a machine sleeps,
 //! so it reads the wall clock again at least every minute: a sleeping
 //! machine runs nothing, and on waking runx runs what came due, marked late.
+//! Each feed a loop takes events from is read here on its own thread, held
+//! open as long as its provider allows, and what arrives marks that loop due
+//! (the loop contract's E4). Its port, kept in the home so its address stays
+//! the same, also takes each loop's webhooks (§5.2): a request carrying a
+//! loop's token puts its payload in that loop's inbox before it's answered.
 //! `runx on` starts it; `runx off` asks it to stop, after which no loop
 //! claims a wake and a wake in hand has a grace to end; `runx status` says
 //! what it's doing.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
-use std::io::{BufRead as _, BufReader, Write as _};
+use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration as StdDuration;
 
 use chrono::{DateTime, Utc};
 use fs2::FileExt;
-use runx_loops::LoopName;
+use runx_loops::{Feed, LoopName};
 use runx_runtime::{WorkspaceEnv, WorkspaceLocation};
 use serde::{Deserialize, Serialize};
 
 /// The longest it waits before reading the wall clock again.
 const MOST_WAIT: StdDuration = StdDuration::from_secs(60);
+/// How long a feed's read may be held open while nothing arrives: within
+/// the time a provider's call is given.
+const FEED_WAIT: StdDuration = StdDuration::from_secs(50);
+/// The least time between a feed's reads that found nothing, for a provider
+/// that answers at once rather than holding the read.
+const FEED_PACE: StdDuration = StdDuration::from_secs(30);
+/// How long a feed that failed waits before it's read again, at first and
+/// at most, doubling between.
+const FEED_RETRY: (StdDuration, StdDuration) =
+    (StdDuration::from_secs(30), StdDuration::from_secs(600));
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AlwaysOnPlan {
@@ -140,16 +156,59 @@ pub(crate) fn serve_workspace(workspace: &WorkspaceEnv) -> Result<(), String> {
 
 /// Tell the always-on runx something changed, when it's on.
 pub(crate) fn ring(workspace: &WorkspaceEnv) {
-    send(&dir(workspace), "wake");
+    send(&dir(workspace), "ring");
 }
 
+/// Ask the always-on runx to `word`, `ring` or `off`, on its port.
 fn send(dir: &Path, word: &str) -> bool {
     let Some(serving) = read_serving(dir) else {
         return false;
     };
     TcpStream::connect((Ipv4Addr::LOCALHOST, serving.port))
-        .and_then(|mut stream| stream.write_all(format!("{word}\n").as_bytes()))
+        .and_then(|mut stream| {
+            stream.write_all(
+                format!("POST /{word} HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n")
+                    .as_bytes(),
+            )
+        })
         .is_ok()
+}
+
+/// The address loop webhooks are taken at: `http://127.0.0.1:<port>`, once
+/// the always-on runx has listened.
+pub(crate) fn address(workspace: &WorkspaceEnv) -> Option<String> {
+    kept_port(&dir(workspace)).map(|port| format!("http://127.0.0.1:{port}"))
+}
+
+/// The port the always-on runx listens on, kept from the first time it did.
+fn kept_port(dir: &Path) -> Option<u16> {
+    std::fs::read_to_string(dir.join("port"))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Listen on the loopback at the port kept in `dir`, or, the first time, at
+/// one the system gives, kept from then on: the address a tunnel in front of
+/// a webhook, or a paired browser, knows stays the same.
+fn listen(dir: &Path) -> Result<TcpListener, String> {
+    if let Some(port) = kept_port(dir) {
+        return TcpListener::bind((Ipv4Addr::LOCALHOST, port)).map_err(|error| {
+            format!(
+                "listening on the loopback at its port {port}: {error}. Free the port, or remove {} for a new one, which changes the address its webhooks are sent to",
+                dir.join("port").display()
+            )
+        });
+    }
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+        .map_err(|error| format!("listening on the loopback: {error}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|error| error.to_string())?
+        .port();
+    write_atomic(&dir.join("port"), port.to_string().as_bytes())?;
+    Ok(listener)
 }
 
 /// A line saying whether runx is on.
@@ -240,6 +299,8 @@ struct Bell {
     rung: bool,
     /// A loop's pass ended: what it found is taken.
     ended: bool,
+    /// Loops a feed put events in the inbox of: each is passed.
+    due: BTreeSet<Key>,
     off: bool,
 }
 
@@ -263,8 +324,7 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
     if lock.try_lock_exclusive().is_err() {
         return Ok(status_line(workspace) + "\n");
     }
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-        .map_err(|error| format!("listening on the loopback: {error}"))?;
+    let listener = listen(&dir)?;
     let port = listener
         .local_addr()
         .map_err(|error| error.to_string())?
@@ -281,22 +341,17 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
     log(&format!("on, process {}, port {port}", serving.pid));
     let bell = Arc::new((Mutex::new(Bell::default()), Condvar::new()));
     let ringer = Arc::clone(&bell);
+    let home = dir.clone();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
-            let mut line = String::new();
-            if BufReader::new(stream).read_line(&mut line).is_err() {
-                continue;
-            }
-            let (state, signal) = &*ringer;
-            if let Ok(mut state) = state.lock() {
-                state.rung = true;
-                state.off |= line.trim() == "off";
-            }
-            signal.notify_all();
+            let (bell, dir) = (Arc::clone(&ringer), home.clone());
+            std::thread::spawn(move || answer(stream, &bell, &dir));
         }
     });
     let binary = Binary::now();
     let mut served: BTreeMap<Key, Served> = BTreeMap::new();
+    // Each feed being read, by its loop, and the word that stops it.
+    let mut readers: BTreeMap<(Key, Feed), Arc<AtomicBool>> = BTreeMap::new();
     // What each loop's pass found, sent before it rings the bell.
     let (found, ended) = std::sync::mpsc::channel::<(Key, Option<DateTime<Utc>>)>();
     let take_ended = |served: &mut BTreeMap<Key, Served>| {
@@ -334,10 +389,30 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
         if !upgrading {
             let now = Utc::now();
             let listed = listed(&dir);
-            served.retain(|key, entry| entry.in_pass || listed.contains(key));
+            served.retain(|key, entry| entry.in_pass || listed.contains_key(key));
+            // Each feed a served loop takes events from is read on its own;
+            // a feed no loop takes any longer stops after its read.
+            let feeding = listed
+                .iter()
+                .flat_map(|(key, feeds)| feeds.iter().map(|feed| (key.clone(), feed.clone())))
+                .collect::<BTreeSet<_>>();
+            readers.retain(|reading, stop: &mut Arc<AtomicBool>| {
+                let keep = feeding.contains(reading);
+                if !keep {
+                    stop.store(true, Ordering::Relaxed);
+                }
+                keep
+            });
+            for reading in feeding {
+                if !readers.contains_key(&reading) {
+                    let stop = Arc::new(AtomicBool::new(false));
+                    readers.insert(reading.clone(), Arc::clone(&stop));
+                    read_feed(reading, Arc::clone(&bell), stop);
+                }
+            }
             // Each loop on its own: one's long wake never holds another's
             // due work. A loop not yet passed is due now.
-            for key in listed {
+            for key in listed.into_keys() {
                 let entry = served.entry(key.clone()).or_insert(Served {
                     in_pass: false,
                     next: now,
@@ -360,11 +435,19 @@ fn serve(workspace: &WorkspaceEnv) -> Result<String, String> {
         let (state, signal) = &*bell;
         let held = state.lock().map_err(|_| "its bell broke".to_owned())?;
         let mut held = signal
-            .wait_timeout_while(held, wait, |bell| !bell.rung && !bell.ended && !bell.off)
+            .wait_timeout_while(held, wait, |bell| {
+                !bell.rung && !bell.ended && !bell.off && bell.due.is_empty()
+            })
             .map_err(|_| "its bell broke".to_owned())?
             .0;
         rung = std::mem::take(&mut held.rung);
         held.ended = false;
+        let now = Utc::now();
+        for key in std::mem::take(&mut held.due) {
+            if let Some(entry) = served.get_mut(&key) {
+                entry.next = entry.next.min(now);
+            }
+        }
     }
     let _ = std::fs::remove_file(dir.join("state.json"));
     log("off");
@@ -450,20 +533,103 @@ impl Served {
     }
 }
 
-/// Every loop of every workspace served, by where it lies.
-fn listed(dir: &Path) -> Vec<Key> {
-    let mut listed = Vec::new();
+/// Every loop of every workspace served, by where it lies, with the feeds
+/// it takes events from.
+fn listed(dir: &Path) -> BTreeMap<Key, Vec<Feed>> {
+    let mut listed = BTreeMap::new();
     for location in workspaces(dir) {
-        let names = WorkspaceEnv::load_located(&location)
+        let loops = WorkspaceEnv::load_located(&location)
             .map_err(|error| error.to_string())
-            .and_then(|workspace| crate::loops::open(&workspace))
-            .and_then(|loops| loops.names().map_err(|error| error.to_string()));
-        match names {
-            Ok(names) => listed.extend(names.into_iter().map(|name| (location.clone(), name))),
+            .and_then(|workspace| crate::loops::open(&workspace));
+        let found = loops.and_then(|loops| {
+            loops
+                .names()
+                .map_err(|error| error.to_string())?
+                .into_iter()
+                .map(|name| {
+                    let feeds = loops.feeds(&name).map_err(|error| error.to_string())?;
+                    Ok(((location.clone(), name), feeds))
+                })
+                .collect::<Result<Vec<_>, String>>()
+        });
+        match found {
+            Ok(found) => listed.extend(found),
             Err(error) => log(&format!("{}: {error}", location.workspace.display())),
         }
     }
     listed
+}
+
+/// Read one loop's feed on its own thread until `stop` or `off`: each page
+/// held open as long as its provider allows, the loop marked due when one
+/// put events in its inbox, a page that found nothing followed by the next
+/// no sooner than the pace, and a read that failed tried again later, said
+/// once until it reads again.
+fn read_feed(reading: (Key, Feed), bell: Ringer, stop: Arc<AtomicBool>) {
+    std::thread::spawn(move || {
+        let ((location, name), feed) = &reading;
+        let stopped = || stop.load(Ordering::Relaxed) || off(&bell);
+        let mut loops = None;
+        let mut failing: Option<(String, StdDuration)> = None;
+        while !stopped() {
+            let started = std::time::Instant::now();
+            let read = match loops.take() {
+                Some(loops) => Ok(loops),
+                None => WorkspaceEnv::load_located(location)
+                    .map_err(|error| error.to_string())
+                    .and_then(|workspace| crate::loops::open(&workspace)),
+            }
+            .and_then(|opened: runx_loops::Loops| {
+                let polled = opened
+                    .poll(name, feed, FEED_WAIT)
+                    .map_err(|error| error.to_string());
+                loops = Some(opened);
+                polled
+            });
+            match read {
+                Ok(polled) => {
+                    if failing.take().is_some() {
+                        log(&format!("{name} reads feed {feed} again"));
+                    }
+                    if polled.taken > 0 {
+                        log(&format!("{name}: {} new from feed {feed}", polled.taken));
+                        let (state, signal) = &*bell;
+                        if let Ok(mut state) = state.lock() {
+                            state.due.insert((location.clone(), name.clone()));
+                        }
+                        signal.notify_all();
+                    }
+                    if !polled.more {
+                        pause(FEED_PACE.saturating_sub(started.elapsed()), &stopped);
+                    }
+                }
+                Err(why) => {
+                    let wait = match &failing {
+                        Some((said, wait)) if *said == why => (*wait * 2).min(FEED_RETRY.1),
+                        _ => {
+                            log(&format!("{name} couldn't read feed {feed}: {why}"));
+                            FEED_RETRY.0
+                        }
+                    };
+                    failing = Some((why, wait));
+                    loops = None;
+                    pause(wait, &stopped);
+                }
+            }
+        }
+    });
+}
+
+/// Wait `wait`, or less when `stopped` says so.
+fn pause(wait: StdDuration, stopped: &dyn Fn() -> bool) {
+    let until = std::time::Instant::now() + wait;
+    while !stopped() {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            return;
+        }
+        std::thread::sleep(left.min(StdDuration::from_secs(1)));
+    }
 }
 
 /// One pass over one loop, on its own thread: what it found, its earliest
@@ -516,5 +682,207 @@ fn pass_loop(
             log(&format!("{name}: {error}"));
             None
         }
+    }
+}
+
+/// The most a request to the always-on runx may carry.
+const BODY_MOST: usize = 1 << 20;
+
+/// One request on the always-on runx's port: `ring` and `off` from a command
+/// here, or a webhook's payload, put in its loop's inbox before it's
+/// answered. Anything else is answered 404.
+fn answer(mut stream: TcpStream, bell: &Ringer, dir: &Path) {
+    let _ = stream.set_read_timeout(Some(StdDuration::from_secs(10)));
+    let (status, said) = match request(&stream) {
+        Ok((method, path, body)) => route(&method, &path, &body, bell, dir),
+        Err(why) => (400, why),
+    };
+    let reason = match status {
+        200 => "OK",
+        202 => "Accepted",
+        204 => "No Content",
+        400 => "Bad Request",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        _ => "Internal Server Error",
+    };
+    let _ = stream.write_all(
+        format!(
+            "HTTP/1.1 {status} {reason}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{said}",
+            said.len()
+        )
+        .as_bytes(),
+    );
+}
+
+/// A request's method, path and body, the body no longer than its
+/// Content-Length says nor than [`BODY_MOST`].
+fn request(stream: &TcpStream) -> Result<(String, String, Vec<u8>), String> {
+    let mut reader = BufReader::new(stream.take(64 * 1024 + BODY_MOST as u64));
+    let mut line = String::new();
+    reader
+        .read_line(&mut line)
+        .map_err(|error| format!("reading the request: {error}"))?;
+    let mut words = line.split_whitespace();
+    let (Some(method), Some(path), Some(version)) = (words.next(), words.next(), words.next())
+    else {
+        return Err("a request starts `<method> <path> HTTP/1.1`\n".to_owned());
+    };
+    if !version.starts_with("HTTP/1.") {
+        return Err("a request is HTTP/1.1\n".to_owned());
+    }
+    let mut length = 0_usize;
+    loop {
+        let mut header = String::new();
+        reader
+            .read_line(&mut header)
+            .map_err(|error| format!("reading the request's headers: {error}\n"))?;
+        let header = header.trim_end();
+        if header.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = header.split_once(':')
+            && name.trim().eq_ignore_ascii_case("content-length")
+        {
+            length = value
+                .trim()
+                .parse()
+                .map_err(|_| "its Content-Length isn't a number\n".to_owned())?;
+        }
+    }
+    if length > BODY_MOST {
+        return Err(format!("a request carries at most {BODY_MOST} bytes\n"));
+    }
+    let mut body = vec![0; length];
+    reader
+        .read_exact(&mut body)
+        .map_err(|error| format!("reading the request's body: {error}\n"))?;
+    Ok((method.to_owned(), path.to_owned(), body))
+}
+
+fn route(method: &str, path: &str, body: &[u8], bell: &Ringer, dir: &Path) -> (u16, String) {
+    if method != "POST" {
+        return (405, "only POST is taken here\n".to_owned());
+    }
+    let (state, signal) = &**bell;
+    if path == "/ring" || path == "/off" {
+        if let Ok(mut state) = state.lock() {
+            state.rung = true;
+            state.off |= path == "/off";
+        }
+        signal.notify_all();
+        return (204, String::new());
+    }
+    let Some(token) = path
+        .strip_prefix("/webhook/")
+        .filter(|token| !token.is_empty())
+    else {
+        return (404, "nothing here\n".to_owned());
+    };
+    let token_digest = runx_loops::digest(token.as_bytes());
+    for location in workspaces(dir) {
+        let taken = WorkspaceEnv::load_located(&location)
+            .map_err(|error| error.to_string())
+            .and_then(|workspace| crate::loops::open(&workspace))
+            .and_then(|loops| {
+                let Some((name, webhook)) = loops
+                    .webhook_of(&token_digest)
+                    .map_err(|error| error.to_string())?
+                else {
+                    return Ok(None);
+                };
+                let new = loops
+                    .take_webhook(&name, &webhook, body)
+                    .map_err(|error| error.to_string())?;
+                Ok(Some((name, webhook, new)))
+            });
+        match taken {
+            Ok(Some((name, webhook, true))) => {
+                log(&format!("{name}: a request on webhook {webhook}"));
+                if let Ok(mut state) = state.lock() {
+                    state.due.insert((location, name));
+                }
+                signal.notify_all();
+                return (202, "taken\n".to_owned());
+            }
+            Ok(Some((_, _, false))) => return (200, "taken before\n".to_owned()),
+            Ok(None) => {}
+            Err(why) => return (400, format!("{why}\n")),
+        }
+    }
+    (
+        404,
+        "no loop here takes requests with that token\n".to_owned(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read as _, Write as _};
+    use std::net::{Ipv4Addr, TcpListener, TcpStream};
+    use std::sync::{Arc, Condvar, Mutex};
+
+    use super::{Bell, Ringer, answer};
+
+    type Tested<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
+    /// What the always-on runx answers `request`, sent to it over the
+    /// loopback, with the home `dir` serving no workspace.
+    fn answered(request: &[u8], bell: &Ringer, dir: &std::path::Path) -> Tested<String> {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
+        let port = listener.local_addr()?.port();
+        let mut client = TcpStream::connect((Ipv4Addr::LOCALHOST, port))?;
+        client.write_all(request)?;
+        let (server, _) = listener.accept()?;
+        answer(server, bell, dir);
+        let mut said = String::new();
+        client.read_to_string(&mut said)?;
+        Ok(said)
+    }
+
+    /// The bell as the requests left it: rung, and off.
+    fn rung(bell: &Ringer) -> Tested<(bool, bool)> {
+        let state = bell.0.lock().map_err(|_| "the bell broke")?;
+        Ok((state.rung, state.off))
+    }
+
+    #[test]
+    fn its_port_takes_its_bell_and_refuses_what_it_doesn_t_serve() -> Tested {
+        let home = tempfile::tempdir()?;
+        let bell: Ringer = Arc::new((Mutex::new(Bell::default()), Condvar::new()));
+        let ring = answered(
+            b"POST /ring HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\n\r\n",
+            &bell,
+            home.path(),
+        )?;
+        assert!(ring.starts_with("HTTP/1.1 204 "), "{ring}");
+        assert_eq!(rung(&bell)?, (true, false));
+        answered(
+            b"POST /off HTTP/1.1\r\nContent-Length: 0\r\n\r\n",
+            &bell,
+            home.path(),
+        )?;
+        assert_eq!(rung(&bell)?, (true, true));
+
+        let unknown = answered(
+            b"POST /webhook/no-such-token HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}",
+            &bell,
+            home.path(),
+        )?;
+        assert!(unknown.starts_with("HTTP/1.1 404 "), "{unknown}");
+        assert!(unknown.ends_with("no loop here takes requests with that token\n"));
+        let big = answered(
+            format!(
+                "POST /webhook/t HTTP/1.1\r\nContent-Length: {}\r\n\r\n",
+                super::BODY_MOST + 1
+            )
+            .as_bytes(),
+            &bell,
+            home.path(),
+        )?;
+        assert!(big.starts_with("HTTP/1.1 400 "), "{big}");
+        let read = answered(b"GET /webhook/t HTTP/1.1\r\n\r\n", &bell, home.path())?;
+        assert!(read.starts_with("HTTP/1.1 405 "), "{read}");
+        Ok(())
     }
 }
