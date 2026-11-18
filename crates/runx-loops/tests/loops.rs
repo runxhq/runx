@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use chrono::{DateTime, Duration, Utc};
-use runx_loops::{Ending, LoopName, Loops, Status};
+use runx_loops::{Ending, LoopName, Loops, Status, Waiting};
 use runx_runtime::orchestrator::LocalOrchestrator;
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
@@ -228,6 +228,49 @@ fn a_loop_wakes_on_the_person_its_clock_and_its_own_proposal_and_keeps_its_recor
         .map(|wake| wake.at)
         .collect();
     assert_eq!(wakes, [start + Duration::minutes(92)]);
+    Ok(())
+}
+
+/// A wake that asks the person stays the loop's live wake, and says it waits
+/// on them, so a listing tells them to answer it rather than that it works.
+#[test]
+fn a_wake_that_asks_the_person_waits_on_them() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    let dir = root.join("skills/asker");
+    std::fs::create_dir_all(&dir)?;
+    std::fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: asker\ndescription: Writes once it's approved.\n---\n\nWrites.\n",
+    )?;
+    std::fs::write(
+        dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  write:\n    effects: ask\n    steps:\n      - id: write\n        tool: fs.write\n        inputs: {path: told.txt, contents: told}\n",
+    )?;
+    write_loop(
+        root,
+        "asking",
+        "calls: ./skills/asker#write\nbrief: Write it.\n",
+    )?;
+    let loops = Loops::open(env(root), root, orchestrator()?)?;
+    let asking = LoopName::new("asking")?;
+    let start = at("2026-11-17T00:00:00Z")?;
+    loops.start(&asking, "person:kam", start)?;
+    loops.run_now(&asking, "person:kam")?;
+
+    let passed = loops.pass(&asking, start + Duration::seconds(5))?;
+    let run = passed
+        .woke
+        .clone()
+        .ok_or_else(|| format!("no wake: {passed:?}"))?;
+    assert!(passed.settled.is_empty(), "{passed:?}");
+    assert_eq!(passed.waiting, Some(Waiting::Person));
+    assert_eq!(
+        loops.state(&asking)?.live.map(|live| live.run),
+        Some(run.clone())
+    );
+    assert_eq!(loops.waiting(&run)?, Some(Waiting::Person));
+    assert!(!root.join("told.txt").exists());
     Ok(())
 }
 

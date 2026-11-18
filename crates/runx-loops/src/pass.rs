@@ -29,6 +29,10 @@ pub enum Waiting {
     Person,
     /// A time runx keeps: a script's wait or a bounded retry.
     Until(DateTime<Utc>),
+    /// A model's turn, the loop's own to drive on a zero-price model: one a
+    /// person's answer handed back, since the resume a person makes doesn't
+    /// drive the loop's model. On any other model it waits on the person.
+    Turn,
     /// An effect whose end is unknown, until custody settles it.
     Reconciling,
     /// Its driver is working it.
@@ -492,8 +496,8 @@ impl Loops {
         Ok(())
     }
 
-    /// Judge the live wake, drive it on when its time came or its process
-    /// died, and settle it when it ended.
+    /// Judge the live wake, drive it on when its time came, a model's turn
+    /// waits or its process died, and settle it when it ended.
     fn settle_live(
         &self,
         name: &LoopName,
@@ -518,7 +522,7 @@ impl Loops {
         if let Judged::Open(waiting) = &judged {
             let drive_on = match waiting {
                 Waiting::Until(at) => *at <= now,
-                Waiting::Orphaned => true,
+                Waiting::Turn | Waiting::Orphaned => true,
                 _ => false,
             };
             if drive_on {
@@ -624,12 +628,13 @@ impl Loops {
                 continue;
             };
             // A person's run is taken further as a wake is: when the time it
-            // waits for came, or the process driving it died.
+            // waits for came, a model's turn waits, or the process driving it
+            // died.
             let mut judged = self.judge(&person.run)?;
             if let Judged::Open(waiting) = &judged {
                 let drive_on = match waiting {
                     Waiting::Until(at) => *at <= now,
-                    Waiting::Orphaned => true,
+                    Waiting::Turn | Waiting::Orphaned => true,
                     _ => false,
                 };
                 if drive_on {
@@ -678,6 +683,15 @@ impl Loops {
         Ok(())
     }
 
+    /// What run `run` waits on while it's open, or `None` once it has ended,
+    /// so a listing says a wake waiting on the person waits on them.
+    pub fn waiting(&self, run: &str) -> Result<Option<Waiting>, LoopError> {
+        Ok(match self.judge(run)? {
+            Judged::Open(waiting) => Some(waiting),
+            Judged::Ended { .. } => None,
+        })
+    }
+
     /// How run `run` stands: open and on what it waits, or how it ended, by
     /// its state, what it changed and who ended it (§7).
     fn judge(&self, run: &str) -> Result<Judged, LoopError> {
@@ -711,22 +725,29 @@ impl Loops {
                                 ))
                             })
                             .map_or(Waiting::Person, Waiting::Until),
+                        ResolutionRequest::Turn { .. } => Waiting::Turn,
                         _ => Waiting::Person,
                     };
                     // A person's question outranks a reconciliation, which
-                    // outranks a time.
+                    // outranks a model's turn, which outranks a time.
                     waiting = Some(match (waiting, this) {
                         (Some(Waiting::Person), _) | (_, Waiting::Person) => Waiting::Person,
                         (Some(Waiting::Reconciling), _) | (_, Waiting::Reconciling) => {
                             Waiting::Reconciling
                         }
+                        (Some(Waiting::Turn), _) | (_, Waiting::Turn) => Waiting::Turn,
                         (Some(Waiting::Until(left)), Waiting::Until(right)) => {
                             Waiting::Until(left.min(right))
                         }
                         (_, this) => this,
                     });
                 }
-                Ok(Judged::Open(waiting.unwrap_or(Waiting::Person)))
+                // A model's turn is the loop's only on a zero-price model, as
+                // a wake is; on any other it's the person's to drive.
+                Ok(Judged::Open(match waiting.unwrap_or(Waiting::Person) {
+                    Waiting::Turn if self.zero_price().is_err() => Waiting::Person,
+                    waiting => waiting,
+                }))
             }
             RunState::Sealed => {
                 let changes = runx_runtime::run_record::changes(&self.env, &self.cwd, run)
@@ -796,18 +817,19 @@ impl Loops {
         }
     }
 
-    /// Drive a waiting run on: at its time, resumed with nothing new; after
-    /// its process died, started again by its id, which continues it from
-    /// its record.
+    /// Drive a waiting run on: at its time, or at a model's turn, resumed
+    /// with nothing new; after its process died, started again by its id,
+    /// which continues it from its record. Either way its turns are driven
+    /// as nobody's watching.
     fn drive_on(&self, run: &str, bound: &Bound, waiting: &Waiting) -> Result<(), LoopError> {
         let result = match waiting {
-            Waiting::Until(_) => self.orchestrator.resume(&ResumeRequest {
+            Waiting::Until(_) | Waiting::Turn => self.orchestrator.resume(&ResumeRequest {
                 run_id: run.to_owned(),
                 answers: runx_contracts::ResumeDocument::default(),
                 receipt_dir: None,
                 env: self.env.clone(),
                 cwd: self.cwd.clone(),
-                drive: DrivePolicy::Inline { max_rounds: None },
+                drive: self.unattended_drive(),
                 package_digest: None,
                 closure_digest: None,
             }),
@@ -947,9 +969,22 @@ impl Loops {
     }
 
     /// The request that continues run `run`, which takes its inputs and its
-    /// context from its record.
+    /// context from its record, its turns driven as nobody's watching.
     fn continuation(&self, bound: &Bound, run: &str) -> Result<SkillRunRequest, LoopError> {
-        self.request(bound, run, &Map::new(), Vec::new(), None)
+        let mut request = self.request(bound, run, &Map::new(), Vec::new(), None)?;
+        request.drive = self.unattended_drive();
+        Ok(request)
+    }
+
+    /// How a pass drives a run's turns with nobody watching: inline on a
+    /// zero-price model, as a wake's are, and on any other handed back to the
+    /// person, whose resume drives them.
+    fn unattended_drive(&self) -> DrivePolicy {
+        if self.zero_price().is_ok() {
+            DrivePolicy::Inline { max_rounds: None }
+        } else {
+            DrivePolicy::HostDriven
+        }
     }
 
     /// The request that starts run `run` of a loop's skill.

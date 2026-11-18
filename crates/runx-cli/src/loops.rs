@@ -7,7 +7,7 @@ use std::ffi::OsString;
 use std::process::ExitCode;
 
 use chrono::{DateTime, Local, Utc};
-use runx_loops::{Ending, LoopFile, LoopName, LoopState, Loops, Status};
+use runx_loops::{Ending, LoopFile, LoopName, LoopState, Loops, Status, Waiting};
 use runx_runtime::WorkspaceEnv;
 use serde_json::{Map, Value};
 
@@ -229,9 +229,9 @@ fn execute(plan: &LoopsPlan, workspace: &WorkspaceEnv) -> Result<Done, String> {
             let loop_name = name(loop_name)?;
             let state = loops.state(&loop_name).map_err(fail)?;
             return Ok(Done::Text(if plan.json {
-                show_json(&loop_name, &state)?
+                show_json(&loops, &loop_name, &state)?
             } else {
-                show(&loop_name, &state)
+                show(&loops, &loop_name, &state)?
             }));
         }
         LoopAction::Start { name: loop_name } => {
@@ -481,12 +481,8 @@ fn list(loops: &Loops, workspace: &WorkspaceEnv) -> Result<String, String> {
             |file| file.calls.to_string(),
         );
         out.push_str(&format!("{name}  {calls}  {}\n", status(&state)));
-        if let Some(live) = &state.live {
-            out.push_str(&format!(
-                "  working: {} since {}\n",
-                live.run,
-                ago(&live.at, now)
-            ));
+        if let Some(live) = live_line(loops, &state, now)? {
+            out.push_str(&format!("  {live}\n"));
         }
         if let Some(last) = &state.last {
             out.push_str(&format!(
@@ -549,7 +545,7 @@ fn proposal_line(proposal: &runx_loops::Proposal) -> String {
 }
 
 /// One loop in full: its state, its notices and what it proposes.
-fn show(name: &LoopName, state: &LoopState) -> String {
+fn show(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<String, String> {
     let now = Utc::now();
     let mut out = format!("{name}: {}\n", status(state));
     if let Some(file) = state.active_file().and_then(Result::ok) {
@@ -565,6 +561,9 @@ fn show(name: &LoopName, state: &LoopState) -> String {
         "answered for its inbox up to {}\n",
         state.position
     ));
+    if let Some(live) = live_line(loops, state, now)? {
+        out.push_str(&format!("{live}\n"));
+    }
     if let Some(pending) = &state.pending {
         out.push_str(&format!(
             "a revision that widens it waits for a start: {pending}\n"
@@ -601,7 +600,7 @@ fn show(name: &LoopName, state: &LoopState) -> String {
             out.push_str(&format!("{detail}\n"));
         }
     }
-    out
+    Ok(out)
 }
 
 /// How far a trigger's events are taken: a feed's cursor, or whether a
@@ -622,17 +621,71 @@ fn taken(name: &LoopName, trigger: &runx_loops::Trigger, state: &LoopState) -> S
     }
 }
 
-fn show_json(name: &LoopName, state: &LoopState) -> Result<String, String> {
-    serde_json::to_string_pretty(&view(name, state)).map_err(|error| error.to_string())
+/// What the loop's live wake waits on, or `None` when it has none, or its
+/// run ended and no pass has settled it yet.
+fn live_waiting(loops: &Loops, state: &LoopState) -> Result<Option<Waiting>, String> {
+    state.live.as_ref().map_or(Ok(None), |live| {
+        loops.waiting(&live.run).map_err(|error| error.to_string())
+    })
 }
 
-fn view(name: &LoopName, state: &LoopState) -> Value {
-    serde_json::json!({
+/// The loop's live wake as the person reads it: one waiting on them says so,
+/// and how to answer it.
+fn live_line(
+    loops: &Loops,
+    state: &LoopState,
+    now: DateTime<Utc>,
+) -> Result<Option<String>, String> {
+    let Some(live) = &state.live else {
+        return Ok(None);
+    };
+    let since = ago(&live.at, now);
+    Ok(Some(match live_waiting(loops, state)? {
+        Some(Waiting::Person) => format!(
+            "waits on you since {since}: {} (`runx resume {}`)",
+            live.run, live.run
+        ),
+        Some(Waiting::Until(at)) => format!("waits until {}: {}", when(at), live.run),
+        Some(Waiting::Reconciling) => format!(
+            "waits while runx finds out how an effect ended: {}",
+            live.run
+        ),
+        _ => format!("working: {} since {since}", live.run),
+    }))
+}
+
+fn show_json(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<String, String> {
+    serde_json::to_string_pretty(&view(loops, name, state)?).map_err(|error| error.to_string())
+}
+
+fn view(loops: &Loops, name: &LoopName, state: &LoopState) -> Result<Value, String> {
+    // The live wake, and what it waits on while it waits: the person, a
+    // time, or how an effect ended.
+    let waiting = live_waiting(loops, state)?;
+    let live = state.live.as_ref().map(|live| {
+        let mut view = Map::new();
+        view.insert("run".to_owned(), Value::from(live.run.clone()));
+        view.insert("since".to_owned(), Value::from(live.at.clone()));
+        let waits_on = match &waiting {
+            Some(Waiting::Person) => Some("person"),
+            Some(Waiting::Until(at)) => {
+                view.insert("until".to_owned(), Value::from(at.to_rfc3339()));
+                Some("time")
+            }
+            Some(Waiting::Reconciling) => Some("reconciliation"),
+            _ => None,
+        };
+        if let Some(waits_on) = waits_on {
+            view.insert("waits_on".to_owned(), Value::from(waits_on));
+        }
+        Value::Object(view)
+    });
+    Ok(serde_json::json!({
         "loop": name.as_str(),
         "status": status(state),
         "calls": state.active_file().and_then(Result::ok).map(|file| file.calls.to_string()),
         "position": state.position,
-        "live": state.live.as_ref().map(|live| &live.run),
+        "live": live,
         "last": state.last.as_ref().map(|last| serde_json::json!({"run": last.run, "ending": last.ending, "at": last.at})),
         "couldnt": state.couldnt,
         "next_wake": state.wakes.values().map(|wake| wake.at).min(),
@@ -641,14 +694,14 @@ fn view(name: &LoopName, state: &LoopState) -> Value {
         "open": state.people.values().map(|person| serde_json::json!({"method": person.method, "run": person.run})).collect::<Vec<_>>(),
         "cursors": state.cursors,
         "webhooks_with_addresses": state.tokens.keys().collect::<Vec<_>>(),
-    })
+    }))
 }
 
 fn list_json(loops: &Loops) -> Result<String, String> {
     let mut all = Vec::new();
     for name in loops.names().map_err(|error| error.to_string())? {
         let state = loops.state(&name).map_err(|error| error.to_string())?;
-        all.push(view(&name, &state));
+        all.push(view(loops, &name, &state)?);
     }
     serde_json::to_string_pretty(&serde_json::json!({"schema": "runx.loops.v1", "loops": all}))
         .map(|text| text + "\n")
