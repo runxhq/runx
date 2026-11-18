@@ -694,7 +694,7 @@ const BODY_MOST: usize = 1 << 20;
 fn answer(mut stream: TcpStream, bell: &Ringer, dir: &Path) {
     let _ = stream.set_read_timeout(Some(StdDuration::from_secs(10)));
     let (status, said) = match request(&stream) {
-        Ok((method, path, body)) => route(&method, &path, &body, bell, dir),
+        Ok((method, path, headers, body)) => route(&method, &path, &headers, &body, bell, dir),
         Err(why) => (400, why),
     };
     let reason = match status {
@@ -715,9 +715,11 @@ fn answer(mut stream: TcpStream, bell: &Ringer, dir: &Path) {
     );
 }
 
-/// A request's method, path and body, the body no longer than its
+/// A request's method, path, headers and body, the body no longer than its
 /// Content-Length says nor than [`BODY_MOST`].
-fn request(stream: &TcpStream) -> Result<(String, String, Vec<u8>), String> {
+type Request = (String, String, Vec<(String, String)>, Vec<u8>);
+
+fn request(stream: &TcpStream) -> Result<Request, String> {
     let mut reader = BufReader::new(stream.take(64 * 1024 + BODY_MOST as u64));
     let mut line = String::new();
     reader
@@ -732,6 +734,7 @@ fn request(stream: &TcpStream) -> Result<(String, String, Vec<u8>), String> {
         return Err("a request is HTTP/1.1\n".to_owned());
     }
     let mut length = 0_usize;
+    let mut headers = Vec::new();
     loop {
         let mut header = String::new();
         reader
@@ -741,13 +744,14 @@ fn request(stream: &TcpStream) -> Result<(String, String, Vec<u8>), String> {
         if header.is_empty() {
             break;
         }
-        if let Some((name, value)) = header.split_once(':')
-            && name.trim().eq_ignore_ascii_case("content-length")
-        {
-            length = value
-                .trim()
-                .parse()
-                .map_err(|_| "its Content-Length isn't a number\n".to_owned())?;
+        if let Some((name, value)) = header.split_once(':') {
+            if name.trim().eq_ignore_ascii_case("content-length") {
+                length = value
+                    .trim()
+                    .parse()
+                    .map_err(|_| "its Content-Length isn't a number\n".to_owned())?;
+            }
+            headers.push((name.trim().to_owned(), value.trim().to_owned()));
         }
     }
     if length > BODY_MOST {
@@ -757,10 +761,17 @@ fn request(stream: &TcpStream) -> Result<(String, String, Vec<u8>), String> {
     reader
         .read_exact(&mut body)
         .map_err(|error| format!("reading the request's body: {error}\n"))?;
-    Ok((method.to_owned(), path.to_owned(), body))
+    Ok((method.to_owned(), path.to_owned(), headers, body))
 }
 
-fn route(method: &str, path: &str, body: &[u8], bell: &Ringer, dir: &Path) -> (u16, String) {
+fn route(
+    method: &str,
+    path: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+    bell: &Ringer,
+    dir: &Path,
+) -> (u16, String) {
     if method != "POST" {
         return (405, "only POST is taken here\n".to_owned());
     }
@@ -792,7 +803,7 @@ fn route(method: &str, path: &str, body: &[u8], bell: &Ringer, dir: &Path) -> (u
                     return Ok(None);
                 };
                 let new = loops
-                    .take_webhook(&name, &webhook, body)
+                    .take_webhook(&name, &webhook, headers, body)
                     .map_err(|error| error.to_string())?;
                 Ok(Some((name, webhook, new)))
             });

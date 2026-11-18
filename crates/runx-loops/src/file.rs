@@ -174,8 +174,13 @@ pub enum Trigger {
     Cron { cron: String, tz: Tz },
     /// A connector's feed, `<connector>/<feed>` (the loop contract's E4).
     Feed { connector: String, feed: String },
-    /// A request to the loop's address with its token (§5.2), named.
-    Webhook { name: String },
+    /// A request to the loop's address with its token (§5.2), named, and the
+    /// header its sender names each delivery by, when it names one: a
+    /// delivery sent again is then the same event, whatever its body.
+    Webhook {
+        name: String,
+        delivery: Option<String>,
+    },
 }
 
 impl Trigger {
@@ -280,15 +285,32 @@ impl Trigger {
                 feed: feed.to_owned(),
             })
         } else if entry.contains_key("webhook") {
-            only(&["webhook"])?;
+            only(&["webhook", "delivery"])?;
             let name = text("webhook")?;
             LoopName::new(name).map_err(|_| {
                 invalid(&format!(
                     "webhook: {name} isn't a name: lowercase letters, digits and hyphens"
                 ))
             })?;
+            let delivery = if entry.contains_key("delivery") {
+                let header = text("delivery")?;
+                let token = !header.is_empty()
+                    && header.len() <= 64
+                    && header.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric() || b"!#$%&'*+.^_`|~-".contains(&byte)
+                    });
+                if !token {
+                    return Err(invalid(&format!(
+                        "delivery: {header} isn't a header name, such as X-GitHub-Delivery"
+                    )));
+                }
+                Some(header.to_ascii_lowercase())
+            } else {
+                None
+            };
             Ok(Self::Webhook {
                 name: name.to_owned(),
+                delivery,
             })
         } else {
             Err(invalid(
@@ -312,7 +334,14 @@ impl fmt::Display for Trigger {
             }
             Self::Cron { cron, tz } => write!(f, "cron {cron} in {tz}"),
             Self::Feed { connector, feed } => write!(f, "feed {connector}/{feed}"),
-            Self::Webhook { name } => write!(f, "webhook {name}"),
+            Self::Webhook {
+                name,
+                delivery: None,
+            } => write!(f, "webhook {name}"),
+            Self::Webhook {
+                name,
+                delivery: Some(header),
+            } => write!(f, "webhook {name}, each delivery by its {header} header"),
         }
     }
 }

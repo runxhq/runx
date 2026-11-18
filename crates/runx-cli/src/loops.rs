@@ -614,7 +614,9 @@ fn taken(name: &LoopName, trigger: &runx_loops::Trigger, state: &LoopState) -> S
                 || ", read from its start".to_owned(),
                 |cursor| format!(", read up to {cursor}"),
             ),
-        runx_loops::Trigger::Webhook { name: webhook } if !state.tokens.contains_key(webhook) => {
+        runx_loops::Trigger::Webhook { name: webhook, .. }
+            if !state.tokens.contains_key(webhook) =>
+        {
             format!(", which has no address yet: `runx loop token {name} {webhook}` gives one")
         }
         _ => String::new(),

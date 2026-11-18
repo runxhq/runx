@@ -627,6 +627,60 @@ fn a_feed_s_events_go_into_the_inbox_once_and_wake_the_loop_with_them() -> TestR
     Ok(())
 }
 
+/// A webhook whose trigger names its sender's delivery header knows each
+/// delivery by it: a retry with another body is the delivery it repeats,
+/// another id is another event, and a request without the header is refused.
+#[test]
+fn a_webhook_knows_each_delivery_by_its_sender_s_header() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path();
+    write_skill(root)?;
+    write_loop(
+        root,
+        "acme",
+        "calls: ./skills/ticker#tick\nbrief: Count Acme's mail.\ninputs: {label: acme}\non: [{webhook: inbound, delivery: X-Delivery-Id}]\n",
+    )?;
+    let loops = Loops::open(env(root), root, orchestrator()?)?;
+    let acme = LoopName::new("acme")?;
+    loops.rotate_token(&acme, None, &runx_loops::digest(b"token"))?;
+    loops.start(&acme, "person:kam", Utc::now())?;
+    let delivered = |id: &str| vec![("X-Delivery-Id".to_owned(), id.to_owned())];
+    assert!(loops.take_webhook(&acme, "inbound", &delivered("d1"), br#"{"n": 1}"#)?);
+    assert!(
+        !loops.take_webhook(
+            &acme,
+            "inbound",
+            &delivered("d1"),
+            br#"{"n": 1, "retried": true}"#
+        )?,
+        "a retry is the delivery it repeats"
+    );
+    assert!(
+        loops.take_webhook(&acme, "inbound", &delivered("d2"), br#"{"n": 1}"#)?,
+        "another delivery is another event"
+    );
+    let missing = loops
+        .take_webhook(&acme, "inbound", &[], br#"{"n": 3}"#)
+        .err()
+        .map(|error| error.to_string());
+    assert_eq!(
+        missing.as_deref(),
+        Some(
+            "webhook inbound knows each delivery by its x-delivery-id header, which this request doesn't carry"
+        )
+    );
+    let malformed = runx_loops::LoopFile::parse(
+        b"calls: ./skills/ticker#tick\nbrief: Count.\non: [{webhook: inbound, delivery: \"not a header\"}]\n",
+    )
+    .err()
+    .map(|error| error.to_string());
+    assert!(
+        malformed.is_some_and(|why| why.contains("isn't a header name")),
+        "a header name is a token"
+    );
+    Ok(())
+}
+
 /// A webhook's token routes a request to its loop while the loop takes it;
 /// each payload goes in the inbox once, by its body, and wakes the loop with
 /// it in the batch; a new token retires the one before.
@@ -660,13 +714,13 @@ fn a_webhook_s_payload_goes_into_the_inbox_once_and_a_new_token_retires_the_old(
         .ok_or("its token routes nowhere")?;
     assert_eq!((name.as_str(), webhook.as_str()), ("acme", "inbound"));
     let body = br#"{"id": "m1", "type": "reply", "from": "ana@example.org"}"#;
-    assert!(loops.take_webhook(&acme, "inbound", body)?);
+    assert!(loops.take_webhook(&acme, "inbound", &[], body)?);
     assert!(
-        !loops.take_webhook(&acme, "inbound", body)?,
+        !loops.take_webhook(&acme, "inbound", &[], body)?,
         "the same payload once"
     );
     let invalid = loops
-        .take_webhook(&acme, "inbound", b"not json")
+        .take_webhook(&acme, "inbound", &[], b"not json")
         .err()
         .map(|error| error.to_string());
     assert!(invalid.is_some_and(|why| why.starts_with("a webhook's payload is JSON")));

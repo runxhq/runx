@@ -66,7 +66,11 @@ once its inputs are what the method takes.
   **feed**, a request on one of its **webhooks**, the person's message, or
   `runx run <name>`. A feed is read by the always-on runx with no run around
   it; a poll that finds nothing records nothing. A webhook's address comes
-  from `runx loop token <name>`.
+  from `runx loop token <name>`. A request on it is one event by its body,
+  unless its trigger names the header its sender gives each delivery's id,
+  `{webhook: inbound, delivery: X-GitHub-Delivery}`: then a delivery sent
+  again is the same event whatever its body, and a request without that
+  header is refused.
 - **A wake** is one run of the method on a batch of the inbox, claimed and
   started in one commit, one at a time. The run is given the loop, its brief,
   the time and its day, and what woke it, as two context entries,

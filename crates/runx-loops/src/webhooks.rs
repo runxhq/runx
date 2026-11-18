@@ -18,11 +18,23 @@ fn webhooks(file: &LoopFile) -> Vec<&str> {
     file.on
         .iter()
         .filter_map(|trigger| match trigger {
-            Trigger::Webhook { name } => Some(name.as_str()),
+            Trigger::Webhook { name, .. } => Some(name.as_str()),
             _ => None,
         })
         .collect()
 }
+
+/// The header webhook `webhook` of `file` knows each delivery by, when its
+/// trigger names one.
+fn delivery_header<'file>(file: &'file LoopFile, webhook: &str) -> Option<&'file str> {
+    file.on.iter().find_map(|trigger| match trigger {
+        Trigger::Webhook { name, delivery } if name == webhook => delivery.as_deref(),
+        _ => None,
+    })
+}
+
+/// The most characters a delivery's id may hold.
+const DELIVERY_MOST: usize = 200;
 
 /// Whether loop `state` takes requests on its webhook `webhook` now: it runs
 /// or waits paused, and its revision names it.
@@ -96,12 +108,15 @@ impl Loops {
     }
 
     /// A request to loop `name`'s webhook `webhook` carrying `body`, a JSON
-    /// payload: put in the inbox once, by the body's digest. Returns whether
-    /// it was new.
+    /// payload, with its `headers`: put in the inbox once, by the delivery id
+    /// its trigger's header gives, else by the body's digest. A trigger that
+    /// names a header takes no request without it, since its sender sends it
+    /// with every delivery, a retry included. Returns whether it was new.
     pub fn take_webhook(
         &self,
         name: &LoopName,
         webhook: &str,
+        headers: &[(String, String)],
         body: &[u8],
     ) -> Result<bool, LoopError> {
         let state = self.read(name)?;
@@ -110,10 +125,35 @@ impl Loops {
                 "loop {name} takes no requests on webhook {webhook} now"
             )));
         }
+        let file = state
+            .active_file()
+            .transpose()?
+            .ok_or_else(|| LoopError::Unknown(name.to_string()))?;
+        let delivery = match delivery_header(&file, webhook) {
+            None => digest(body),
+            Some(header) => {
+                let id = headers
+                    .iter()
+                    .find(|(named, _)| named.eq_ignore_ascii_case(header))
+                    .map(|(_, value)| value.trim())
+                    .filter(|id| !id.is_empty())
+                    .ok_or_else(|| {
+                        LoopError::Refused(format!(
+                            "webhook {webhook} knows each delivery by its {header} header, which this request doesn't carry"
+                        ))
+                    })?;
+                if id.len() > DELIVERY_MOST || !id.bytes().all(|byte| byte.is_ascii_graphic()) {
+                    return Err(LoopError::Refused(format!(
+                        "webhook {webhook}'s {header} header isn't a delivery id: at most {DELIVERY_MOST} visible characters"
+                    )));
+                }
+                id.to_owned()
+            }
+        };
         let payload = serde_json::from_slice(body)
             .map_err(|error| LoopError::Invalid(format!("a webhook's payload is JSON: {error}")))?;
         let event = InboxEvent::Webhook {
-            identity: format!("webhook/{webhook}/{}", digest(body)),
+            identity: format!("webhook/{webhook}/{delivery}"),
             name: webhook.to_owned(),
             payload,
         };
