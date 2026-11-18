@@ -6,7 +6,7 @@ use serde_json::{Value as WireValue, json};
 
 use super::agent_loop::{
     AgentToolUse, AgentTurn, CallUsage, ModelAsk, ModelCaller, ModelReply, UNRECOGNIZED_MODEL_TOOL,
-    provider_failed, provider_response_failed, provider_unavailable, reply_cut,
+    provider_failed, provider_response_failed, provider_unavailable, reply_cut, timed_out,
 };
 use super::agent_tool_definitions::{AgentToolNameMap, wire_tool_name};
 use crate::RuntimeError;
@@ -175,7 +175,11 @@ impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
                 ],
                 body: Some(body),
             })
-            .map_err(|error| provider_unavailable(format!("openai request failed: {error}")))?;
+            .map_err(|error| {
+                timed_out(&error).unwrap_or_else(|| {
+                    provider_unavailable(format!("openai request failed: {error}"))
+                })
+            })?;
         if !(200..300).contains(&response.status) {
             return Err(provider_response_failed(
                 &response,

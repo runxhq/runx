@@ -554,12 +554,15 @@ async fn send_reqwest(
             builder = builder.body(body.clone());
         }
         crate::work_counts::count(crate::work_counts::Work::NetworkRequest);
-        let response = builder
-            .send()
-            .await
-            .map_err(|error| RuntimeHttpError::Transport {
-                message: transport_error_message(&error),
-            })?;
+        let response = builder.send().await.map_err(|error| {
+            if error.is_timeout() {
+                RuntimeHttpError::TimedOut
+            } else {
+                RuntimeHttpError::Transport {
+                    message: transport_error_message(&error),
+                }
+            }
+        })?;
         let status = response.status().as_u16();
         // Only a caller that knows the request may repeat says so: the
         // transport never infers it, not even from a GET.
@@ -733,6 +736,9 @@ pub enum RuntimeHttpError {
     InvalidUrl(#[from] url::ParseError),
     #[error("runtime HTTP transport failed: {message}")]
     Transport { message: String },
+    /// The request, or its answer, took longer than the transport's limit.
+    #[error("the request took longer than its time limit")]
+    TimedOut,
     #[error("runtime HTTP transport cannot block inside an active async runtime")]
     BlockingHttpInsideAsyncRuntime,
     #[error("runtime HTTP async runtime is unavailable: {message}")]
@@ -919,14 +925,15 @@ async fn read_response_body(
         return Err(RuntimeHttpError::ResponseBodyTooLarge { limit });
     }
     let mut body = Vec::new();
-    while let Some(chunk) =
-        response
-            .chunk()
-            .await
-            .map_err(|error| RuntimeHttpError::TransportDecode {
+    while let Some(chunk) = response.chunk().await.map_err(|error| {
+        if error.is_timeout() {
+            RuntimeHttpError::TimedOut
+        } else {
+            RuntimeHttpError::TransportDecode {
                 message: error.to_string(),
-            })?
-    {
+            }
+        }
+    })? {
         if body.len().saturating_add(chunk.len()) > limit {
             return Err(RuntimeHttpError::ResponseBodyTooLarge { limit });
         }
@@ -1887,7 +1894,9 @@ mod tests {
             .join()
             .map_err(|_| RuntimeHttpTestError::ServerThread)??;
 
-        assert!(matches!(error, Some(RuntimeHttpError::Transport { .. })));
+        // A stall is a timeout, named as one, so a caller can say which limit
+        // ran out; every driver still takes it as maybe sent.
+        assert!(matches!(error, Some(RuntimeHttpError::TimedOut)));
         Ok(())
     }
 }

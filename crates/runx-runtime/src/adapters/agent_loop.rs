@@ -268,6 +268,16 @@ pub(crate) fn provider_refused(status: u16, body: &str, key: Option<&str>) -> Ru
     provider_failed(detail)
 }
 
+/// A model that took longer than the operator's limit to answer, said with
+/// the setting that gives it longer, or `None` for any other failure.
+pub(crate) fn timed_out(error: &crate::http::RuntimeHttpError) -> Option<RuntimeError> {
+    matches!(error, crate::http::RuntimeHttpError::TimedOut).then(|| {
+        provider_unavailable(
+            "the model took longer to answer than agent.request_timeout_seconds allows; a slow model, such as a local one, needs longer: `runx config set agent.request_timeout_seconds <seconds>`, up to 3600",
+        )
+    })
+}
+
 /// A provider that couldn't be reached now, which the driver asks again.
 pub(crate) fn provider_unavailable(detail: impl Into<String>) -> RuntimeError {
     RuntimeError::ModelUnavailable {
