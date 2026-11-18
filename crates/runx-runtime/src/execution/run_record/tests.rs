@@ -1792,6 +1792,56 @@ fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
         .unwrap();
     claim("ship");
     log.record_request("ship", 1, &retry_of("ship")).unwrap();
+    // A script's calls claim before admission too. Its approval gate proves
+    // nothing was dispatched, even if the run later seals blocked. A new
+    // claim after approval, or a retry request, still means an unknown effect.
+    let call = |index, outcome: &CallOutcome| {
+        log.record_call(&CallRecord {
+            step_id: "script",
+            attempt: 1,
+            turn: None,
+            index,
+            call_id: None,
+            target: &CallTarget::Tool {
+                tool: "fs.write".into(),
+            },
+            context: &[],
+            input: &JsonObject::new(),
+            outcome,
+            outputs: &[],
+            standing: None,
+            answers: &[],
+            cancelled: false,
+            inline_bound: None,
+            reuse: None,
+            reuse_identity: None,
+            durability: crate::kernel::store::Durability::Durable,
+            effect: Leaves::World,
+            given: runx_contracts::ArtifactLabels::CONFIGURED_MODEL,
+        })
+        .unwrap();
+    };
+    let pending = |request: ResolutionRequest| {
+        let value = serde_json::to_value(&request).unwrap();
+        PendingRequest {
+            id: value["id"].as_str().unwrap().to_owned(),
+            digest: request_digest(&request).unwrap(),
+            value: serde_json::from_value(value).unwrap(),
+        }
+    };
+    let retry = CallOutcome::Claimed(pending(retry_of("script")));
+    for index in 0..3 {
+        call(index, &retry);
+        call(
+            index,
+            &CallOutcome::Pending(pending(approval("script.approval"))),
+        );
+    }
+    assert_eq!(read().unknown, 3, "only the fixed-step claims remain");
+    call(1, &retry);
+    call(2, &retry);
+    call(2, &CallOutcome::Pending(pending(retry_of("script"))));
+    assert_eq!(read().unknown, 5, "dispatched calls remain unresolved");
     let mut receipt = workflow_receipt(
         RunScope {
             run_id: "run_changes",
@@ -1808,7 +1858,7 @@ fn a_runs_changes_are_its_claims_on_the_world_and_how_they_settled() {
         read(),
         RunChanges {
             done: 1,
-            unknown: 2
+            unknown: 4
         }
     );
 }

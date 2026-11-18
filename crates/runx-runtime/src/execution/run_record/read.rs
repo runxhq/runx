@@ -261,6 +261,18 @@ pub fn changes(
                                 settle(&mut claims, at, Some(outcome.succeeded()));
                             }
                         }
+                        // A claim precedes admission. Reaching the approval
+                        // gate proves the call never dispatched; approving it
+                        // later makes a new claim before it reaches the world.
+                        // A retry request proves no such thing.
+                        CallOutcomeEvent::Pending { request, .. }
+                            if matches!(
+                                store.blob_json::<ResolutionRequest>(request)?,
+                                ResolutionRequest::Approval { .. }
+                            ) =>
+                        {
+                            settle(&mut claims, at, Some(false));
+                        }
                         // Admission or the person stopped it, it couldn't
                         // run, or its host cancelled it while it only read:
                         // nothing it did is in effect.
