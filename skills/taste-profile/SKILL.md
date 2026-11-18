@@ -44,7 +44,9 @@ their own evidence.
    questions to ask when evidence does not decide.
 5. Deterministic finalization verifies that every claimed preference cites an
    admitted source reference and releases a packet bound to the native digest
-   of the complete evidence set.
+   of the complete evidence set. Each `instruction` is kept as a decision rule
+   in the words it was stated in, first, bound to its own source, whatever the
+   synthesis made of it: a summary of a stated rule isn't the rule.
 
 ## Inputs and result
 

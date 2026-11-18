@@ -63,6 +63,19 @@ test("conflicting repeated sources or confidence cannot overwrite an earlier bin
   }
 });
 
+test("a stated instruction is a rule in its own words, first, whatever the synthesis made of it", () => {
+  const value = inputs();
+  Object.assign(value, indexEvidence({ subject: "maintainer", evidence: [
+    { kind: "instruction", content: "Never use exclamation marks." },
+    { kind: "liked", content: "Show the workflow." },
+  ] }));
+  value.taste_profile_draft.taste_profile.principles = [rule("Keep punctuation calm", ["source:1"])];
+  const packet = finish(value);
+  assert.equal(packet.decision, "ready");
+  assert.deepEqual(packet.taste_profile.decision_rules, ["Never use exclamation marks."]);
+  assert.deepEqual(packet.evidence.bindings.at(-1), rule("Never use exclamation marks.", ["source:1"], "explicit"));
+});
+
 test("an empty ready profile cannot release useful-context status", () => {
   assert.equal(finish(inputs()).decision, "needs_more_evidence");
 });

@@ -87,6 +87,16 @@ export function finalizeProfile(inputs) {
         if (!previous) bindingMap.set(rule, { rule, source_ids: sourceIds, confidence });
       }
     }
+    // A stated instruction is a rule in the words it was stated in, first,
+    // whatever the synthesis made of it: a summary of a rule isn't the rule.
+    const stated = [];
+    for (const source of sources.filter((candidate) => candidate.kind === "instruction")) {
+      const rule = text(source.content);
+      if (bindingMap.has(rule)) continue;
+      stated.push(rule);
+      bindingMap.set(rule, { rule, source_ids: [text(source.source_id)], confidence: "explicit" });
+    }
+    profile.decision_rules = [...stated, ...profile.decision_rules];
     if (bindingMap.size === 0) {
       findings.push({ code: "taste_profile.profile.empty", message: "ready profile has no evidence-bound rules" });
     }
