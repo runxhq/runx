@@ -462,6 +462,7 @@ impl Loops {
                 .collect(),
         };
         let scope = StreamScope::new(&bound.owner, name.as_str()).map_err(LoopError::Invalid)?;
+        let version = state.version;
         let started =
             self.orchestrator
                 .run_claimed(&request, Some(&bound.method), (claim, Some(scope)));
@@ -469,9 +470,9 @@ impl Loops {
         let ours = state.live.as_ref().is_some_and(|live| live.run == run);
         match started {
             Err(error) if !ours => {
-                // Another wake claimed first, or the start was refused before
-                // its commit: no run started.
-                if state.live.is_none() {
+                // A changed record, including a feed's cursor or a person's
+                // stop, is decided afresh next pass. No run started.
+                if state.version == version && state.live.is_none() {
                     return self.couldnt(name, state, file, now, error.to_string(), passed);
                 }
                 return Ok(());
@@ -1393,4 +1394,74 @@ pub(crate) fn declared_inputs(
         .find_map(|profile| profile.methods.get(method))
         .map(|definition| definition.inputs.keys().cloned().collect())
         .ok_or_else(|| format!("{} has no method {method}", loaded.package.skill.name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_record_that_moves_before_a_wake_claim_does_not_fail_the_loop()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+        std::fs::create_dir_all(root.join("skills/counter"))?;
+        std::fs::create_dir_all(root.join("loops"))?;
+        std::fs::write(
+            root.join("skills/counter/SKILL.md"),
+            "---\nname: counter\ndescription: Digest a value.\n---\n\nDigest.\n",
+        )?;
+        std::fs::write(
+            root.join("skills/counter/run.yaml"),
+            "minimum_runx: 0.12.0\nmethods:\n  tick:\n    steps:\n      - id: value\n        tool: data.digest\n        inputs: {value: hello}\n",
+        )?;
+        std::fs::write(
+            root.join("loops/acme.yaml"),
+            "calls: ./skills/counter#tick\nbrief: Digest a value.\n",
+        )?;
+        let env = [
+            ("RUNX_HOME", root.join("home").display().to_string()),
+            ("RUNX_CWD", root.display().to_string()),
+            ("RUNX_AGENT_PROVIDER", "local".into()),
+            ("RUNX_AGENT_DIALECT", "chat_completions".into()),
+            (
+                "RUNX_AGENT_ENDPOINT_URL",
+                "http://127.0.0.1:9/v1/chat/completions".into(),
+            ),
+            ("RUNX_AGENT_MODEL", "local-model".into()),
+            ("RUNX_AGENT_AUTH_MODE", "local_none".into()),
+        ]
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value))
+        .collect();
+        let loops = Loops::open(
+            env,
+            root,
+            runx_runtime::LocalOrchestrator::with_effects(
+                runx_runtime::RuntimeEffectRegistry::local()?,
+            ),
+        )?;
+        let name = LoopName::new("acme")?;
+        let now = Utc::now();
+        loops.start(&name, "person:kam", now)?;
+        loops.run_now(&name, "person:kam")?;
+        let mut state = loops.read(&name)?;
+        let file = state.active_file().ok_or("no active file")??;
+        // The person stops it after the wake read the record, before its
+        // claim commits. The stale claim starts nothing and changes nothing.
+        let stopped = loops.stop(&name, "person:kam", "wait", now)?;
+        let mut passed = Passed::default();
+        loops.wake(&name, &mut state, &file, now, &mut passed)?;
+        assert_eq!(passed.woke, None);
+        assert_eq!(state.version, stopped.version);
+        assert_eq!(state.couldnt, None);
+        assert_eq!(state.retry_at, None);
+        assert_eq!(state.position, 0);
+        // Its pending inbox still runs once it starts again.
+        loops.start(&name, "person:kam", now)?;
+        let next = loops.pass(&name, now)?;
+        assert!(next.woke.is_some(), "{next:?}");
+        assert_eq!(loops.state(&name)?.position, 1);
+        Ok(())
+    }
 }
