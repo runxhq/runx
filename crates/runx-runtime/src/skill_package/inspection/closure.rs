@@ -1308,6 +1308,20 @@ fn execution_summary(components: &[String], turns: usize, declared_artifact: boo
     }
 }
 
+/// Whether `error` says only that a connector isn't here: in no plugin of
+/// this scope, and not installed.
+fn not_here(error: &crate::kernel::connectors::ConnectorRegistryError) -> bool {
+    use crate::kernel::connectors::ConnectorRegistryError as Miss;
+    matches!(
+        error,
+        Miss::Unavailable { .. }
+            | Miss::NotInPlugin { .. }
+            | Miss::NoPlugin { .. }
+            | Miss::NotInstalledConnector { .. }
+            | Miss::NotInstalled { .. }
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1380,18 +1394,4 @@ mod tests {
         assert!(!plain.contains("declared artifact"), "{plain}");
         Ok(())
     }
-}
-
-/// Whether `error` says only that a connector isn't here: in no plugin of
-/// this scope, and not installed.
-fn not_here(error: &crate::kernel::connectors::ConnectorRegistryError) -> bool {
-    use crate::kernel::connectors::ConnectorRegistryError as Miss;
-    matches!(
-        error,
-        Miss::Unavailable { .. }
-            | Miss::NotInPlugin { .. }
-            | Miss::NoPlugin { .. }
-            | Miss::NotInstalledConnector { .. }
-            | Miss::NotInstalled { .. }
-    )
 }
