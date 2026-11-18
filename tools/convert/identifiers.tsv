@@ -510,6 +510,8 @@ oss	held	841	hold	?	a bare word: code or prose, read in place	CONVENTIONS.md SEC
 oss	closure	564	closure	?	a bare word: code or prose, read in place	CONVENTIONS.md README.md
 oss	hold	441	hold	?	a bare word: code or prose, read in place	.github/workflows/release.yml CONVENTIONS.md
 oss	closure_digest	149	closure	closure_digest	a package's closure, closure's one meaning	crates/runx-cli/src/export/shim.rs crates/runx-cli/src/history.rs
+oss	closure_path	3	closure	closure_path	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/kept.rs
+oss	kept_closure	1	closure	kept_closure	a package's closure, closure's one meaning	crates/runx-runtime/src/skill_package/kept.rs
 oss	holding	117	hold	?	a bare word: code or prose, read in place	crates/runx-cli/src/always_on.rs crates/runx-cli/src/command_spec/catalog.rs
 oss	harness	50	harness	?	a bare word: code or prose, read in place	crates/runx-cli/tests/router.rs crates/runx-contracts/src/host_protocol.rs
 oss	Hold	49	hold	Hold	hold's one meaning, a run waiting on an unknown outcome (D34): run_record's Hold, the current word	crates/runx-runtime/src/execution/engine/receipt_budget.rs crates/runx-runtime/src/execution/engine/steps.rs
