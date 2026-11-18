@@ -1092,7 +1092,8 @@ mod tests {
         assert_eq!(
             inline.report().request.drive,
             DrivePolicy::Inline {
-                max_rounds: Some(3)
+                max_rounds: Some(3),
+                zero_price_only: false,
             }
         );
         Ok(())

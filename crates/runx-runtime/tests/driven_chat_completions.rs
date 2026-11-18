@@ -2133,3 +2133,97 @@ fn thinking_off_asks_a_chat_template_not_to_reason() -> Result<(), Box<dyn std::
     }
     Ok(())
 }
+
+/// A run nobody watches drives each turn only on a model that costs nothing,
+/// read at that turn: on a model that may charge, the turn is handed back,
+/// and nothing is sent to it. On a local one, it's driven.
+#[test]
+fn an_unattended_turn_is_driven_only_on_a_model_that_costs_nothing()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir()?;
+    let skill_dir = temp.path().join("judge");
+    fs::create_dir_all(&skill_dir)?;
+    fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: judge\ndescription: judge fixture.\n---\n# Judge\n\n## Agent task: judge\n\nFinish with status done.\n",
+    )?;
+    fs::write(
+        skill_dir.join("run.yaml"),
+        "minimum_runx: 0.12.0\nmethods:\n  judge:\n    steps:\n      - id: judge\n        agent: judge\n        requires: [fresh_context]\n        outputs:\n          status: {type: string}\n",
+    )?;
+    let run = |provider: &[(&str, &str)]| -> Result<Value, Box<dyn std::error::Error>> {
+        let mut env = BTreeMap::from([
+            (
+                "RUNX_HOME".to_owned(),
+                temp.path().join("home").to_string_lossy().into_owned(),
+            ),
+            (
+                "RUNX_AGENT_DIALECT".to_owned(),
+                "chat_completions".to_owned(),
+            ),
+            ("RUNX_AGENT_MODEL".to_owned(), "fixture-model".to_owned()),
+        ]);
+        env.extend(
+            provider
+                .iter()
+                .map(|(key, value)| ((*key).to_owned(), (*value).to_owned())),
+        );
+        crate::support::insert_test_signing_env(&mut env);
+        let result = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill_dir.clone(),
+                receipt_dir: Some(temp.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env,
+                cwd: temp.path().to_path_buf(),
+                drive: DrivePolicy::unattended(),
+            },
+            None,
+            None,
+            None,
+        )?;
+        Ok(serde_json::to_value(&result.output)?)
+    };
+
+    // A model that may charge: a key, at an address off this machine. Were
+    // it called, the request would fail; it's never made.
+    let charged = run(&[
+        ("RUNX_AGENT_PROVIDER", "gateway"),
+        ("RUNX_AGENT_API_KEY", "gateway-secret"),
+        (
+            "RUNX_AGENT_ENDPOINT_URL",
+            "https://gateway.example.test/v1/chat/completions",
+        ),
+    ])?;
+    assert_ne!(charged["status"], "sealed", "{charged}");
+    assert!(
+        charged.to_string().contains("\"kind\":\"turn\""),
+        "the turn is handed back: {charged}"
+    );
+
+    // A local one is driven.
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let endpoint = format!("http://{}/v1/chat/completions", listener.local_addr()?);
+    let server = std::thread::spawn(move || {
+        serve_responses(
+            listener,
+            [
+                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
+            ],
+        )
+    });
+    let local = run(&[
+        ("RUNX_AGENT_PROVIDER", "scripted"),
+        ("RUNX_AGENT_AUTH_MODE", "local_none"),
+        ("RUNX_AGENT_ENDPOINT_URL", endpoint.as_str()),
+    ])?;
+    assert_eq!(local["outcome"], "completed", "{local}");
+    assert_eq!(finish_server(server)?.len(), 1);
+    Ok(())
+}

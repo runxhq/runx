@@ -47,6 +47,25 @@ fn accepts_provider(
     }
 }
 
+/// Whether a model costs nothing to call: one served on this machine, at a
+/// loopback endpoint, or one that takes no key. Unattended runs drive only
+/// such a model (loop contract §13), checked at every turn.
+#[must_use]
+pub fn is_zero_price(config: &DriveConfig) -> bool {
+    config.auth_mode == crate::config::DriveAuthMode::LocalNone
+        || url::Url::parse(&config.endpoint_url)
+            .ok()
+            .and_then(|endpoint| endpoint.host_str().map(str::to_owned))
+            .is_some_and(|host| {
+                host == "localhost"
+                    || host
+                        .trim_start_matches('[')
+                        .trim_end_matches(']')
+                        .parse::<std::net::IpAddr>()
+                        .is_ok_and(|address| address.is_loopback())
+            })
+}
+
 pub fn load_drive_config(
     env: &BTreeMap<String, String>,
     cwd: &Path,

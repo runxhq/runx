@@ -34,6 +34,12 @@ pub enum DrivePolicy {
         /// `agent.rounds` (contracts/driver.md). No limit but the operator's.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         max_rounds: Option<u32>,
+        /// Each turn is driven only while the model it would call costs
+        /// nothing, read at that turn; on any other it's handed back to the
+        /// host. How a run nobody watches is driven, so a model changed while
+        /// it runs never charges for its next turn.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        zero_price_only: bool,
     },
 }
 
@@ -42,7 +48,32 @@ impl DrivePolicy {
         if max_rounds == Some(0) {
             return Err("drive rounds must be at least 1".to_owned());
         }
-        Ok(Self::Inline { max_rounds })
+        Ok(Self::Inline {
+            max_rounds,
+            zero_price_only: false,
+        })
+    }
+
+    /// How a run nobody watches is driven: inline, each turn only on a
+    /// zero-price model, read at that turn.
+    #[must_use]
+    pub const fn unattended() -> Self {
+        Self::Inline {
+            max_rounds: None,
+            zero_price_only: true,
+        }
+    }
+
+    /// Whether each turn is driven only on a zero-price model.
+    #[must_use]
+    pub const fn zero_price_only(&self) -> bool {
+        matches!(
+            self,
+            Self::Inline {
+                zero_price_only: true,
+                ..
+            }
+        )
     }
 
     /// The rounds a driven turn has: the run's own, else the operator's
@@ -55,7 +86,7 @@ impl DrivePolicy {
     ) -> Option<u32> {
         match self {
             Self::HostDriven => None,
-            Self::Inline { max_rounds } => {
+            Self::Inline { max_rounds, .. } => {
                 Some(max_rounds.unwrap_or_else(|| crate::agent_config::configured_rounds(env, cwd)))
             }
         }

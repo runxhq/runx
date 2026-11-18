@@ -134,7 +134,7 @@ pub use adapter::{
     EphemeralValue, Executable, InvocationDiagnostics, InvocationOutput, InvocationStatus,
     SkillAdapter, SkillInvocation,
 };
-pub use agent_config::load_drive_config;
+pub use agent_config::{is_zero_price, load_drive_config};
 pub use approval::{ApprovalError, LocalApprovalGateResolver, request_approval};
 pub use capability::{
     CapabilityApproval, CapabilityArtifacts, CapabilityContract, CapabilityDefinition,

@@ -873,7 +873,8 @@ fn drive_rounds_need_explicit_drive_consent() {
         assert_eq!(
             skill.drive,
             runx_runtime::DrivePolicy::Inline {
-                max_rounds: Some(2)
+                max_rounds: Some(2),
+                zero_price_only: false,
             }
         );
     }

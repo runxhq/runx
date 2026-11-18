@@ -469,7 +469,8 @@ mod tests {
         assert_eq!(
             plan.drive,
             runx_runtime::DrivePolicy::Inline {
-                max_rounds: Some(3)
+                max_rounds: Some(3),
+                zero_price_only: false,
             }
         );
 

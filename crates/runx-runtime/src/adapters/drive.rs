@@ -33,11 +33,13 @@ use crate::http::ReqwestHttpTransport;
 /// transient text-only reply without letting a persistently silent model spin.
 const MAX_EMPTY_TURN_RESAMPLES: u32 = 3;
 
-/// The drive a run consents to, with the bound on its rounds.
+/// The drive a run consents to, with the bound on its rounds, and whether
+/// each turn is driven only on a model that costs nothing.
 pub(crate) struct Drive {
     env: BTreeMap<String, String>,
     skill_directory: PathBuf,
     max_rounds: u32,
+    zero_price_only: bool,
 }
 
 impl Drive {
@@ -45,11 +47,13 @@ impl Drive {
         env: BTreeMap<String, String>,
         skill_directory: PathBuf,
         max_rounds: u32,
+        zero_price_only: bool,
     ) -> Self {
         Self {
             env,
             skill_directory,
             max_rounds,
+            zero_price_only,
         }
     }
 
@@ -92,6 +96,12 @@ impl Drive {
         else {
             return Ok(None);
         };
+        // A run nobody watches calls only a model that costs nothing, read
+        // now, at this turn: on any other the turn is the host's, so a model
+        // changed while the run works never charges for it.
+        if self.zero_price_only && !crate::agent_config::is_zero_price(&config) {
+            return Ok(None);
+        }
         // This agent harness starts each turn from its act alone, and has no tools
         // of its own and no second reviewer, so it meets only a fresh context.
         let requires = turn.invocation().requires.clone();

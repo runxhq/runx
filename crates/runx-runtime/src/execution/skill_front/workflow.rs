@@ -59,6 +59,7 @@ impl BoundRun {
                         self.workspace.skill_env_for_skill(&self.skill_dir),
                         self.skill_dir.clone(),
                         max_rounds,
+                        self.request.drive.zero_price_only(),
                     ))
                 });
         }

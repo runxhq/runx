@@ -440,7 +440,16 @@ impl Loops {
             )?,
             context::batch(name.as_str(), batch, (from, through), &now_text)?,
         ];
-        let request = self.request(&bound, &run, &file.inputs, current_context, authority)?;
+        // A wake runs with nobody watching: each turn only on a model that
+        // costs nothing, read at that turn.
+        let request = self.request(
+            &bound,
+            &run,
+            &file.inputs,
+            current_context,
+            authority,
+            DrivePolicy::unattended(),
+        )?;
         let claim = HostEvents {
             host: HostName::new(crate::records::HOST)?,
             appends: Self::record_append(name, state, &[woke])?
@@ -820,7 +829,8 @@ impl Loops {
     /// Drive a waiting run on: at its time, or at a model's turn, resumed
     /// with nothing new; after its process died, started again by its id,
     /// which continues it from its record. Either way its turns are driven
-    /// as nobody's watching.
+    /// as nobody's watching: each only on a model that costs nothing, read at
+    /// that turn.
     fn drive_on(&self, run: &str, bound: &Bound, waiting: &Waiting) -> Result<(), LoopError> {
         let result = match waiting {
             Waiting::Until(_) | Waiting::Turn => self.orchestrator.resume(&ResumeRequest {
@@ -829,7 +839,7 @@ impl Loops {
                 receipt_dir: None,
                 env: self.env.clone(),
                 cwd: self.cwd.clone(),
-                drive: self.unattended_drive(),
+                drive: DrivePolicy::unattended(),
                 package_digest: None,
                 closure_digest: None,
             }),
@@ -895,22 +905,14 @@ impl Loops {
     }
 
     /// Whether unattended wakes have a zero-price model: a local one, which
-    /// nothing charges for.
+    /// nothing charges for. The runtime checks it again at every turn.
     fn zero_price(&self) -> Result<(), String> {
         let config = runx_runtime::load_drive_config(&self.env, &self.cwd)
             .map_err(|error| error.to_string())?
             .ok_or_else(|| {
                 "no model is set up for unattended wakes: set agent.provider and agent.endpoint_url to a local model with `runx config set`".to_owned()
             })?;
-        let loopback = url::Url::parse(&config.endpoint_url)
-            .ok()
-            .is_some_and(|url| {
-                matches!(
-                    url.host_str(),
-                    Some("localhost" | "127.0.0.1" | "[::1]" | "::1")
-                )
-            });
-        if config.auth_mode == runx_runtime::DriveAuthMode::LocalNone || loopback {
+        if runx_runtime::is_zero_price(&config) {
             Ok(())
         } else {
             Err(format!(
@@ -971,23 +973,17 @@ impl Loops {
     /// The request that continues run `run`, which takes its inputs and its
     /// context from its record, its turns driven as nobody's watching.
     fn continuation(&self, bound: &Bound, run: &str) -> Result<SkillRunRequest, LoopError> {
-        let mut request = self.request(bound, run, &Map::new(), Vec::new(), None)?;
-        request.drive = self.unattended_drive();
-        Ok(request)
+        self.request(
+            bound,
+            run,
+            &Map::new(),
+            Vec::new(),
+            None,
+            DrivePolicy::unattended(),
+        )
     }
 
-    /// How a pass drives a run's turns with nobody watching: inline on a
-    /// zero-price model, as a wake's are, and on any other handed back to the
-    /// person, whose resume drives them.
-    fn unattended_drive(&self) -> DrivePolicy {
-        if self.zero_price().is_ok() {
-            DrivePolicy::Inline { max_rounds: None }
-        } else {
-            DrivePolicy::HostDriven
-        }
-    }
-
-    /// The request that starts run `run` of a loop's skill.
+    /// The request that starts run `run` of a loop's skill, driven as `drive` says.
     fn request(
         &self,
         bound: &Bound,
@@ -995,6 +991,7 @@ impl Loops {
         inputs: &Map<String, Value>,
         current_context: Vec<runx_contracts::ContextEntry>,
         run_authority: Option<RunAuthority>,
+        drive: DrivePolicy,
     ) -> Result<SkillRunRequest, LoopError> {
         let inputs = inputs
             .iter()
@@ -1012,7 +1009,7 @@ impl Loops {
             inputs,
             env: self.env.clone(),
             cwd: self.cwd.clone(),
-            drive: DrivePolicy::Inline { max_rounds: None },
+            drive,
         })
     }
 
@@ -1322,7 +1319,18 @@ impl Loops {
             &state.answers,
             (&date, &stamp(start), &stamp(end)),
         )?];
-        let request = self.request(&bound, &run, &inputs, current_context, authority)?;
+        // A person's run is theirs, driven on the model they have.
+        let request = self.request(
+            &bound,
+            &run,
+            &inputs,
+            current_context,
+            authority,
+            DrivePolicy::Inline {
+                max_rounds: None,
+                zero_price_only: false,
+            },
+        )?;
         let claim = HostEvents {
             host: HostName::new(crate::records::HOST)?,
             appends: Self::record_append(name, &state, &[ran])?
