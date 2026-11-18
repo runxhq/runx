@@ -10,8 +10,8 @@ use std::path::PathBuf;
 
 use runx_contracts::{
     AgentContextEnvelope, CallTarget, JsonObject, JsonValue, LoadedPackage, OutputField,
-    TurnCallOutcome, TurnCallResult, TurnCallView, TurnCallViewOutcome, TurnLoad, TurnLocator,
-    TurnViewEnvelope,
+    TURN_READ_PAGE_CHARS, TurnCallOutcome, TurnCallResult, TurnCallView, TurnCallViewOutcome,
+    TurnLoad, TurnLocator, TurnViewEnvelope,
 };
 use serde::Serialize;
 
@@ -320,8 +320,26 @@ impl ToolExecutor for TurnCalls<'_> {
             }
         }
         if tool == TURN_STATUS_TOOL {
+            let status = self.turn.status()?;
+            let mut content = json_text(&status)?;
+            if content.chars().count() as u64 > TURN_READ_PAGE_CHARS {
+                let calls = status
+                    .calls
+                    .iter()
+                    .map(call_line)
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|error| {
+                        RuntimeError::effect_state("presenting a turn", error.to_string())
+                    })?;
+                content = format!(
+                    "Turn:\n{}\nTools:\n{}\nCalls, each with the start of its result; {TURN_READ_TOOL} reads one whole by its locator:\n{}",
+                    json_text(&status.invocation)?,
+                    json_text(&status.tools)?,
+                    calls.join("\n")
+                );
+            }
             return Ok(ToolOutcome::Result {
-                content: json_text(&self.turn.status()?)?,
+                content,
                 is_error: false,
                 guidance: None,
             });
@@ -379,8 +397,17 @@ impl ToolExecutor for TurnCalls<'_> {
         };
         self.refresh()?;
         let (view, guidance) = project_load(&result, &mut self.given)?;
+        let mut content = json_text(&view)?;
+        if content.chars().count() as u64 > TURN_READ_PAGE_CHARS {
+            let preview = call_line(&view).map_err(|error| {
+                RuntimeError::effect_state("presenting a call", error.to_string())
+            })?;
+            content = format!(
+                "{preview}\n{TURN_READ_TOOL} reads the complete result by this call's locator, a page at a time from next_offset."
+            );
+        }
         Ok(ToolOutcome::Result {
-            content: json_text(&view)?,
+            content,
             is_error,
             guidance,
         })

@@ -988,6 +988,109 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
 }
 
 #[test]
+fn a_managed_turn_pages_large_call_results_without_losing_them()
+-> Result<(), Box<dyn std::error::Error>> {
+    use runx_runtime::scripted_model::{ScriptedModel, drive_env, tool_call};
+    for repetitions in [10, 14_000] {
+        let temp = tempdir()?;
+        let skill = temp.path().join("reader");
+        crate::support::write_test_skill_package(
+            &skill,
+            "---\nname: reader\ndescription: Read a file.\n---\n# Reader\n\n## Agent task: read\n\nRead the file and its whole recorded call, then finish.\n",
+            "minimum_runx: 0.12.0\nmethods:\n  read:\n    steps:\n      - id: read\n        agent: read\n        calls:\n          tools: [fs.read]\n        outputs:\n          status: {type: string}\n",
+        )?;
+        let document = format!("{}end", "café🧭".repeat(repetitions));
+        fs::write(temp.path().join("document.txt"), &document)?;
+        let mut round = 0;
+        let model = ScriptedModel::serve(move |request| {
+            round += 1;
+            match round {
+                1 => tool_call("file", "fs_read", &json!({"path": "document.txt"})),
+                2 => tool_call("status", "turn_status", &json!({})),
+                3 => tool_call("page-0", "turn_read", &json!({"locator": "call:0"})),
+                _ => {
+                    let content = request["messages"]
+                        .as_array()
+                        .and_then(|messages| messages.last())
+                        .and_then(|message| message["content"].as_str())
+                        .unwrap_or("{}");
+                    let page: Value = serde_json::from_str(content).unwrap_or_default();
+                    match page["next_offset"].as_u64() {
+                        Some(offset) => tool_call(
+                            &format!("page-{offset}"),
+                            "turn_read",
+                            &json!({"locator": "call:0", "offset": offset}),
+                        ),
+                        None => tool_call("done", "turn_complete", &json!({"status": "done"})),
+                    }
+                }
+            }
+        })?;
+        let mut env = BTreeMap::from([(
+            "RUNX_HOME".to_owned(),
+            temp.path().join("home").display().to_string(),
+        )]);
+        env.extend(drive_env(model.endpoint(), "reader"));
+        crate::support::insert_test_signing_env(&mut env);
+        let result = LocalOrchestrator::default().run_skill_with_binding(
+            &SkillRunRequest {
+                current_context: Vec::new(),
+                historical_context: Vec::new(),
+                run_authority: None,
+                act: None,
+                skill_path: skill,
+                receipt_dir: Some(temp.path().join("receipts")),
+                run_id: None,
+                answers: None,
+                inputs: BTreeMap::new(),
+                env,
+                cwd: temp.path().to_path_buf(),
+                drive: DrivePolicy::inline(Some(8))?,
+            },
+            None,
+            None,
+            None,
+        )?;
+        let requests = model.finish()?;
+        let output = serde_json::to_value(result.output)?;
+        assert_eq!(output["outcome"], "completed", "{output}");
+        let messages = requests
+            .last()
+            .and_then(|request| request["messages"].as_array())
+            .ok_or("missing transcript")?;
+        let mut whole = String::new();
+        for message in messages {
+            let Some(id) = message["tool_call_id"].as_str() else {
+                continue;
+            };
+            let content = message["content"].as_str().ok_or("missing result")?;
+            if ["file", "status"].contains(&id) {
+                assert!(
+                    content.chars().count() <= 32_000,
+                    "{id} flooded the model with {} characters",
+                    content.chars().count()
+                );
+                if repetitions > 10 {
+                    assert!(
+                        content.contains("call:0"),
+                        "{id} must name where the complete result can be read"
+                    );
+                }
+            } else if id.starts_with("page-") {
+                let page: Value = serde_json::from_str(content)?;
+                whole.push_str(page["text"].as_str().ok_or("missing page text")?);
+            }
+        }
+        let recorded: Value = serde_json::from_str(&whole)?;
+        assert_eq!(
+            recorded["outcome"]["output"]["file_read"]["contents"],
+            document
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_artifact()
 -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir()?;
