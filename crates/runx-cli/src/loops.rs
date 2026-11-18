@@ -751,7 +751,7 @@ fn view(
         "couldnt": state.couldnt,
         "feeds_failing": state.feeds_failing,
         "host_troubles": troubles_of(workspace, name),
-        "next_wake": state.wakes.values().map(|wake| wake.at).min(),
+        "next_wake": loops.next(name, Utc::now()).map_err(|error| error.to_string())?,
         "notices": state.notices.iter().map(|notice| serde_json::json!({"id": notice.id, "text": notice.text, "action": notice.action, "at": notice.at})).collect::<Vec<_>>(),
         "proposals": state.proposals.values().map(|pending| serde_json::json!({"id": pending.id, "proposal": pending.proposal, "revision": pending.revision, "outdated": state.outdated(pending)})).collect::<Vec<_>>(),
         "open": state.people.values().map(|person| serde_json::json!({"method": person.method, "run": person.run})).collect::<Vec<_>>(),
