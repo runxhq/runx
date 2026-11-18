@@ -37,7 +37,7 @@ pub(super) struct Append<'a> {
     pub event_type: &'a str,
     pub data: &'a JsonObject,
     pub writer: Writer,
-    /// On `private`, whether the event makes its key standing.
+    /// Whether the event makes its key standing while it's the newest.
     pub standing: bool,
     /// On `private`, the last date the event is valid, `YYYY-MM-DD`.
     pub valid_until: Option<&'a str>,
@@ -93,19 +93,14 @@ pub(super) struct SearchKeys<'a> {
 }
 
 impl Request<'_> {
-    /// Whether the call names what only `private` keeps: a standing event,
-    /// an end date, what a search matches, a selection by either of the
-    /// first two, or a listing by a key's start.
+    /// Whether the call names what only `private` keeps: an end date, what
+    /// a search matches, a selection by an end date, or a listing by a key's
+    /// start. Any store's keys can be standing.
     pub(super) fn is_private(&self) -> bool {
-        let selects = |selection: &Selection<'_>| {
-            selection.standing.is_some() || selection.valid_at.is_some()
-        };
         match self {
-            Self::Append(append) => {
-                append.standing || append.valid_until.is_some() || append.searchable.is_some()
-            }
-            Self::List(list) => selects(&list.selection) || list.prefix.is_some(),
-            Self::Search(search) => selects(&search.selection),
+            Self::Append(append) => append.valid_until.is_some() || append.searchable.is_some(),
+            Self::List(list) => list.selection.valid_at.is_some() || list.prefix.is_some(),
+            Self::Search(search) => search.selection.valid_at.is_some(),
             Self::Read(_) | Self::Inspect(_) => false,
         }
     }

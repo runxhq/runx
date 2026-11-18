@@ -26,9 +26,10 @@ const SCHEMA_VERSION: &str = "3";
 /// version, so a store with none that holds a key here is one.
 const BEFORE_0_12: &str = "runx:store:{*";
 
-/// KEYS: events, idempotency, state, keys, order, members.
+/// KEYS: events, idempotency, state, keys, order, members, standing.
 /// ARGV: base version, expected version, idempotency key, record, state,
-/// newest event, order member, key.
+/// newest event, order member, key, and "1" when the newest event is
+/// standing. A key's order member is in `standing` too while it is.
 const APPEND: &str = r#"
 local current = redis.call('LLEN', KEYS[1])
 if current ~= tonumber(ARGV[1]) then
@@ -47,8 +48,12 @@ redis.call('SET', KEYS[3], ARGV[5])
 local previous = redis.call('HGET', KEYS[6], ARGV[8])
 if previous then
   redis.call('ZREM', KEYS[5], previous)
+  redis.call('ZREM', KEYS[7], previous)
 end
 redis.call('ZADD', KEYS[5], 0, ARGV[7])
+if ARGV[9] == '1' then
+  redis.call('ZADD', KEYS[7], 0, ARGV[7])
+end
 redis.call('HSET', KEYS[6], ARGV[8], ARGV[7])
 redis.call('HSET', KEYS[4], ARGV[8], ARGV[6])
 return {'committed', ''}
@@ -66,6 +71,7 @@ struct Keys {
     keys: String,
     order: String,
     members: String,
+    standing: String,
 }
 
 impl Keys {
@@ -79,6 +85,7 @@ impl Keys {
             keys: format!("{prefix}:keys"),
             order: format!("{prefix}:order"),
             members: format!("{prefix}:members"),
+            standing: format!("{prefix}:standing"),
         })
     }
 }
@@ -247,6 +254,7 @@ impl Backend for Redis {
                 .key(&keys.keys)
                 .key(&keys.order)
                 .key(&keys.members)
+                .key(&keys.standing)
                 .arg(current.version)
                 .arg(request.expected_version)
                 .arg(request.idempotency_key)
@@ -255,6 +263,7 @@ impl Backend for Redis {
                 .arg(&record)
                 .arg(order_member(&proposed.committed_at, at.key))
                 .arg(at.key)
+                .arg(if proposed.standing { "1" } else { "0" })
                 .invoke(&mut self.connection)
                 .map_err(|error| {
                     // The script may have run before the answer was lost.
@@ -319,8 +328,15 @@ impl Backend for Redis {
         Ok((events, has_more))
     }
 
+    /// A page of a stream's keys, newest commit first, walking the order of
+    /// every key or, for the standing ones, the order of those alone.
     fn keys(&mut self, request: &ListKeys<'_>) -> Result<(Vec<Listed>, bool), StoreError> {
         let keys = Keys::of(request.stream, "")?;
+        let order = if request.selection.standing == Some(true) {
+            &keys.standing
+        } else {
+            &keys.order
+        };
         let mut start = match model::decode_cursor(request.cursor)? {
             Some(cursor) => format!("({}", order_member(&cursor.committed_at, &cursor.key)),
             None => "-".to_owned(),
@@ -328,7 +344,7 @@ impl Backend for Redis {
         let mut listed = Vec::new();
         loop {
             let members: Vec<String> = redis::cmd("ZRANGEBYLEX")
-                .arg(&keys.order)
+                .arg(order)
                 .arg(&start)
                 .arg("+")
                 .arg("LIMIT")
@@ -358,7 +374,12 @@ impl Backend for Redis {
                 let text =
                     text.ok_or_else(|| StoreError::corrupt("an ordered key has no event"))?;
                 let last = record_from_text(&text)?;
-                if request.types.is_empty() || request.types.contains(&last.event_type.as_str()) {
+                if (request.types.is_empty() || request.types.contains(&last.event_type.as_str()))
+                    && request
+                        .selection
+                        .standing
+                        .is_none_or(|standing| standing == last.standing)
+                {
                     listed.push(Listed { key, last });
                     if listed.len() > request.limit {
                         listed.truncate(request.limit);

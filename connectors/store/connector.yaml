@@ -26,7 +26,7 @@ placements:
     auth: [none, credentials]
 operations:
   events.append:
-    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended.
+    description: Append one event to a key when the key is at the expected version. The call's idempotency key makes a repeat with the same event a replay; the same key with a different event, or the key at another version, is a conflict, and nothing is appended. An event can be standing, so its key is listed apart from the others while it's the newest.
     verb: write
     scopes: [store.append]
     # Runs in runx itself, so nothing charges for it.
@@ -43,6 +43,7 @@ operations:
         expected_version: {type: integer, minimum: 0, maximum: 9007199254740990}
         type: {type: string, minLength: 1, maxLength: 128, pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"}
         data: {type: object}
+        standing: {type: boolean, description: "The key is standing while this is its newest event, so a listing reads it apart from the others: what still has work, say, among what's done."}
     result_fields: [schema, operation, stream, key, backend, result_digest, status, before_version, version, event, chain_digest]
     implementation:
       store: {}
@@ -85,7 +86,7 @@ operations:
     implementation:
       store: {}
   keys.list:
-    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types.
+    description: List one page of a stream's keys, newest commit first, each with its newest event whole, optionally only those whose newest event has one of the given types, and only the standing keys or only the others.
     verb: read
     scopes: [store.read]
     # Runs in runx itself, so nothing charges for it.
@@ -103,6 +104,7 @@ operations:
           maxItems: 16
           uniqueItems: true
           items: {type: string, minLength: 1, maxLength: 128}
+        standing: {type: boolean, description: "Only the standing keys, or only the others, read by an index of their own. Without it, every key."}
         cursor: {type: string, minLength: 1, maxLength: 1024}
         limit: {type: integer, minimum: 1, maximum: 100, default: 50}
         package: {type: string, minLength: 1, maxLength: 214, pattern: "^([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*|project:[A-Za-z0-9][A-Za-z0-9._-]*)$", description: "Another package's stream to read, under a term that names it. Never on a write."}

@@ -9,11 +9,13 @@ boundary between domain skills and the storage they keep their records in.
   CRM records, approval inboxes, support tickets, ledgers.
 - The **store** connector keeps a package's ordinary state as event streams.
   It declares four operations: `events.append`, `events.read`, `key.inspect`
-  and `keys.list`.
+  and `keys.list`. An event can be standing, so its key is listed apart from
+  the others while it's the newest: a skill lists what still has work without
+  walking what's done.
 - The **private** connector keeps the person's own data, such as memory and
   people, with the same operations and the same tables, plus `keys.search`.
-  An event on `private` can also be standing, and can state the last date it's
-  valid, and its listings and searches select by both.
+  An event on `private` can also state the last date it's valid, and its
+  listings and searches select by it and by standing.
 - A **store instance** chooses where the streams live: SQLite, Postgres or
   Redis. Skills never name a backend.
 - A **store result** (`runx.store.result.v1`) is the evidence a skill reads
@@ -102,7 +104,7 @@ connector opens the other's file.
 | `events.append` | Append one event, its `type` declared beside its `data`, when its key is at `expected_version` |
 | `events.read` | Read one page of a key's events in version order: the latest page, or the page after `after_version` |
 | `key.inspect` | Read a key's version, its newest event whole, and the digest that chains its events |
-| `keys.list` | List one page of a stream's keys, newest commit first, each with its newest event, optionally by type, and on `private` by `standing`, `valid_at` and `prefix` |
+| `keys.list` | List one page of a stream's keys, newest commit first, each with its newest event, optionally by type and by `standing`, each walked by an index of its own, and on `private` by `valid_at` and `prefix` |
 | `keys.search` | On `private` only, rank one stream's keys by a full-text match against the fields each key's newest event names `searchable`, by type, `standing` and `valid_at` too |
 
 An append is keyed by the idempotency key the kernel derives from the call's

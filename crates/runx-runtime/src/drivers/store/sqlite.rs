@@ -6,9 +6,10 @@
 //! program's file, or the other connector's: a `store` instance naming the
 //! private file is refused, and so is the reverse. `private`'s file also
 //! keeps a full-text index of the fields each key's newest event names
-//! searchable, which `keys.search` ranks with BM25 (SQLite FTS5), and an index of each stream's keys by
-//! whether they're standing, which a listing that names `standing` walks;
-//! an append replaces its key's entry in both.
+//! searchable, which `keys.search` ranks with BM25 (SQLite FTS5). Every file
+//! keeps an index of each stream's keys by whether they're standing, which a
+//! listing that names `standing` walks; an append replaces its key's entry
+//! in each.
 
 use std::path::Path;
 use std::time::Duration;
@@ -69,16 +70,16 @@ CREATE TABLE store_keys (
   PRIMARY KEY (stream, key)
 );
 CREATE INDEX store_keys_recent ON store_keys (stream, committed_at DESC, key ASC);
+CREATE INDEX store_keys_standing_recent ON store_keys (stream, standing, committed_at DESC, key ASC);
 "#;
 
 /// What only `private`'s file keeps: the full-text index of each key's
 /// newest event, one row per key by the key's rowid, shared by every stream
-/// so scores compare across streams; and each stream's keys by whether
-/// they're standing, newest commit first, so the standing keys and the
-/// others are each walked without visiting the other's.
+/// so scores compare across streams. Each stream's keys by whether they're
+/// standing, newest commit first, are every file's, so the standing keys and
+/// the others are each walked without visiting the other's.
 const PRIVATE_SCHEMA: &str = r#"
 CREATE VIRTUAL TABLE store_search USING fts5(text);
-CREATE INDEX store_keys_standing_recent ON store_keys (stream, standing, committed_at DESC, key ASC);
 "#;
 
 const EVENT_COLUMNS: &str = "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest, standing, valid_until, searchable";

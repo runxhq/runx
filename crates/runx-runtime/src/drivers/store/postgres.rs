@@ -36,6 +36,7 @@ CREATE TABLE store_events (
   committed_at TEXT NOT NULL,
   writer_package TEXT NOT NULL,
   writer_digest TEXT NOT NULL,
+  standing BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (stream, key, version),
   UNIQUE (stream, key, idempotency_key)
 );
@@ -51,14 +52,15 @@ CREATE TABLE store_keys (
   committed_at TEXT NOT NULL,
   writer_package TEXT NOT NULL,
   writer_digest TEXT NOT NULL,
+  standing BOOLEAN NOT NULL DEFAULT FALSE,
   chain_digest TEXT NOT NULL,
   PRIMARY KEY (stream, key)
 );
 CREATE INDEX store_keys_recent ON store_keys (stream, committed_at DESC, key ASC);
+CREATE INDEX store_keys_standing_recent ON store_keys (stream, standing, committed_at DESC, key ASC);
 "#;
 
-const EVENT_COLUMNS: &str =
-    "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest";
+const EVENT_COLUMNS: &str = "id, version, type, digest, idempotency_key, committed_at, data, writer_package, writer_digest, standing";
 
 pub(super) struct Postgres {
     client: Client,
@@ -228,7 +230,7 @@ impl Backend for Postgres {
             .client
             .query(
                 &format!(
-                    "SELECT key, {EVENT_COLUMNS} FROM store_keys WHERE stream = $1 AND (cardinality($2::text[]) = 0 OR type = ANY($2)) AND ($3::text IS NULL OR committed_at < $3 OR (committed_at = $3 AND key > $4)) ORDER BY committed_at DESC, key ASC LIMIT $5"
+                    "SELECT key, {EVENT_COLUMNS} FROM store_keys WHERE stream = $1 AND (cardinality($2::text[]) = 0 OR type = ANY($2)) AND ($3::text IS NULL OR committed_at < $3 OR (committed_at = $3 AND key > $4)) AND ($6::boolean IS NULL OR standing = $6) ORDER BY committed_at DESC, key ASC LIMIT $5"
                 ),
                 &[
                     &request.stream,
@@ -236,6 +238,7 @@ impl Backend for Postgres {
                     &cursor_at,
                     &cursor_key,
                     &integer(request.limit as u64 + 1)?,
+                    &request.selection.standing,
                 ],
             )
             .map_err(|error| database("reading keys", &error))?;
@@ -297,7 +300,7 @@ fn insert_event(
     let (package, digest) = writer_columns(record);
     client
         .execute(
-            "INSERT INTO store_events (stream, key, version, idempotency_key, id, type, digest, data, committed_at, writer_package, writer_digest) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+            "INSERT INTO store_events (stream, key, version, idempotency_key, id, type, digest, data, committed_at, writer_package, writer_digest, standing) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
             &[
                 &at.stream,
                 &at.key,
@@ -310,6 +313,7 @@ fn insert_event(
                 &record.committed_at,
                 &package,
                 &digest,
+                &record.standing,
             ],
         )
         .map_err(|error| database("inserting the event", &error))?;
@@ -325,7 +329,7 @@ fn upsert_key(
     let (package, digest) = writer_columns(record);
     client
         .execute(
-            "INSERT INTO store_keys (stream, key, version, id, type, digest, idempotency_key, data, committed_at, writer_package, writer_digest, chain_digest) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT (stream, key) DO UPDATE SET version = excluded.version, id = excluded.id, type = excluded.type, digest = excluded.digest, idempotency_key = excluded.idempotency_key, data = excluded.data, committed_at = excluded.committed_at, writer_package = excluded.writer_package, writer_digest = excluded.writer_digest, chain_digest = excluded.chain_digest",
+            "INSERT INTO store_keys (stream, key, version, id, type, digest, idempotency_key, data, committed_at, writer_package, writer_digest, chain_digest, standing) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) ON CONFLICT (stream, key) DO UPDATE SET version = excluded.version, id = excluded.id, type = excluded.type, digest = excluded.digest, idempotency_key = excluded.idempotency_key, data = excluded.data, committed_at = excluded.committed_at, writer_package = excluded.writer_package, writer_digest = excluded.writer_digest, chain_digest = excluded.chain_digest, standing = excluded.standing",
             &[
                 &at.stream,
                 &at.key,
@@ -339,6 +343,7 @@ fn upsert_key(
                 &package,
                 &digest,
                 &state.chain_digest,
+                &record.standing,
             ],
         )
         .map_err(|error| database("moving the key", &error))?;
@@ -403,10 +408,9 @@ fn record_at(row: &Row, offset: usize) -> Result<EventRecord, StoreError> {
         data: serde_json::from_str::<JsonObject>(&data)
             .map_err(|error| StoreError::corrupt(format!("a stored event is not JSON: {error}")))?,
         writer,
-        // A `store` event is never standing, dated or searchable; only
-        // `private`'s are,
-        // and `private` is never kept in Postgres.
-        standing: false,
+        standing: row.get(offset + 9),
+        // A `store` event is never dated or searchable; only `private`'s
+        // are, and `private` is never kept in Postgres.
         valid_until: None,
         searchable: None,
     })

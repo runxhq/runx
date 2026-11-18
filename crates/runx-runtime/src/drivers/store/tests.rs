@@ -391,6 +391,34 @@ fn scenario(store: &Test) -> Vec<String> {
     // An event's digest covers what it says, never when it was committed or
     // where, so every backend holds the same one.
     digests.push(last["digest"].as_str().unwrap().to_owned());
+
+    // A key stands while its newest event does: listed apart from the
+    // others, newest commit first, and one of the others once an event that
+    // isn't standing follows.
+    let standing = |idempotency: &str, key: &str, expected: u64, standing: bool| {
+        let mut call = append(idempotency, key, expected, "open");
+        call["standing"] = standing.into();
+        let appended = store.call("events.append", call).unwrap();
+        assert_eq!(appended.text("status"), "committed");
+        appended.text("chain_digest").to_owned()
+    };
+    digests.push(standing("s1", "c", 0, true));
+    digests.push(standing("s2", "d", 0, true));
+    let list = |standing: bool, limit: u64, cursor: Option<&str>| {
+        let mut call = serde_json::json!({"stream": "items", "standing": standing, "limit": limit});
+        if let Some(cursor) = cursor {
+            call["cursor"] = cursor.into();
+        }
+        store.call("keys.list", call).unwrap()
+    };
+    let open = list(true, 1, None);
+    assert_eq!(open.keys("keys"), vec!["d"]);
+    let rest = list(true, 1, Some(open.text("next_cursor")));
+    assert_eq!(rest.keys("keys"), vec!["c"]);
+    assert_eq!(list(false, 5, None).keys("keys"), vec!["b", "a"]);
+    digests.push(standing("s3", "d", 1, false));
+    assert_eq!(list(true, 5, None).keys("keys"), vec!["c"]);
+    assert_eq!(list(false, 5, None).keys("keys"), vec!["d", "b", "a"]);
     digests
 }
 
@@ -1067,17 +1095,16 @@ fn a_prefix_lists_only_the_keys_it_begins_in_key_order() {
     }
 }
 
-/// Standing keys, end dates and what a search matches are `private`'s:
-/// `store` refuses an append or a listing that names them, and keeps
-/// nothing.
+/// End dates, what a search matches and a listing by a key's start are
+/// `private`'s: `store` refuses an append or a listing that names them, and
+/// keeps nothing. Any store's keys can be standing.
 #[test]
-fn store_refuses_standing_end_dates_and_searchable_fields() {
+fn store_refuses_end_dates_searchable_fields_and_prefixes() {
     let root = tempfile::tempdir().unwrap();
     let store = Test::workspace(root.path());
     let mut searchable = append("k3", "plain", 0, "Tea, black.");
     searchable["searchable"] = serde_json::json!(["label"]);
     for call in [
-        kept("k1", "rule", 0, "Sign off as Kam.", true, None),
         kept("k2", "tea", 0, "Tea, black.", false, Some("2026-12-31")),
         searchable,
     ] {
@@ -1085,7 +1112,6 @@ fn store_refuses_standing_end_dates_and_searchable_fields() {
         assert!(refused.contains("private"), "{refused}");
     }
     for extra in [
-        serde_json::json!({"standing": true}),
         serde_json::json!({"valid_at": "2026-06-01"}),
         serde_json::json!({"prefix": "0aaaaaaa"}),
     ] {
