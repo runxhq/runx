@@ -56,6 +56,26 @@ methods:
         optional: true
       brand_context: {}
       taste_context: {}
+      memory:
+        type: array
+        description: The memory levels to recall what's known from before the draft is written, as runx/memory#index takes them. What it recalls reaches the writing turn as context, never as evidence a claim may cite. Without them nothing is recalled.
+        minItems: 1
+        maxItems: 8
+        items:
+          type: object
+          additionalProperties: false
+          required: [level]
+          properties:
+            level: {enum: [personal, workspace, project, brand]}
+            project: {type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", maxLength: 64}
+            brand: {type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", maxLength: 64}
+        optional: true
+      focus:
+        type: string
+        description: What the draft answers or is about, so what memory holds about it is recalled first.
+        minLength: 1
+        maxLength: 512
+        optional: true
     result_from:
       - reject
       - finalize
@@ -85,11 +105,35 @@ methods:
           evidence_context: $steps.admit.evidence_context
         outputs:
           content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
+      - id: recall-plan
+        tool: {module: ghostwrite.mjs, export: recallPlan}
+        inputs:
+          memory: $input.memory
+          focus: $input.focus
+        outputs:
+          memory_recall:
+            type: object
+            additionalProperties: false
+            required: [path]
+            properties:
+              path: {enum: [index, none]}
+              levels: {type: array}
+              focus: {type: string}
+      - id: recall
+        when:
+          value: $steps.recall-plan.memory_recall.path
+          equals: index
+        skill: runx/memory#index
+        inputs:
+          levels: $steps.recall-plan.memory_recall.levels
+          focus: $steps.recall-plan.memory_recall.focus
       - id: author
         when:
           value: $steps.admit.evidence_context.decision
           equals: ready
         agent: ghostwrite-draft
+        context:
+          entries: [$steps.recall.entries]
         outputs:
           content_draft:
             type: object

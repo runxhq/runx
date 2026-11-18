@@ -45,7 +45,7 @@ host:
         context_binding: {applied: []}
 expect:
   status: sealed
-  steps: [admit, author, finalize]
+  steps: [admit, recall-plan, author, finalize]
   step_outputs:
     finalize:
       subset:

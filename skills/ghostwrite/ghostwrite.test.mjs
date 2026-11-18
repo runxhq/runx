@@ -5,6 +5,7 @@ import {
   prepareEvidence,
   prepareHandoff,
   inventedNumbers,
+  recallPlan,
   reviewContextUse,
 } from "./ghostwrite.mjs";
 const digest = "sha256:" + "a".repeat(64);
@@ -283,6 +284,8 @@ test("a draft states only numbers something admitted holds", () => {
   // A number ending a sentence counts nothing in the next one.
   assert.deepEqual(inventedNumbers(context, draft("We've reviewed 40 pipelines since 2024.\n\nSam at Shipwright")), []);
   assert.deepEqual(inventedNumbers(context, draft("Reviews since 2024. Sam reviewed 41 pipelines.")), ["41 pipelines"]);
+  assert.deepEqual(inventedNumbers(context, draft("Our review “since 2024.”\n\nSam at Shipwright")), []);
+  assert.deepEqual(inventedNumbers(context, draft("(We've reviewed 40 pipelines since 2024.) Sam at Shipwright")), []);
   // Text the draft carries unchanged, as a footer, is the caller's, not invented.
   assert.deepEqual(inventedNumbers(context, draft("Thanks.\n12 Salamanca Place"), ["12 Salamanca Place"]), []);
   // A number is held counting what it counts: a currency, a unit, a scale.
@@ -292,4 +295,12 @@ test("a draft states only numbers something admitted holds", () => {
   assert.deepEqual(inventedNumbers(scaled, draft("Two million deploys.")), ["two million deploys"]);
   // "One" is a number where it measures, which "an hour" holds.
   assert.deepEqual(inventedNumbers(scaled, draft("One engineer, one hour, in one day.")), ["one day"]);
+});
+
+test("a draft recalls from memory only when it's given levels, focused on what it answers", () => {
+  assert.deepEqual(recallPlan({}), { memory_recall: { path: "none" } });
+  assert.deepEqual(recallPlan({ memory: [], focus: "their question" }), { memory_recall: { path: "none" } });
+  const levels = [{ level: "brand", brand: "acme" }];
+  assert.deepEqual(recallPlan({ memory: levels, focus: " their question " }), { memory_recall: { path: "index", levels, focus: "their question" } });
+  assert.deepEqual(recallPlan({ memory: levels }), { memory_recall: { path: "index", levels } });
 });

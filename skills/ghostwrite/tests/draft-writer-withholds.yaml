@@ -23,7 +23,7 @@ host:
         review_checklist: [The evidence holds nothing new to say.]
 expect:
   status: sealed
-  steps: [admit, author, finalize]
+  steps: [admit, recall-plan, author, finalize]
   step_outputs:
     finalize:
       subset:

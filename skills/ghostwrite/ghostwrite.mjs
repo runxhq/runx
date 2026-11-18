@@ -1,3 +1,12 @@
+/**
+ * Whether the draft recalls from memory first: the levels it was given, and
+ * what it's about as the index's focus. Nothing is recalled without levels.
+ */
+export function recallPlan({ memory, focus }) {
+  if (!Array.isArray(memory) || memory.length === 0) return { memory_recall: { path: "none" } };
+  return { memory_recall: { path: "index", levels: memory, ...(typeof focus === "string" && focus.trim() ? { focus: focus.trim() } : {}) } };
+}
+
 export function selectEvidence({ evidence_pack, facts }) {
   const research = evidence_pack !== undefined;
   const supplied = facts !== undefined;
@@ -394,8 +403,9 @@ function spelled(tokens, from) {
  */
 function quantitiesIn(value, admitting) {
   // A sentence's end is a token of its own, so a number ending one never
-  // counts the first word of the next: "since 2024. Sam" counts no Sams.
-  const tokens = text(value).toLowerCase().match(/[$€£¥]?\d+(?:[.,:]\d+)*%?|[\p{L}']+|[.!?;](?=\s|$)/gu) ?? [];
+  // counts the first word of the next: "since 2024. Sam" counts no Sams, nor
+  // does a sentence closed inside a quotation or brackets, "since 2024.” Sam".
+  const tokens = text(value).toLowerCase().match(/[$€£¥]?\d+(?:[.,:]\d+)*%?|[\p{L}']+|[.!?;](?=["'”’)\]]*(?:\s|$))/gu) ?? [];
   const found = [];
   for (let at = 0; at < tokens.length; at += 1) {
     const figure = /^([$€£¥]?)(\d+(?:[.,:]\d+)*)(%?)$/u.exec(tokens[at]);

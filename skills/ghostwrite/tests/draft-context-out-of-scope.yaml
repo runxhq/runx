@@ -158,6 +158,7 @@ expect:
   status: sealed
   steps:
     - admit
+    - recall-plan
     - author
     - finalize
   step_outputs:
