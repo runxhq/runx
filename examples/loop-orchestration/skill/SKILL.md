@@ -25,7 +25,9 @@ The demo's loop host, `loop-host.mjs`, sits beside this package in
 The important boundary is not the Node script. It is the contract:
 
 - A **loop** owns scheduling, durable loop state, projection, and stop policy.
-  It is the host's: runx has no loop.
+  It is the host's: here an application script. runx's own loops
+  (`loops/<name>.yaml`, served by `runx on`) are a host of the same kind,
+  above the engine, which learns no loops.
 - An **iteration** is one runx run of a skill's method, with explicit authority
   and one sealed receipt.
 - A **handoff** is an artifact/result the loop host can inspect; it is not

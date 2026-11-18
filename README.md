@@ -403,10 +403,13 @@ the digest of the request it answers. The host is responsible for obtaining
 the human decision; putting a JSON value in an approval field is a host
 assertion, not proof of a person's identity.
 
-For recurring operations, the outer host owns scheduling and stop policy.
-Each iteration can read prior receipts and durable state, submit a bounded
-run, and retain the result for the next iteration. See the
-[loop example](examples/loop-orchestration) and
+For recurring operations, a loop calls one method each time something wakes
+it: a clock, a connector's feed, a webhook, or you. runx's own loops live in
+`loops/<name>.yaml` and run while `runx on` is on, and `runx loops` lists them;
+an outside host, an app, cron or Temporal, can drive runs the same way. Each
+wake is one bounded run with its own receipt, reading prior receipts and
+durable state. See [Loop Orchestration](docs/loop-orchestration.md), the
+[outside-host example](examples/loop-orchestration) and the
 [continuation contract](docs/reference.md#local-cli).
 
 ## Connect tools without handing secrets to skills

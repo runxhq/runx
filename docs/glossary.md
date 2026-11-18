@@ -70,15 +70,36 @@ contracts; this page says what each word means and where it stops.
   criteria: `met`, `not_met` or `inconclusive`. An **evaluator** is any step or
   call that returns one.
 
+## Loops
+
+- **Loop**: a named, continuing job a workspace keeps, in `loops/<name>.yaml`:
+  one entry method of a skill, its brief and inputs, and its **triggers**, what
+  wakes it: a clock, a connector's feed, a webhook, or the person. The
+  always-on runx (`runx on`) serves loops.
+- **Inbox**: what woke a loop, each event once under its identity. A **wake**
+  is one run of the method on a batch of it, one at a time. The loop's
+  **record** keeps how each came out.
+- **Feed**: a connector's events, read after a cursor with no run around it; a
+  poll that finds nothing records nothing. A **webhook** is a loop's address a
+  provider posts to, carrying its token.
+- **Proposal**: how a run changes its loop: a wake, a notice, that it's done,
+  or a change to its brief or inputs, which only a person accepts.
+
+The engine learns no loops: `runx-core` and the runtime that runs a skill know
+no loop, and a single `runx skill` run touches none of it. Loops are a layer
+above them, built on the runtime's public API, so an outside host (an app,
+Claude Code's `/loop`, cron, a script, Temporal) can drive runs the same way
+and gets the same receipts. Each time a loop goes round, runx gives back a
+receipt, a verdict if the method returns one, and streams the next run reads.
+See [loop-orchestration.md](loop-orchestration.md).
+
 ## Not runx's
 
-A **loop**, a **schedule**, a **trigger** that starts one, a **goal** that ends
-one, and a unit like a Work belong to a host: an app, Claude Code's `/loop`,
-cron, a script, Temporal. runx has none of them. Each time a loop goes round, the
-host starts a run, and runx gives it back a receipt, a verdict if the method
-returns one, and streams the next run reads. See
-[loop-orchestration.md](loop-orchestration.md).
+A **goal** that ends a loop, and a unit like a Work, belong to the method or
+the host: runx ends one of its loops only when a person stops it or its run
+proposes it's done.
 
-Two of these words mean something else inside runx: a skill's `should_trigger`
-in its evals is whether its description gets it selected, and `stop_conditions`
-in a skill's authoring plan is guidance for the agent writing it.
+Two words mean something else elsewhere in runx: a skill's `should_trigger` in
+its evals is whether its description gets it selected, not a loop's trigger,
+and `stop_conditions` in a skill's authoring plan is guidance for the agent
+writing it.

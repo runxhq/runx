@@ -223,9 +223,10 @@ policy decisions, split the policy into the skill profile or a separate
 governed step instead of burying it in prose.
 
 For long-running agent workflows, do not turn a workflow into an unbounded resident
-loop. Use [Loop Orchestration](./loop-orchestration.md): an outer loop host
-submits one governed runx run at a time, reads receipts and projections, and
-continues only when explicit stop policy allows.
+loop. Make it a loop ([Loop Orchestration](./loop-orchestration.md)): runx's own,
+`loops/<name>.yaml` served by `runx on`, or an outside host's. Either way each
+wake is one governed run with its own receipt, and the loop goes round again only
+when something wakes it and its policy allows.
 
 ## Acts: Why A Governed Call Is Made
 

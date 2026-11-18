@@ -161,19 +161,22 @@ contract. See `docs/skill-quality-standard.md` for the review bar.
 ### Loop Orchestration
 
 Long-running agent work is a loop over governed runs, never a resident kernel
-loop: runx has no loop, schedule or stop policy (see `docs/glossary.md`). The
-loop host lives in an app, hosted service, local script, or external
-orchestrator. It owns scheduling, durable loop state, wakeups, projections, and
-stop policy. Each iteration is one run of a skill's method, with explicit
-inputs, authority, the calls its steps declare, optional `context.skills`,
-approval gates, and one sealed receipt; an agent step in it opens a turn, whose
-agent loop runs bounded rounds.
+loop. The engine learns no loops: `runx-core` and the runtime know no loop
+noun, and a single `runx skill` run touches no loop code. runx's own loops are a
+layer above it, `crates/runx-loops` over the runtime's public API, served by the
+always-on runx in `runx-cli`; an app, hosted service, local script, or external
+orchestrator can host a loop the same way (`docs/glossary.md`,
+`docs/loop-orchestration.md`). The loop owns what wakes it, its durable state,
+retries, projections, and stop policy. Each iteration is one run of a skill's
+method, with explicit inputs, authority, the calls its steps declare, optional
+`context.skills`, approval gates, and one sealed receipt; an agent step in it
+opens a turn, whose agent loop runs bounded rounds.
 
 Handoffs are receipt-backed artifacts or tool-shaped results. Prior receipts and
 skill context are untrusted data for the next run, not new authority. Do not add
 loop-specific authority families, packet namespaces, product branches, or
-schedulers to `runx-core`; build residency outside the kernel over ordinary runx
-submissions.
+schedulers to `runx-core` or the engine; the loop layer uses only the
+runtime's public API and the small, general primitives any host could use.
 
 ### No Hardcoded Secrets
 
