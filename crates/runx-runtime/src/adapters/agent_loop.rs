@@ -162,17 +162,19 @@ pub struct ModelReply {
     pub usage: Option<CallUsage>,
 }
 
-/// What one ask of the model may write: its output cap, in tokens.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The limits of one request to the model.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModelAsk {
     pub output_tokens: u32,
+    /// When set, this is the only tool the reply may call.
+    pub required_tool: Option<String>,
 }
 
 /// Per-turn provider call. Given the tools offered now, the transcript so far
 /// and what the ask may write, return the model's reply: a transient failure
 /// as [`RuntimeError::ModelUnavailable`], and a reply cut at the ask's cap as
-/// [`RuntimeError::ModelReplyCut`]. The loop passes the catalog through and
-/// never inspects it.
+/// [`RuntimeError::ModelReplyCut`]. A required tool constrains the reply
+/// while leaving the catalog available to interpret earlier calls.
 pub trait ModelCaller {
     fn reply(
         &self,
@@ -399,6 +401,7 @@ fn next_tool_uses_resilient<M>(
     tools: &AgentToolNameMap,
     transcript: &[AgentTurn],
     (max_resamples, limits, wait): (u32, &DriveLimits, &Waiter),
+    ask: &ModelAsk,
     model_calls: &mut u32,
     usage: &mut Option<CallUsage>,
 ) -> Result<Vec<AgentToolUse>, TurnStop>
@@ -406,7 +409,15 @@ where
     M: ModelCaller + ?Sized,
 {
     for _ in 0..=max_resamples {
-        let reply = answered(model, tools, transcript, (limits, wait), model_calls, usage)?;
+        let reply = answered(
+            model,
+            tools,
+            transcript,
+            (limits, wait),
+            ask.clone(),
+            model_calls,
+            usage,
+        )?;
         if !reply.tool_uses.is_empty() {
             return Ok(reply.tool_uses);
         }
@@ -424,15 +435,13 @@ fn answered<M>(
     tools: &AgentToolNameMap,
     transcript: &[AgentTurn],
     (limits, wait): (&DriveLimits, &Waiter),
+    mut ask: ModelAsk,
     model_calls: &mut u32,
     usage: &mut Option<CallUsage>,
 ) -> Result<ModelReply, TurnStop>
 where
     M: ModelCaller + ?Sized,
 {
-    let mut ask = ModelAsk {
-        output_tokens: limits.output_tokens,
-    };
     let mut retried = 0_u32;
     loop {
         *model_calls = model_calls.saturating_add(1);
@@ -516,9 +525,9 @@ fn telemetry(
     }
 }
 
-/// Run the bounded tool-use loop: it ends with the model's final result, or
-/// paused when a call waits on a human. Fails closed on an empty turn or on
-/// exhausting the round budget without a final result.
+/// Run the bounded tool-use loop. Earlier rounds can call tools or finish.
+/// The last round accepts only the result because no round remains to use
+/// another tool's reply. A call waiting on a human pauses the pass.
 // Function rationale: this is one bounded round loop whose
 // turn sequencing (model call, fail-closed checks, per-tool execution, transcript
 // append, telemetry accumulation) must stay linear to remain auditable.
@@ -532,7 +541,10 @@ where
     M: ModelCaller + ?Sized,
     T: ToolExecutor + ?Sized,
 {
-    let mut instructions = CONTEXT_POLICY.to_owned();
+    let mut instructions = format!(
+        "{CONTEXT_POLICY}\n\nYou have at most {} rounds. The final round is reserved for {}. Make any calls needed for the answer before then.",
+        config.max_rounds, config.final_result_tool,
+    );
     transcript.retain(|turn| match turn {
         AgentTurn::System(guidance) => {
             instructions.push_str("\n\n");
@@ -551,15 +563,23 @@ where
     let mut seen_tool_call_ids = BTreeSet::new();
 
     for round in 1..=config.max_rounds {
+        let offered = executor.tools();
+        let completion_required = round == config.max_rounds
+            || matches!(offered.definitions(), [tool] if tool.name == config.final_result_tool);
+        let ask = ModelAsk {
+            output_tokens: config.limits.output_tokens,
+            required_tool: completion_required.then(|| config.final_result_tool.clone()),
+        };
         let uses = match next_tool_uses_resilient(
             model,
-            executor.tools(),
+            offered,
             &transcript,
             (
                 config.max_empty_turn_resamples,
                 &config.limits,
                 &config.wait,
             ),
+            &ask,
             &mut model_calls,
             &mut usage,
         ) {
@@ -642,7 +662,7 @@ where
         // effects a later call's refusal would strand. A batch that can't be
         // admitted whole runs nothing: each of its calls is answered with why,
         // and the model sends again.
-        let admitted = match admit_batch(config, executor, &uses) {
+        let admitted = match admit_batch(config, executor, &uses, completion_required) {
             Ok(admitted) => admitted,
             Err(refusal) => {
                 if refusal.unrecognized {
@@ -786,8 +806,8 @@ where
     }
 
     let mut reason = format!(
-        "it made {} rounds of calls and never answered",
-        config.max_rounds
+        "it used {} rounds without submitting a result through {}",
+        config.max_rounds, config.final_result_tool
     );
     // A rejected answer is not an absent answer. Keep its existing safe
     // schema rule in the failure that the run and reflection will read.
@@ -830,7 +850,21 @@ fn admit_batch<T: ToolExecutor + ?Sized>(
     config: &AgentLoopConfig,
     executor: &T,
     uses: &[AgentToolUse],
+    completion_required: bool,
 ) -> Result<Vec<String>, BatchRefusal> {
+    if completion_required
+        && uses
+            .iter()
+            .any(|use_| use_.name != config.final_result_tool)
+    {
+        return Err(BatchRefusal {
+            reason: format!(
+                "This round only accepts {}. Nothing in this batch ran.",
+                config.final_result_tool
+            ),
+            unrecognized: false,
+        });
+    }
     if uses.len() > 1
         && uses
             .iter()
@@ -1497,17 +1531,22 @@ mod tests {
     }
 
     #[test]
-    fn loop_fails_closed_on_max_rounds() {
+    fn the_last_round_cannot_execute_another_tool() {
         struct NeverFinal;
         impl ModelCaller for NeverFinal {
             fn reply(
                 &self,
                 _tools: &AgentToolNameMap,
-                _transcript: &[AgentTurn],
-                _ask: &ModelAsk,
+                transcript: &[AgentTurn],
+                ask: &ModelAsk,
             ) -> Result<ModelReply, RuntimeError> {
+                let calls = transcript
+                    .iter()
+                    .filter(|turn| matches!(turn, AgentTurn::ToolResults(_)))
+                    .count();
+                assert_eq!(ask.required_tool.as_deref(), (calls == 2).then_some(FINAL));
                 Ok(unmetered(vec![AgentToolUse {
-                    id: format!("x{}", _transcript.len()),
+                    id: format!("x{calls}"),
                     name: "noop".to_owned(),
                     input: JsonValue::Object(Default::default()),
                     replay: None,
@@ -1526,7 +1565,7 @@ mod tests {
         let result = run_agent_loop(
             &config,
             &NeverFinal,
-            &mut OkExecutor,
+            &mut CountingExecutor(Cell::new(0)),
             vec![AgentTurn::User("go".to_owned())],
         );
         assert!(
@@ -1537,7 +1576,7 @@ mod tests {
                     && error.sanitized_message().contains("rounds")
                     && error.telemetry().rounds == Some(3)
                     && error.telemetry().model_calls == Some(3)
-                    && error.telemetry().tool_calls == Some(3)
+                    && error.telemetry().tool_calls == Some(2)
             ),
             "loop should fail closed on max rounds; got: {result:?}"
         );

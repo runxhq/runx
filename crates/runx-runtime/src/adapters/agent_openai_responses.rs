@@ -154,7 +154,9 @@ impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
             "model": self.model,
             "input": input_json(transcript),
             "tools": Self::tools_json(tools),
-            "tool_choice": "auto",
+            "tool_choice": ask.required_tool.as_deref().map_or(json!("auto"), |name| {
+                json!({"type":"function","name":wire_tool_name(name)})
+            }),
             "max_output_tokens": ask.output_tokens,
             // The loop replays its own transcript; OpenAI keeps nothing.
             "store": false,
@@ -194,6 +196,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for OpenAiResponsesCaller<T> {
 mod tests {
     const ASK: crate::adapters::agent_loop::ModelAsk = crate::adapters::agent_loop::ModelAsk {
         output_tokens: 8192,
+        required_tool: None,
     };
     use super::*;
     use crate::adapters::agent_loop::AgentToolResult;
@@ -271,7 +274,14 @@ mod tests {
             }]),
         ];
         let reply = caller(&stub)
-            .reply(&tools()?, &transcript, &ASK)
+            .reply(
+                &tools()?,
+                &transcript,
+                &ModelAsk {
+                    required_tool: Some("acme.post".to_owned()),
+                    ..ASK
+                },
+            )
             .map_err(|error| error.to_string())?;
         let uses = &reply.tool_uses;
         assert!(
@@ -295,6 +305,10 @@ mod tests {
         .map_err(|error| error.to_string())?;
         assert_eq!(body["model"], "gpt");
         assert_eq!(body["max_output_tokens"], ASK.output_tokens);
+        assert_eq!(
+            body["tool_choice"],
+            json!({"type":"function","name":"acme_post"})
+        );
         assert_eq!(body["store"], false);
         assert_eq!(body["tools"][0]["name"], "acme_post");
         assert_eq!(body["input"][0]["role"], "system");

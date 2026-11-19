@@ -582,7 +582,9 @@ read from `RUNX_AGENT_<KEY>` over `runx config set`:
 - `agent.request_timeout_seconds` (default 180, 10 to 3,600): one request's
   time limit, which a slow local model may need raised;
 - `agent.rounds` (default 4): the rounds a driven turn has, which
-  `--drive-rounds` sets for one run. No other limit applies;
+  `--drive-rounds` sets for one run. The final round is reserved for
+  `turn_complete`. A turn that offers only `turn_complete` requests its
+  result from the first round;
 - `agent.thinking` (`on` or `off`, default `on`): `off` asks a
   chat-completions model whose chat template takes it, such as Qwen and other
   local models, not to reason before it answers

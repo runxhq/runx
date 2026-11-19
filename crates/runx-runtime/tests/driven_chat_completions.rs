@@ -111,7 +111,7 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
     let model = ChatCompletionsCaller::new(transport, endpoint, None, "fixture-model".to_owned());
     let mut executor = ReadExecutor(Cell::new(0), tools);
     let config = AgentLoopConfig {
-        max_rounds: 3,
+        max_rounds: 2,
         limits: runx_runtime::config::DriveLimits::default(),
         wait: runx_runtime::adapters::agent_loop::Waiter::sleeping(),
         max_empty_turn_resamples: 0,
@@ -156,6 +156,11 @@ fn exact_local_transport_replays_tool_result_before_schema_valid_final_result()
         "Read the fixture then finish."
     );
     assert_eq!(requests[0]["tools"][0]["function"]["name"], "fixture_read");
+    assert_eq!(requests[0]["tool_choice"], "auto");
+    assert_eq!(
+        requests[1]["tool_choice"],
+        json!({"type":"function","function":{"name":"runx_final_result"}})
+    );
     assert_eq!(requests[1]["messages"][2]["tool_calls"][0]["id"], "call-1");
     // Gemini refuses a replayed call without the signature it returned.
     assert_eq!(
@@ -417,7 +422,12 @@ fn a_driven_turn_meets_a_fresh_context_and_refuses_what_it_cannot()
     assert_eq!(output["status"], "sealed", "{output}");
     assert_eq!(output["outcome"], "completed", "{output}");
     assert_eq!(output["result"]["status"], "done", "{output}");
-    assert_eq!(finish_server(server)?.len(), 1);
+    let requests = finish_server(server)?;
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        requests[0]["tool_choice"],
+        json!({"type":"function","function":{"name":"turn_complete"}})
+    );
     Ok(())
 }
 
@@ -2238,7 +2248,10 @@ fn thinking_off_asks_a_chat_template_not_to_reason() -> Result<(), Box<dyn std::
         let _reply = model.reply(
             &tools,
             &[AgentTurn::User("go".to_owned())],
-            &ModelAsk { output_tokens: 64 },
+            &ModelAsk {
+                output_tokens: 64,
+                required_tool: None,
+            },
         );
         let request = server.join().map_err(|_| "server thread failed")??;
         let asked = request.get("chat_template_kwargs").cloned();

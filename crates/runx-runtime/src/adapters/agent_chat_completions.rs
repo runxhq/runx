@@ -184,7 +184,9 @@ impl<T: RuntimeHttpTransport> ModelCaller for ChatCompletionsCaller<T> {
             "model":self.model,
             "messages":self.messages_json(transcript),
             "tools":Self::tools_json(tools),
-            "tool_choice":"auto",
+            "tool_choice":ask.required_tool.as_deref().map_or(json!("auto"), |name| {
+                json!({"type":"function","function":{"name":wire_tool_name(name)}})
+            }),
             // The current name; OpenAI's newer models refuse `max_tokens`.
             "max_completion_tokens":ask.output_tokens,
         });

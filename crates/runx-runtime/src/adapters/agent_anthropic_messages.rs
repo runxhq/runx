@@ -200,6 +200,9 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
             "messages": messages_json(transcript),
             "tools": tools_json(tools),
         });
+        if let Some(name) = &ask.required_tool {
+            request_body["tool_choice"] = json!({"type":"tool","name":wire_tool_name(name)});
+        }
         let system = transcript
             .iter()
             .filter_map(|turn| match turn {
@@ -247,6 +250,7 @@ impl<T: RuntimeHttpTransport> ModelCaller for AnthropicMessagesCaller<T> {
 mod tests {
     const ASK: crate::adapters::agent_loop::ModelAsk = crate::adapters::agent_loop::ModelAsk {
         output_tokens: 8192,
+        required_tool: None,
     };
     use super::*;
     use crate::adapters::agent_loop::AgentTurn;
@@ -405,7 +409,10 @@ mod tests {
             .reply(
                 &tools("acme.post")?,
                 &[AgentTurn::User("go".to_owned())],
-                &ASK,
+                &ModelAsk {
+                    required_tool: Some("acme.post".to_owned()),
+                    ..ASK
+                },
             )
             .map_err(|error| format!("call should succeed: {error}"))?
             .tool_uses;
@@ -415,6 +422,11 @@ mod tests {
         // The tool was offered to Anthropic without a dot (the API rejects dots).
         let sent = stub.requests.borrow();
         let body = sent[0].body.as_deref().unwrap_or_default();
+        let request: WireValue = serde_json::from_str(body).map_err(|error| error.to_string())?;
+        assert_eq!(
+            request["tool_choice"],
+            json!({"type":"tool","name":"acme_post"})
+        );
         assert!(
             body.contains("\"acme_post\"") && !body.contains("acme.post"),
             "tool must be offered flattened, never dotted; got: {body}"
