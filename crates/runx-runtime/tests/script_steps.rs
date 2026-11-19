@@ -4279,13 +4279,28 @@ fn a_failed_check_is_revised_on_and_a_missing_credential_ends_the_loop() -> Test
         root.join("connectors/locked/connector.yaml"),
         LOCKED_CONNECTOR,
     )?;
-    let fetch = write_one_step(
-        root,
-        "        calls:\n          operations: [locked/note.read]\n        max_calls: 5\n        outputs:\n          note: {}\n",
-        "export default async function (ctx) {\n  for (;;) {\n    await ctx.operation(\"locked/note.read\", {});\n  }\n}\n",
-    )?;
+    let fetch = |value: &str| {
+        write_one_step(
+            root,
+            &format!(
+                "        when: {{value: $input.value, equals: {value}}}\n        calls:\n          operations: [locked/note.read]\n        max_calls: 5\n        outputs:\n          note: {{}}\n      - id: digest\n        when: {{value: $input.value, not_equals: {value}}}\n        tool: data.digest\n        inputs: {{value: $input.value, encoding: utf8_text}}\n"
+            ),
+            "export default async function (ctx) {\n  for (;;) {\n    await ctx.operation(\"locked/note.read\", {});\n  }\n}\n",
+        )
+    };
+    // Its input selects out the locked step; it needs no such connector.
+    let skipped = run_on(local()?, root, fetch("other")?)?;
+    let output = object(&skipped.output)?;
+    assert_eq!(text(output, "outcome"), Some("completed"), "{output:?}");
+    assert_eq!(
+        serde_json::to_value(output.get("result").ok_or("no result")?)?["digest_result"]["digest"],
+        runx_contracts::sha256_prefixed(b"hello")
+    );
+    let run_id = text(output, "run_id").ok_or("missing run_id")?;
+    assert!(call_events(root, run_id)?.is_empty());
+
     // The script's own call: refused before the run starts, so no pass runs.
-    let refused = run_on(local()?, root, fetch)?;
+    let refused = run_on(local()?, root, fetch("hello")?)?;
     let output = object(&refused.output)?;
     assert_eq!(text(output, "outcome"), Some("blocked"), "{output:?}");
     assert!(

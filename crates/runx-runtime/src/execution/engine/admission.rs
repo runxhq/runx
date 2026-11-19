@@ -15,7 +15,7 @@ use crate::effects::{
 };
 
 /// The refusal a run of `workflow` meets before it starts, if any: each of
-/// its own scripts' declared operations admitted from the checks each call
+/// its reachable scripts' declared operations admitted from the checks each call
 /// of them meets, under the run's authority and the packages its calls are
 /// made from, and the first refused refuses the run as its step's admission
 /// would. A fault reading what admission reads is an error, not a refusal.
@@ -27,8 +27,12 @@ pub(crate) fn declared_operations_refusal<A>(
 where
     A: SkillAdapter,
 {
+    // Use the same selection as execution. Here only conditions already
+    // settled by bindings can rule out a step; pending ones are still checked.
+    let skipped = super::steps::when_skipped_steps(workflow, &[], &Default::default());
     let declaring = workflow.steps.iter().filter(|step| {
-        matches!(&step.kind, runx_parser::StepKind::Script(script) if !script.allowance.operations.is_empty())
+        !skipped.contains(&step.id)
+            && matches!(&step.kind, runx_parser::StepKind::Script(script) if !script.allowance.operations.is_empty())
     });
     for step in declaring {
         let chain = runtime.options.chain_at(workflow_dir)?;

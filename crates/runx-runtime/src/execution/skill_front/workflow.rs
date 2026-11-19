@@ -201,7 +201,8 @@ impl BoundRun {
         )?;
         // The run starts as its own method needs: its scripts' declared
         // operations admitted, then its worker started if it runs JavaScript.
-        let start = self.start(&runtime)?;
+        let workflow = self.workflow(&workflow_inputs, run_act.as_ref(), log.run_id())?;
+        let start = crate::implementation::start(&runtime, &self.skill_dir, &workflow, false)?;
         match started {
             // A continuation runs on the implementation the run started on,
             // unless it's refused as it starts and runs nothing.
@@ -254,7 +255,6 @@ impl BoundRun {
                 self.overrides.host_events.clone(),
             )?,
         }
-        let workflow = self.workflow(&workflow_inputs, run_act.as_ref(), log.run_id())?;
         let run = Driven {
             bound: self,
             log: &log,
@@ -391,26 +391,6 @@ impl BoundRun {
     fn purchase(&self) -> Option<&str> {
         let reference = self.overrides.purchase.as_deref()?;
         self.method.offer.is_some().then_some(reference)
-    }
-
-    /// How the run starts on `runtime`, decided from what it runs as its own
-    /// method: for a purchase, the one step that calls the method, whose
-    /// child run decides from the method itself.
-    fn start(
-        &self,
-        runtime: &Runtime<ExecutableAdapter>,
-    ) -> Result<crate::implementation::Start, RuntimeError> {
-        let own = match self.purchase() {
-            Some(reference) => {
-                std::borrow::Cow::Owned(crate::execution::workflow::purchase_workflow(
-                    reference,
-                    &self.method.name,
-                    &JsonObject::new(),
-                ))
-            }
-            None => std::borrow::Cow::Borrowed(&self.method.workflow),
-        };
-        crate::implementation::start(runtime, &self.skill_dir, &own, false)
     }
 
     /// The workflow the run drives: the method's own, or for a purchase one step
