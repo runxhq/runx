@@ -109,11 +109,11 @@ pub fn inspect_skill_readiness(
     else {
         return Ok(inspection);
     };
-    let readiness =
-        inspect_connector_readiness(skill_path, selected_method, inputs, authority, env, cwd)?;
+    let (readiness, ready) =
+        connector_readiness(skill_path, selected_method, inputs, authority, env, cwd)?;
     if !readiness.is_empty() {
         inspection.readiness = Some(InspectionReadiness {
-            status: if readiness.iter().all(|operation| operation.ready) {
+            status: if ready {
                 InspectionReadinessStatus::Ready
             } else {
                 InspectionReadinessStatus::NeedsConnectorSetup
@@ -170,11 +170,26 @@ pub fn inspect_connector_readiness(
     env: &BTreeMap<String, String>,
     cwd: &Path,
 ) -> Result<Vec<runx_contracts::Readiness>, SkillInspectionError> {
+    connector_readiness(skill_path, selected_method, inputs, authority, env, cwd)
+        .map(|(operations, _)| operations)
+}
+
+/// Project each method under its own caller chain. A slot can serve an
+/// operation when one of its choices can; readiness in another method
+/// never covers a refusal here.
+fn connector_readiness(
+    skill_path: &Path,
+    selected_method: Option<&str>,
+    inputs: Option<&JsonObject>,
+    authority: Option<&crate::RunAuthority>,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Result<(Vec<runx_contracts::Readiness>, bool), SkillInspectionError> {
     let loaded = Arc::new(super::load_validated_skill_package(skill_path)?);
     let Some(method) =
         inspected_method(loaded.manifest(), selected_method)?.map(|method| method.name.clone())
     else {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), true));
     };
     let root_directory = loaded.directory.clone();
     let root_method = method.clone();
@@ -205,6 +220,7 @@ pub fn inspect_connector_readiness(
         })?;
     let authority = authority.as_ref();
     let mut readiness = Vec::new();
+    let mut ready = true;
     for (package, method) in
         closure::inspect_method_closure_methods(Arc::clone(&loaded), &method, env)?
     {
@@ -246,13 +262,21 @@ pub fn inspect_connector_readiness(
                 message,
             )))
         })?;
+        let mut required = BTreeMap::new();
+        for operation in &projected {
+            let any = required
+                .entry((&operation.requirement, &operation.operation))
+                .or_insert(false);
+            *any |= operation.ready;
+        }
+        ready &= required.values().all(|any| *any);
         for operation in projected {
             if !readiness.contains(&operation) {
                 readiness.push(operation);
             }
         }
     }
-    Ok(readiness)
+    Ok((readiness, ready))
 }
 
 /// The requirements a method's steps use, narrowed to the operations they
@@ -1059,6 +1083,40 @@ operations:
         assert_eq!(
             operations,
             ["acme/drafts notes.write", "acme/notes notes.write"]
+        );
+        // The unselected hosted connector needn't be configured when a
+        // local choice can serve the slot. Keep both projections visible.
+        fs::write(
+            root.join("connectors/acme/notes/connector.yaml"),
+            hosted_connector("acme/notes").replace(
+                "  hosted: {auth: credential, credential: service_token}",
+                "  local: {auth: [credentials]}",
+            ),
+        )?;
+        let env = std::collections::BTreeMap::from([
+            (
+                "RUNX_HOME".to_owned(),
+                temp.path().join("home").display().to_string(),
+            ),
+            (
+                "RUNX_PROJECT_DIR".to_owned(),
+                temp.path().join("project").display().to_string(),
+            ),
+            ("ACME_SERVICE_TOKEN".to_owned(), "fixture-token".to_owned()),
+        ]);
+        let inspected = super::inspect_skill_readiness(&root, None, None, None, &env, temp.path())?;
+        assert_eq!(
+            inspected.readiness.expect("readiness").status,
+            runx_contracts::InspectionReadinessStatus::Ready
+        );
+        assert_eq!(inspected.connector_readiness.len(), 2);
+        assert_eq!(
+            inspected
+                .connector_readiness
+                .iter()
+                .filter(|operation| operation.ready)
+                .count(),
+            1
         );
         Ok(())
     }
