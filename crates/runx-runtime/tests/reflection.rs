@@ -224,6 +224,12 @@ fn survey_lays_out_its_checks_from_the_record_before_anything_is_judged() -> Tes
             .unwrap_or_default()
     };
     assert_eq!(of("sealed_blocked")["run"], broken["run_id"], "{first}");
+    assert!(
+        of("sealed_blocked")["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("guard")),
+        "a sealed refusal keeps its native cause for diagnosis: {first}"
+    );
     assert_eq!(of("declined_ask")["run"], asked["run_id"], "{first}");
     assert_eq!(of("declined_ask")["reason"], "Only the team.", "{first}");
     assert!(

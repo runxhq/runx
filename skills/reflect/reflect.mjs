@@ -111,7 +111,7 @@ export function resisted(summary, records) {
   }
   const sealed = records.find((record) => record.event.kind === "sealed" && record.stream === summary.run_id);
   if (items.length === 0 && sealed && sealed.event.outcome !== "completed") {
-    items.push(at(sealed, { kind: `sealed_${sealed.event.outcome}`, reason: null, evidence: sealed.event.receipt_id }));
+    items.push(at(sealed, { kind: `sealed_${sealed.event.outcome}`, reason: summary.why ?? null, evidence: sealed.event.receipt_id }));
   }
   return items;
 }
