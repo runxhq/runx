@@ -7,7 +7,7 @@ catalog:
 shared_inputs:
   memory:
     type: array
-    description: The memory levels the draft recalls this recipient from, as runx/memory#search takes them, so a contact memory already holds is drafted as known. Without them nothing is recalled, and the run reads only the streams its authority names.
+    description: The memory levels the draft recalls standing rules and recipient facts from, through runx/memory#index focused on the recipient. Without them nothing is recalled, and the run reads only the streams its authority names.
     minItems: 1
     maxItems: 8
     items: {type: object, additionalProperties: true}
@@ -172,14 +172,14 @@ methods:
         memory: $input.memory
         follows: $input.follows
       outputs:
-        memory_search:
+        memory_recall:
           type: object
           additionalProperties: false
           required: [path]
           properties:
-            path: {enum: [search, none]}
+            path: {enum: [index, none]}
             levels: {type: array, items: {type: object, additionalProperties: true}}
-            query: {type: string}
+            focus: {type: string}
         contact_brief:
           type: object
           additionalProperties: false
@@ -223,11 +223,11 @@ methods:
       outputs:
         outreach_review: {type: object, packet: runx/cold-outreach.review.v1}
     - id: memory
-      when: {value: $steps.admit.memory_search.path, equals: search}
-      skill: runx/memory#search
+      when: {value: $steps.admit.memory_recall.path, equals: index}
+      skill: runx/memory#index
       inputs:
-        levels: $steps.admit.memory_search.levels
-        query: $steps.admit.memory_search.query
+        levels: $steps.admit.memory_recall.levels
+        focus: $steps.admit.memory_recall.focus
     - id: draft
       when: {value: $steps.admit.contact_brief.decision, equals: eligible_for_draft}
       agent: cold-outreach-draft

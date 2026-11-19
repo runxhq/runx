@@ -67,10 +67,10 @@ export function admitContact({
   blockers.push(...evidence_context.blockers);
   const eligible = blockers.length === 0 && evidence_context.decision === "ready";
   return {
-    // Memory is searched for the recipient only for a draft, and only at
-    // the levels the caller names.
-    memory_search: eligible && memory
-      ? { path: "search", levels: memory, query: prospect.email }
+    // Recall standing rules and recipient facts only for a draft, at the
+    // levels the caller names.
+    memory_recall: eligible && memory
+      ? { path: "index", levels: memory, focus: prospect.email }
       : { path: "none" },
     contact_brief: {
       decision: eligible ? "eligible_for_draft" : "hold",

@@ -21,7 +21,8 @@ Unknown eligibility, suppression, missing policy evidence or an unsupported draf
 produces a hold. No approval, delivery or provider acknowledgement is implied.
 
 Name memory levels in `memory`, and `prepare` recalls what memory holds about
-the recipient before it drafts, through `runx/memory#search` by the recipient's
+the recipient and the person's standing rules before it drafts, through
+`runx/memory#index` focused on the recipient's
 address, so a contact memory already knows is drafted as known. The run reads
 only the memory streams its authority names, and each entry keeps the labels
 memory gave it. With no levels named, nothing is recalled.
@@ -59,7 +60,7 @@ that is made again.
 - `ghostwrite#verify`
 - `lead-enrichment#enrich`
 - `lead-qualify#qualify`
-- `memory#search`
+- `memory#index`
 
 ## Outreach judgment
 

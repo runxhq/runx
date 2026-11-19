@@ -70,17 +70,17 @@ test("requires a supported draft and the exact footer before review readiness", 
   assert.deepEqual(review({ ...valid, draft: { title: "A useful review", body: "Useful offer." } }).blockers, ["the exact required footer is missing"]);
 });
 
-test("memory is searched for the recipient only for a draft, and only at the levels the caller names", () => {
+test("a draft recalls standing rules and recipient facts only at the levels the caller names", () => {
   const levels = [{ level: "personal" }];
-  assert.deepEqual(admitContact({ ...inputs(), memory: levels }).memory_search, {
-    path: "search",
+  assert.deepEqual(admitContact({ ...inputs(), memory: levels }).memory_recall, {
+    path: "index",
     levels,
-    query: "operator@example.org",
+    focus: "operator@example.org",
   });
-  assert.deepEqual(admitContact(inputs()).memory_search, { path: "none" });
+  assert.deepEqual(admitContact(inputs()).memory_recall, { path: "none" });
   const held = { ...inputs(), memory: levels };
   held.contact_policy = { ...held.contact_policy, suppressed: true };
-  assert.deepEqual(admitContact(held).memory_search, { path: "none" });
+  assert.deepEqual(admitContact(held).memory_recall, { path: "none" });
 });
 
 test("a follow-up holds past the limit or after a reply, opt-out, complaint or bounce, and never repeats", () => {
