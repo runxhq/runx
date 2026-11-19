@@ -861,39 +861,24 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
     let skill = temp.path().join("reader");
     crate::support::write_test_skill_package(
         &skill,
-        "---\nname: reader\ndescription: Read an entire input.\n---\n# Reader\n\n## Agent task: read\n\nRead every page of the document, then finish.\n",
-        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      document: {type: string}\n    steps:\n      - id: read\n        agent: read\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
+        "---\nname: reader\ndescription: Read the indexed document.\n---\n# Reader\n\n## Agent task: read\n\nRead every page of the document, then finish.\n",
+        "minimum_runx: 0.12.0\nmethods:\n  read:\n    inputs:\n      question: {type: string}\n    steps:\n      - id: read\n        agent: read\n        context: {inherit: true}\n        inputs: $input\n        outputs:\n          status: {type: string}\n",
     )?;
     let invalid = [
         (
             "turn_read",
-            json!({"locator": "input:document", "offset": "32000"}),
+            json!({"locator": "current:0", "offset": "32000"}),
         ),
+        ("turn_read", json!({"locator": "current:0", "offset": null})),
+        ("turn_read", json!({"locator": "current:0", "offset": -1})),
+        ("turn_read", json!({"locator": "current:0", "offset": 1.5})),
+        ("turn_read", json!({"locator": "current:0", "offset": 1e20})),
         (
             "turn_read",
-            json!({"locator": "input:document", "offset": null}),
+            json!({"locator": "current:0", "offest": 32000}),
         ),
-        (
-            "turn_read",
-            json!({"locator": "input:document", "offset": -1}),
-        ),
-        (
-            "turn_read",
-            json!({"locator": "input:document", "offset": 1.5}),
-        ),
-        (
-            "turn_read",
-            json!({"locator": "input:document", "offset": 1e20}),
-        ),
-        (
-            "turn_read",
-            json!({"locator": "input:document", "offest": 32000}),
-        ),
-        (
-            "turn_read",
-            json!({"locator": "input:document", "limit": null}),
-        ),
-        ("turn_status", json!({"unexpected": true})),
+        ("turn_read", json!({"locator": "current:0", "limit": null})),
+        ("turn_read", json!({"locator": "input:question"})),
     ];
     let mut responses = invalid
         .iter()
@@ -903,7 +888,7 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
             tool_call(
                 &format!("page-{offset}"),
                 "turn_read",
-                &json!({"locator": "input:document", "offset": offset}),
+                &json!({"locator": "current:0", "offset": offset}),
             )
         }))
         .chain([tool_call(
@@ -924,10 +909,28 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
     )]);
     env.extend(drive_env(model.endpoint(), "reader"));
     crate::support::insert_test_signing_env(&mut env);
-    let document = format!("{}end", "café🧭".repeat(13_000));
+    let data = json!({"document": format!("{}end", "café🧭".repeat(13_000))});
+    let document = serde_json::to_string_pretty(&data)?;
+    let context = serde_json::from_value(json!({
+        "schema": "runx.context_entry.v1",
+        "type": "host.document",
+        "summary": "The document to read",
+        "data": data,
+        "labels": {"purpose": "observation", "trust": "untrusted_evidence", "sharing": "configured_model"},
+        "sources": ["fixture:document"],
+        "origin": {
+            "artifact_id": "document:1",
+            "run_id": "rx_host",
+            "step_id": null,
+            "producer": {"skill": "host", "method": "read"},
+            "created_at": "2026-10-20T00:00:00Z",
+            "digest": "sha256:document",
+            "size_bytes": document.len(),
+        },
+    }))?;
     let result = LocalOrchestrator::default().run_skill_with_binding(
         &SkillRunRequest {
-            current_context: Vec::new(),
+            current_context: vec![context],
             historical_context: Vec::new(),
             run_authority: None,
             act: None,
@@ -935,7 +938,10 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
             receipt_dir: Some(temp.path().join("receipts")),
             run_id: None,
             answers: None,
-            inputs: BTreeMap::from([("document".to_owned(), JsonValue::String(document.clone()))]),
+            inputs: BTreeMap::from([(
+                "question".to_owned(),
+                JsonValue::String("Read the document.".to_owned()),
+            )]),
             env,
             cwd: temp.path().to_path_buf(),
             drive: DrivePolicy::inline(Some(12))?,
@@ -948,6 +954,19 @@ fn a_managed_turn_rejects_invalid_read_arguments_and_retains_every_page()
     let output = serde_json::to_value(result.output)?;
     assert_eq!(output["outcome"], "completed", "{output}");
     assert_eq!(requests.len(), invalid.len() + 4);
+    let tools = requests[0]["tools"].as_array().ok_or("missing tools")?;
+    assert_eq!(tools.len(), 2, "{tools:?}");
+    assert_eq!(tools[0]["function"]["name"], "turn_read");
+    assert_eq!(
+        tools[0]["function"]["parameters"]["properties"]["locator"]["enum"],
+        json!(["current:0"]),
+    );
+    assert_eq!(tools[1]["function"]["name"], "turn_complete");
+    assert!(
+        requests[0]["messages"]
+            .to_string()
+            .contains("Read the document.")
+    );
     let messages = requests
         .last()
         .and_then(|request| request["messages"].as_array())
@@ -1006,8 +1025,7 @@ fn a_managed_turn_pages_large_call_results_without_losing_them()
             round += 1;
             match round {
                 1 => tool_call("file", "fs_read", &json!({"path": "document.txt"})),
-                2 => tool_call("status", "turn_status", &json!({})),
-                3 => tool_call("page-0", "turn_read", &json!({"locator": "call:0"})),
+                2 => tool_call("page-0", "turn_read", &json!({"locator": "call:0"})),
                 _ => {
                     let content = request["messages"]
                         .as_array()
@@ -1064,7 +1082,7 @@ fn a_managed_turn_pages_large_call_results_without_losing_them()
                 continue;
             };
             let content = message["content"].as_str().ok_or("missing result")?;
-            if ["file", "status"].contains(&id) {
+            if id == "file" {
                 assert!(
                     content.chars().count() <= 32_000,
                     "{id} flooded the model with {} characters",
@@ -1189,12 +1207,11 @@ fn a_driven_turn_at_a_loopback_endpoint_reads_a_local_only_artifact()
     let server = std::thread::spawn(move || -> io::Result<Vec<Value>> {
         let tool_call = |id: &str, name: &str, arguments: Value| json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":id,"type":"function","function":{"name":name,"arguments":arguments.to_string()}}]}}]});
         let mut requests = Vec::new();
-        for turn in 0..3 {
+        for turn in 0..2 {
             let (mut stream, _) = listener.accept()?;
             let request = runx_runtime::scripted_model::read_chat_request(&mut stream)?;
             let response = match turn {
-                0 => tool_call("call-input", "turn_read", json!({"locator": "input:kept"})),
-                1 => {
+                0 => {
                     let sent = request.to_string();
                     let start = sent
                         .find("runx:local-artifact:sha256:")
@@ -1275,7 +1292,6 @@ fn a_driven_turn_at_a_loopback_endpoint_is_given_a_local_only_page_a_tool_step_r
         serve_responses(
             listener,
             [
-                json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-page","type":"function","function":{"name":"turn_read","arguments":"{\"locator\":\"input:page\"}"}}]}}]}),
                 json!({"choices":[{"finish_reason":"tool_calls","message":{"tool_calls":[{"id":"call-final","type":"function","function":{"name":"turn_complete","arguments":"{\"status\":\"done\"}"}}]}}]}),
             ],
         )
@@ -1345,7 +1361,6 @@ fn what_a_loopback_turn_stores_of_a_local_only_page_is_local_only_and_refused_to
         serve_responses(
             listener,
             [
-                tool_call("call-page", "turn_read", json!({"locator": "input:page"})),
                 tool_call(
                     "call-store",
                     "artifact_store",
@@ -1415,10 +1430,10 @@ fn what_a_loopback_turn_stores_of_a_local_only_page_is_local_only_and_refused_to
             .ok_or("the request carries no call result")?;
         Ok(serde_json::from_str(content)?)
     };
-    let stored = result(&sent[2])?;
+    let stored = result(&sent[1])?;
     let artifact = stored["outcome"]["output"]["artifact"].clone();
     assert_eq!(artifact["labels"]["sharing"], "local_only", "{stored}");
-    let widened = result(&sent[3])?;
+    let widened = result(&sent[2])?;
     assert_ne!(widened["outcome"]["status"], "completed", "{widened}");
     assert!(
         widened

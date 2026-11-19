@@ -25,7 +25,7 @@ use super::agent_openai_responses::OpenAiResponsesCaller;
 use super::agent_tool_definitions::{AgentToolDefinition, AgentToolNameMap};
 use crate::RuntimeError;
 use crate::config::{DriveAuthMode, DriveConfig, ModelDialect};
-use crate::execution::engine::turn::{TURN_COMPLETE_TOOL, TURN_READ_TOOL, TURN_STATUS_TOOL, Turn};
+use crate::execution::engine::turn::{TURN_COMPLETE_TOOL, TURN_READ_TOOL, Turn};
 use crate::host::Host;
 use crate::http::ReqwestHttpTransport;
 
@@ -225,7 +225,6 @@ impl TurnCalls<'_> {
         let locators = (0..envelope.current_context.len())
             .map(TurnLocator::Current)
             .chain((0..envelope.historical_context.len()).map(TurnLocator::Historical))
-            .chain(envelope.inputs.keys().cloned().map(TurnLocator::Input))
             .chain(
                 self.turn
                     .calls()?
@@ -247,17 +246,9 @@ impl TurnCalls<'_> {
                     input_schema: JsonValue::Object(tool.input_schema),
                 })
                 .chain([
-                    Some(AgentToolDefinition {
-                        name: TURN_STATUS_TOOL.to_owned(),
-                        description: "Read the turn: what it answers, its context as an index, what it may call, and how each call ended.".to_owned(),
-                        input_schema: JsonValue::Object(JsonObject::from([
-                            ("type".to_owned(), JsonValue::String("object".to_owned())),
-                            ("additionalProperties".to_owned(), JsonValue::Bool(false)),
-                        ])),
-                    }),
                     (!locators.is_empty()).then(|| AgentToolDefinition {
                         name: TURN_READ_TOOL.to_owned(),
-                        description: "Read what the turn was given, an input or an earlier call, by one of the listed locators. A page is at most 32,000 characters from offset; next_offset reads on.".to_owned(),
+                        description: "Read a context entry or earlier call result by a listed locator. A page is at most 32,000 characters from offset; next_offset reads on.".to_owned(),
                         input_schema: read_schema(locators),
                     }),
                     Some(AgentToolDefinition {
@@ -279,14 +270,17 @@ impl ToolExecutor for TurnCalls<'_> {
     }
 
     fn admitted_tool_name(&self, tool: &str) -> Option<String> {
-        (self.targets.contains_key(tool) || [TURN_STATUS_TOOL, TURN_READ_TOOL].contains(&tool))
-            .then(|| tool.to_owned())
+        self.offered
+            .definitions()
+            .iter()
+            .find(|definition| definition.name == tool)
+            .map(|definition| definition.name.clone())
     }
 
     // The loop ends the turn on its final tool; it never runs here.
     fn execute(&mut self, tool: &str, input: &JsonValue) -> Result<ToolOutcome, RuntimeError> {
-        if [TURN_STATUS_TOOL, TURN_READ_TOOL].contains(&tool) {
-            // Host controls have no capability handler to admit their inputs.
+        if tool == TURN_READ_TOOL {
+            // Reads have no capability handler to admit their inputs.
             // Enforce the exact schema offered this round before reading;
             // malformed paging arguments must never become absent arguments.
             let schema = self
@@ -318,33 +312,6 @@ impl ToolExecutor for TurnCalls<'_> {
                     guidance: None,
                 });
             }
-        }
-        if tool == TURN_STATUS_TOOL {
-            let status = self.turn.status()?;
-            let mut content = json_text(&status)?;
-            if content.chars().count() as u64 > TURN_READ_PAGE_CHARS {
-                let calls = status
-                    .calls
-                    .iter()
-                    .map(call_line)
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| {
-                        RuntimeError::effect_state("presenting a turn", error.to_string())
-                    })?;
-                content = format!(
-                    "Turn:\n{}\nTools:\n{}\nCalls, each with the start of its result; {TURN_READ_TOOL} reads one whole by its locator:\n{}",
-                    json_text(&status.invocation)?,
-                    json_text(&status.tools)?,
-                    calls.join("\n")
-                );
-            }
-            return Ok(ToolOutcome::Result {
-                content,
-                is_error: false,
-                guidance: None,
-            });
-        }
-        if tool == TURN_READ_TOOL {
             let field = |name: &str| input.as_object().and_then(|input| input.get(name));
             let read = (|| {
                 let locator = field("locator")
@@ -622,14 +589,13 @@ fn build_prompt(
     };
     // turn_read is offered only when the turn holds something it reads, so
     // only then is it named.
-    let readable = !(envelope.inputs.is_empty()
-        && envelope.current_context.is_empty()
+    let readable = !(envelope.current_context.is_empty()
         && envelope.historical_context.is_empty()
         && calls.is_empty());
     let reading = if readable {
         format!(
             " The context index lists what the turn was given; {TURN_READ_TOOL} reads an \
-             entry, an input or an earlier call by a locator its schema lists, a page at a \
+             entry or an earlier call by a locator its schema lists, a page at a \
              time from next_offset."
         )
     } else {
