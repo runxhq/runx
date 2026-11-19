@@ -382,10 +382,9 @@ function spelled(tokens, from) {
  * among them; a draft's "one" counts only where it measures.
  */
 function quantitiesIn(value, admitting) {
-  // A sentence's end is a token of its own, so a number ending one never
-  // counts the first word of the next: "since 2024. Sam" counts no Sams, nor
-  // does a sentence closed inside a quotation or brackets, "since 2024.” Sam".
-  const tokens = text(value).toLowerCase().match(/[$€£¥]?\d+(?:[.,:]\d+)*%?|[\p{L}']+|[.!?;](?=["'”’)\]]*(?:\s|$))/gu) ?? [];
+  // Sentence and clause punctuation ends the unit scan. A separator inside
+  // a formatted number stays in the number token.
+  const tokens = text(value).toLowerCase().match(/[$€£¥]?\d+(?:[.,:]\d+)*%?|[\p{L}']+|[.!?;,](?=["'”’)\]]*(?:\s|$))/gu) ?? [];
   const found = [];
   for (let at = 0; at < tokens.length; at += 1) {
     const figure = /^([$€£¥]?)(\d+(?:[.,:]\d+)*)(%?)$/u.exec(tokens[at]);
@@ -405,7 +404,7 @@ function quantitiesIn(value, admitting) {
     } else continue;
     const symbol = figure ? figure[1] || figure[3] || null : null;
     const following = tokens.slice(end, end + 4);
-    const stop = following.findIndex((token) => /^[.!?;]$/u.test(token));
+    const stop = following.findIndex((token) => /^[.!?;,]$/u.test(token));
     const after = stop < 0 ? following : following.slice(0, stop);
     const unit = symbol ?? (isContent(after[0]) ? singular(after[0]) : null);
     const said = tokens.slice(at, end).join(" ") + (!symbol && unit ? ` ${after[0]}` : "");

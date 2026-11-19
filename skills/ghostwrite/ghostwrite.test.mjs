@@ -306,6 +306,8 @@ test("a draft states only numbers something admitted holds", () => {
   const draft = (body) => ({ title: "Re: review", body });
   assert.deepEqual(inventedNumbers(context, draft("A 15-minute call works; we've reviewed forty pipelines since 2024.")), []);
   assert.deepEqual(inventedNumbers(context, draft("Tuesday at 2 PM works, for 15 minutes.")), ["2 pm"]);
+  assert.deepEqual(inventedNumbers(context, draft("Since 2024, the team has reviewed 40 pipelines.")), []);
+  assert.deepEqual(inventedNumbers(context, draft("Since 2024, the team has reviewed 41 pipelines.")), ["41 pipelines"]);
   // A number ending a sentence counts nothing in the next one.
   assert.deepEqual(inventedNumbers(context, draft("We've reviewed 40 pipelines since 2024.\n\nSam at Shipwright")), []);
   assert.deepEqual(inventedNumbers(context, draft("Reviews since 2024. Sam reviewed 41 pipelines.")), ["41 pipelines"]);
