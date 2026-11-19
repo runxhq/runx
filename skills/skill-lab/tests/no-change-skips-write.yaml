@@ -12,9 +12,10 @@ inputs:
 host:
   answers:
     author:
-      change_draft:
+      repair:
         decision: no_change
         summary: The report has no receipt or reproducible test output, so the evidence justifies no change; reproduce it with a sealed receipt first.
+        edits: []
         writes: []
         deletes: []
 expect:

@@ -281,7 +281,7 @@ methods:
         target_dir: skills/github
         project_context: Preserve the existing contract version and provider boundary.
         test_output: The agent could not construct the nested resources selector from inspection.
-    result_from: [author, bind]
+    result_from: [draft, bind]
     steps:
       - id: inspect
         tool: runx.skill.inspect
@@ -291,18 +291,54 @@ methods:
         outputs:
           authoring_context: {packet: runx.skill_lab.authoring_context.v1}
           authoring_brief: {type: object}
+      - id: source
+        script: {module: repair.mjs, export: sources}
+        inputs: {brief: $steps.inspect.authoring_brief}
+        calls: {tools: [fs.read_bundle]}
+        max_calls: 3
+        effects: none
+        outputs:
+          files: {type: array, items: {type: object}}
+          paths: {type: array, items: {type: string}}
+          methods: {type: array, items: {type: object}}
+          inspection_error: {type: [string, "null"]}
       - id: author
-        agent: skill-lab-author
+        agent: skill-lab-repair
+        context: {inherit: false}
         calls:
-          # It proves its case as it drafts: the case alone fails on the
-          # package, and passes with the fix.
-          tools: [fs.read_bundle, git.status, artifact.open, artifact.read, runx.skill.validate]
+          tools: [fs.read_bundle, fs.search, artifact.open, artifact.read]
         # Its caller proves a draft by the case it adds, so one that writes
         # adds a case.
         outputs:
-          change_draft:
+          repair:
             type: object
-            packet: runx.skill.change_draft.v1
+            additionalProperties: false
+            required: [decision, summary, edits, writes, deletes]
+            properties:
+              decision: {enum: [write, no_change, no_skill, needs_core]}
+              summary: {type: string, minLength: 1}
+              edits:
+                type: array
+                maxItems: 16
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, line, old, new]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    line: {type: integer, minimum: 1}
+                    old: {type: string, minLength: 1}
+                    new: {type: string}
+              writes:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [path, contents]
+                  properties:
+                    path: {type: string, minLength: 1}
+                    contents: {type: string}
+              deletes: {type: array, items: {type: string, minLength: 1}}
             if: {properties: {decision: {const: write}}, required: [decision]}
             then:
               properties:
@@ -319,15 +355,22 @@ methods:
           receipt_summary: $input.receipt_summary
           test_output: $input.test_output
           failure_packet: $input.failure_packet
-          authoring_mode: improve
-          authoring_brief: $steps.inspect.authoring_brief
+          source: $steps.source
           target_dir: $input.target_dir
+      - id: draft
+        script: {module: repair.mjs, export: draft}
+        inputs: {change: $steps.author.repair, source: $steps.source}
+        calls: {tools: [fs.read_bundle]}
+        max_calls: 6
+        effects: none
+        outputs:
+          change_draft: {type: object, packet: runx.skill.change_draft.v1}
       - id: bind
         tool: runx.skill.bind
         inputs:
           authoring_context: $steps.inspect.authoring_context
           mode: improve
-          change_draft: $steps.author.change_draft
+          change_draft: $steps.draft.change_draft
 
   test:
     description: Add tests and the fixtures they read to a package that stands, and replay them against the candidate before writing.

@@ -517,6 +517,33 @@ do not compensate with more fixtures, prose padding, or a bespoke wrapper.
   failure evidence, including the stable packet from `diagnose-skill-run`.
   `test_output` carries a test run's sanitized output.
 
+## Agent task: skill-lab-repair
+
+Use the supplied failure and the target's captured source to decide whether
+the skill needs a change. `source.methods` identifies method inputs and
+outputs. `source.files` includes the manifest, implementation, and native
+case examples. Use those files to make the repair. For missing source,
+`fs.search` locates a specific symbol and its line, and `fs.read_bundle`
+can read missing files using `source.paths`.
+
+Return one `repair` with a `decision`, `summary`, `edits`, `writes` and
+`deletes`. For an existing file, give a workspace-relative `path`, the
+`line` where the exact `old` text starts, and its replacement `new`.
+Use the printed line number and the smallest substring that identifies the
+edit on that line. Unchanged text stays in the file without being copied
+into the edit. Line numbers always refer to the original file. Use
+`writes` for the complete contents of new files, each with `path` and
+`contents`. A write adds a native `tests/<name>.yaml` case that reaches the
+defect on the old package and passes on the repair. A native case names
+`name`, `method`, `inputs` and `expect`. Use `expect.output.subset` to
+assert the method’s result, or `expect.step_outputs` for an intermediate
+step. Supply `host.answers` only for steps that need an answer.
+
+Preserve the package's name, version, authority and unrelated behavior.
+When the evidence warrants `no_change`, `no_skill` or `needs_core`, say
+why and leave the three change lists empty. Once you have the edit and case,
+use `turn_complete` to return the repair. The caller proves it from there.
+
 ## Agent task: skill-lab-author
 
 Read the target package and the catalog, decide, and return one

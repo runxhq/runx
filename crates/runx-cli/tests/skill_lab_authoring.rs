@@ -109,9 +109,10 @@ fn a_draft_that_writes_adds_the_case_its_caller_proves_it_by() -> TestResult {
     let read = command(&repo, &root)
         .args(["history", run_id, "--json"])
         .output()?;
-    let answer = serde_json::json!({ "answers": { "author": { "change_draft": {
+    let answer = serde_json::json!({ "answers": { "author": { "repair": {
         "decision": "write",
         "summary": "Read the current price list.",
+        "edits": [],
         "writes": [{ "path": "digest-note/run.yaml", "contents": "minimum_runx: 0.12.0\n" }],
         "deletes": [],
     } } } });
@@ -133,7 +134,7 @@ fn a_draft_that_writes_adds_the_case_its_caller_proves_it_by() -> TestResult {
     assert_eq!(failed["status"], "failure", "{failed}");
     assert!(
         failed["error"]["message"].as_str().is_some_and(
-            |message| message.contains("change_draft/writes")
+            |message| message.contains("repair/writes")
                 // in the contract's own words
                 && message.contains("adds the case its caller proves it by")
         ),

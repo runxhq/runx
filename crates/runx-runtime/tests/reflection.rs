@@ -510,9 +510,9 @@ fn drafted(objective: &str, target_dir: &str) -> serde_json::Value {
         return fixed_greet(target_dir);
     }
     serde_json::json!({
-        "schema": "runx.skill.change_draft.v1", "decision": "no_change",
+        "decision": "no_change",
         "summary": "The record shows nothing in greet to fix.",
-        "writes": [], "deletes": [],
+        "edits": [], "writes": [], "deletes": [],
     })
 }
 
@@ -520,18 +520,15 @@ fn drafted(objective: &str, target_dir: &str) -> serde_json::Value {
 /// case that expects both steps, which the old revision's guard stops.
 #[cfg(all(feature = "agent", feature = "scripted-model"))]
 fn fixed_greet(target_dir: &str) -> serde_json::Value {
-    let fixed = GREET
-        .replacen(
-            "minimum_runx: 0.12.0\n",
-            "minimum_runx: 0.12.0\ncatalog:\n  visibility: internal\n",
-            1,
-        )
-        .replacen("{expected: a, actual: b}", "{expected: b, actual: b}", 1);
+    let path = format!("{target_dir}/run.yaml");
     serde_json::json!({
-        "schema": "runx.skill.change_draft.v1", "decision": "write",
+        "decision": "write",
         "summary": "Make broken's compare agree, so its guard lets insist run.",
+        "edits": [
+            {"path": path, "line": 1, "old": "minimum_runx: 0.12.0\n", "new": "minimum_runx: 0.12.0\ncatalog:\n  visibility: internal\n"},
+            {"path": path, "line": 13, "old": "{expected: a, actual: b}", "new": "{expected: b, actual: b}"},
+        ],
         "writes": [
-            {"path": format!("{target_dir}/run.yaml"), "contents": fixed},
             {"path": format!("{target_dir}/tests/broken-insists.yaml"), "contents": "name: broken-insists\nmethod: broken\nexpect:\n  status: sealed\n  steps: [compare, insist]\n"},
         ],
         "deletes": [],
@@ -571,10 +568,10 @@ fn reflection_model(
             .unwrap_or_default();
         let complete =
             |output: serde_json::Value| tool_call("call-final", "turn_complete", &output);
-        if offered.get("change_draft").is_some() {
+        if offered.get("repair").is_some() {
             let objective = inputs["objective"].as_str().unwrap_or_default();
             let target_dir = inputs["target_dir"].as_str().unwrap_or_default();
-            return complete(serde_json::json!({"change_draft": drafted(objective, target_dir)}));
+            return complete(serde_json::json!({"repair": drafted(objective, target_dir)}));
         }
         if let Some(resistance) = inputs.get("resistance") {
             // Misdirected, the stopped run's diagnosis cites a receipt no
