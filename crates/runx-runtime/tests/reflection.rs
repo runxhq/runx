@@ -433,7 +433,8 @@ fn reflection_judges_the_window_repairs_a_wrong_result_and_drops_a_finding_the_r
             .into_iter()
             .flatten()
             .any(|entry| entry["criterion"] == "sampled_1"
-                && entry["dropped"] == "the draft changes nothing"),
+                && entry["dropped"]
+                    == "the author returned no_change: The record shows nothing in greet to fix."),
         "{first}"
     );
     assert!(
@@ -719,9 +720,8 @@ fn reflection_keeps_what_it_proves_once_the_person_approves_it() -> TestResult {
     assert_eq!(fix["proof"]["before"]["broken-insists"], "failed", "{fix}");
     assert_eq!(fix["proof"]["after"]["broken-insists"], "passed", "{fix}");
     assert!(
-        proposals
-            .iter()
-            .any(|entry| entry["dropped"] == "the draft changes nothing"),
+        proposals.iter().any(|entry| entry["dropped"]
+            == "the author returned no_change: The record shows nothing in greet to fix."),
         "{sealed}"
     );
     assert!(

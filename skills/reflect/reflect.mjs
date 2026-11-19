@@ -660,7 +660,10 @@ export async function propose(ctx, { survey, findings }) {
     }
     const bundle = await ctx.read(draft.change_bundle);
     if (!bundle || bundle.decision !== "write") {
-      proposals.push({ criterion, target_dir, dropped: "the draft changes nothing" });
+      const dropped = bundle
+        ? `the author returned ${bundle.decision}: ${bundle.summary}`
+        : "the draft returned no change bundle";
+      proposals.push({ criterion, target_dir, dropped });
       continue;
     }
     const cases = casesOf(target_dir, bundle.writes);
