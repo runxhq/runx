@@ -118,10 +118,11 @@ test("an unavailable diff runs every lane", () => {
 
 test("the core skills include the bundled memory owner", () => {
   const names = bundledCoreSkills();
-  assert.equal(names.length, 13);
+  assert.equal(names.length, 14);
   assert.ok(names.includes("memory"));
   assert.ok(names.includes("skill-lab"));
   assert.ok(names.includes("agent"));
   assert.ok(names.includes("revert"));
+  assert.ok(names.includes("reflect"));
   assert.ok(!names.includes("reddit"));
 });
