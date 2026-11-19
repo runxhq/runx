@@ -41,7 +41,7 @@ shared_inputs:
     optional: true
 methods:
   draft:
-    description: Write one evidence-bound draft from a ready research or evidence packet, admitting the evidence, writing, then verifying every claim against its source.
+    description: Write one draft from admitted evidence and check its claim and writing-context bindings.
     inputs:
       objective: {}
       audience: {}
@@ -308,7 +308,7 @@ methods:
         outputs:
           evidence_context: {type: object}
   verify:
-    description: Check every material claim and context binding of a draft against what was admitted, withholding what it cannot bind.
+    description: Check a draft's claim and writing-context bindings against the admitted evidence and withhold unsupported quantities.
     inputs:
       evidence_context:
         description: Evidence context returned by `admit`, the authority for source digests and context rules.

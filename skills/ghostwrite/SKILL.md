@@ -43,11 +43,11 @@ publishes, posts, sends, or claims provider acknowledgement.
 
 `draft` composes `admit`, one writing turn and `verify`. `admit` binds a ready
 research packet or the exact supplied facts by its native digest and optionally admits
-digest-bound `brand-voice` and `taste-profile` context. Only admitted claims and
-source digests may enter the draft. `verify` checks every material claim and
-every context binding before releasing it, and withholds anything it cannot
-bind. A skill that owns its own writing judgment composes `admit` and `verify`
-around its own writing turn, so its draft keeps the same guarantees.
+digest-bound `brand-voice` and `taste-profile` context. The writer bases each
+material claim on admitted evidence. `verify` checks the declared claim and
+context bindings and withholds unsupported quantities. Review the prose for
+unsupported conclusions before publishing. A skill that owns its writing
+judgment composes `admit` and `verify` around its own writing turn.
 
 `package` converts a validated draft bound to its evidence into a deterministic
 channel payload, bound to its digest, in `not_sent` state; a draft without an
@@ -180,8 +180,9 @@ source_digests exactly as for researched evidence. Do not invent a research
 packet, source URL or external verification to make the request fit a protocol.
 The finished draft's distribution_notes.source_assurance is bound by the
 verifier to operator_supplied_facts or validated_research_packet, rather than
-chosen by the writer. A binding check establishes what supports a claim; it is
-not a new independent check that the supplied fact is true.
+chosen by the writer. A binding check establishes which admitted source the
+writer cited. Review whether the source supports the claim and whether the
+source itself is reliable.
 
 Composing skills can pass facts into admit and keep their own one writing turn
 between admit and verify. Researched callers retain the original packet and its
