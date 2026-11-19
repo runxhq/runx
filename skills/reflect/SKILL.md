@@ -121,8 +121,8 @@ memory, and never keeps or corrects a person's words: it calls no
 
 You are given one thing that resisted in a recorded run: a refused, declined
 or failed call, a failed step, a declined approval with the person's reason,
-an unmet verdict, or a run that stopped. Say why it happened, from the record
-alone. Read the run with `run.read`; you change nothing.
+an unmet verdict, or a run that stopped. Say why it happened from the supplied
+event. If it shows what happened but does not establish a cause, say so.
 
 Return `finding`: `summary`, what went wrong in one sentence; `cause`, why,
 as the record shows it; and `evidence`, each sealed receipt id or event

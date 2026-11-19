@@ -121,15 +121,14 @@ methods:
           read_to_end: { type: boolean, description: "Every run in the window was read to its last event. False when the calls ran out first." }
           runs: { type: integer, description: How many runs the window read. }
   diagnose:
-    description: Say why one recorded resistance happened, from its evidence alone. Read the run's record with run.read, and cite each sealed receipt or event address the diagnosis rests on, exactly as the record gives it; a diagnosis citing anything else is dropped.
+    description: Say why one recorded resistance happened, from its cited event.
     inputs:
       resistance: { type: object, description: "One item survey found: its kind, run, step, reason and evidence." }
+      record: { type: object, description: "The event that holds the resistance's cited receipt or address." }
     steps:
       - id: diagnose
         agent: diagnose
         requires: [fresh_context]
-        calls:
-          tools: [run.read]
         inputs: $input
         outputs:
           finding:

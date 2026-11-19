@@ -387,7 +387,17 @@ fn reflection_judges_the_window_repairs_a_wrong_result_and_drops_a_finding_the_r
     let second = reflect_as(root, &endpoint, "again")?;
     assert_eq!(first["outcome"], "completed", "{first}");
     assert_eq!(second["outcome"], "completed", "{second}");
-    model.finish()?;
+    let requests = model.finish()?;
+    let decline = requests
+        .iter()
+        .map(turn_inputs)
+        .find(|inputs| inputs["resistance"]["kind"] == "declined_ask")
+        .ok_or("the diagnosis received the declined ask")?;
+    assert_eq!(
+        decline["record"]["event"]["receipt_id"], decline["resistance"]["evidence"],
+        "{decline}"
+    );
+    assert!(decline["record"].to_string().contains("Only the team."));
 
     let findings = first["result"]["findings"].as_array().ok_or("findings")?;
     let finding = |criterion: &str| {

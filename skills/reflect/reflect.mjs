@@ -370,14 +370,11 @@ export async function survey(ctx, { reader, until: given }) {
 
 /** The refs a run's record holds that a finding may cite: each sealed receipt, and each event's address. */
 export function refsOf(records) {
-  const refs = new Set();
-  for (const record of records) {
-    refs.add(`runx:run:${record.stream}@${record.version}`);
-    const event = record.event;
-    if (typeof event.receipt_id === "string") refs.add(event.receipt_id);
-    if (typeof event.outcome?.receipt_id === "string") refs.add(event.outcome.receipt_id);
-  }
-  return refs;
+  return new Set(records.flatMap(eventRefs));
+}
+
+function eventRefs(record) {
+  return [addressOf(record), record.event.receipt_id, record.event.outcome?.receipt_id].filter((ref) => typeof ref === "string");
 }
 
 /**
@@ -421,9 +418,15 @@ export async function judge(ctx, { survey }) {
     }
   };
   for (const [index, resistance] of survey.resistance.entries()) {
-    const refs = refsOf(await recordOf(resistance.run));
-    const { finding } = await ctx.skill(".#diagnose", { resistance });
-    findings.push(kept(`resisted_${index + 1}`, finding, refs));
+    const criterion = `resisted_${index + 1}`;
+    const records = await recordOf(resistance.run);
+    const record = records.find((event) => eventRefs(event).includes(resistance.evidence));
+    if (!record) {
+      findings.push({ criterion, dropped: "the cited event is absent from the run's record" });
+      continue;
+    }
+    const { finding } = await ctx.skill(".#diagnose", { resistance, record });
+    findings.push(kept(criterion, finding, refsOf(records)));
   }
   for (const [index, sampled] of survey.sampled.entries()) {
     const criterion = `sampled_${index + 1}`;
