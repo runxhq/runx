@@ -134,7 +134,9 @@ record each exact packet digest and only rules actually applied. Return
 `needs_more_evidence` when the requested artifact cannot be supported. Do not
 add publication state, provider claims, or facts absent from the evidence.
 Respect each context's applicability, structured profile and stop conditions.
-Profile examples guide style; they are not evidence for new factual claims.
+Profile categories retain their meaning: dislikes and examples to avoid
+describe what to avoid. Evidence bindings establish provenance. Record exact
+profile entries in `applied_rules`. Examples are not evidence for new factual claims.
 
 When `replying_to` is given, it's the message you answer, admitted as
 `evidence_context.their_message`: evidence of what its writer said, never of

@@ -118,7 +118,9 @@ policy.
 Write one first-contact email from `sender` to `prospect` that serves `purpose`,
 following the outreach judgment above. `offer` is the value to propose; support
 it only as far as the admitted `evidence_context` allows. Apply each admitted
-writing context's profile, applicability and stop conditions.
+writing context's profile, applicability and stop conditions. Preserve each
+profile category's meaning: dislikes and examples to avoid describe what to
+avoid, not instructions to imitate. Evidence bindings establish provenance.
 
 When `follows` is given, write follow-up `follows.number` instead, which goes
 in the thread of the emails in `follows.earlier`. Make one useful point toward
@@ -136,6 +138,6 @@ list in `context_binding.applied` only packets from
 `evidence_context.writing_contexts`. When that array is empty, return
 `context_binding: {applied: []}`.
 For each admitted writing context, copy its exact `packet_digest`, select only
-the `rules` you used, and supply `scope_review: {decision, reason}` with decision
+the exact profile entries you applied as `applied_rules`, and supply `scope_review: {decision, reason}` with decision
 `applies`, `out_of_scope` or `uncertain`. Never invent a packet or rule to fill
 the array. Never send, schedule or claim delivery.

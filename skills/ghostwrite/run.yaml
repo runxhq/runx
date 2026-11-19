@@ -388,12 +388,10 @@ methods:
               source_path: evidence_packet_digest
             - target_path: evidence_binding.source_digests
               source_path: source_digests
-            - target_path: context_binding.required
-              source_path: context_requirements
             - target_path: review_checklist
               source_path: blockers
           source_digests: $input.evidence_context.source_digests
-          context_requirements: $input.evidence_context.context_requirements
+          context_requirements: []
           fallback_source: $input.evidence_context
         outputs:
           content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}
@@ -476,11 +474,11 @@ methods:
               source_path: blockers
           candidate: $steps.review-context.reviewed_draft
           identity_source: $input.evidence_context
-          authoritative_source: $input.evidence_context
+          authoritative_source: $steps.review-context.review_context
           fallback_source: $steps.review-context.review_context
           source_digests: $input.evidence_context.source_digests
           claim_bindings: $steps.review-context.reviewed_draft.draft.claims
-          context_requirements: $input.evidence_context.context_requirements
+          context_requirements: $steps.review-context.review_context.context_requirements
           context_bindings: $steps.review-context.reviewed_draft.context_binding.applied
         outputs:
           content_draft_packet: {packet: runx/ghostwrite.draft.v1, optional: true}

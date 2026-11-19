@@ -136,23 +136,6 @@ export function prepareEvidence(inputs) {
       source_digests: theirMessage ? [...sourceDigests, theirMessage.digest] : sourceDigests,
       ...(theirMessage ? { their_message: theirMessage } : {}),
       writing_contexts: writingContexts,
-      context_requirements: writingContexts.map(
-        ({
-          type,
-          packet_digest,
-          scope,
-          applicability,
-          rules,
-          stop_conditions,
-        }) => ({
-          type,
-          packet_digest,
-          scope,
-          applicability,
-          rules,
-          stop_conditions,
-        }),
-      ),
       blockers: [...new Set(blockers)],
     },
   };
@@ -172,14 +155,7 @@ export function prepareContent(inputs) {
     ? packet.context_binding.required
     : [];
   if (priorContextRequirements.length) {
-    const reviewed = reviewContextUse({
-      evidence_context: {
-        context_requirements: priorContextRequirements,
-        blockers: [],
-      },
-      content_draft: packet,
-    });
-    blockers.push(...reviewed.review_context.blockers);
+    reviewApplicability(priorContextRequirements, object(packet.context_binding).applied ?? [], blockers);
   }
   if (!channel) blockers.push("channel is missing");
   if (
@@ -304,10 +280,7 @@ function admitWritingContext(raw, type, packetDigest, scope, blockers) {
   const bindings = Array.isArray(object(packet.evidence).bindings)
     ? object(packet.evidence).bindings
     : [];
-  const rules = [
-    ...new Set(bindings.map((binding) => text(binding?.rule)).filter(Boolean)),
-  ];
-  if (rules.length === 0) blockers.push(`${type} context has no bounded rules`);
+  if (!bindings.some((binding) => text(binding?.rule))) blockers.push(`${type} context has no bounded rules`);
   const admittedDigest = text(packetDigest);
   if (!isDigest(admittedDigest))
     blockers.push(`${type} native context digest is missing`);
@@ -323,7 +296,6 @@ function admitWritingContext(raw, type, packetDigest, scope, blockers) {
     applicability,
     profile: object(packet[type]),
     evidence_bindings: bindings,
-    rules,
     stop_conditions: strings(packet.stop_conditions),
   };
 }
@@ -482,9 +454,12 @@ export function reviewContextUse({ evidence_context, content_draft, quoted }) {
   const bindings = Array.isArray(object(candidate.context_binding).applied)
     ? candidate.context_binding.applied
     : [];
-  const requirements = Array.isArray(context.context_requirements)
-    ? context.context_requirements
-    : [];
+  // Binding membership is checked after writing. The writer receives the
+  // typed profile, where a dislike and an example retain their meaning.
+  const requirements = (context.writing_contexts ?? []).map(({ type, packet_digest, scope, applicability, evidence_bindings, stop_conditions }) => ({
+    type, packet_digest, scope, applicability, stop_conditions,
+    rules: [...new Set(evidence_bindings.map((binding) => binding.rule))],
+  }));
   const blockers = strings(context.blockers);
   if (candidate.decision !== "ready") {
     blockers.push(...strings(candidate.review_checklist));
@@ -511,21 +486,7 @@ export function reviewContextUse({ evidence_context, content_draft, quoted }) {
         `The draft states ${invented.join(", ")}, which nothing admitted holds: a number comes from the evidence.`,
       );
   }
-  for (const requirement of requirements) {
-    const matching = bindings.filter(
-      (binding) =>
-        text(binding?.packet_digest) === text(requirement?.packet_digest),
-    );
-    const review = object(matching[0]?.scope_review);
-    if (matching.length !== 1 || !text(review.reason))
-      blockers.push(
-        `Review applicability once for the admitted ${text(requirement?.type)} context and record its reason.`,
-      );
-    else if (review.decision !== "applies")
-      blockers.push(
-        `${text(requirement?.type)} context applicability is ${text(review.decision) || "unresolved"}: ${text(review.reason)}`,
-      );
-  }
+  reviewApplicability(requirements, bindings, blockers);
   // A withheld draft reaches verification whole: a writer that withheld
   // wrote no draft, so it's an empty one, and nothing it binds.
   const draft = object(candidate.draft);
@@ -542,6 +503,25 @@ export function reviewContextUse({ evidence_context, content_draft, quoted }) {
           context_binding: { ...object(candidate.context_binding), applied: bindings },
         }
       : candidate,
-    review_context: { ...context, blockers: [...new Set(blockers)] },
+    review_context: { ...context, context_requirements: requirements, blockers: [...new Set(blockers)] },
   };
+}
+
+/** The same applicability review follows a draft into packaging. */
+function reviewApplicability(requirements, bindings, blockers) {
+  for (const requirement of requirements) {
+    const matching = bindings.filter(
+      (binding) =>
+        text(binding?.packet_digest) === text(requirement?.packet_digest),
+    );
+    const review = object(matching[0]?.scope_review);
+    if (matching.length !== 1 || !text(review.reason))
+      blockers.push(
+        `Review applicability once for the admitted ${text(requirement?.type)} context and record its reason.`,
+      );
+    else if (review.decision !== "applies")
+      blockers.push(
+        `${text(requirement?.type)} context applicability is ${text(review.decision) || "unresolved"}: ${text(review.reason)}`,
+      );
+  }
 }

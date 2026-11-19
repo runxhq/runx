@@ -70,10 +70,10 @@ test("admission preserves source applicability and target scope without treating
   assert.equal(ctx.decision, "ready");
   assert.deepEqual(ctx.writing_contexts[0].profile, brand.brand_voice);
   assert.deepEqual(
-    ctx.context_requirements[0].applicability,
+    ctx.writing_contexts[0].applicability,
     brand.applicability,
   );
-  assert.deepEqual(ctx.context_requirements[0].scope, {
+  assert.deepEqual(ctx.writing_contexts[0].scope, {
     audience: "operators",
     channel: "email",
   });
@@ -86,6 +86,31 @@ test("admission preserves source applicability and target scope without treating
     },
   });
   assert.equal(result.reviewed_draft.decision, "ready");
+});
+
+test("writing keeps preferences typed and builds its binding checklist only during verification", () => {
+  const packet = tasteContext({ surfaces: ["email"], audience: "operators" });
+  packet.taste_profile = {
+    principles: ["Be specific."],
+    dislikes: ["Boasting about scale."],
+    examples_to_avoid: ["We reviewed forty pipelines."],
+    examples_to_emulate: ["Could we look at one release?"],
+  };
+  const entries = Object.values(packet.taste_profile).flat();
+  packet.evidence.bindings = entries.map((rule) => ({ rule }));
+  const context = prepare({ taste_context: packet });
+  assert.deepEqual(context.writing_contexts[0].profile, packet.taste_profile);
+  assert.equal(context.writing_contexts[0].rules, undefined, "examples must not become flat instructions");
+  assert.equal(context.context_requirements, undefined, "a verification allowlist is not writing guidance");
+  const checked = reviewContextUse({
+    evidence_context: context,
+    content_draft: {
+      decision: "ready",
+      context_binding: { applied: [{ ...binding(tasteDigest), applied_rules: ["Be specific."] }] },
+    },
+  });
+  assert.equal(checked.reviewed_draft.decision, "ready");
+  assert.deepEqual(checked.review_context.context_requirements[0].rules, entries);
 });
 
 test("an out-of-scope or uncertain writer judgment withholds and preserves the actual reason", () => {
