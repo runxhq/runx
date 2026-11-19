@@ -40,7 +40,6 @@ host:
     draft:
       content_draft:
         decision: ready
-        content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}
         draft:
           title: A review of your public guide
           body: Your public guide explains how receipts bind actions to authority evidence. Would a short review help?
@@ -48,7 +47,6 @@ host:
           - claim: The recipient has a public guide and the sender offers a bounded documentation review.
             source_digests: ['sha256:1111111111111111111111111111111111111111111111111111111111111111']
         review_checklist: [Confirm current contact eligibility before any send.]
-        distribution_notes: {primary_channel: email}
         context_binding: {applied: []}
 expect:
   status: sealed

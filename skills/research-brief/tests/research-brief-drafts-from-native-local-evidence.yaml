@@ -29,10 +29,6 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief:
-          objective: Decide where generic evidence admission belongs.
-          audience: operators
-          channel: brief
         draft:
           title: Keep generic evidence admission native
           body: runx should admit and bind evidence once, while skills supply domain judgment.
@@ -40,7 +36,6 @@ host:
             - claim: Generic evidence admission belongs in the native runtime.
               source_digests: [sha256:684d3c1ea722d675969c1abd8b00d3a91ff22c0088b6b71ab3c1e70382e82e45]
         review_checklist: [Preserve the native ownership boundary.]
-        distribution_notes: {primary_channel: brief}
         context_binding: {applied: []}
 expect:
   status: sealed

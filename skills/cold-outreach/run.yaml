@@ -236,24 +236,13 @@ methods:
       outputs:
         content_draft:
           type: object
+          additionalProperties: false
           properties:
             decision:
-              type: string
-            content_brief:
-              type: object
-              properties:
-                objective:
-                  type: string
-                audience:
-                  type: string
-                channel:
-                  type: string
-              required:
-              - objective
-              - audience
-              - channel
+              enum: [ready, needs_more_evidence]
             draft:
-              type: object
+              type: [object, 'null']
+              description: The supported email, or null when the evidence supports no worthwhile angle.
               properties:
                 title:
                   type: string
@@ -282,11 +271,6 @@ methods:
               type: array
               items:
                 type: string
-            distribution_notes:
-              type: object
-              properties:
-                primary_channel:
-                  type: string
             context_binding:
               type: object
               properties:
@@ -322,17 +306,9 @@ methods:
               - applied
           required:
           - decision
-          if:
-            properties:
-              decision:
-                pattern: ^ready
-          then:
-            required:
-            - content_brief
-            - draft
-            - review_checklist
-            - distribution_notes
-            - context_binding
+          - draft
+          - review_checklist
+          - context_binding
       inputs:
         sender: $steps.admit.contact_brief.sender
         prospect: $steps.admit.contact_brief.prospect

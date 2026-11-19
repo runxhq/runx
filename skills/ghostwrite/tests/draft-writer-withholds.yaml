@@ -20,6 +20,8 @@ host:
     author:
       content_draft:
         decision: needs_more_evidence
+        draft: null
+        context_binding: {applied: []}
         review_checklist: [The evidence holds nothing new to say.]
 expect:
   status: sealed

@@ -42,10 +42,6 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief:
-          objective: Explain the strongest runx architecture signal.
-          audience: advanced software builders
-          channel: public_update
         draft:
           title: Governed action stays visible
           body: runx receipts bind operator actions to authority evidence.
@@ -62,8 +58,6 @@ host:
                 decision: applies
                 reason: This writing task uses the declared channel and audience of the supplied profile; its factual claims remain separately sourced.
         review_checklist: []
-        distribution_notes:
-          primary_channel: public_update
     draft:
       twitter_plan:
         decision: ready

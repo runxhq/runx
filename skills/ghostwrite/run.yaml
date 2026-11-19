@@ -145,24 +145,13 @@ methods:
         outputs:
           content_draft:
             type: object
+            additionalProperties: false
             properties:
               decision:
-                type: string
-              content_brief:
-                type: object
-                properties:
-                  objective:
-                    type: string
-                  audience:
-                    type: string
-                  channel:
-                    type: string
-                required:
-                  - objective
-                  - audience
-                  - channel
+                enum: [ready, needs_more_evidence]
               draft:
-                type: object
+                type: [object, 'null']
+                description: The supported draft, or null when the evidence supports no draft.
                 properties:
                   title:
                     type: string
@@ -227,24 +216,11 @@ methods:
                 type: array
                 items:
                   type: string
-              distribution_notes:
-                type: object
-                properties:
-                  primary_channel:
-                    type: string
             required:
               - decision
-            if:
-              properties:
-                decision:
-                  pattern: ^ready
-            then:
-              required:
-                - content_brief
-                - draft
-                - context_binding
-                - review_checklist
-                - distribution_notes
+              - draft
+              - context_binding
+              - review_checklist
         inputs:
           objective: $input.objective
           audience: $input.audience
@@ -417,20 +393,18 @@ methods:
         inputs:
           artifact_name: content_draft_packet
           required_paths:
-            - content_brief.objective
-            - content_brief.audience
-            - content_brief.channel
             - draft.title
             - draft.body
             - draft.claims
-          required_value_bindings:
-            - candidate_path: content_brief.objective
-              source_path: objective
-            - candidate_path: content_brief.audience
-              source_path: audience
-            - candidate_path: content_brief.channel
-              source_path: channel
           authoritative_bindings:
+            - target_path: content_brief.objective
+              source_path: objective
+            - target_path: content_brief.audience
+              source_path: audience
+            - target_path: content_brief.channel
+              source_path: channel
+            - target_path: distribution_notes.primary_channel
+              source_path: channel
             - target_path: distribution_notes.source_assurance
               source_path: evidence_assurance
             - target_path: evidence_binding.evidence_packet_digest
@@ -473,7 +447,6 @@ methods:
             - target_path: review_checklist
               source_path: blockers
           candidate: $steps.review-context.reviewed_draft
-          identity_source: $input.evidence_context
           authoritative_source: $steps.review-context.review_context
           fallback_source: $steps.review-context.review_context
           source_digests: $input.evidence_context.source_digests

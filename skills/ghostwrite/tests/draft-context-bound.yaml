@@ -141,10 +141,6 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief:
-          objective: Explain the strongest runx architecture signal.
-          audience: operators
-          channel: brief
         draft:
           title: Governed action stays visible
           body: Receipts bind actions to authority evidence.
@@ -167,8 +163,6 @@ host:
                 decision: applies
                 reason: The admitted source profile and this task address the declared operator brief; retain factual evidence separately.
         review_checklist: []
-        distribution_notes:
-          primary_channel: brief
 expect:
   status: sealed
   steps:

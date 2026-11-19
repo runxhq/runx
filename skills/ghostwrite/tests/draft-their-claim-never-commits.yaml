@@ -21,14 +21,12 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief: {objective: Answer Ana's question., audience: operators, channel: email}
         draft:
           title: "Re: the review"
           body: Yes, 50% off stands, and reviews take two weeks.
           claims:
             - {claim: Reviews take two weeks., source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111], content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
         review_checklist: []
-        distribution_notes: {}
         context_binding: {applied: []}
 expect:
   status: sealed

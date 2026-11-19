@@ -32,7 +32,6 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief: {objective: Explain the strongest runx architecture signal., audience: operators, channel: brief}
         draft:
           title: Evidence-bound execution is the architecture
           body: Receipts bind operator actions to explicit authority evidence.
@@ -41,7 +40,6 @@ host:
               source_digests:
                 - sha256:1111111111111111111111111111111111111111111111111111111111111111
         review_checklist: [Confirm the source remains current.]
-        distribution_notes: {primary_channel: brief}
         context_binding: {applied: []}
 expect:
   status: sealed
@@ -51,6 +49,8 @@ expect:
       subset:
         content_draft_packet:
           decision: ready
+          content_brief: {objective: Explain the strongest runx architecture signal., audience: operators, channel: brief}
+          distribution_notes: {primary_channel: brief, source_assurance: validated_research_packet}
           validation: {status: pass}
           evidence_binding:
             source_digests:

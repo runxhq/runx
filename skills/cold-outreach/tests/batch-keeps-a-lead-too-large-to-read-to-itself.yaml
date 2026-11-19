@@ -1250,7 +1250,6 @@ host:
     draft:
       content_draft:
         decision: ready
-        content_brief: {objective: Offer a relevant release-automation review using the supplied fictional fixture facts., audience: engineering maintainers, channel: email}
         draft:
           title: Source-bound build notifications for your release work
           body: 'Morgan, you are evaluating release automation. Our workflow sends build notifications bound to their source. Would a short walkthrough help?
@@ -1261,7 +1260,6 @@ host:
           - claim: The prospect is evaluating release automation, and the product supports source-bound build notifications.
             source_digests: ['sha256:b181b461c20de4db9d9d93be512dfe728eae6ce10521808bc880f2a6a51a8fba']
         review_checklist: [Confirm current contact eligibility before any send.]
-        distribution_notes: {primary_channel: email}
         context_binding: {applied: []}
 expect:
   status: sealed

@@ -56,10 +56,6 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief:
-          objective: Identify the strongest architectural signal in the supplied runx evidence.
-          audience: operators
-          channel: brief
         draft:
           title: Evidence-bound execution is the architecture
           body: runx binds operator actions to authority evidence and packages deterministic operations behind portable skills.
@@ -72,8 +68,6 @@ host:
                 - sha256:c951e0e102215f739709aa280773536f95d4560e1299999af9c2362db6a118dc
         review_checklist:
           - Confirm both source bindings remain present.
-        distribution_notes:
-          primary_channel: brief
         context_binding: {applied: []}
 expect:
   status: sealed

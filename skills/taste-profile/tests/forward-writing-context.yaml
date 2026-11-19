@@ -37,10 +37,6 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief:
-          objective: Explain the strongest runx architecture signal.
-          audience: advanced software builders
-          channel: public product writing
         draft:
           title: The workflow stays visible
           body: Receipts bind actions to authority evidence.
@@ -57,8 +53,6 @@ host:
                 decision: applies
                 reason: This writing task uses the declared channel and audience of the supplied profile; its factual claims remain separately sourced.
         review_checklist: []
-        distribution_notes:
-          primary_channel: public product writing
     draft:
       twitter_plan:
         decision: ready

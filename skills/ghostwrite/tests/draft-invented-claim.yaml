@@ -20,14 +20,12 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief: {objective: Draft a bounded claim., audience: operators, channel: brief}
         draft:
           title: Unsupported expansion
           body: This adds a claim the evidence does not support.
           claims:
             - {claim: Unsupported claim., source_digests: [sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff]}
         review_checklist: []
-        distribution_notes: {}
         context_binding: {applied: []}
 expect:
   status: sealed

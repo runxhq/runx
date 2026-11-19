@@ -129,11 +129,12 @@ repeat what they said. Keep it shorter than the first, and keep the first
 email's subject unchanged.
 
 Return `content_draft` with `decision` set to `ready`, or to
-`needs_more_evidence` when no worthwhile angle is supported. `content_brief`
-repeats the evidence context's `objective`, `audience` and `channel` exactly.
+`needs_more_evidence` with `draft: null` when no worthwhile angle is supported.
+Admission owns the objective, audience and channel; verification attaches them
+to the finished artifact.
 `draft.title` is the subject and `draft.body` the plain-text email, with
 `required_footer` unchanged. `draft.claims` cites admitted source digests
-for every material claim. Add a review checklist and distribution notes, and
+for every material claim. Add a review checklist explaining any hold, and
 list in `context_binding.applied` only packets from
 `evidence_context.writing_contexts`. When that array is empty, return
 `context_binding: {applied: []}`.

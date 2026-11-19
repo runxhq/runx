@@ -126,12 +126,13 @@ steps means the newsletter was approved or sent.
 
 ## Agent task: ghostwrite-draft
 
-Write only from the supplied evidence context. Return the content brief, draft,
-review checklist, distribution notes, and exact context bindings. Copy the brief's
-objective, audience and channel exactly from your inputs; rewording any of them
-withholds the draft. Every material claim must cite admitted source digests. When writing contexts are present,
+Write only from the supplied evidence context. Return the draft, review checklist
+and exact context bindings. Admission owns the objective, audience and channel;
+verification attaches them to the finished artifact. Every material claim must
+cite admitted source digests. When writing contexts are present,
 record each exact packet digest and only rules actually applied. Return
-`needs_more_evidence` when the requested artifact cannot be supported. Do not
+`decision: needs_more_evidence` with `draft: null` when the requested artifact
+cannot be supported, and explain why in `review_checklist`. Do not
 add publication state, provider claims, or facts absent from the evidence.
 Respect each context's applicability, structured profile and stop conditions.
 Profile categories retain their meaning: dislikes and examples to avoid

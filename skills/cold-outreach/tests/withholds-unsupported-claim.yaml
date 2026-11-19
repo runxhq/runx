@@ -40,7 +40,6 @@ host:
     draft:
       content_draft:
         decision: ready
-        content_brief: {objective: Offer a useful documentation review, audience: documentation maintainers, channel: email}
         draft:
           title: A review of your public guide
           body: 'Your guide already converts most of your readers. We can offer a bounded review of it.
@@ -51,7 +50,6 @@ host:
           - claim: The guide converts most readers.
             source_digests: ['sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff']
         review_checklist: []
-        distribution_notes: {primary_channel: email}
         context_binding: {applied: []}
 expect:
   status: sealed

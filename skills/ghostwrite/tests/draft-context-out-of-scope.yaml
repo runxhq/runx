@@ -141,10 +141,6 @@ host:
     author:
       content_draft:
         decision: needs_more_evidence
-        content_brief:
-          objective: Explain the strongest runx architecture signal.
-          audience: buyers
-          channel: email
         draft:
           title: ""
           body: ""
@@ -153,7 +149,6 @@ host:
           applied: []
         review_checklist:
           - The brand voice is scoped to an engineering Reddit discussion; applicability to a buyer email has not been established.
-        distribution_notes: {}
 expect:
   status: sealed
   steps:

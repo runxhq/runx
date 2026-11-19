@@ -21,7 +21,6 @@ host:
     author:
       content_draft:
         decision: ready
-        content_brief: {objective: Ask the venue for a better price., audience: operators, channel: email}
         draft:
           title: "Re: the room"
           body: You quoted A$900 for the room. Our budget is fixed, so can you improve it?
@@ -29,7 +28,6 @@ host:
             - {claim: Mia quoted A$900 for the room., said_by: them, source_digests: [sha256:c6168f78d74ff42385abfa11c6cdb3625b281fc2d5ab7ecc71e0f0edafae1d81]}
             - {claim: Our budget for the room is fixed., source_digests: [sha256:1111111111111111111111111111111111111111111111111111111111111111], content_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
         review_checklist: []
-        distribution_notes: {}
         context_binding: {applied: []}
 expect:
   status: sealed
