@@ -1,0 +1,73 @@
+{
+  "schema": "runx.tool.manifest.v1",
+  "name": "browser.session",
+  "version": "0.1.0",
+  "description": "Call the operation on the browser session bound by Runx.",
+  "process": {
+    "command": "node",
+    "args": [
+      "./client.mjs"
+    ]
+  },
+  "inputs": {
+    "connector_operation": {
+      "type": "string",
+      "optional": true
+    },
+    "phase": {
+      "type": "string",
+      "optional": true
+    },
+    "idempotency_key": {
+      "type": "string",
+      "optional": true
+    },
+    "url": {
+      "type": "string",
+      "optional": true
+    },
+    "snapshot": {
+      "type": "string",
+      "optional": true
+    },
+    "action": {
+      "type": "string",
+      "optional": true
+    },
+    "value": {
+      "type": "string",
+      "optional": true
+    },
+    "destination": {
+      "type": "string",
+      "optional": true
+    },
+    "terms": {
+      "type": "object",
+      "optional": true
+    },
+    "operation": {
+      "type": "string",
+      "optional": true
+    },
+    "session_account": {
+      "type": "string",
+      "optional": true
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "offset": {
+      "type": "integer",
+      "optional": true
+    },
+    "ref": {
+      "type": "string",
+      "optional": true
+    },
+    "proposal": {
+      "type": "string",
+      "optional": true
+    }
+  }
+}

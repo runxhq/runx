@@ -1,18 +1,25 @@
-import { generatedSchema, validateContractSchema } from "../internal.js";
+import { generatedDefinition, generatedSchema, validateContractSchema } from "../internal.js";
 import type {
   TurnCallResultContract,
+  TurnCallViewContract,
   TurnLoadContract,
   TurnReadPageContract,
   TurnStatusContract,
 } from "../generated/contract-types.js";
 
 export const turnCallSchema = generatedSchema<TurnCallResultContract>("turn-call.schema.json");
+export const turnCallViewSchema = generatedDefinition<TurnCallViewContract>("TurnCallView");
 export const turnLoadSchema = generatedSchema<TurnLoadContract>("turn-load.schema.json");
 export const turnStatusSchema = generatedSchema<TurnStatusContract>("turn-status.schema.json");
 export const turnReadSchema = generatedSchema<TurnReadPageContract>("turn-read.schema.json");
 
 export function validateTurnCallContract(value: unknown, label = "turn_call"): TurnCallResultContract {
   return validateContractSchema(turnCallSchema, value, label);
+}
+
+/** The live MCP answer omits custody details kept in the run record. */
+export function validateTurnCallViewContract(value: unknown, label = "turn_call"): TurnCallViewContract {
+  return validateContractSchema(turnCallViewSchema, value, label);
 }
 
 /** A completed load's output, as a host reads it from the load's call to give its model the skill. */

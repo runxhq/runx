@@ -1112,6 +1112,7 @@ pub struct TurnProfiles {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, RunxSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TurnFile {
+    pub sharing: crate::ContextSharing,
     pub path: NonEmptyString,
     pub content: String,
 }
@@ -1119,6 +1120,7 @@ pub struct TurnFile {
 impl From<&crate::ProfileFile> for TurnFile {
     fn from(file: &crate::ProfileFile) -> Self {
         Self {
+            sharing: file.sharing,
             path: file.path.clone(),
             content: file.content.clone(),
         }

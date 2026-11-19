@@ -1,0 +1,102 @@
+schema: runx.connector.v1
+name: browser
+title: Browser
+description: Operate a dedicated Chromium session from rendered page evidence.
+category: productivity
+auth:
+  session:
+    kind: host_browser
+    process: {tool: browser.session}
+parameters:
+  type: object
+  additionalProperties: false
+  required: [profile]
+  properties:
+    profile: {type: string, pattern: '^[a-z0-9][a-z0-9_-]{0,47}$'}
+placements:
+  local:
+    auth: [session]
+operations:
+  page.open:
+    description: Open a URL in the bound origins and read the rendered page and its control references.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes: [browser.read]
+    target: {template: {$argument: /url}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url: {type: string, format: uri, maxLength: 2048}
+    result_fields: [url, snapshot, page, next_offset]
+    implementation: {process: {tool: browser.session}}
+  page.read:
+    description: Observe the current rendered page. Pass next_offset and snapshot to read another part.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes: [browser.read]
+    target: {template: "browser://session"}
+    input_schema:
+      type: object
+      additionalProperties: false
+      properties:
+        offset: {type: integer, minimum: 0}
+        snapshot: {type: string, pattern: '^[0-9a-f]{64}$'}
+    result_fields: [url, snapshot, page, next_offset]
+    implementation: {process: {tool: browser.session}}
+  page.act:
+    description: Use the current page URL, snapshot and control reference from the same observation. Follow opens a rendered link from that page. Click, fill, select and scroll explore without submission authority.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes: [browser.read]
+    target: {template: {$argument: /url}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [url, snapshot, ref, action]
+      properties:
+        url: {type: string, format: uri, maxLength: 2048}
+        snapshot: {type: string, pattern: '^[0-9a-f]{64}$'}
+        ref: {type: string, pattern: '^(f[0-9]{1,8})?e[0-9]{1,8}$'}
+        action: {enum: [follow, click, fill, select, scroll]}
+        value: {type: string, maxLength: 2048}
+    result_fields: [url, snapshot, page, next_offset]
+    implementation: {process: {tool: browser.session}}
+  page.prepare:
+    description: Read the exact destination and values of a rendered HTML submit control so Runx can approve them.
+    verb: read
+    cost: {usd_micro: 0, per: request, source: observed}
+    scopes: [browser.read]
+    target: {template: {$argument: /url}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [url, snapshot, ref]
+      properties:
+        url: {type: string, format: uri, maxLength: 2048}
+        snapshot: {type: string, pattern: '^[0-9a-f]{64}$'}
+        ref: {type: string, pattern: '^(f[0-9]{1,8})?e[0-9]{1,8}$'}
+    result_fields: [url, snapshot, ref, destination, terms, proposal]
+    implementation: {process: {tool: browser.session}}
+  page.release:
+    description: Perform exactly one approved form submission. The HTTP acknowledgement alone does not verify the site outcome. Read its confirmation separately.
+    verb: write
+    cost: {usd_micro: 0, per: request, source: observed}
+    approval: required
+    guarantees: {readback: unavailable}
+    scopes: [browser.release]
+    target: {template: {$argument: /destination}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [url, snapshot, ref, destination, terms, proposal]
+      properties:
+        url: {type: string, format: uri, maxLength: 2048}
+        snapshot: {type: string, pattern: '^[0-9a-f]{64}$'}
+        ref: {type: string, pattern: '^(f[0-9]{1,8})?e[0-9]{1,8}$'}
+        destination: {type: string, format: uri, maxLength: 2048}
+        terms: {type: object, minProperties: 1, maxProperties: 24, additionalProperties: {type: string, maxLength: 2048}}
+        proposal: {type: string, pattern: '^[0-9a-f]{64}$'}
+    result_fields: [destination, terms, response_status, confirmation_url]
+    implementation: {process: {tool: browser.session}}

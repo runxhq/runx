@@ -11282,9 +11282,13 @@ export const runxSchemaArtifacts = {
           "path": {
             "minLength": 1,
             "type": "string"
+          },
+          "sharing": {
+            "$ref": "https://schemas.runx.ai/runx/definitions/v1.json#/$defs/ContextSharing"
           }
         },
         "required": [
+          "sharing",
           "path",
           "content"
         ],

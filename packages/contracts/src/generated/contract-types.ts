@@ -3868,6 +3868,7 @@ export type TurnContextLineContract = {
 export type TurnFileContract = {
   readonly content: string;
   readonly path: string;
+  readonly sharing: ContextSharingContract;
 };
 
 /** The host that answered a turn, as its answer records it. One run's turns can each be answered by a different host over its life, so the host is recorded per answer, never per run. */
