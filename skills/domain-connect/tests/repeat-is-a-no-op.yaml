@@ -1,0 +1,122 @@
+{
+  "name": "repeat-is-a-no-op",
+  "inputs": {
+    "name": "_verification.example.com",
+    "type": "TXT",
+    "content": "proof=5kPq9e",
+    "ttl": 300,
+    "zone_id": "0123456789abcdef0123456789abcdef",
+    "idempotency_key": "fixture:domain:1"
+  },
+  "setup": {
+    "credentials": [
+      "cloudflare/dns"
+    ]
+  },
+  "env": {
+    "CLOUDFLARE_DNS_TOKEN": "fake-cloudflare-token"
+  },
+  "host": {
+    "approvals": {
+      "create": true
+    }
+  },
+  "providers": {
+    "http": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.cloudflare.com/client/v4/zones/0123456789abcdef0123456789abcdef",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"success\": true, \"result\": {\"id\": \"0123456789abcdef0123456789abcdef\", \"name\": \"example.com\", \"status\": \"active\", \"account\": {\"id\": \"fixture-account\"}, \"name_servers\": [\"one.ns.cloudflare.com\", \"two.ns.cloudflare.com\"]}}"
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://dns.google/resolve?edns_client_subnet=0.0.0.0%2F0&name=example.com&type=NS",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"Status\": 0, \"TC\": false, \"Question\": [{\"name\": \"example.com.\", \"type\": 2}], \"Answer\": [{\"name\": \"example.com.\", \"type\": 2, \"TTL\": 300, \"data\": \"one.ns.cloudflare.com.\"}, {\"name\": \"example.com.\", \"type\": 2, \"TTL\": 300, \"data\": \"two.ns.cloudflare.com.\"}]}"
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://dns.google/resolve?edns_client_subnet=0.0.0.0%2F0&name=_verification.example.com&type=NS",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"Status\": 3, \"TC\": false, \"Question\": [{\"name\": \"_verification.example.com.\", \"type\": 2}], \"Answer\": []}"
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://api.cloudflare.com/client/v4/zones/0123456789abcdef0123456789abcdef/dns_records?name.exact=_verification.example.com&per_page=100",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"success\": true, \"result\": [{\"id\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"name\": \"_verification.example.com\", \"type\": \"TXT\", \"ttl\": 300, \"content\": \"\\\"proof=5kPq9e\\\"\", \"proxied\": false}], \"result_info\": {\"total_count\": 1}}"
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://dns.google/resolve?edns_client_subnet=0.0.0.0%2F0&name=_verification.example.com&type=TXT",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"Status\": 0, \"TC\": false, \"Question\": [{\"name\": \"_verification.example.com.\", \"type\": 16}], \"Answer\": [{\"name\": \"_verification.example.com.\", \"type\": 16, \"TTL\": 300, \"data\": \"proof=5kPq9e\"}]}"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "status": "sealed",
+    "http_request_counts": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "step_outputs": {
+      "verify": {
+        "subset": {
+          "status": "dns_visible",
+          "dns_provider_status": "unchanged",
+          "service_status": "verification_required"
+        }
+      }
+    },
+    "receipt": {
+      "schema": "runx.receipt.v1",
+      "state": "sealed",
+      "outcome": "completed"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+schema: runx.connector.v1
+name: public-dns
+title: Public DNS
+description: Observe an exact public DNS name through a recursive resolver, without credentials.
+category: cloud-infrastructure
+auth:
+  none: {}
+placements:
+  local: {auth: [none]}
+operations:
+  record.lookup:
+    description: Read TXT, CNAME, or NS answers for one public name from Google Public DNS.
+    verb: read
+    scopes: [dns.lookup]
+    target: {template: {$concat: ['dns://', {$argument: /name}]}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [name, type]
+      properties:
+        name: {type: string, maxLength: 253, pattern: '^[a-z0-9_](?:[a-z0-9_-]{0,62})(?:\.[a-z0-9_][a-z0-9_-]{0,62})+$'}
+        type: {enum: [TXT, CNAME, NS]}
+    result_fields: [response]
+    implementation:
+      http:
+        allowed_hosts: [dns.google]
+        requests:
+          - http_method: GET
+            url: https://dns.google/resolve
+            query:
+              name: {$argument: /name}
+              type: {$argument: /type}
+              edns_client_subnet: 0.0.0.0/0
+            headers: {accept: application/dns-json}

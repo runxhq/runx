@@ -1,0 +1,124 @@
+version: "0.1.0"
+minimum_runx: 0.12.0
+default_method: connect
+connectors:
+  cloudflare/dns: {manifest_digest: 'sha256:9aabd99cc98ff11420a1cfa83939f8609315770b0573ce67556c86daaa82ab90'}
+  public-dns: {manifest_digest: 'sha256:982385fa7e10ea9b1114acced2539179983618c161aa334176fa0ad2c4b5cc1b'}
+catalog:
+  visibility: public
+  category: ops
+shared_inputs:
+  name:
+    type: string
+    description: Canonical record FQDN, without trailing dot. Use punycode for international names.
+    maxLength: 253
+    pattern: '^[a-z0-9_](?:[a-z0-9_-]{0,62})(?:\.[a-z0-9_][a-z0-9_-]{0,62})+$'
+  type: {enum: [TXT, CNAME], description: Exact record type the destination requires.}
+  content: {type: string, minLength: 1, maxLength: 120, pattern: '^[ -~]+$', description: Unquoted TXT challenge or target CNAME hostname.}
+  ttl: {type: integer, minimum: 60, maximum: 86400, description: Requested record TTL in seconds.}
+methods:
+  connect:
+    description: Add one exact record to an empty name under an active Cloudflare zone, after review, then look it up in public DNS.
+    inputs:
+      name: {}
+      type: {}
+      content: {}
+      ttl: {}
+      zone_id: {type: string, pattern: '^[0-9a-f]{32}$', description: ID of the operator's selected Cloudflare zone.}
+      idempotency_key: {type: string, minLength: 1, maxLength: 128, description: Stable key for this exact record and zone. Reuse it while resolving an uncertain attempt.}
+    result_from: [create, verify]
+    examples:
+      - zone_id: '0123456789abcdef0123456789abcdef'
+        idempotency_key: project-site:domain-proof:1
+        name: _verification.example.com
+        type: TXT
+        content: proof=5kPq9e
+        ttl: 300
+    steps:
+      - id: prepare
+        tool: {module: domain.mjs, export: prepare}
+        inputs: {name: $input.name, type: $input.type, content: $input.content, ttl: $input.ttl}
+        outputs: {record: {type: object}}
+      - id: zone
+        operation: cloudflare/dns/zone.read
+        inputs: {zone_id: $input.zone_id}
+        result:
+          required: [success, zone_id, zone, status, account_id, nameservers]
+          equals: {success: true, zone_id: $input.zone_id, status: active}
+      - id: zone-ns
+        operation: public-dns/record.lookup
+        inputs: {name: $steps.zone.provider_operation.result.zone, type: NS}
+      - id: child-ns
+        operation: public-dns/record.lookup
+        inputs: {name: $input.name, type: NS}
+      - id: match-zone
+        tool: {module: domain.mjs, export: checkZone}
+        inputs:
+          zone_id: $input.zone_id
+          record: $steps.prepare.record
+          zone: $steps.zone.provider_operation.result
+          delegation: $steps.zone-ns.provider_operation.result.response
+          child: $steps.child-ns.provider_operation.result.response
+        outputs: {zone_name: {type: string}}
+      - id: current
+        operation: cloudflare/dns/records.inspect
+        inputs: {zone_id: $input.zone_id, name: $input.name}
+      - id: decide
+        tool: {module: domain.mjs, export: decide}
+        inputs: {current: $steps.current.provider_operation.result, record: $steps.prepare.record}
+        outputs: {decision: {enum: [create, unchanged, conflict]}}
+      - id: create
+        when: {value: $steps.decide.decision, equals: create}
+        operation: cloudflare/dns/record.create
+        inputs:
+          zone_id: $input.zone_id
+          name: $steps.prepare.record.name
+          type: $steps.prepare.record.type
+          content: $steps.prepare.record.content
+          ttl: $steps.prepare.record.ttl
+        idempotency_key: $input.idempotency_key
+        approval: {type: domain_dns_change, reason: Add this exact DNS record in the selected Cloudflare zone.}
+        result: {required: [id]}
+      - id: public-dns
+        operation: public-dns/record.lookup
+        inputs: {name: $input.name, type: $input.type}
+      - id: verify
+        tool: {module: domain.mjs, export: verify}
+        inputs:
+          record: $steps.prepare.record
+          response: $steps.public-dns.provider_operation.result.response
+          decision: $steps.decide.decision
+        outputs:
+          status: {enum: [dns_visible, pending_dns, manual_required]}
+          dns_provider_status: {enum: [readback_verified, unchanged, conflict]}
+          record: {type: object}
+          service_status: {const: verification_required}
+  verify:
+    description: Recheck public visibility for one exact DNS record. Use the destination service's own verifier afterward.
+    inputs:
+      name: {}
+      type: {}
+      content: {}
+      ttl: {}
+    result_from: [verify]
+    examples:
+      - name: _verification.example.com
+        type: TXT
+        content: proof=5kPq9e
+        ttl: 300
+    steps:
+      - id: prepare
+        tool: {module: domain.mjs, export: prepare}
+        inputs: {name: $input.name, type: $input.type, content: $input.content, ttl: $input.ttl}
+        outputs: {record: {type: object}}
+      - id: public-dns
+        operation: public-dns/record.lookup
+        inputs: {name: $input.name, type: $input.type}
+      - id: verify
+        tool: {module: domain.mjs, export: verify}
+        inputs: {record: $steps.prepare.record, response: $steps.public-dns.provider_operation.result.response}
+        outputs:
+          status: {enum: [dns_visible, pending_dns]}
+          dns_provider_status: {const: unchecked}
+          record: {type: object}
+          service_status: {const: verification_required}

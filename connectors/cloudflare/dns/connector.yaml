@@ -1,0 +1,133 @@
+schema: runx.connector.v1
+name: cloudflare/dns
+title: Cloudflare DNS
+description: Read one Cloudflare zone and add exact TXT or DNS-only CNAME records to empty names.
+category: cloud-infrastructure
+auth:
+  delegated:
+    principal: {url: 'https://api.cloudflare.com/client/v4/user', id: result.id, login: result.id}
+  credentials:
+    token:
+      kind: api_key
+      fields:
+        - {name: token, label: Cloudflare API token for this DNS zone}
+      delivery: {env: CLOUDFLARE_DNS_TOKEN}
+      audience: [api.cloudflare.com]
+placements:
+  local: {auth: [credentials]}
+  hosted: {auth: delegated, callers: runtime}
+operations:
+  zone.read:
+    description: Read the exact Cloudflare zone, its account, and its assigned nameservers.
+    verb: read
+    scopes: [dns.zone.read]
+    credentials: [token]
+    provider_scopes: [offline_access, user-details.read, zone.read]
+    target: {template: {$concat: ['cloudflare://zones/', {$argument: /zone_id}]}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [zone_id]
+      properties:
+        zone_id: {type: string, pattern: '^[0-9a-f]{32}$'}
+    result_fields: [success, zone_id, zone, status, account_id, nameservers]
+    implementation:
+      http:
+        allowed_hosts: [api.cloudflare.com]
+        auth: {token: {type: bearer, field: token}}
+        requests:
+          - http_method: GET
+            url: {$concat: ['https://api.cloudflare.com/client/v4/zones/', {$argument: /zone_id}]}
+        result_paths:
+          success: acknowledgement.success
+          zone_id: acknowledgement.result.id
+          zone: acknowledgement.result.name
+          status: acknowledgement.result.status
+          account_id: acknowledgement.result.account.id
+          nameservers: acknowledgement.result.name_servers
+  records.inspect:
+    description: Read records at one exact DNS name in the selected zone.
+    verb: read
+    scopes: [dns.records.read]
+    credentials: [token]
+    provider_scopes: [offline_access, user-details.read, dns.read]
+    target: {template: {$concat: ['cloudflare://zones/', {$argument: /zone_id}]}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [zone_id, name]
+      properties:
+        zone_id: {type: string, pattern: '^[0-9a-f]{32}$'}
+        name: {type: string, maxLength: 253, pattern: '^[a-z0-9_](?:[a-z0-9_-]{0,62})(?:\.[a-z0-9_][a-z0-9_-]{0,62})+$'}
+    result_fields: [success, records, total]
+    implementation:
+      http:
+        allowed_hosts: [api.cloudflare.com]
+        auth: {token: {type: bearer, field: token}}
+        requests:
+          - http_method: GET
+            url: {$concat: ['https://api.cloudflare.com/client/v4/zones/', {$argument: /zone_id}, '/dns_records']}
+            query: {'name.exact': {$argument: /name}, per_page: 100}
+        result_paths: {success: acknowledgement.success, records: acknowledgement.result, total: acknowledgement.result_info.total_count}
+  record.create:
+    description: Add one approved record to an empty name in the selected zone and independently read it back.
+    verb: write
+    approval: required
+    scopes: [dns.records.create]
+    credentials: [token]
+    provider_scopes: [offline_access, user-details.read, dns.read, dns.write]
+    target: {template: {$concat: ['cloudflare://zones/', {$argument: /zone_id}]}}
+    input_schema:
+      type: object
+      additionalProperties: false
+      required: [zone_id, name, type, content, ttl]
+      properties:
+        zone_id: {type: string, pattern: '^[0-9a-f]{32}$'}
+        name: {type: string, maxLength: 253, pattern: '^[a-z0-9_](?:[a-z0-9_-]{0,62})(?:\.[a-z0-9_][a-z0-9_-]{0,62})+$'}
+        type: {enum: [TXT, CNAME]}
+        content: {type: string, minLength: 1, maxLength: 255, pattern: '^[ -~]+$'}
+        ttl: {type: integer, minimum: 60, maximum: 86400}
+    result_fields: [id]
+    implementation:
+      http:
+        allowed_hosts: [api.cloudflare.com]
+        auth: {token: {type: bearer, field: token}}
+        requests:
+          - http_method: POST
+            url: {$concat: ['https://api.cloudflare.com/client/v4/zones/', {$argument: /zone_id}, '/dns_records']}
+            body:
+              name: {$argument: /name}
+              type: {$argument: /type}
+              content: {$argument: /content}
+              ttl: {$argument: /ttl}
+              proxied: false
+        decode:
+          - {op: auto_json}
+          - op: project
+            fields: {success: success, id: result.id}
+        operation_id_path: id
+        result_paths: {id: acknowledgement.id}
+        preconditions:
+          - request:
+              id: current
+              http_method: GET
+              url: {$concat: ['https://api.cloudflare.com/client/v4/zones/', {$argument: /zone_id}, '/dns_records']}
+              query: {'name.exact': {$argument: /name}, per_page: 1}
+            decode: [{op: auto_json}]
+            matches:
+              - {expected: {source: literal, value: true}, observed: success}
+              - {expected: {source: literal, value: []}, observed: result}
+        readbacks:
+          - request:
+              id: created_record
+              http_method: GET
+              url: {$concat: ['https://api.cloudflare.com/client/v4/zones/', {$argument: /zone_id}, '/dns_records/', {$response: write.json.id}]}
+            decode: [{op: auto_json}]
+            matches:
+              - {expected: {source: literal, value: true}, observed: success}
+              - {expected: {source: acknowledgement, path: id}, observed: result.id}
+              - {expected: {source: argument, path: name}, observed: result.name}
+              - {expected: {source: argument, path: type}, observed: result.type}
+              - {expected: {source: argument, path: content}, observed: result.content}
+              - {expected: {source: argument, path: ttl}, observed: result.ttl}
+              - {expected: {source: literal, value: false}, observed: result.proxied}
