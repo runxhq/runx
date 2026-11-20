@@ -1,0 +1,43 @@
+{
+  "name": "observes-public-txt-format",
+  "method": "verify",
+  "inputs": {
+    "name": "example.com",
+    "type": "TXT",
+    "content": "v=spf1 -all",
+    "ttl": 300
+  },
+  "providers": {
+    "http": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "https://dns.google/resolve?edns_client_subnet=0.0.0.0%2F0&name=example.com&type=TXT",
+          "body": "none"
+        },
+        "response": {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"Status\": 0, \"TC\": false, \"Question\": [{\"name\": \"example.com.\", \"type\": 16}], \"Answer\": [{\"name\": \"example.com.\", \"type\": 16, \"TTL\": 300, \"data\": \"v=spf1 -all\"}]}"
+        }
+      }
+    ]
+  },
+  "expect": {
+    "status": "sealed",
+    "http_request_counts": [
+      1
+    ],
+    "step_outputs": {
+      "verify": {
+        "subset": {
+          "status": "dns_visible",
+          "dns_provider_status": "unchecked",
+          "service_status": "verification_required"
+        }
+      }
+    }
+  }
+}

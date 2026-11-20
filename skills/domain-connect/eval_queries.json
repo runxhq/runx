@@ -1,0 +1,6 @@
+[
+  {"query":"Publish the TXT challenge for my new custom domain in our Cloudflare zone", "should_trigger":true},
+  {"query":"Connect my service's hostname with the supplied DNS-only CNAME and check public DNS", "should_trigger":true},
+  {"query":"Inspect a page's Search Console indexing status", "should_trigger":false},
+  {"query":"Fetch and extract this service's domain setup guide", "should_trigger":false}
+]
