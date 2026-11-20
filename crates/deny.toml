@@ -15,7 +15,11 @@ yanked = "deny"
 # compile-time proc macro. RUSTSEC-2024-0436 reports maintenance status, not a
 # runtime vulnerability; replacing it locally would mean carrying a Boa fork or
 # an impostor `paste` shim. Remove this exception when Boa removes that edge.
-ignore = ["RUSTSEC-2024-0436"]
+ignore = [
+  "RUSTSEC-2024-0436",
+  # Review by 2026-12-18. Remove once the MCP SDK no longer requires chrono.
+  { id = "RUSTSEC-2026-0543", reason = "Unmaintained notice for chrono, still required transitively by the MCP SDK." },
+]
 
 [bans]
 multiple-versions = "allow"
