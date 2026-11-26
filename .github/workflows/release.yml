@@ -2,7 +2,7 @@ name: release
 
 # Tag-driven releases for the runx CLI and independent TypeScript packages.
 # All npm jobs use this single, already validated trusted-publisher identity.
-# contracts-v/client-v tags skip every native/runtime release job.
+# contracts-v/client-v/browser-v tags skip every native/runtime release job.
 #
 # A reviewed CLI version is committed to the candidate manifests before the
 # cli-vX.Y.Z tag is created. The tag workflow checks those committed versions
@@ -28,6 +28,7 @@ on:
       - "cli-v*"
       - "contracts-v*.*.*"
       - "client-v*.*.*"
+      - "browser-v*.*.*"
   workflow_dispatch:
     inputs:
       version:
@@ -503,7 +504,7 @@ jobs:
             dist/archives/*
 
   publish-typescript:
-    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/contracts-v') || startsWith(github.ref, 'refs/tags/client-v'))
+    if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/contracts-v') || startsWith(github.ref, 'refs/tags/client-v') || startsWith(github.ref, 'refs/tags/browser-v'))
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -521,6 +522,7 @@ jobs:
             echo "::error::$GITHUB_REF_NAME names $version, but packages/$package is $declared"
             exit 1
           fi
+          echo "package=$package" >> "$GITHUB_OUTPUT"
           echo "tarball=runxhq-$package-$version.tgz" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v6
         with:
@@ -533,8 +535,8 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Pack TypeScript packages
-        run: bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages"
+      - name: Pack the tagged package
+        run: bash scripts/pack-typescript-packages.sh "$RUNNER_TEMP/typescript-packages" "${{ steps.package.outputs.package }}"
       - name: Publish the tagged package
         env:
           NPM_CONFIG_PROVENANCE: "true"

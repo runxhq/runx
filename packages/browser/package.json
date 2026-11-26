@@ -1,0 +1,33 @@
+{
+  "name": "@runxhq/browser",
+  "version": "0.1.0",
+  "description": "A task-scoped Chromium session for the runx browser connector",
+  "homepage": "https://runx.ai",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/runxhq/runx.git",
+    "directory": "packages/browser"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "runx-browser": "./src/host.mjs"
+  },
+  "exports": "./src/session.mjs",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
